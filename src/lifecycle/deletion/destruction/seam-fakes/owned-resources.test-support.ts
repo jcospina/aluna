@@ -12,6 +12,7 @@
 // `cleanup_enqueued`, which deletion must absorb or the store's queue outlives the capability.
 
 import type { Database } from "bun:sqlite";
+import { sqlIdentifier } from "../../../../platform/persistence/sql-identifier.ts";
 import {
   type CapabilityDeletionTombstone,
   type CapabilityRow,
@@ -78,10 +79,6 @@ function tablePresent(database: Database, name: string): boolean {
     database.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) !==
     null
   );
-}
-
-function quoteSqlIdentifier(identifier: string): string {
-  return `"${identifier.replaceAll('"', '""')}"`;
 }
 
 /**
@@ -224,7 +221,7 @@ export class FakeOwnedResourceStore {
     }
     if (reference.state !== "committed") return;
     const owner = database
-      .query(`SELECT 1 FROM ${quoteSqlIdentifier(tableName)} WHERE id = ?`)
+      .query(`SELECT 1 FROM ${sqlIdentifier(tableName)} WHERE id = ?`)
       .get(reference.recordId ?? "");
     if (owner === null) {
       throw new Error(

@@ -1,6 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { deliverActivatedPresentation } from "../../../pipeline/streaming/terminal-presentation.ts";
 import {
@@ -9,55 +8,50 @@ import {
   getGenerationLifecycle,
   startGenerationLifecycle,
 } from "../../../platform/metrics/index.ts";
-import { openDatabase, type PlatformDatabase } from "../../../platform/persistence/db.ts";
-import { runMigrations } from "../../../platform/persistence/migrations.ts";
+import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import {
+  createScratchDbEnv,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../../../platform/persistence/scratch-db.test-support.ts";
+import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+} from "../../../registry/incarnations.test-support.ts";
 import { getCapability } from "../../../registry/index.ts";
 import { createMutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
 import { applyCapabilityTableDdl } from "../../../runtime/data/index.ts";
 import { createApp } from "../../../server/app.ts";
 import { renderCachedCapabilityCommitSwap } from "../../../server/http/index.ts";
-import { gateInput, generatedUnitsFor, notesSpec } from "../../gate/gate.test-support.ts";
-import { type CapabilityGateResult, runCapabilityGate } from "../../gate/gate.ts";
+import { generatedUnitsFor, notesFixtureGate, notesSpec } from "../../gate/gate.test-support.ts";
+import type { CapabilityGateResult } from "../../gate/gate.ts";
 import { activatePublishedSnapshot, expectedActiveCapability } from "./activation.ts";
 import { publishCapabilitySnapshot } from "./artifact-lifecycle.ts";
 
-const INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
-const OTHER_INCARNATION_ID = "22222222-2222-4222-8222-222222222222";
+const INCARNATION_ID = FIRST_INCARNATION_ID;
+const OTHER_INCARNATION_ID = SECOND_INCARNATION_ID;
 
 let gate: CapabilityGateResult;
 
 beforeAll(async () => {
-  const units = [...generatedUnitsFor(notesSpec())];
-  gate = await runCapabilityGate(
-    gateInput({
-      spec: notesSpec(),
-      handlers: Object.fromEntries(
-        units.filter((unit) => unit.kind === "handler").map((unit) => [unit.name, unit.content]),
-      ),
-      itemRenderer: units.find((unit) => unit.kind === "item-renderer")?.content,
-      behavioralTier: { enabled: false },
-    }),
-  );
+  gate = await notesFixtureGate({ enabled: false });
 });
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: the seam matrix shares one isolated database fixture.
 describe("activatePublishedSnapshot — point of no return", () => {
-  let dir: string;
+  let env: ScratchDbEnv;
   let artifactsRoot: string;
   let conns: PlatformDatabase;
 
   beforeEach(async () => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-activation-"));
-    artifactsRoot = join(dir, "capabilities");
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
+    env = createScratchDbEnv("omni-crud-activation-");
+    conns = env.conns;
+    artifactsRoot = join(env.dir, "capabilities");
     await activateV1(conns, artifactsRoot);
   });
 
   afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
+    teardownScratchDbEnv(env);
   });
 
   for (const seam of [

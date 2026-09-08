@@ -6,17 +6,25 @@
 // table stays lean (exactly the ten spec'd columns, ARCH §6.3).
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 
-import { openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
-import { runMigrations } from "../../platform/persistence/migrations.ts";
+import type { PlatformDatabase } from "../../platform/persistence/db.ts";
+import {
+  createScratchDbEnv,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../../platform/persistence/scratch-db.test-support.ts";
+import {
+  FIRST_INCARNATION_ID,
+  FOURTH_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+  THIRD_INCARNATION_ID,
+} from "../incarnations.test-support.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilityRow,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../spec/spec.ts";
+import { FULL_CAPABILITY_TOOLS } from "../tools.ts";
 import {
   getCapability,
   insertCapability,
@@ -26,7 +34,7 @@ import {
   resolveActionReadDependencies,
 } from "./store.ts";
 
-const NOTES_INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
+const NOTES_INCARNATION_ID = FIRST_INCARNATION_ID;
 
 // A complete, valid registry row — the M2 demo's notes capability. Fresh per
 // call so tests can tweak copies without sharing state.
@@ -68,7 +76,7 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
     ],
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     artifacts_path: `capabilities/notes/${NOTES_INCARNATION_ID}/v1/`,
     seed: 184206,
@@ -81,19 +89,16 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: the shared database lifecycle keeps store regressions in one suite.
 describe("capability registry store", () => {
-  let dir: string;
+  let env: ScratchDbEnv;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-registry-"));
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
+    env = createScratchDbEnv("omni-crud-registry-");
+    conns = env.conns;
   });
 
   afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
+    teardownScratchDbEnv(env);
   });
 
   test("a valid row round-trips deep-equal, version and artifacts_path intact", () => {
@@ -122,8 +127,8 @@ describe("capability registry store", () => {
       ground: "grass_green",
       companion: "coral_orange",
       noun: "note",
-      incarnation_id: "22222222-2222-4222-8222-222222222222",
-      artifacts_path: "capabilities/recipes/22222222-2222-4222-8222-222222222222/v1/",
+      incarnation_id: SECOND_INCARNATION_ID,
+      artifacts_path: `capabilities/recipes/${SECOND_INCARNATION_ID}/v1/`,
       seed: 184206,
       logo: { status: "absent", attempts: 0 },
       prompt_context: "Stores the user's recipes.",
@@ -184,11 +189,11 @@ describe("capability registry store", () => {
       ground: "grass_green",
       companion: "coral_orange",
       noun: "note",
-      incarnation_id: "22222222-2222-4222-8222-222222222222",
-      artifacts_path: "capabilities/reading_list/22222222-2222-4222-8222-222222222222/v1/",
+      incarnation_id: SECOND_INCARNATION_ID,
+      artifacts_path: `capabilities/reading_list/${SECOND_INCARNATION_ID}/v1/`,
       seed: 184206,
       logo: { status: "absent", attempts: 0 },
-      tools: ["create", "read", "update", "delete", "search"],
+      tools: [...FULL_CAPABILITY_TOOLS],
       behavioral_errors: [requiredError, { ...requiredError, action: "update" }],
       read_dependencies: {
         create: [],
@@ -206,18 +211,18 @@ describe("capability registry store", () => {
       insertCapability(
         notesRow({
           id: "broken_reader",
-          incarnation_id: "33333333-3333-4333-8333-333333333333",
-          artifacts_path: "capabilities/broken_reader/33333333-3333-4333-8333-333333333333/v1/",
+          incarnation_id: THIRD_INCARNATION_ID,
+          artifacts_path: `capabilities/broken_reader/${THIRD_INCARNATION_ID}/v1/`,
           seed: 184206,
           logo: { status: "absent", attempts: 0 },
-          tools: ["create", "read", "update", "delete", "search"],
+          tools: [...FULL_CAPABILITY_TOOLS],
           behavioral_errors: [requiredError, { ...requiredError, action: "update" }],
           read_dependencies: {
             create: [],
             read: [
               {
                 capability_id: "missing",
-                incarnation_id: "44444444-4444-4444-8444-444444444444",
+                incarnation_id: FOURTH_INCARNATION_ID,
               },
             ],
             update: [],

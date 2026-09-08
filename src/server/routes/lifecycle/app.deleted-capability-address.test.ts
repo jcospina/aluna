@@ -11,36 +11,18 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
-import type { CapabilityRow } from "../../../registry/index.ts";
 import { createReadGateCoordinator } from "../../../runtime/concurrency/read-gates.ts";
 import type { CapabilityContext, CapabilityHandler } from "../../../runtime/router/contract.ts";
 import {
   formBody,
   install,
-  notesRow,
   setupRouterTest,
   teardownRouterTest,
 } from "../../../runtime/router/dispatch/router.test-support.ts";
 import type { HandlerLoader } from "../../../runtime/router/dispatch/router.ts";
 import { createApp } from "../../app.ts";
 import { NOT_FOUND_NOTICE } from "../../http/index.ts";
-
-function deletionTarget(dir: string): CapabilityRow {
-  const target = notesRow();
-  return {
-    ...target,
-    artifacts_path: join(dir, "artifacts", target.id, target.incarnation_id, "v1"),
-    seed: 184206,
-    logo: { status: "absent", attempts: 0 },
-  };
-}
-
-function confirmation(incarnationId: string): RequestInit {
-  return {
-    method: "POST",
-    body: new URLSearchParams({ incarnation_id: incarnationId, restore_surface: "neutral" }),
-  };
-}
+import { confirmationRequest as confirmation, deletionTarget } from "./deletion.test-support.ts";
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
   let resolve!: () => void;

@@ -1,6 +1,7 @@
 import type { Dirent } from "node:fs";
 import { readdirSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
+import { isPathContained } from "../../../platform/path-containment.ts";
 
 import { SnapshotVerificationError } from "./snapshot-error.ts";
 
@@ -32,9 +33,8 @@ function collectSnapshotEntry(root: string, current: string, entry: Dirent, file
 }
 
 export function assertContained(root: string, path: string): void {
-  const resolvedRoot = resolve(root);
-  const resolvedPath = resolve(path);
-  if (resolvedPath !== resolvedRoot && !resolvedPath.startsWith(`${resolvedRoot}${sep}`)) {
+  // A snapshot may name its own root, so containment here admits it.
+  if (!isPathContained(resolve(root), resolve(path), { allowRoot: true })) {
     throw new SnapshotVerificationError("Capability snapshot path escaped its configured root.");
   }
 }

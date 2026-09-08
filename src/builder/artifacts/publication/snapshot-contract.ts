@@ -8,9 +8,10 @@
 // describe work that actually happened — are the snapshot's contract rather than steps in
 // assembling one, and reading them together is the only way to see that contract whole.
 
+import { sameOrderedStrings } from "../../../registry/index.ts";
 import type { CapabilityGateResult } from "../../gate/gate.ts";
+import { GATE_RUNG_ORDER } from "../../gate/gate-rungs.ts";
 import type { GeneratedUnit } from "../../units/generation/units.ts";
-import { sameOrderedStrings } from "../inventory/artifact-digests.ts";
 import { DERIVED_UNIT_FILES } from "../inventory/artifact-provenance.ts";
 import { SnapshotVerificationError } from "../inventory/snapshot-error.ts";
 import type { SnapshotManifest } from "./artifact-lifecycle.ts";
@@ -20,7 +21,7 @@ export const SPEC_FILE = "spec.json";
 export const FROZEN_BEHAVIORAL_TEST_FILE = "tests/behavioral.json";
 
 export function assertSuccessfulGate(gate: CapabilityGateResult): void {
-  const expected = ["structural", "smoke", "behavioral", "design-lint"] as const;
+  const expected = GATE_RUNG_ORDER;
   if (
     gate.outcomes.length !== expected.length ||
     !gate.outcomes.every((outcome, index) => outcome.rung === expected[index])

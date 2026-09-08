@@ -8,7 +8,6 @@
 // not the dev previews.
 
 import type { Database } from "bun:sqlite";
-
 import type {
   BehavioralExecutionPlan,
   BehavioralGateResult,
@@ -26,6 +25,7 @@ import type {
   StructuralGateResult,
   UnitDescriptor,
 } from "../../builder/index.ts";
+import { errorMessage } from "../../platform/errors.ts";
 import {
   type CapabilityRow,
   type CapabilitySpec,
@@ -479,7 +479,7 @@ export function buildDemoErrorPreview(error: unknown): DemoBuildErrorPreview {
     kind: "build-error-preview",
     status: "failed",
     errorName: error instanceof Error ? error.name : "UnknownError",
-    message: error instanceof Error ? error.message : String(error),
+    message: errorMessage(error),
     ...(hasDiagnostic(error) ? { diagnostic: error.diagnostic } : {}),
   };
 }

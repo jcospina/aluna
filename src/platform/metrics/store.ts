@@ -10,10 +10,10 @@
 
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
-
-import type { GateRungName, GateRungOutcome } from "../../builder/index.ts";
+import type { GateRungName } from "../../builder/index.ts";
 import { intentTypeSchema } from "../../pipeline/intent/index.ts";
 import { db, dbReadonly } from "../persistence/db.ts";
+import { GENERATION_METRICS_TABLE } from "../persistence/table-names.ts";
 import type { TokenUsage } from "../provider/index.ts";
 import {
   type FailureStage,
@@ -28,7 +28,7 @@ import {
  * The metrics table, created by platform migration 0004. A fixed platform constant, never user
  * input, so interpolating it into the SQL below is safe.
  */
-export const GENERATION_METRICS_TABLE = "generation_metrics";
+export { GENERATION_METRICS_TABLE } from "../persistence/table-names.ts";
 
 /**
  * `success` committed a capability; `failure` stopped at a stage or rung (failure is data, ARCH
@@ -309,29 +309,3 @@ function buildFailure(stored: StoredRow): GenerationFailure | undefined {
     ...(stored.failed_message !== null ? { message: stored.failed_message } : {}),
   };
 }
-
-/**
- * Sum token usage across the generation's provider calls into the single per-row total. A figure
- * stays absent unless one call reported it, because absence is honest (platform/provider/contract.ts).
- */
-export function sumTokenUsage(usages: readonly TokenUsage[]): TokenUsage {
-  return {
-    inputTokens: sumOptional(usages.map((usage) => usage.inputTokens)),
-    outputTokens: sumOptional(usages.map((usage) => usage.outputTokens)),
-    totalTokens: sumOptional(usages.map((usage) => usage.totalTokens)),
-  };
-}
-
-function sumOptional(values: readonly (number | undefined)[]): number | undefined {
-  let seen = false;
-  let sum = 0;
-  for (const value of values) {
-    if (value !== undefined) {
-      seen = true;
-      sum += value;
-    }
-  }
-  return seen ? sum : undefined;
-}
-
-export type { GateRungOutcome };

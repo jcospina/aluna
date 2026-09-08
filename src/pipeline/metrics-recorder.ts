@@ -14,11 +14,13 @@ import {
   CapabilityGateError,
   type CapabilityGateResult,
   type FrozenBehavioralTestsResult,
+  GATE_RUNG_ORDER,
   type GateRungOutcome,
   type GeneratedUnit,
   SnapshotVerificationError,
   UnitGenerationError,
 } from "../builder/index.ts";
+import { errorMessage } from "../platform/errors.ts";
 import type {
   CarriedResolverMeasurement,
   GenerationBuildMeasurement,
@@ -40,7 +42,6 @@ import {
   finalizeGenerationLifecycleSuccess,
   getGenerationLifecycle,
   startGenerationLifecycle,
-  sumTokenUsage,
   updateGenerationLifecycleIdentity,
   writeGenerationMetrics,
   writeIntentResolutionMetrics,
@@ -48,6 +49,7 @@ import {
 } from "../platform/metrics/index.ts";
 import type { TokenUsage } from "../platform/provider/index.ts";
 import { resolveModel } from "../platform/provider/index.ts";
+import { addTokenUsage, sumTokenUsages } from "../platform/provider/usage.ts";
 import type { IntentClassification } from "./intent/index.ts";
 
 /**
@@ -169,7 +171,7 @@ export function lifecycleMeasurement(
 ): GenerationBuildMeasurement {
   return {
     model: resolveModel(),
-    usage: sumTokenUsage(acc.usages),
+    usage: sumTokenUsages(acc.usages),
     timings: { ...acc.timings, totalMs: performance.now() - builtAt },
     ...(acc.gateRungs ? { gateRungs: acc.gateRungs } : {}),
     ...(acc.unitAttempts ? { unitAttempts: acc.unitAttempts } : {}),
@@ -289,7 +291,7 @@ export function lifecycleStages(
       state: behavioralTestExecutionStageState(acc, behavioralSeen),
     },
     ...behavioralTestStages(acc),
-    ...(["structural", "smoke", "behavioral", "design-lint"] as const).map((name) => ({
+    ...GATE_RUNG_ORDER.map((name) => ({
       stage: `gate_${name}`,
       state:
         gateByName.get(name) === "skipped" || !gateByName.has(name)
@@ -405,7 +407,7 @@ function specGenerationIncomplete(acc: DemoBuildAccumulator): boolean {
  * carry the location; spec-gen, migration and commit throw without one, so those are inferred.
  */
 export function classifyBuildFailure(error: unknown, acc: DemoBuildAccumulator): GenerationFailure {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   if (error instanceof CapabilityGateError) {
     return { stage: "gate", rung: error.failedRung, message };
   }
@@ -530,19 +532,7 @@ function addMetricsUsage(
   left: UnitAttemptSummary["usage"],
   right: TokenUsage | undefined,
 ): UnitAttemptSummary["usage"] {
-  if (!right) return left;
-  return {
-    inputTokens: addOptionalMetric(left.inputTokens, right.inputTokens),
-    outputTokens: addOptionalMetric(left.outputTokens, right.outputTokens),
-    totalTokens: addOptionalMetric(left.totalTokens, right.totalTokens),
-  };
-}
-
-function addOptionalMetric(
-  left: number | undefined,
-  right: number | undefined,
-): number | undefined {
-  return left === undefined && right === undefined ? undefined : (left ?? 0) + (right ?? 0);
+  return right ? addTokenUsage(left, right) : left;
 }
 
 /**

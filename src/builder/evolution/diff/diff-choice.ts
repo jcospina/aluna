@@ -12,6 +12,7 @@ import {
   type ChoiceOption,
   isChoiceFieldType,
   type SpecField,
+  sameOrderedStrings,
 } from "../../../registry/index.ts";
 import type { ChangeFact, ChangeFactKind } from "./diff-engine.ts";
 
@@ -62,7 +63,7 @@ function detectChoiceOptionFacts(
   // filtered out: an append is `choice_values`, and only a real reshuffle is this.
   const committed = new Set(committedValues);
   const reordered = candidateOptions.map(optionValue).filter((value) => committed.has(value));
-  if (!sameSequence(committedValues, reordered)) {
+  if (!sameOrderedStrings(committedValues, reordered)) {
     facts.push({ kind: "choice_option_order", field });
   }
 
@@ -89,7 +90,7 @@ const CHOICE_OPTION_FACETS = [
  */
 function sameGrouping(before: SpecField, after: SpecField): boolean {
   const heading = (group: { id: string; heading: string }) => `${group.id}\u0000${group.heading}`;
-  if (!sameSequence((before.groups ?? []).map(heading), (after.groups ?? []).map(heading))) {
+  if (!sameOrderedStrings((before.groups ?? []).map(heading), (after.groups ?? []).map(heading))) {
     return false;
   }
   const byValue = new Map((after.values ?? []).map((option) => [option.value, option]));
@@ -125,10 +126,6 @@ function choiceFieldsByName(spec: CapabilitySpec): Map<string, SpecField> {
 
 function optionValue(option: ChoiceOption): string {
   return option.value;
-}
-
-function sameSequence(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 /** Order-blind equality, for a comparison about membership rather than arrangement. */

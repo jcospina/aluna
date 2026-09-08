@@ -4,6 +4,7 @@
 // final verdict over generated strings, and must catch broken units independently.
 
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
+import { FIRST_INCARNATION_ID } from "../../../../registry/incarnations.test-support.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
@@ -298,7 +299,7 @@ describe("capability gate — Action-scoped catalog and connection isolation", (
   });
 
   test("admits dependency SQL only when that Action declares the scratch catalog entry", () => {
-    const dependencyIncarnation = "11111111-1111-4111-8111-111111111111";
+    const dependencyIncarnation = FIRST_INCARNATION_ID;
     const handlers = Object.fromEntries(
       FIVE_ACTION_UNITS.filter((unit) => unit.kind === "handler").map((unit) => [
         unit.name,

@@ -11,8 +11,10 @@
 // even when the item truncates. Deletion lives in that form's action row and nowhere else, so
 // destroying a record starts by opening it (PLAN decision 22).
 
+import { capabilityActionUrl } from "#shell/routes.js";
 import { ALUNA_RECORD_ID_MARKER } from "../../runtime/router/wire/wire-protocol.ts";
 import { escapeHtml } from "../../server/http/html.ts";
+import { busyLabelAttribute, DELETING_RECORD_LABEL } from "../controls/busy-label.ts";
 import {
   capabilityDeleteConfirmationId,
   capabilityDeleteErrorId,
@@ -102,7 +104,7 @@ function renderDeleteConfirmation(
   return (
     `<form class="capability-record-delete" data-record-delete-form hidden` +
     ` aria-describedby="${confirmationId}"` +
-    ` hx-post="/capability/${capability.id}/delete" hx-swap="none">` +
+    ` hx-post="${capabilityActionUrl(capability.id, "delete")}" hx-swap="none">` +
     `<input type="hidden" name="${ALUNA_RECORD_ID_MARKER}"` +
     ` value="${escapeHtml(recordId)}">` +
     `<div class="capability-record-delete__copy">` +
@@ -112,7 +114,7 @@ function renderDeleteConfirmation(
     `<div class="capability-record-delete__actions">` +
     `<button class="btn btn--outline" type="button" data-record-cancel-delete` +
     ` aria-describedby="${confirmationId}">Cancel</button>` +
-    `<button class="btn btn--danger" type="submit"` +
+    `<button class="btn btn--danger" type="submit"${busyLabelAttribute(DELETING_RECORD_LABEL)}` +
     ` aria-describedby="${confirmationId}">Delete record</button>` +
     `</div>` +
     `</form>`

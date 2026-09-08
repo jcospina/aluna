@@ -1,10 +1,10 @@
 import type { Database } from "bun:sqlite";
 import type { Context } from "hono";
-
 import {
   MutationAdmissionError,
   type MutationCoordinator,
 } from "../../runtime/concurrency/mutation-coordinator.ts";
+import { singleFormValue } from "../form-values.ts";
 import { type CapabilityRenameOutcome, renameCapabilityLabel } from "./front-half.ts";
 import { renderCapabilityRenameRefusal, renderRenamedCapabilityLogo } from "./presentation.ts";
 
@@ -71,14 +71,4 @@ async function admit(
     if (error instanceof MutationAdmissionError) return { status: "stale" };
     throw error;
   }
-}
-
-/**
- * One value, or none. A repeated field is a submission this form does not make, and taking the
- * first of several would let an injected duplicate decide which capability a rename binds to.
- */
-function singleFormValue(form: { getAll(name: string): readonly unknown[] }, name: string): string {
-  const values = form.getAll(name);
-  const only = values.length === 1 ? values[0] : undefined;
-  return typeof only === "string" ? only : "";
 }

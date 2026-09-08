@@ -19,6 +19,7 @@ import {
   PROMPT_REFUSAL_ATTRIBUTE,
   renderPromptNotice,
 } from "../../http/index.ts";
+import { BLANK_PROMPT_PATTERN_SOURCE } from "./prompt-admission.test-support.ts";
 
 // The desk has two places to speak and each message goes to the one that was asked (PLAN decisions
 // 24 and 26; ARCH §6.1, §6.2). Run rather than grepped: routing proved by a string match is not.
@@ -612,7 +613,7 @@ describe("the strings the desk restates", () => {
     expect(shellGlue).toContain('new CustomEvent("aluna:prompt-bar-message"');
     expect(shellGlue).toContain('new CustomEvent("aluna:retire-run-sentence"');
     expect(readFileSync(resolve("public/capability-deletion.js"), "utf8")).toContain(
-      'import { PROMPT_BAR_MESSAGE_EVENT } from "./prompt-bar.js";',
+      'PROMPT_BAR_MESSAGE_EVENT,\n  PROMPT_NOTICE_ID,\n  PROMPT_REFUSAL_SELECTOR,\n} from "./prompt-bar.js";',
     );
   });
 
@@ -636,7 +637,7 @@ describe("the strings the desk restates", () => {
 
   test("the bar reads a blank submission exactly the way the server does", () => {
     const server = readFileSync(resolve("src/server/http/prompt-request.ts"), "utf8");
-    const pattern = "/[\\p{White_Space}\\p{Default_Ignorable_Code_Point}\\p{Cc}]/gu";
+    const pattern = BLANK_PROMPT_PATTERN_SOURCE;
 
     expect(server).toContain(pattern);
     expect(promptBar).toContain(pattern);

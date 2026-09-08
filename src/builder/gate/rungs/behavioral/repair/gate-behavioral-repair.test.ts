@@ -7,7 +7,7 @@
 // rewritten Handler go unjudged, or moving a single frozen byte.
 
 import { describe, expect, test } from "bun:test";
-
+import { FULL_CAPABILITY_TOOLS } from "../../../../../registry/index.ts";
 import { deriveCapabilityTableDdl } from "../../../../../runtime/data/index.ts";
 import type { HandlerUnitName } from "../../../../units/generation/units.ts";
 import {
@@ -30,7 +30,7 @@ import {
   runBehavioralRepairLoop,
 } from "./gate-behavioral-repair.ts";
 
-const ALL_FIVE: readonly HandlerUnitName[] = ["create", "read", "update", "delete", "search"];
+const ALL_FIVE: readonly HandlerUnitName[] = [...FULL_CAPABILITY_TOOLS];
 
 const TRIM_SPEC = notesSpec({ behavior: "Text is trimmed before saving." });
 const TRIMMING_CREATE = CREATE_HANDLER.replace(

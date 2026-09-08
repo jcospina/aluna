@@ -5,8 +5,7 @@
 // (that is the engine's job); the assembler stops at a Gate-cleared candidate.
 
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import {
   createHandlerFor,
@@ -31,8 +30,9 @@ import {
   runCapabilityGate,
   verifyCapabilitySnapshot,
 } from "../../../builder/index.ts";
-import { openDatabase, type PlatformDatabase } from "../../../platform/persistence/db.ts";
-import { runMigrations } from "../../../platform/persistence/migrations.ts";
+import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { createScratchDbEnv } from "../../../platform/persistence/scratch-db.test-support.ts";
+import { FOURTH_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import { type CapabilitySpec, getCapability } from "../../../registry/index.ts";
 import {
   applyAdditiveCapabilityMigration,
@@ -42,7 +42,7 @@ import {
 import { AbortedBuildError } from "../../build/build-run.ts";
 import { assembleEvolutionCandidate } from "./evolution-assembly.ts";
 
-const INCARNATION_ID = "44444444-4444-4444-8444-444444444444";
+const INCARNATION_ID = FOURTH_INCARNATION_ID;
 
 // The committed capability: two active fields plus one inactive field the projection
 // test proves is never shown to a regenerated unit's generation context.
@@ -134,9 +134,7 @@ interface AssemblyEnv {
 async function setUpCommitted(
   handlerOverrides: Readonly<Partial<Record<string, string>>> = {},
 ): Promise<AssemblyEnv> {
-  const root = mkdtempSync(join(tmpdir(), "omni-crud-evolution-assembly-"));
-  const conns = openDatabase(join(root, "platform.db"));
-  runMigrations(conns.readwrite);
+  const { dir: root, conns } = createScratchDbEnv("omni-crud-evolution-assembly-");
 
   const publication = publishCapabilitySnapshot({
     buildId: "v1",

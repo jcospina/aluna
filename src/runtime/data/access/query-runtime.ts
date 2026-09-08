@@ -1,7 +1,12 @@
 import type { Database } from "bun:sqlite";
+import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 
-import { activeSpecFields, type CapabilitySpec } from "../../../registry/index.ts";
-import { CapabilityDataValidationError, sqlIdentifier } from "../internal.ts";
+import {
+  activeSpecFields,
+  type CapabilitySpec,
+  PLATFORM_COLUMNS,
+} from "../../../registry/index.ts";
+import { CapabilityDataValidationError } from "../internal.ts";
 import { deriveCapabilityTableDdl } from "../schema/ddl.ts";
 import type {
   CapabilityActionRecord,
@@ -139,7 +144,7 @@ function rehydrateCanonicalRows(
 ): Map<string, StoredCapabilityRow> {
   if (ids.length === 0) return new Map();
   const { tableName } = deriveCapabilityTableDdl(spec);
-  const columns = ["id", "created_at", "extra", ...spec.schema.fields.map(({ name }) => name)];
+  const columns = [...PLATFORM_COLUMNS, ...spec.schema.fields.map(({ name }) => name)];
   const select = `SELECT ${columns.map(sqlIdentifier).join(", ")} FROM ${sqlIdentifier(tableName)} WHERE "id" IN (`;
   const rehydrated = new Map<string, StoredCapabilityRow>();
   // One statement per batch, and every batch inside the caller's read snapshot, so the set

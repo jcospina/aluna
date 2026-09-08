@@ -12,8 +12,9 @@
 // block is deliberately kept.
 
 import { z } from "zod";
+import { errorMessage } from "../../../platform/errors.ts";
 
-import { readSecret } from "../../../platform/secrets.ts";
+import { RECRAFT_API_KEY_ENV_VAR, readSecret } from "../../../platform/secrets.ts";
 import {
   buildLogoGenerationRequest,
   LOGO_GENERATION_PATH,
@@ -21,8 +22,7 @@ import {
   type LogoGenerationRequest,
 } from "../request.ts";
 
-/** Bring-your-own-key, like `OMNI_API_KEY`. Named in the error so a missing key says so. */
-export const RECRAFT_API_KEY_ENV_VAR = "RECRAFT_API_KEY";
+export { RECRAFT_API_KEY_ENV_VAR } from "../../../platform/secrets.ts";
 
 /** Override for a stub or a proxy. The default is the service the contract was settled on. */
 export const RECRAFT_BASE_URL_ENV_VAR = "RECRAFT_BASE_URL";
@@ -112,7 +112,7 @@ export function decodeLogoPayload(payload: string): Uint8Array {
   } catch (error) {
     throw new LogoGenerationError(
       "decode",
-      `The logo payload is not valid base64: ${error instanceof Error ? error.message : String(error)}`,
+      `The logo payload is not valid base64: ${errorMessage(error)}`,
     );
   }
   if (bytes.length === 0) {
@@ -197,7 +197,7 @@ function callFailure(error: unknown, budget: CallBudget, timeoutMs: number): Log
       `The logo generation call exceeded its ${timeoutMs}ms budget.`,
     );
   }
-  return new LogoGenerationError("http", `The logo generation call failed: ${describe(error)}`);
+  return new LogoGenerationError("http", `The logo generation call failed: ${errorMessage(error)}`);
 }
 
 /** Pull the accepted base64 payload out of a successful response, or say why not. */
@@ -221,7 +221,7 @@ async function readGeneratedPayload(response: Response, budget: CallBudget): Pro
     if (budget.signal.aborted) throw error;
     throw new LogoGenerationError(
       "envelope",
-      `The logo generation response was not JSON: ${describe(error)}`,
+      `The logo generation response was not JSON: ${errorMessage(error)}`,
     );
   }
 
@@ -234,10 +234,6 @@ async function readGeneratedPayload(response: Response, budget: CallBudget): Pro
     );
   }
   return payload;
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /**

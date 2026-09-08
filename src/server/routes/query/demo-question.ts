@@ -15,6 +15,7 @@
 import type { Hono } from "hono";
 import { classifyIntent, type IntentClassification } from "../../../pipeline/intent/index.ts";
 import { runDataQuery } from "../../../pipeline/query/data-query.ts";
+import { errorMessage } from "../../../platform/errors.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { Provider } from "../../../platform/provider/index.ts";
 import type { ReadGateCoordinator } from "../../../runtime/concurrency/read-gates.ts";
@@ -228,7 +229,7 @@ async function runExercise(deps: DemoQuestionDeps, question: string): Promise<Qu
     return {
       question,
       steps,
-      failure: error instanceof Error ? error.message : String(error),
+      failure: errorMessage(error),
     };
   }
 }
@@ -253,7 +254,7 @@ async function readQuestion(
   } catch (error) {
     return {
       question: "",
-      failure: `That was not a form: ${error instanceof Error ? error.message : String(error)}`,
+      failure: `That was not a form: ${errorMessage(error)}`,
     };
   }
 }

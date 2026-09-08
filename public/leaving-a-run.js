@@ -7,6 +7,7 @@
 
 import { PROMPT_BAR_MESSAGE_EVENT } from "./prompt-bar.js";
 import { releaseRegionContent } from "./region-scope.js";
+import { buildCancelUrl } from "./routes.js";
 
 /**
  * What the desk says when a confirmed leave could not be carried out: a run whose story cannot be
@@ -139,12 +140,9 @@ function holdsSomething(surface) {
   return (surface?.childNodes?.length ?? 0) > 0;
 }
 
-/**
- * Where a build is cancelled. The same route the run's own Cancel control posts to.
- * @param {string} jobId
- * @returns {string}
- */
-export const buildCancelUrl = (jobId) => `/build/${encodeURIComponent(jobId)}/cancel`;
+// Where a build is cancelled — the same route the run's own Cancel control posts to, re-exported
+// so a caller with this module already open need not reach for `routes.js` as well.
+export { buildCancelUrl };
 
 /**
  * `keepalive`, because the node that would have carried an htmx request is about to be

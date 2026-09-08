@@ -8,6 +8,7 @@
 
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import type { CapabilitySpec } from "../../../../../registry/index.ts";
+import { FULL_CAPABILITY_TOOLS } from "../../../../../registry/index.ts";
 import { deriveCapabilityTableDdl } from "../../../../../runtime/data/index.ts";
 import {
   BEHAVIORAL_SUITE as FULL_BEHAVIORAL_SUITE,
@@ -76,7 +77,7 @@ function carriedTierInput(
   };
 }
 
-const ACTIONS = ["create", "read", "update", "delete", "search"] as const;
+const ACTIONS = FULL_CAPABILITY_TOOLS;
 
 /**
  * Handler source that cannot even be prepared for execution. The rung loads every declared

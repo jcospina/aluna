@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-
+import { wait } from "../../platform/async.test-support.ts";
 import {
   createMutationCoordinator,
   MutationLeaseExpiredError,
@@ -10,10 +10,6 @@ import {
 function idSequence(): () => string {
   let next = 0;
   return () => String(++next);
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function assertExpiredLeaseUnblocksQueue(): Promise<void> {

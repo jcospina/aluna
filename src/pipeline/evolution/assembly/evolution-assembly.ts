@@ -12,7 +12,6 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-
 import {
   type BehavioralExecutionImpact,
   type BehavioralExecutionPlan,
@@ -23,6 +22,7 @@ import {
   checkPriorSourceAdmissibility,
   DERIVED_UNIT_FILES,
   type DerivedUnitFile,
+  descriptorForFile,
   evolutionUnitProvenance,
   type FrozenBehavioralTestsResult,
   freezeBehavioralTests,
@@ -35,17 +35,18 @@ import {
   readFrozenBehavioralTests,
   resolveBehavioralTierEnabled,
   runCapabilityGate,
-  type UnitDescriptor,
   type UnitGenerationObserver,
   type UnitProvenanceManifest,
   type VerifiedDependencySnapshot,
   verifyCapabilitySnapshot,
 } from "../../../builder/index.ts";
-import type { Provider, TokenUsage } from "../../../platform/provider/index.ts";
+import type { Provider } from "../../../platform/provider/index.ts";
+import { ZERO_TOKEN_USAGE } from "../../../platform/provider/usage.ts";
 import {
   type CapabilityRow,
   type CapabilitySpec,
   capabilitySpecFromRow,
+  sameOrderedStrings,
 } from "../../../registry/index.ts";
 import {
   type AdditiveCapabilityMigration,
@@ -68,7 +69,6 @@ import {
   behavioralTierTransition,
 } from "../tiers/behavioral-tier-transition.ts";
 
-const ZERO_USAGE: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 const NEVER_ABORTED = () => false;
 
 export interface AssembleEvolutionCandidateInput {
@@ -326,10 +326,6 @@ function unnarrowableEvolutionReason(
         "the fields the item renderer may show changed, so a copied fragment assertion could no longer be satisfiable by any renderer",
     };
   return {};
-}
-
-function sameOrderedStrings(left: readonly string[], right: readonly string[]): boolean {
-  return left.length === right.length && left.every((entry, index) => entry === right[index]);
 }
 
 /**
@@ -619,9 +615,9 @@ function copiedUnit(directory: string, filename: DerivedUnitFile): GeneratedUnit
   // unit was copied, not generated.
   const base = {
     content,
-    attempts: [{ attempt: 1, durationMs: 0, usage: ZERO_USAGE }],
+    attempts: [{ attempt: 1, durationMs: 0, usage: ZERO_TOKEN_USAGE }],
     durationMs: 0,
-    usage: ZERO_USAGE,
+    usage: ZERO_TOKEN_USAGE,
   } as const;
   if (filename === "item.ts") {
     return { kind: "item-renderer", name: "item", filename, ...base };
@@ -657,12 +653,6 @@ function copiedUnitNames(
  */
 function orderedUnitNames(names: ReadonlySet<GeneratedUnitName>): readonly GeneratedUnitName[] {
   return GENERATED_UNITS.filter((name) => names.has(name));
-}
-
-function descriptorForFile(filename: DerivedUnitFile): UnitDescriptor {
-  return filename === "item.ts"
-    ? { kind: "item-renderer", name: "item" }
-    : { kind: "handler", name: unitNameForFile(filename) as HandlerUnitName };
 }
 
 function unitNameForFile(filename: DerivedUnitFile): GeneratedUnitName {

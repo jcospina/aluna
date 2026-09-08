@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 
 import { setMaximised, trackPointer } from "#design/window-gestures.js";
 import {
@@ -12,28 +10,15 @@ import {
   WINDOW_LAYER_SELECTOR,
   windowLayer,
 } from "#shell/desk-window.js";
-import { code as stripComments } from "../../safety/source.test-support.ts";
+import {
+  ruleBody as body,
+  codeOf as code,
+  readSource as read,
+  rules,
+} from "../../safety/source.test-support.ts";
 
 // The window, checked where it is written down. It is created and destroyed by the client, so
 // most of this is a statement about a file (PLAN decisions 1 and 2; design D1, D3, D12).
-
-const ROOT = resolve(import.meta.dir, "../../../..");
-const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
-
-/** A stylesheet with its comments stripped — a rule is what the browser sees. */
-const rules = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\//g, "");
-
-/** Source with comments stripped, for questions about what the code does. */
-const code = (path: string) => stripComments(read(path));
-
-/** One rule's body, by exact selector. Flat: nesting is not used in these sheets. */
-function body(css: string, selector: string): string {
-  const match = new RegExp(
-    `(?:^|[},])\\s*${selector.replaceAll(".", "\\.")}\\s*\\{([^}]*)\\}`,
-  ).exec(css);
-  expect(match?.[1], `no \`${selector}\` rule`).toBeDefined();
-  return match?.[1] as string;
-}
 
 const SHELL = read("public/index.html");
 const MODULE = read("public/desk-window.js");

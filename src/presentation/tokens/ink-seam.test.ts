@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { readSource as read } from "../safety/source.test-support.ts";
 
 // The seam between the stylesheet and the ink runtime, checked where it is declared: the
 // runtime ships, `ink.css` stays last, nothing outranks `.is-ink`, no rule re-asks `:empty`.
 
 const ROOT = resolve(import.meta.dir, "../../..");
-const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
 
 const INK_SEAM = "components/ink.css";
 const SHELL_SHEETS = readdirSync(join(ROOT, "public/css"))

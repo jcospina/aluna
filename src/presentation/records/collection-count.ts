@@ -6,14 +6,21 @@
 // declares it (PLAN decision 32). The label is `.caps`, the role the design system gives
 // labels, counts and kickers (`design/design-system.md`, "The window and the collection").
 
+import {
+  COLLECTION_COUNT_LABEL_ATTR,
+  COLLECTION_COUNT_SIDECAR_PREFIX,
+  COLLECTION_COUNT_SIDECAR_SUFFIX,
+} from "#shell/shell-dom.js";
 import { escapeHtml } from "../../server/http/html.ts";
 import type { RenderableCapability } from "../fields/field-renderer.ts";
 
-/** The attribute the shell finds the collection's count label by. */
-export const COLLECTION_COUNT_LABEL_ATTR = "data-capability-count-label";
-
-export const COLLECTION_COUNT_SIDECAR_PREFIX = "<!--aluna:count:";
-export const COLLECTION_COUNT_SIDECAR_SUFFIX = "-->";
+// The sidecar's wire format, declared in the module that parses it. A prefix changed on one side
+// only parks the comment in the DOM and freezes the count at a stale number without erroring.
+export {
+  COLLECTION_COUNT_LABEL_ATTR,
+  COLLECTION_COUNT_SIDECAR_PREFIX,
+  COLLECTION_COUNT_SIDECAR_SUFFIX,
+} from "#shell/shell-dom.js";
 
 /** The count label's element id, paired with `capabilityRecordsRegionId`. */
 export function capabilityCountLabelId(capabilityId: string): string {

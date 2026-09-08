@@ -10,10 +10,10 @@
 
 import { describe, expect, test } from "bun:test";
 import type { BehavioralActionExecution, BehavioralTestActionReport } from "../builder/index.ts";
-import type { CapabilityTool } from "../registry/index.ts";
+import { type CapabilityTool, FULL_CAPABILITY_TOOLS } from "../registry/index.ts";
 import { type DemoBuildAccumulator, lifecycleStages } from "./metrics-recorder.ts";
 
-const ACTIONS = ["create", "read", "update", "delete", "search"] as const;
+const ACTIONS = FULL_CAPABILITY_TOOLS;
 
 function freezeReport(carried: readonly CapabilityTool[]): readonly BehavioralTestActionReport[] {
   return ACTIONS.map((action) => ({

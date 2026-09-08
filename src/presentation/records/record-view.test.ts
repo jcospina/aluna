@@ -9,6 +9,7 @@ import {
 } from "#shell/record-mutations.js";
 import { claimRecordExit, releaseRecordExit, swapInRecordView } from "#shell/record-view.js";
 import { createRegionReleaseRegistry } from "#shell/region-scope.js";
+import { busyLabelAttribute, DELETING_RECORD_LABEL } from "../controls/busy-label.ts";
 import {
   capabilityDeleteConfirmationId,
   capabilityDeleteErrorId,
@@ -140,7 +141,7 @@ describe("the record view — deletion lives in the form's action row", () => {
         ` aria-describedby="${confirmationId}">Cancel</button>`,
     );
     expect(view).toContain(
-      `<button class="btn btn--danger" type="submit"` +
+      `<button class="btn btn--danger" type="submit"${busyLabelAttribute(DELETING_RECORD_LABEL)}` +
         ` aria-describedby="${confirmationId}">Delete record</button>`,
     );
     expect(view.indexOf("data-record-cancel-delete")).toBeLessThan(view.indexOf(">Delete record<"));
@@ -227,8 +228,7 @@ describe("the record swap — the way out (server ⇄ client)", () => {
   });
 
   test("leaving asks for the collection again — the fresh read, not a snapshot", () => {
-    expect(controller).toContain('.ajax("GET", `/capability/');
-    expect(controller).toContain("capabilityId");
+    expect(controller).toContain('.ajax("GET", capabilityUrl(capabilityId)');
     expect(controller).toContain('swap: "innerHTML"');
   });
 
@@ -372,7 +372,7 @@ describe("the record's deletion — the wiring (server ⇄ client)", () => {
     expect(mutations).toContain("handleDeleteOutcome(");
     expect(mutations).toContain("releaseMutationSurface(deleteForm)");
     expect(mutations).toContain("setDeletePending(deleteForm, true)");
-    expect(mutations).toContain('setPending(form, pending, "I’m deleting…", "Delete record"');
+    expect(mutations).toContain("setPending(form, pending, DELETE_CANCEL_SELECTOR)");
   });
 
   test("the form beneath a standing question cannot be submitted", () => {

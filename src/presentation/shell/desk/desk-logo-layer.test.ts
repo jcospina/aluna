@@ -1,37 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+
+import {
+  ruleBodies as bodies,
+  ruleBody as body,
+  code,
+  readSource as read,
+  rules,
+  under,
+} from "../../safety/source.test-support.ts";
 
 // The logo layer, checked where it is declared. With no taskbar the logos are the only standing
 // list of what exists (PLAN decisions 3 and 4, design D4).
-
-const ROOT = resolve(import.meta.dir, "../../../..");
-const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
-
-/** Every file of one kind under a directory, as repo-relative paths. */
-const under = (directory: string, pattern: string): string[] =>
-  [...new Bun.Glob(pattern).scanSync({ cwd: join(ROOT, directory) })].map((name) =>
-    join(directory, name),
-  );
-
-/** A stylesheet with its comments stripped — a rule is what the browser sees. */
-const rules = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\//g, "");
-
-/** One rule's body, by exact selector. Flat: nesting is not used in these sheets. */
-function body(css: string, selector: string): string {
-  return bodies(css, selector)[0] as string;
-}
-
-/** One rule's body, by exact selector, in source order. */
-function bodies(css: string, selector: string): string[] {
-  const pattern = new RegExp(
-    `(?:^|[},])\\s*${selector.replaceAll(".", "\\.")}\\s*\\{([^}]*)\\}`,
-    "g",
-  );
-  const found = [...css.matchAll(pattern)].map((match) => match[1] as string);
-  expect(found.length, `no \`${selector}\` rule`).toBeGreaterThan(0);
-  return found;
-}
 
 const DESK = rules("design/styles/components/desk.css");
 const LAYER = bodies(DESK, ".desk__logos");
@@ -193,7 +172,7 @@ describe("an empty desk needs no gate", () => {
       "src/server/http/fragments.ts",
     ];
     for (const page of surfaces) {
-      const source = read(page).replace(/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+      const source = code(read(page).replace(/<!--[\s\S]*?-->/g, ""));
       expect(source, `${page} brings back the capability gate`).not.toMatch(
         /has-?[Cc]apabilities|data-capability-entry/,
       );

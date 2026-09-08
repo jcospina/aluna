@@ -2,102 +2,40 @@
 // Split out of router.test.ts so the per-concern sibling test files can each import
 // exactly what they use. Not a test file itself (no `*.test.ts`), so bun never runs it.
 
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { openDatabase, type PlatformDatabase } from "../../../platform/persistence/db.ts";
-import { runMigrations } from "../../../platform/persistence/migrations.ts";
+import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import {
+  createScratchDbEnv,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../../../platform/persistence/scratch-db.test-support.ts";
+import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+} from "../../../registry/incarnations.test-support.ts";
 import type { CapabilityRow, CapabilitySpec } from "../../../registry/index.ts";
-import {
-  BEHAVIORAL_ERROR_MARKERS,
-  insertCapability,
-  MISSING_REQUIRED_FIELDS_ERROR_CODE,
-} from "../../../registry/index.ts";
-import {
-  applyCapabilityTableDdl,
-  createCapabilityMutationPort,
-  createCapabilityQueryPort,
-  materializeCapabilityActionRecord,
-  selectCapabilityRows,
-} from "../../data/index.ts";
+import { FULL_CAPABILITY_TOOLS, insertCapability } from "../../../registry/index.ts";
+import { notesSpec } from "../../../registry/spec/spec.test-support.ts";
+import { applyCapabilityTableDdl } from "../../data/index.ts";
+import { createCapabilityDataTool } from "../../data/tool.test-support.ts";
 import type { HandlerLoader } from "./router.ts";
+
+export { createCapabilityDataTool, notesSpec };
 
 /**
  * Each case runs against a throwaway file db so the real data file is never touched; setup and
  * teardown keep the per-test temp-dir and database lifecycle the original describe established.
  */
-export function setupRouterTest(): { dir: string; conns: PlatformDatabase } {
-  const dir = mkdtempSync(join(tmpdir(), "omni-crud-router-"));
-  const conns = openDatabase(join(dir, "test.db"));
-  runMigrations(conns.readwrite);
-  return { dir, conns };
+export function setupRouterTest(): ScratchDbEnv {
+  return createScratchDbEnv("omni-crud-router-");
 }
 
 export function teardownRouterTest(dir: string, conns: PlatformDatabase): void {
-  conns.readwrite.close();
-  conns.readonly.close();
-  rmSync(dir, { recursive: true, force: true });
-}
-
-export function createCapabilityDataTool(spec: CapabilitySpec, databases: PlatformDatabase) {
-  const mutation = createCapabilityMutationPort(spec, databases.readwrite);
-  const query = createCapabilityQueryPort(databases.readonly, { target: spec });
-  return {
-    insert: (values: Record<string, unknown>) =>
-      materializeCapabilityActionRecord(mutation.create(values)),
-    select: () => selectCapabilityRows(spec, query),
-  };
+  teardownScratchDbEnv({ dir, conns });
 }
 
 export const NOTES_ARTIFACTS = "src/runtime/router/__fixtures__/notes/v1/";
 export const BOOM_ARTIFACTS = "src/runtime/router/__fixtures__/boom/v1/";
-export const NOTES_INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
-
-/**
- * The notes fixture's spec — matches the hand-written handler files.
- */
-export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
-  return {
-    id: "notes",
-    label: "Notes",
-    subject: "an open notebook",
-    ground: "grass_green",
-    companion: "coral_orange",
-    noun: "note",
-    schema: {
-      fields: [
-        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
-        { name: "pinned", label: "Pinned", type: "boolean", required: false, lifecycle: "active" },
-      ],
-    },
-    ui_intent: {
-      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
-      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
-      collection: { layout: "feed" },
-    },
-    behavior: "Text is required. Newest notes appear first.",
-    behavioral_errors: [
-      {
-        action: "create",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["text"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
-      {
-        action: "update",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["text"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
-    ],
-    tools: ["create", "read", "update", "delete", "search"],
-    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
-    prompt_context: "Stores the user's text notes.",
-    ...overrides,
-  };
-}
+export const NOTES_INCARNATION_ID = FIRST_INCARNATION_ID;
 
 export function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
   return {
@@ -123,7 +61,7 @@ export function boomRow(): CapabilityRow {
     ground: "coral_orange",
     companion: "grass_green",
     noun: "boom",
-    incarnation_id: "22222222-2222-4222-8222-222222222222",
+    incarnation_id: SECOND_INCARNATION_ID,
     version: 1,
     seed: 730051,
     logo: { status: "absent", attempts: 0 },
@@ -140,7 +78,7 @@ export function boomRow(): CapabilityRow {
     },
     behavior: "Always fails, to prove failures stay friendly.",
     behavioral_errors: [],
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     artifacts_path: BOOM_ARTIFACTS,
     prompt_context: "A fixture whose handler throws.",

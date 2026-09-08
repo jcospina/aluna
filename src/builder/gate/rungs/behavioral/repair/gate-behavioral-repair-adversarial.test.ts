@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { ZodType } from "zod";
 import type { GenerateResult, Provider } from "../../../../../platform/provider/index.ts";
+import { FULL_CAPABILITY_TOOLS } from "../../../../../registry/index.ts";
 import { deriveCapabilityTableDdl } from "../../../../../runtime/data/index.ts";
 import type { HandlerUnitName } from "../../../../units/generation/units.ts";
 import {
@@ -18,7 +19,7 @@ import { runCapabilityGate } from "../../../gate.ts";
 import { FullBehavioralCaseFailure } from "../generation/gate-behavioral-full.ts";
 import { BehavioralRungFailure, runBehavioralRepairLoop } from "./gate-behavioral-repair.ts";
 
-const ALL_FIVE: readonly HandlerUnitName[] = ["create", "read", "update", "delete", "search"];
+const ALL_FIVE: readonly HandlerUnitName[] = [...FULL_CAPABILITY_TOOLS];
 const TRIM_SPEC = notesSpec({ behavior: "Text is trimmed before saving." });
 const TRIMMING_CREATE = CREATE_HANDLER.replace(
   "text: input.values.text,",

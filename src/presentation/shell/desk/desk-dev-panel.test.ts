@@ -8,8 +8,6 @@
 // presentation records.
 
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 import { EDGE, PROMPT_CLEARANCE } from "#design/desk-geometry.js";
 import { DEV_STAGES } from "#design/devpanel.js";
 import {
@@ -23,10 +21,7 @@ import {
 } from "#shell/desk-dev-panel.js";
 import { BACK_Z, FRONT_Z, joinStack, leaveStack, raise, standingCount } from "#shell/desk-stack.js";
 import { WINDOW_STORAGE_KEY } from "#shell/desk-window.js";
-
-const ROOT = resolve(import.meta.dir, "../../../..");
-const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
-const code = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+import { codeOf as code, readSource as read } from "../../safety/source.test-support.ts";
 
 const PANEL = code("public/desk-dev-panel.js");
 const WINDOW = code("public/desk-window.js");

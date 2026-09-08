@@ -4,6 +4,7 @@
 
 import { describe, expect, test } from "bun:test";
 import type { CapabilityTool } from "../../../../../registry/index.ts";
+import { FULL_CAPABILITY_TOOLS } from "../../../../../registry/index.ts";
 import { frozenBehavioralTestsFor, notesSpec } from "../../../gate.test-support.ts";
 import {
   type BehavioralExecutionImpact,
@@ -14,7 +15,7 @@ import {
 
 const SPEC = notesSpec();
 const FROZEN = frozenBehavioralTestsFor(SPEC);
-const ALL_ACTIONS: readonly CapabilityTool[] = ["create", "read", "update", "delete", "search"];
+const ALL_ACTIONS: readonly CapabilityTool[] = [...FULL_CAPABILITY_TOOLS];
 
 function plan(generatedActions: readonly CapabilityTool[], impact?: BehavioralExecutionImpact) {
   return planBehavioralExecution({

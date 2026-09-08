@@ -1,23 +1,39 @@
+// Reset imports every table and root it clears, so adding or renaming one cannot leave corpus
+// behind here. The one name written out is the retired tombstone store, which no module declares
+// any more; every module that does declare one is a leaf, so naming a table opens no database.
+
 import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { DEFAULT_ARTIFACTS_ROOT } from "../src/builder/artifacts/artifacts-root.ts";
+import { errorMessage } from "../src/platform/errors.ts";
+import { DB_PATH } from "../src/platform/persistence/db-path.ts";
+import { sqlIdentifier } from "../src/platform/persistence/sql-identifier.ts";
+import {
+  CAPABILITY_TABLE_PREFIX,
+  EVENT_LOG_OWNERSHIP_TABLE,
+  EVENT_LOG_TABLE,
+  GENERATION_LIFECYCLE_TABLE,
+  GENERATION_METRICS_TABLE,
+  INTENT_RESOLUTION_METRICS_TABLE,
+  OBJECT_STORE_ROOT,
+  REGISTRY_TABLE,
+} from "../src/platform/persistence/table-names.ts";
 
-const GENERATED_DIRS = ["capabilities", "storage"] as const;
+const GENERATED_DIRS = [DEFAULT_ARTIFACTS_ROOT, OBJECT_STORE_ROOT] as const;
 const TRACKED_PLACEHOLDER = "README.md";
-const DATABASE_PATH = join("data", "omni-crud.db");
-const CAPABILITY_TABLE_PREFIX = "cap_";
 const PLATFORM_DATA_TABLES = [
-  "capability_registry",
-  "generation_metrics",
-  "generation_lifecycle_metrics",
-  "intent_resolution_metrics",
-  // Pre-4.9 databases may still carry the retired standalone tombstone store.
-  // Clearing it keeps reset genuinely corpus-free across supported local histories.
+  REGISTRY_TABLE,
+  GENERATION_METRICS_TABLE,
+  GENERATION_LIFECYCLE_TABLE,
+  INTENT_RESOLUTION_METRICS_TABLE,
+  // Pre-4.9 databases may still carry the retired standalone tombstone store. No module declares
+  // it any more, so the name lives here; clearing it keeps reset corpus-free across local histories.
   "capability_deletion_tombstones",
-  "event_log",
+  EVENT_LOG_TABLE,
   // Both halves of the Event Log store, or a reset leaves ownership rows pointing at deleted
   // event ids. Neither exists outside the 4.9 seam fake until M7, so both are no-ops today.
-  "event_log_ownership",
+  EVENT_LOG_OWNERSHIP_TABLE,
 ] as const;
 
 export interface ResetRuntimeOptions {
@@ -36,8 +52,8 @@ export function resetRuntime(options: ResetRuntimeOptions = {}): ResetRuntimeRes
   const deletedPaths: string[] = [];
   const databaseResult = wipeDatabaseData(root);
 
-  for (const dirname of GENERATED_DIRS) {
-    const directory = join(root, dirname);
+  for (const generatedDir of GENERATED_DIRS) {
+    const directory = join(root, generatedDir);
     mkdirSync(directory, { recursive: true });
 
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -66,10 +82,10 @@ function wipeDatabaseData(root: string): {
   readonly clearedTables: readonly string[];
   readonly droppedTables: readonly string[];
 } {
-  const dataDir = join(root, "data");
-  mkdirSync(dataDir, { recursive: true });
+  const databasePath = join(root, DB_PATH);
+  mkdirSync(dirname(databasePath), { recursive: true });
 
-  const database = new Database(join(root, DATABASE_PATH), { create: true, readwrite: true });
+  const database = new Database(databasePath, { create: true, readwrite: true });
   database.exec("PRAGMA journal_mode = WAL;");
   database.exec("PRAGMA busy_timeout = 5000;");
 
@@ -81,13 +97,13 @@ function wipeDatabaseData(root: string): {
     database.transaction(() => {
       for (const table of PLATFORM_DATA_TABLES) {
         if (!existingTables.has(table)) continue;
-        database.run(`DELETE FROM ${quoteIdentifier(table)}`);
+        database.run(`DELETE FROM ${sqlIdentifier(table)}`);
         clearedTables.push(table);
       }
 
       for (const table of existingTables) {
         if (!table.startsWith(CAPABILITY_TABLE_PREFIX)) continue;
-        database.run(`DROP TABLE ${quoteIdentifier(table)}`);
+        database.run(`DROP TABLE ${sqlIdentifier(table)}`);
         droppedTables.push(table);
       }
     })();
@@ -108,15 +124,11 @@ function listTables(database: Database): Set<string> {
   return new Set(rows.map((row) => row.name));
 }
 
-function quoteIdentifier(identifier: string): string {
-  return `"${identifier.replaceAll('"', '""')}"`;
-}
-
 function generatedLeftovers(root: string): string[] {
   const leftovers: string[] = [];
 
-  for (const dirname of GENERATED_DIRS) {
-    const directory = join(root, dirname);
+  for (const generatedDir of GENERATED_DIRS) {
+    const directory = join(root, generatedDir);
     if (!existsSync(directory)) continue;
 
     for (const entry of readdirSync(directory)) {
@@ -136,7 +148,7 @@ if (import.meta.main) {
     console.log(`Dropped ${result.droppedTables.length} generated capability table(s).`);
     console.log(`Deleted ${result.deletedPaths.length} generated artifact/blob path(s).`);
   } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(errorMessage(error));
     process.exit(1);
   }
 }

@@ -8,6 +8,7 @@
 import { describe, expect, test } from "bun:test";
 import type { BehavioralActionExecution, BehavioralExecutionPlan } from "../../../builder/index.ts";
 import type { CapabilityTool } from "../../../registry/index.ts";
+import { FULL_CAPABILITY_TOOLS } from "../../../registry/index.ts";
 import {
   BEHAVIORAL_TIER_TRANSITION_DISPOSITIONS,
   BEHAVIORAL_TIER_TRANSITION_ROWS,
@@ -15,7 +16,7 @@ import {
   behavioralTierTransition,
 } from "./behavioral-tier-transition.ts";
 
-const ACTIONS = ["create", "read", "update", "delete", "search"] as const;
+const ACTIONS = FULL_CAPABILITY_TOOLS;
 
 function execution(
   entries: Readonly<

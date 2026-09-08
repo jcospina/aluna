@@ -13,13 +13,19 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
+import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
+  FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../../registry/index.ts";
-import { frozenTestsInput, gateInput, generatedUnitsFor } from "../../gate/gate.test-support.ts";
+import {
+  frozenTestsInput,
+  gateInput,
+  generatedUnitsFor,
+  notesFixtureGate,
+} from "../../gate/gate.test-support.ts";
 import { type CapabilityGateResult, runCapabilityGate } from "../../gate/gate.ts";
 import { buildUnitPrompt } from "../../units/generation/unit-prompts.ts";
 import type { GeneratedUnit, UnitDescriptor } from "../../units/generation/units.ts";
@@ -31,29 +37,11 @@ import {
   SnapshotVerificationError,
   verifyCapabilitySnapshot,
 } from "./artifact-lifecycle.ts";
+import { publishedSnapshotFiles } from "./snapshot-contract.test-support.ts";
 
-const INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
-const TIER_OFF_FILES = [
-  "create.ts",
-  "delete.ts",
-  "item.ts",
-  "read.ts",
-  "search.ts",
-  "snapshot.json",
-  "spec.json",
-  "update.ts",
-] as const;
-const TIER_ON_FILES = [
-  "create.ts",
-  "delete.ts",
-  "item.ts",
-  "read.ts",
-  "search.ts",
-  "snapshot.json",
-  "spec.json",
-  "tests/behavioral.json",
-  "update.ts",
-] as const;
+const INCARNATION_ID = FIRST_INCARNATION_ID;
+const TIER_OFF_FILES = publishedSnapshotFiles("off");
+const TIER_ON_FILES = publishedSnapshotFiles("on");
 
 function notesSpec(): CapabilitySpec {
   return {
@@ -97,7 +85,7 @@ function notesSpec(): CapabilitySpec {
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
     ],
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores the user's text notes.",
   };
@@ -137,21 +125,8 @@ let tierOffGate: CapabilityGateResult;
 let tierOnGate: CapabilityGateResult;
 
 beforeAll(async () => {
-  const units = notesUnits();
-  const handlers = Object.fromEntries(
-    units.filter((unit) => unit.kind === "handler").map((unit) => [unit.name, unit.content]),
-  );
-  const itemRenderer = units.find((unit) => unit.kind === "item-renderer")?.content;
-  if (!itemRenderer) throw new Error("Expected the item renderer fixture.");
-  tierOffGate = await runCapabilityGate(
-    gateInput({
-      spec: notesSpec(),
-      handlers,
-      itemRenderer,
-      behavioralTier: { enabled: false },
-    }),
-  );
-  tierOnGate = await runCapabilityGate(gateInput({ spec: notesSpec(), handlers, itemRenderer }));
+  tierOffGate = await notesFixtureGate({ enabled: false });
+  tierOnGate = await notesFixtureGate();
 });
 
 beforeEach(() => {

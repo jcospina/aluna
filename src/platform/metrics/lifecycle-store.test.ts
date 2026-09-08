@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
-import { openDatabase, type PlatformDatabase } from "../persistence/db.ts";
-import { runMigrations } from "../persistence/migrations.ts";
+import { FIRST_INCARNATION_ID } from "../../registry/incarnations.test-support.ts";
+import type { PlatformDatabase } from "../persistence/db.ts";
+import {
+  createScratchDbEnv,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../persistence/scratch-db.test-support.ts";
 import {
   carriedResolverMeasurementSchema,
   finalizeGenerationLifecycleFailure,
@@ -15,22 +16,19 @@ import {
   updateGenerationLifecycleIdentity,
 } from "./lifecycle-store.ts";
 
-const NOTES_INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
+const NOTES_INCARNATION_ID = FIRST_INCARNATION_ID;
 
 describe("durable generation lifecycle", () => {
-  let dir: string;
+  let env: ScratchDbEnv;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-lifecycle-metrics-"));
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
+    env = createScratchDbEnv("omni-crud-lifecycle-metrics-");
+    conns = env.conns;
   });
 
   afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
+    teardownScratchDbEnv(env);
   });
 
   const start = (buildId = "build-lifecycle") =>

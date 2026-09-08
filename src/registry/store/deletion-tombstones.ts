@@ -1,7 +1,9 @@
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
+import { errorMessage } from "../../platform/errors.ts";
 
-const REGISTRY_TABLE = "capability_registry";
+import { REGISTRY_TABLE } from "../../platform/persistence/table-names.ts";
+
 export const DELETION_TOMBSTONE_STATE = "deletion_tombstone";
 
 const ownedResourceEntrySchema = z
@@ -151,7 +153,7 @@ export function recordCapabilityDeletionCleanupFailure(
   error: unknown,
   database: Database,
 ): void {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = errorMessage(error);
   database.run(
     `UPDATE ${REGISTRY_TABLE}
         SET deletion_cleanup_attempts = deletion_cleanup_attempts + 1,

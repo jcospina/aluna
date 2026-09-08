@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
+import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+} from "../../../registry/incarnations.test-support.ts";
 import { CAPABILITY_LOGO_FILENAME } from "../artifact-names.ts";
 import {
   capabilityLogoPath,
@@ -12,7 +15,7 @@ import {
 } from "./storage.ts";
 
 const CAPABILITY = "notes";
-const INCARNATION = "11111111-1111-4111-8111-111111111111";
+const INCARNATION = FIRST_INCARNATION_ID;
 const ARTWORK = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
 
 let root: string;
@@ -96,7 +99,7 @@ describe("installation", () => {
   });
 
   test("two incarnations of one capability keep separate artwork", () => {
-    const other = "22222222-2222-4222-8222-222222222222";
+    const other = SECOND_INCARNATION_ID;
     const otherBytes = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><path/></svg>');
 
     install(ARTWORK);

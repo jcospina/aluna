@@ -8,7 +8,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { splitCollectionCount } from "#shell/collection-count.js";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
-import { insertCapability } from "../../../registry/index.ts";
+import { FULL_CAPABILITY_TOOLS, insertCapability } from "../../../registry/index.ts";
 import { createApp } from "../../../server/app.ts";
 import { NOT_FOUND_NOTICE } from "../../../server/http/index.ts";
 import type { CapabilityContext } from "../contract.ts";
@@ -321,7 +321,7 @@ describe("deterministic capability router — view scaffolding", () => {
     const createRequired = notesRow().behavioral_errors[0];
     if (!createRequired) throw new Error("notes fixture is missing its required-fields case");
     const fullRow = notesRow({
-      tools: ["create", "read", "update", "delete", "search"],
+      tools: [...FULL_CAPABILITY_TOOLS],
       read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
       behavioral_errors: [createRequired, { ...createRequired, action: "update" }],
     });

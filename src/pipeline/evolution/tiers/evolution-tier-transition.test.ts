@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { type CapabilityGateResult, verifyCapabilitySnapshot } from "../../../builder/index.ts";
 import type { StoredGenerationLifecycle } from "../../../platform/metrics/index.ts";
 import type { CapabilitySpec } from "../../../registry/index.ts";
-import { getCapability } from "../../../registry/index.ts";
+import { FULL_CAPABILITY_TOOLS, getCapability } from "../../../registry/index.ts";
 import {
   activated,
   behaviorNeutralDueDateCandidate,
@@ -35,7 +35,7 @@ let gate: CapabilityGateResult;
 let env: EngineEnv;
 
 const FROZEN_TESTS_FILE = "tests/behavioral.json";
-const ACTIONS = ["create", "read", "update", "delete", "search"] as const;
+const ACTIONS = FULL_CAPABILITY_TOOLS;
 
 /**
  * The tier-on base the on→ rows evolve from, showing both fields so a later case has one to take

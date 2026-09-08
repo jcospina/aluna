@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { UNKNOWN_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import {
   getCapabilityLogoState,
   LOGO_MAX_CLAIMED_ATTEMPTS,
@@ -399,7 +400,7 @@ describe("a superseded or deleted target", () => {
     const provider = providerReturning(ARTWORK);
 
     const outcome = await runCapabilityLogoAttempt(
-      { capabilityId: "notes", incarnationId: "99999999-9999-4999-8999-999999999999" },
+      { capabilityId: "notes", incarnationId: UNKNOWN_INCARNATION_ID },
       deps(provider),
     );
 

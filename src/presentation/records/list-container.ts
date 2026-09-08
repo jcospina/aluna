@@ -11,6 +11,12 @@
 // reaches this wrapper: `renderItemWrapper` frames already-safe markup and never re-parses it.
 // The container is data-free — live records arrive through the `read` action.
 
+import { capabilityActionUrl } from "#shell/routes.js";
+import {
+  FIRST_FIELD_SELECTOR,
+  DEFAULT_SEARCH_DEBOUNCE_MS as SEARCH_DEBOUNCE_MS,
+} from "#shell/shell-dom.js";
+import { assertNever } from "../../platform/errors.ts";
 import { MAX_SEARCH_QUERY_LENGTH } from "../../runtime/data/index.ts";
 import { escapeHtml } from "../../server/http/html.ts";
 import {
@@ -75,7 +81,7 @@ export function collectionLayoutClass(layout: CollectionLayout): string {
     case "grid":
       return "capability-records--grid";
     default:
-      return assertNever(layout);
+      return assertNever(layout, "collection layout");
   }
 }
 
@@ -97,8 +103,9 @@ export interface CollectionOptions {
   readonly loadThroughRead?: boolean;
 }
 
-/** Debounce used by the platform-owned collection search controller. */
-export const SEARCH_DEBOUNCE_MS = 300;
+// The attribute the server writes is the real seam; this is the value it writes, taken from the
+// controller that falls back to it when the attribute is absent.
+export { DEFAULT_SEARCH_DEBOUNCE_MS as SEARCH_DEBOUNCE_MS } from "#shell/shell-dom.js";
 
 /**
  * The local, ephemeral search controls paired with one records region. Matching belongs to the
@@ -114,8 +121,8 @@ function renderSearchChrome(capability: RenderableCapability, regionId: string):
   return (
     `<form class="capability-search" role="search" data-capability-search` +
     ` data-search-state="idle" data-records-region-id="${regionId}"` +
-    ` data-read-url="/capability/${capability.id}/read"` +
-    ` data-search-url="/capability/${capability.id}/search"` +
+    ` data-read-url="${capabilityActionUrl(capability.id, "read")}"` +
+    ` data-search-url="${capabilityActionUrl(capability.id, "search")}"` +
     ` data-search-debounce-ms="${SEARCH_DEBOUNCE_MS}">` +
     `<div class="capability-search__control">` +
     `<svg class="capability-search__icon" viewBox="0 0 24 24" fill="none"` +
@@ -159,7 +166,7 @@ export function renderCollection(options: CollectionOptions): string {
   const items = options.items ?? "";
   // `capability.id` is spec-validated `[a-z][a-z0-9_]*`, so it is a safe attribute value.
   const recordsLoad = options.loadThroughRead
-    ? ` hx-get="/capability/${capability.id}/read" hx-trigger="load" hx-swap="innerHTML"`
+    ? ` hx-get="${capabilityActionUrl(capability.id, "read")}" hx-trigger="load" hx-swap="innerHTML"`
     : "";
   const recordsContent = options.loadThroughRead ? "" : items;
 
@@ -170,11 +177,7 @@ export function renderCollection(options: CollectionOptions): string {
   // single-quoted Alpine expression; the event name is lowercase because HTML folds names.
   const closeOnCreated = `if ($event.detail?.capabilityId === '${capability.id}') { ${backToTrigger} }`;
   const closeOnCancelled = backToTrigger;
-  // `:not([type=hidden])` because every field is preceded by its own `__aluna_present` marker;
-  // the last two are drawn choice controls, not form elements. Mirrors `public/record-view.js`.
-  const firstField =
-    "input:not([type=hidden]), textarea, select, .listbox__button, .segmented button:not([disabled])";
-  const openCreate = `createOpen = true; $nextTick(() => $refs.createPanel.querySelector('${firstField}')?.focus())`;
+  const openCreate = `createOpen = true; $nextTick(() => $refs.createPanel.querySelector('${FIRST_FIELD_SELECTOR}')?.focus())`;
 
   return (
     `<section class="capability-collection" aria-label="${label}"` +
@@ -259,9 +262,4 @@ export function serializeItemPayload(record: Readonly<Record<string, unknown>>):
   return JSON.stringify(record, (_key, value) =>
     value instanceof Uint8Array || value instanceof ArrayBuffer ? null : value,
   );
-}
-
-/** Compile-time exhaustiveness guard: reached only if a `CollectionLayout` case is unhandled. */
-function assertNever(value: never): never {
-  throw new Error(`Unhandled collection layout: ${String(value)}`);
 }

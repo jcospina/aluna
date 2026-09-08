@@ -2,12 +2,15 @@
 // claim that decides which of two desk loads is allowed to spend an attempt.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
-import { runMigrations } from "../../platform/persistence/migrations.ts";
+import {
+  createScratchDbEnv,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../../platform/persistence/scratch-db.test-support.ts";
+import { FIRST_INCARNATION_ID, SECOND_INCARNATION_ID } from "../incarnations.test-support.ts";
 import { LOGO_MAX_CLAIMED_ATTEMPTS, resolveLogoShades } from "../logo.ts";
 import { validSpec } from "../spec/spec.test-support.ts";
 import {
@@ -23,8 +26,8 @@ import {
   settleLogoGeneration,
 } from "./store.ts";
 
-const INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
-const OTHER_INCARNATION_ID = "22222222-2222-4222-8222-222222222222";
+const INCARNATION_ID = FIRST_INCARNATION_ID;
+const OTHER_INCARNATION_ID = SECOND_INCARNATION_ID;
 const SEED = 184206;
 
 function write(overrides: Record<string, unknown> = {}) {
@@ -39,19 +42,16 @@ function write(overrides: Record<string, unknown> = {}) {
 }
 
 describe("the registry's logo inputs and state", () => {
-  let dir: string;
+  let env: ScratchDbEnv;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-registry-logo-"));
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
+    env = createScratchDbEnv("omni-crud-registry-logo-");
+    conns = env.conns;
   });
 
   afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
+    teardownScratchDbEnv(env);
   });
 
   test("a row is born carrying its authored inputs, its seed, and an absent logo", () => {
@@ -190,19 +190,16 @@ describe("the registry's logo inputs and state", () => {
 });
 
 describe("the hard cap on claimed attempts", () => {
-  let dir: string;
+  let env: ScratchDbEnv;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-registry-logo-cap-"));
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
+    env = createScratchDbEnv("omni-crud-registry-logo-cap-");
+    conns = env.conns;
   });
 
   afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
+    teardownScratchDbEnv(env);
   });
 
   // Decision 38's cap, enforced where the increment is: two desk loads that read the count first
@@ -237,7 +234,9 @@ describe("the hard cap on claimed attempts", () => {
 
     conns.readwrite.close();
     conns.readonly.close();
-    conns = openDatabase(join(dir, "test.db"));
+    // Reopened onto the same file, and put back on the env so teardown closes this pair.
+    conns = openDatabase(join(env.dir, "test.db"));
+    env.conns = conns;
 
     expect(getCapabilityLogoState("notes", INCARNATION_ID, conns.readonly)).toEqual({
       status: "absent",
@@ -248,19 +247,16 @@ describe("the hard cap on claimed attempts", () => {
 });
 
 describe("closing out a claim", () => {
-  let dir: string;
+  let env: ScratchDbEnv;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-registry-logo-close-"));
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
+    env = createScratchDbEnv("omni-crud-registry-logo-close-");
+    conns = env.conns;
   });
 
   afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
+    teardownScratchDbEnv(env);
   });
 
   test("a released claim returns to absent, keeps its spend, and can be claimed again", () => {
@@ -335,19 +331,16 @@ describe("closing out a claim", () => {
 });
 
 describe("what an ordinary registry write may and may not move", () => {
-  let dir: string;
+  let env: ScratchDbEnv;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "omni-crud-registry-logo-write-"));
-    conns = openDatabase(join(dir, "test.db"));
-    runMigrations(conns.readwrite);
+    env = createScratchDbEnv("omni-crud-registry-logo-write-");
+    conns = env.conns;
   });
 
   afterEach(() => {
-    conns.readwrite.close();
-    conns.readonly.close();
-    rmSync(dir, { recursive: true, force: true });
+    teardownScratchDbEnv(env);
   });
 
   test("evolution carries the seed and cannot touch a claim it raced", () => {

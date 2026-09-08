@@ -20,6 +20,10 @@ import type {
   TokenUsage,
 } from "../../../platform/provider/index.ts";
 import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+} from "../../../registry/incarnations.test-support.ts";
+import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilityRow,
   type CapabilitySpec,
@@ -35,6 +39,7 @@ import {
 } from "../../index.ts";
 import { checkGeneratedUnit } from "../safety/unit-checks.ts";
 import { FEW_SHOT_DESIGN_EXAMPLES } from "./few-shot-gallery.ts";
+import { DELETE_HANDLER, ITEM_RENDERER, READ_HANDLER } from "./unit-fixtures.test-support.ts";
 
 const STUB_USAGE: TokenUsage = { inputTokens: 3, outputTokens: 5, totalTokens: 8 };
 
@@ -83,7 +88,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
     ],
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
@@ -170,8 +175,8 @@ function projectedContextFixture(): {
     ...base,
     behavioral_errors: defaultBehavioralErrorsForSchema(base.schema),
   };
-  const firstIncarnation = "11111111-1111-4111-8111-111111111111";
-  const secondIncarnation = "22222222-2222-4222-8222-222222222222";
+  const firstIncarnation = FIRST_INCARNATION_ID;
+  const secondIncarnation = SECOND_INCARNATION_ID;
   const dependency = (id: string, incarnation_id: string): CapabilityRow => ({
     ...notesSpec(),
     id,
@@ -226,27 +231,8 @@ function projectedContextFixture(): {
   };
 }
 
-// The one generated presentation surface: record → inner markup, composed from the
-// closed primitive vocabulary, escaping every field value. Synchronous default export.
-const ITEM_RENDERER = [
-  "export default function renderItem(record: Record<string, unknown>): string {",
-  "  const text = escapeHtml(record.text);",
-  '  return `<div class="stack"><span class="text-lg text-bold truncate">$' +
-    "{text}</span></div>`;",
-  "}",
-  "",
-  "function escapeHtml(value: unknown): string {",
-  "  return String(value)",
-  '    .replaceAll("&", "&amp;")',
-  '    .replaceAll("<", "&lt;")',
-  '    .replaceAll(">", "&gt;")',
-  '    .replaceAll(\'"\', "&quot;")',
-  '    .replaceAll("\'", "&#39;");',
-  "}",
-].join("\n");
-
-// The create handler renders the inserted row through the injected `present` adapter —
-// no row markup of its own.
+// The create handler renders the inserted row through the injected `present` adapter — no row
+// markup of its own. It carries `pinned`, which the shared fixture's notes-shaped create does not.
 const CREATE_HANDLER = [
   "export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string> {",
   "  const values: Record<string, unknown> = { text: input.values.text };",
@@ -259,17 +245,7 @@ const CREATE_HANDLER = [
   "}",
 ].join("\n");
 
-// The read handler maps every row through `present` and joins them — identical item markup to
-// create. No rows joins to an empty string, leaving the region `:empty` for the platform.
-const READ_HANDLER = [
-  "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
-  "  const notes = query.records({",
-  '    sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
-  "  });",
-  '  return notes.map(({ record }) => present(record)).join("");',
-  "}",
-].join("\n");
-
+// Update and search carry `pinned` and a single search term, so both stay local.
 const UPDATE_HANDLER = [
   "export default async function update({ input, mutation, present }: CapabilityUpdateContext): Promise<string> {",
   "  const patch: Record<string, unknown> = {};",
@@ -278,11 +254,6 @@ const UPDATE_HANDLER = [
   "  return present(mutation.update(patch));",
   "}",
 ].join("\n");
-
-const DELETE_HANDLER = `export default async function remove({ mutation }: CapabilityDeleteContext): Promise<string> {
-  mutation.delete();
-  return "";
-}`;
 
 const SEARCH_HANDLER = [
   "export default async function search({ input, query, present }: CapabilityContext): Promise<string> {",
@@ -1028,7 +999,7 @@ describe("unit generation with bounded fix loop — dependency projection", () =
     const base = notesSpec();
     const requiredError = base.behavioral_errors[0];
     if (!requiredError) throw new Error("notes fixture requires one validation error");
-    const incarnation_id = "11111111-1111-4111-8111-111111111111";
+    const incarnation_id = FIRST_INCARNATION_ID;
     const dependency: CapabilityRow = {
       ...base,
       id: "recipes",

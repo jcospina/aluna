@@ -5,6 +5,9 @@
  * ways in, one component (PLAN decision 19), with the markup shipped hidden beside the logo.
  */
 
+import { isCapabilityNameLabel, isMarkupShapedName } from "./capability-name.js";
+import { BUSY_LABEL_ATTRIBUTE, IDLE_LABEL_ATTRIBUTE } from "./shell-dom.js";
+
 /**
  * The slot one capability occupies on the desk: the logo, its menu and its editor. The doorway is
  * on the logo rather than the window chrome, which is why no lamp goes signal red and D3 stands.
@@ -58,32 +61,12 @@ const PROMPT_FORM_ID = "spec-build-form";
  */
 const PROMPT_NOTICE_ID = "prompt-notice";
 
-/**
- * What the editor says about a name it will not send. Restated from `isCapabilityNameLabel`
- * (`src/registry/labels.ts`), with a test running both readings over the same corpus.
- */
-const MAX_LABEL_CHARS = 48;
-const MAX_LABEL_WORDS = 5;
-const SENTENCE_PUNCTUATION = /[.!?]/;
-const PRODUCT_VOICE_START = /^(?:got it|i.?ll|i will|i.?m|we.?ll|we will|let.?s)\b/i;
-
-/** What the editor says when the name will not do. One sentence, and it stays in the
- * editor: a client-side reading is not a refusal the desk has made. */
+/* What the editor says when the name will not do. It stays in the editor: a client-side reading
+   is not a refusal the desk has made. */
 const BLANK_LABEL_NOTICE = "Give it a name and I’ll put it under the tile.";
 const UNUSABLE_LABEL_NOTICE = "Something short, in a few words — no full sentences.";
-
-/**
- * Whether a typed name is one the registry will take. The same reading the server does,
- * which is what makes the two answers identical.
- * @param {string} value
- */
-export function isUsableCapabilityName(value) {
-  const label = value.trim();
-  if (label.length === 0 || label.length > MAX_LABEL_CHARS) return false;
-  if (SENTENCE_PUNCTUATION.test(label)) return false;
-  if (PRODUCT_VOICE_START.test(label)) return false;
-  return label.split(/\s+/).length <= MAX_LABEL_WORDS;
-}
+// Angle brackets are refused on their own rule, so the sentence about length would be untrue.
+const BRACKETED_LABEL_NOTICE = "Names can\u2019t use < or >. Try it without them.";
 
 /**
  * What the editor says about this name, or the empty string when it has nothing to say.
@@ -91,7 +74,8 @@ export function isUsableCapabilityName(value) {
  */
 export function labelNotice(value) {
   if (value.trim().length === 0) return BLANK_LABEL_NOTICE;
-  return isUsableCapabilityName(value) ? "" : UNUSABLE_LABEL_NOTICE;
+  if (isCapabilityNameLabel(value)) return "";
+  return isMarkupShapedName(value) ? BRACKETED_LABEL_NOTICE : UNUSABLE_LABEL_NOTICE;
 }
 
 /**
@@ -696,13 +680,14 @@ function wireRenameRequest(root) {
     const form = renameFormOf(event);
     if (form === null) return;
     form.setAttribute("aria-busy", "true");
-    sayOnSave(form, form.querySelector(RENAME_SAVE_SELECTOR)?.getAttribute("data-busy-label"));
+    rememberIdleSaveLabel(form);
+    sayOnSave(form, saveButtonOf(form)?.getAttribute(BUSY_LABEL_ATTRIBUTE));
   });
   root.addEventListener("htmx:afterRequest", (/** @type {MenuEvent} */ event) => {
     const form = renameFormOf(event);
     if (form === null) return;
     form.removeAttribute("aria-busy");
-    sayOnSave(form, SAVE_LABEL);
+    sayOnSave(form, idleSaveLabel(form));
     // A refusal swaps nothing, so no swap arrives to put this marker down: leaving it standing
     // would hand the focus to a logo on the next unrelated swap of that slot.
     if (htmxDetail(event).successful === true) return;
@@ -781,12 +766,30 @@ function slotFor(capabilityId) {
  * @param {MenuNode} form @param {string | null | undefined} said
  */
 function sayOnSave(form, said) {
-  const save = form.querySelector(RENAME_SAVE_SELECTOR);
+  const save = saveButtonOf(form);
   if (save !== null && typeof said === "string") save.textContent = said;
 }
 
-/** What it is called the rest of the time. Restated from the markup it is rendered in. */
-const SAVE_LABEL = "Save";
+/**
+ * What Save is called the rest of the time, kept on the control the first time the busy sentence
+ * replaces it rather than restated here — the same reading `public/record-mutations.js` does.
+ * @param {MenuNode} form
+ */
+function idleSaveLabel(form) {
+  return saveButtonOf(form)?.getAttribute(IDLE_LABEL_ATTRIBUTE) ?? undefined;
+}
+
+/** @param {MenuNode} form */
+function rememberIdleSaveLabel(form) {
+  const save = saveButtonOf(form);
+  if (save === null || save.hasAttribute(IDLE_LABEL_ATTRIBUTE)) return;
+  save.setAttribute(IDLE_LABEL_ATTRIBUTE, save.textContent ?? "");
+}
+
+/** The rename form's Save control. @param {MenuNode} form */
+function saveButtonOf(form) {
+  return form.querySelector(RENAME_SAVE_SELECTOR);
+}
 
 /** The rename form an htmx event was made by, if it was made by one. @param {MenuEvent} event */
 function renameFormOf(event) {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-
+import { wait } from "../../platform/async.test-support.ts";
 import { DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS } from "../router/dispatch/generated-code.ts";
 import {
   type CapabilityIncarnation,
@@ -18,10 +18,6 @@ function input(
   catalog: readonly CapabilityIncarnation[] = [A, B, C],
 ) {
   return { catalog, incarnations };
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 describe("ReadGateCoordinator atomic admission and draining", () => {

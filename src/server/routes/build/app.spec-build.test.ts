@@ -12,11 +12,13 @@
 import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { publishedSnapshotFiles } from "../../../builder/artifacts/publication/snapshot-contract.test-support.ts";
 import type { RecordMetrics } from "../../../pipeline/index.ts";
 import type { GenerationMetrics } from "../../../platform/metrics/index.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { Provider } from "../../../platform/provider/index.ts";
 import {
+  FULL_CAPABILITY_TOOLS,
   getCapability,
   LOGO_HUE_FAMILIES,
   type LogoHueFamily,
@@ -238,7 +240,7 @@ function assertNarrationCommitAndPrompts(
   expect(prompts[1]).toContain("ui_intent.collection.layout is one of: feed | grid");
   expect(prompts[1]).toContain("Do not include ui_intent.views");
   expect(prompts.slice(2, 7).map((prompt) => /Action under test: (\w+)/.exec(prompt)?.[1])).toEqual(
-    ["create", "read", "update", "delete", "search"],
+    [...FULL_CAPABILITY_TOOLS],
   );
   expect(prompts[2]).toContain("Text is required. Newest notes appear first.");
   expect(prompts[2]).toContain('"schema"');
@@ -330,17 +332,7 @@ function assertCommitPreviewAndArtifacts(
   expect(commitPreview.artifactsPath).toBe(
     `${artifactsRootPath}/notes/${commitPreview.incarnationId}/v1/`,
   );
-  expect(commitPreview.files).toEqual([
-    "create.ts",
-    "delete.ts",
-    "item.ts",
-    "read.ts",
-    "search.ts",
-    "snapshot.json",
-    "spec.json",
-    "tests/behavioral.json",
-    "update.ts",
-  ]);
+  expect(commitPreview.files).toEqual(publishedSnapshotFiles("on"));
 
   // The developer preview shows the logo's inputs and its state. The spec authors two hues;
   // `colors` is that pair resolved against the stored seed, so both are readable.
@@ -369,7 +361,7 @@ function assertCommitPreviewAndArtifacts(
   expect(committed?.version).toBe(1);
   expect(committed?.artifacts_path).toBe(commitPreview.artifactsPath);
   expect(committed?.label).toBe("Notes");
-  expect(committed?.tools).toEqual(["create", "read", "update", "delete", "search"]);
+  expect(committed?.tools).toEqual([...FULL_CAPABILITY_TOOLS]);
   expect(committed?.read_dependencies).toEqual({
     create: [],
     read: [],

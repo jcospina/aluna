@@ -1,6 +1,5 @@
 // Tests for the generation-metrics store. Each case runs against a
-// throwaway db (openDatabase + runMigrations) so the real data file is never
-// touched. The headline guarantees: a complete build row round-trips deep-equal
+// throwaway migrated db so the real data file is never touched. The headline guarantees: a complete build row round-trips deep-equal
 // through the read-only connection; the writer is callable with partial knowledge
 // (a deflection writes intent + tokens with no build timings; a failed build writes
 // everything up to the failing rung, recording which rung failed); absent token
@@ -8,22 +7,27 @@
 // and the table stays exactly the columns ARCH §6.3 / PLAN step 8 call for.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-
-import { openDatabase, type PlatformDatabase } from "../persistence/db.ts";
-import { runMigrations } from "../persistence/migrations.ts";
+import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+  THIRD_INCARNATION_ID,
+} from "../../registry/incarnations.test-support.ts";
+import type { PlatformDatabase } from "../persistence/db.ts";
+import {
+  createScratchDbEnv,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../persistence/scratch-db.test-support.ts";
+import { sumTokenUsages } from "../provider/usage.ts";
 import {
   GENERATION_METRICS_TABLE,
   type GenerationMetrics,
   getGenerationMetrics,
   listGenerationMetrics,
-  sumTokenUsage,
   writeGenerationMetrics,
 } from "./store.ts";
 
-const NOTES_INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
+const NOTES_INCARNATION_ID = FIRST_INCARNATION_ID;
 
 // A complete, valid success row — one full build of the notes capability. Fresh
 // per call so tests can tweak copies without sharing state.
@@ -70,29 +74,17 @@ function buildMetrics(overrides: Partial<GenerationMetrics> = {}): GenerationMet
   };
 }
 
-function openMetricsDatabase(): { dir: string; conns: PlatformDatabase } {
-  const dir = mkdtempSync(join(tmpdir(), "omni-crud-metrics-"));
-  const conns = openDatabase(join(dir, "test.db"));
-  runMigrations(conns.readwrite);
-  return { dir, conns };
-}
-
-function closeMetricsDatabase(dir: string, conns: PlatformDatabase): void {
-  conns.readwrite.close();
-  conns.readonly.close();
-  rmSync(dir, { recursive: true, force: true });
-}
-
 describe("generation-metrics store — round-trips and partial writes", () => {
-  let dir: string;
+  let env: ScratchDbEnv;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    ({ dir, conns } = openMetricsDatabase());
+    env = createScratchDbEnv("omni-crud-metrics-");
+    conns = env.conns;
   });
 
   afterEach(() => {
-    closeMetricsDatabase(dir, conns);
+    teardownScratchDbEnv(env);
   });
 
   test("a complete build row round-trips deep-equal through the read-only connection", () => {
@@ -144,7 +136,7 @@ describe("generation-metrics store — round-trips and partial writes", () => {
         model: "gpt-5",
         intent: { type: "new_capability", confidence: 1, targetCapability: null },
         capabilityId: "expenses",
-        incarnationId: "22222222-2222-4222-8222-222222222222",
+        incarnationId: SECOND_INCARNATION_ID,
         usage: { inputTokens: 900, outputTokens: 500, totalTokens: 1400 },
         timings: {
           specGenMs: 1400,
@@ -179,15 +171,16 @@ describe("generation-metrics store — round-trips and partial writes", () => {
 });
 
 describe("generation-metrics store — failed builds and token accounting", () => {
-  let dir: string;
+  let env: ScratchDbEnv;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    ({ dir, conns } = openMetricsDatabase());
+    env = createScratchDbEnv("omni-crud-metrics-");
+    conns = env.conns;
   });
 
   afterEach(() => {
-    closeMetricsDatabase(dir, conns);
+    teardownScratchDbEnv(env);
   });
 
   test("a build that fails before the gate writes everything up to the failing stage", () => {
@@ -200,7 +193,7 @@ describe("generation-metrics store — failed builds and token accounting", () =
         model: "gpt-5",
         intent: { type: "new_capability", confidence: 1, targetCapability: null },
         capabilityId: "todos",
-        incarnationId: "33333333-3333-4333-8333-333333333333",
+        incarnationId: THIRD_INCARNATION_ID,
         usage: { inputTokens: 700, outputTokens: 400, totalTokens: 1100 },
         timings: { specGenMs: 1300, migrationMs: 2, codeGenMs: 1900 },
         unitAttempts: [
@@ -275,15 +268,16 @@ describe("generation-metrics store — failed builds and token accounting", () =
 });
 
 describe("generation-metrics store — reads, listing, and invariants", () => {
-  let dir: string;
+  let env: ScratchDbEnv;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    ({ dir, conns } = openMetricsDatabase());
+    env = createScratchDbEnv("omni-crud-metrics-");
+    conns = env.conns;
   });
 
   afterEach(() => {
-    closeMetricsDatabase(dir, conns);
+    teardownScratchDbEnv(env);
   });
 
   test("get-by-id returns null for an unknown generation", () => {
@@ -296,7 +290,7 @@ describe("generation-metrics store — reads, listing, and invariants", () => {
       buildMetrics({
         id: "build-b",
         capabilityId: "recipes",
-        incarnationId: "22222222-2222-4222-8222-222222222222",
+        incarnationId: SECOND_INCARNATION_ID,
       }),
       conns.readwrite,
     );
@@ -378,10 +372,10 @@ describe("generation-metrics store — reads, listing, and invariants", () => {
   });
 });
 
-describe("sumTokenUsage", () => {
+describe("sumTokenUsages", () => {
   test("sums reported counts across provider calls", () => {
     expect(
-      sumTokenUsage([
+      sumTokenUsages([
         { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
         { inputTokens: 20, outputTokens: 7, totalTokens: 27 },
       ]),
@@ -390,7 +384,7 @@ describe("sumTokenUsage", () => {
 
   test("keeps a figure undefined unless at least one call reported it", () => {
     expect(
-      sumTokenUsage([
+      sumTokenUsages([
         { inputTokens: 10, outputTokens: undefined, totalTokens: undefined },
         { inputTokens: undefined, outputTokens: undefined, totalTokens: 5 },
       ]),
@@ -399,7 +393,7 @@ describe("sumTokenUsage", () => {
 
   test("all-absent usages sum to all-undefined, not zero", () => {
     expect(
-      sumTokenUsage([{ inputTokens: undefined, outputTokens: undefined, totalTokens: undefined }]),
+      sumTokenUsages([{ inputTokens: undefined, outputTokens: undefined, totalTokens: undefined }]),
     ).toEqual({ inputTokens: undefined, outputTokens: undefined, totalTokens: undefined });
   });
 });

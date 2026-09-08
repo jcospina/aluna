@@ -3,6 +3,7 @@
 // `spec.behavior.test.ts`; the vocabulary itself is pinned in `logo.test.ts`.
 
 import { describe, expect, test } from "bun:test";
+import { FIRST_INCARNATION_ID } from "../incarnations.test-support.ts";
 import { LOGO_HUE_FAMILIES } from "../logo.ts";
 import { validSpec } from "./spec.test-support.ts";
 import {
@@ -14,7 +15,7 @@ import {
   MAX_LOGO_SUBJECT_LENGTH,
 } from "./spec.ts";
 
-const INCARNATION_ID = "11111111-1111-4111-8111-111111111111";
+const INCARNATION_ID = FIRST_INCARNATION_ID;
 
 function validRow(overrides: Record<string, unknown> = {}) {
   return {

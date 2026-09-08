@@ -1,7 +1,12 @@
 // Behavioral execution, scratch-catalog, ordering, and tier integration tests.
 
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
-import { BEHAVIORAL_ERROR_MARKERS, type CapabilitySpec } from "../../../../registry/index.ts";
+import { THIRD_INCARNATION_ID } from "../../../../registry/incarnations.test-support.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  type CapabilitySpec,
+  FULL_CAPABILITY_TOOLS,
+} from "../../../../registry/index.ts";
 import { deriveCapabilityTableDdl } from "../../../../runtime/data/index.ts";
 import {
   BEHAVIORAL_SUITE as FULL_BEHAVIORAL_SUITE,
@@ -202,7 +207,7 @@ describe("capability gate — behavioral violations", () => {
 
 describe("capability gate — behavioral scratch catalog", () => {
   test("behavioral execution receives declared synthetic dependency schemas and compatibility rows", async () => {
-    const dependencyIncarnation = "33333333-3333-4333-8333-333333333333";
+    const dependencyIncarnation = THIRD_INCARNATION_ID;
     const dependencySpec = notesSpec({
       id: "behavior_catalog",
       label: "Behavior catalog",
@@ -390,7 +395,7 @@ describe("capability gate — behavioral tier", () => {
     // The Gate hands back exactly what it was given — every case, unmoved and undigested
     // by execution — regrouped only by the Action that owns it.
     expect(frozen.actions.flatMap((entry) => entry.cases)).toEqual(
-      ["create", "read", "update", "delete", "search"].flatMap((action) =>
+      FULL_CAPABILITY_TOOLS.flatMap((action) =>
         FULL_BEHAVIORAL_SUITE.cases.filter((testCase) => testCase.action === action),
       ),
     );

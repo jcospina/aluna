@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { disarmLogoAttempt, startLogoAttemptDisarm } from "#shell/logo-attempt.js";
+import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import {
   DESK_LOGO_LAYER_ELEMENT_ID,
   renderCapabilityLogo,
@@ -39,7 +40,7 @@ class Root {
 function armedTile(): Node {
   return new Node({
     class: "logo-tile logo-tile--pending",
-    "hx-post": "/capability/notes/11111111-1111-4111-8111-111111111111/logo-attempt",
+    "hx-post": `/capability/notes/${FIRST_INCARNATION_ID}/logo-attempt`,
     "hx-trigger": "load",
     "hx-target": "#capability-logo-notes",
     "hx-swap": "outerHTML",
@@ -101,15 +102,13 @@ describe("the module and the markup agree", () => {
     const rendered = renderCapabilityLogo({
       id: "notes",
       label: "Notes",
-      incarnation_id: "11111111-1111-4111-8111-111111111111",
+      incarnation_id: FIRST_INCARNATION_ID,
       version: 1,
       logo: { status: "absent", attempts: 0 },
       display_label_override: null,
     });
 
-    expect(rendered).toContain(
-      'hx-post="/capability/notes/11111111-1111-4111-8111-111111111111/logo-attempt"',
-    );
+    expect(rendered).toContain(`hx-post="/capability/notes/${FIRST_INCARNATION_ID}/logo-attempt"`);
     expect(rendered).toContain('hx-trigger="load"');
   });
 

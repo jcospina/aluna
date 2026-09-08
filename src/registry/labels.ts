@@ -1,28 +1,7 @@
-/**
- * The longest a capability name may be. Exported because the inline rename editor caps
- * the field at the same number the validator refuses past — a `maxlength` the person can
- * feel, rather than a refusal they only meet on submit.
- */
-export const MAX_CAPABILITY_LABEL_CHARS = 48;
-const MAX_CAPABILITY_LABEL_WORDS = 5;
-const PRODUCT_VOICE_LABEL_START = /^(?:got it|i.?ll|i will|i.?m|we.?ll|we will|let.?s)\b/i;
+import { isCapabilityNameLabel } from "#shell/capability-name.js";
 
-/**
- * `<img src=x onerror=alert(1)>` is three words with no sentence punctuation, so every rule above
- * admits it. Angle brackets only: `&`, an apostrophe and a quote belong to real names.
- */
-const MARKUP_SHAPED = /[<>]/;
-
-export function isCapabilityNameLabel(value: string): boolean {
-  const label = value.trim();
-  if (label.length === 0 || label.length > MAX_CAPABILITY_LABEL_CHARS) return false;
-  if (/[.!?]/.test(label)) return false;
-  // Every sink escapes this label, so this is not what makes it safe. What it refuses is a name
-  // that is not a name.
-  if (MARKUP_SHAPED.test(label)) return false;
-  if (PRODUCT_VOICE_LABEL_START.test(label)) return false;
-  return label.split(/\s+/).length <= MAX_CAPABILITY_LABEL_WORDS;
-}
+// The rename editor reads a name with this same function, so the two answers cannot drift apart.
+export { isCapabilityNameLabel, MAX_CAPABILITY_LABEL_CHARS } from "#shell/capability-name.js";
 
 /**
  * The one expression of `display_label_override ?? label`, so no display path can disagree. The

@@ -10,6 +10,8 @@
 // Presentation only: live values arrive at render time as arguments. Every interpolated field
 // name and record value is escaped, and the form is platform chrome, so the enforcer never runs.
 
+import { capabilityActionUrl } from "#shell/routes.js";
+import { assertNever } from "../../platform/errors.ts";
 import {
   activeSpecFields,
   type ChoiceFieldType,
@@ -28,6 +30,7 @@ import {
   type WireProtocolAction,
 } from "../../runtime/router/wire/wire-protocol.ts";
 import { escapeHtml } from "../../server/http/html.ts";
+import { ADDING_LABEL, busyLabelAttribute, SAVING_RECORD_LABEL } from "../controls/busy-label.ts";
 import { renderChoiceField } from "../controls/choice-control.ts";
 import {
   controlShell,
@@ -110,7 +113,7 @@ function requiredMessageAttribute(): string {
 
 function searchRefreshAttributes(capability: RenderableCapability): string {
   return capability.actions.includes("search")
-    ? ` data-search-url="/capability/${capability.id}/search"`
+    ? ` data-search-url="${capabilityActionUrl(capability.id, "search")}"`
     : "";
 }
 
@@ -127,20 +130,20 @@ export function renderCreateForm(capability: RenderableCapability): string {
     .join("");
   return (
     `<form class="capability-create-form" aria-label="Add to ${escapeHtml(capability.label)}"` +
-    ` hx-post="/capability/${capabilityId}/create"` +
+    ` hx-post="${capabilityActionUrl(capabilityId, "create")}"` +
     ` hx-swap="none"` +
     ` data-post-mutation-refresh` +
     ` data-mutation-kind="create"` +
     ` data-capability-id="${capabilityId}"` +
     ` data-records-target-id="${regionId}"` +
-    ` data-read-url="/capability/${capabilityId}/read"` +
+    ` data-read-url="${capabilityActionUrl(capabilityId, "read")}"` +
     searchRefreshAttributes(capability) +
     requiredMessageAttribute() +
     `>` +
     `<div id="${errorId}" class="capability-create-form__error" aria-live="polite"></div>` +
     `<div class="capability-create-form__fields">${fields}</div>` +
     `<div class="capability-create-form__actions">` +
-    `<button class="btn btn--primary" type="submit">Add</button>` +
+    `<button class="btn btn--primary" type="submit"${busyLabelAttribute(ADDING_LABEL)}>Add</button>` +
     `<button class="btn btn--outline" type="button" data-create-cancel` +
     ` @click="$el.ownerDocument.defaultView.HTMLFormElement.prototype.reset.call($el.form);` +
     ` $el.ownerDocument.getElementById('${errorId}').replaceChildren();` +
@@ -174,13 +177,13 @@ export function renderEditForm(
   // collection, and the record view above the form is what the swap reads the item from.
   return (
     `<form class="capability-edit-form" data-record-edit-form aria-label="Edit ${label}"` +
-    ` hx-post="/capability/${capability.id}/update" hx-swap="none"` +
+    ` hx-post="${capabilityActionUrl(capability.id, "update")}" hx-swap="none"` +
     `${requiredMessageAttribute()}>` +
     `<input type="hidden" name="${ALUNA_RECORD_ID_MARKER}" value="${escapedRecordId}">` +
     `<div id="${errorId}" class="capability-edit-form__error" aria-live="polite"></div>` +
     `<div class="capability-edit-form__fields">${fields}</div>` +
     `<div class="capability-edit-form__actions">` +
-    `<button class="btn btn--primary" type="submit">Save</button>` +
+    `<button class="btn btn--primary" type="submit"${busyLabelAttribute(SAVING_RECORD_LABEL)}>Save</button>` +
     `<button class="btn btn--outline" type="button" data-record-cancel>Cancel</button>` +
     renderDeleteTrigger(capability) +
     `</div>` +
@@ -247,7 +250,7 @@ function createInputFor(type: Exclude<FieldType, ListFieldType | ChoiceFieldType
       // A calendar day, no time — the native date picker, distinct from datetime-local.
       return { inputType: "date", inline: false, extraAttributes: "", canBeEmpty: true };
     default:
-      return assertNever(type);
+      return assertNever(type, "field type");
   }
 }
 
@@ -470,7 +473,7 @@ function renderListField(
     case "repeatable":
       return renderRepeatableListField(inputId, field, form, value);
     default:
-      return assertNever(mode);
+      return assertNever(mode, "field type");
   }
 }
 
@@ -659,8 +662,3 @@ function repeatableRow(
 }
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
-
-/** Compile-time exhaustiveness guard: reached only if a `FieldType` case is unhandled. */
-function assertNever(value: never): never {
-  throw new Error(`Unhandled field type: ${String(value)}`);
-}

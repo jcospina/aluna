@@ -6,19 +6,9 @@
 import { describe, expect, test } from "bun:test";
 
 import type { CapabilitySpec } from "../../../../registry/index.ts";
+import { ESCAPE_HELPER } from "../../../units/generation/unit-fixtures.test-support.ts";
 import { expectGateFailure, gateInput, notesSpec } from "../../gate.test-support.ts";
 import { findDesignViolation } from "./gate-design-lint.ts";
-
-const ESCAPE_HELPER = [
-  "function escapeHtml(value: unknown): string {",
-  "  return String(value)",
-  '    .replaceAll("&", "&amp;")',
-  '    .replaceAll("<", "&lt;")',
-  '    .replaceAll(">", "&gt;")',
-  '    .replaceAll(\'"\', "&quot;")',
-  '    .replaceAll("\'", "&#39;");',
-  "}",
-].join("\n");
 
 const EMPTY_COMPOSITION_RENDERER = [
   "export default function renderItem(record: Record<string, unknown>): string {",

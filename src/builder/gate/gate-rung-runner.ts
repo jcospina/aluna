@@ -1,9 +1,9 @@
+import { errorMessage } from "../../platform/errors.ts";
 import {
   CapabilityGateError,
   type CapabilityGateFailureMeasurement,
 } from "./capability-gate-error.ts";
 import type { BehavioralGateResult, GateRungName, GateRungOutcome } from "./gate.ts";
-import { errorMessage } from "./gate-internal.ts";
 
 export async function runGateRung<T>(
   outcomes: GateRungOutcome[],

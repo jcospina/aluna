@@ -1,30 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+
+import {
+  ruleBody as body,
+  readSource as read,
+  rules,
+  under,
+} from "../../safety/source.test-support.ts";
 
 // The desk ground, checked where it is declared (PLAN decisions 1 and 5, design D5): the ground
 // fills the viewport, the bar floats clear of every edge, and the strip it reserves is one number.
-
-const ROOT = resolve(import.meta.dir, "../../../..");
-const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
-
-/** Every file of one kind under a directory, as repo-relative paths. */
-const under = (directory: string, pattern: string): string[] =>
-  [...new Bun.Glob(pattern).scanSync({ cwd: join(ROOT, directory) })].map((name) =>
-    join(directory, name),
-  );
-
-/** A stylesheet with its comments stripped — a rule is what the browser sees. */
-const rules = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\//g, "");
-
-/** One rule's body, by exact selector. Flat: nesting is not used in these sheets. */
-function body(css: string, selector: string): string {
-  const match = new RegExp(
-    `(?:^|[},])\\s*${selector.replaceAll(".", "\\.")}\\s*\\{([^}]*)\\}`,
-  ).exec(css);
-  expect(match?.[1], `no \`${selector}\` rule`).toBeDefined();
-  return match?.[1] as string;
-}
 
 describe("the desk ground", () => {
   test("the wallpaper fills the viewport", () => {

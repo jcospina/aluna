@@ -13,6 +13,7 @@ import type { Database } from "bun:sqlite";
 import { z } from "zod";
 import { intentTypeSchema, overlapResolutionSchema } from "../../pipeline/intent/index.ts";
 import { db, dbReadonly } from "../persistence/db.ts";
+import { GENERATION_LIFECYCLE_TABLE } from "../persistence/table-names.ts";
 import {
   gateRungOutcomeSchema,
   generationFailureSchema,
@@ -20,7 +21,7 @@ import {
   unitAttemptSummarySchema,
 } from "./shared-schema.ts";
 
-export const GENERATION_LIFECYCLE_TABLE = "generation_lifecycle_metrics";
+export { GENERATION_LIFECYCLE_TABLE } from "../persistence/table-names.ts";
 
 export const GENERATION_LIFECYCLE_STATUSES = [
   "running",

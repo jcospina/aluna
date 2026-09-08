@@ -1,10 +1,11 @@
+import { capabilityDeletionUrl } from "#shell/routes.js";
 import type { CapabilityRow } from "../../registry/index.ts";
 import { canonicalCapabilityLabel, SQL_NAME_PATTERN } from "../../registry/index.ts";
 import { escapeHtml } from "../../server/http/html.ts";
 import { capabilityLogoElementId, renderPromptNotice } from "../../server/http/index.ts";
 
 function deletionUrl(capabilityId: string): string {
-  return `/capability-deletion/${encodeURIComponent(capabilityId)}`;
+  return capabilityDeletionUrl(capabilityId);
 }
 
 function sentenceList(labels: readonly string[]): string {

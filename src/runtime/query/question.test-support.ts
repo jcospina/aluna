@@ -13,6 +13,10 @@ import type { Database } from "bun:sqlite";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
 import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+} from "../../registry/incarnations.test-support.ts";
+import {
   type CapabilitySpec,
   capabilitySpecFromRow,
   readActiveRegistryCatalog,
@@ -44,11 +48,11 @@ import {
 
 export const NOTES_CAPABILITY = {
   id: "notes",
-  incarnationId: "11111111-1111-4111-8111-111111111111",
+  incarnationId: FIRST_INCARNATION_ID,
 };
 export const EXPENSES_CAPABILITY = {
   id: "expenses",
-  incarnationId: "22222222-2222-4222-8222-222222222222",
+  incarnationId: SECOND_INCARNATION_ID,
 };
 
 export const NOTES_TABLE = "cap_notes";

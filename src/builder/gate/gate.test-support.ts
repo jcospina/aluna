@@ -7,7 +7,6 @@
 
 import { expect } from "bun:test";
 import { type ZodType, z } from "zod";
-import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
 import {
   activeSpecFields,
@@ -17,17 +16,15 @@ import {
   FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../registry/index.ts";
-import {
-  createCapabilityMutationPort,
-  createCapabilityQueryPort,
-  deriveCapabilityTableDdl,
-  materializeCapabilityActionRecord,
-  selectCapabilityRows,
-} from "../../runtime/data/index.ts";
+import { notesSpec } from "../../registry/spec/spec.test-support.ts";
+import { deriveCapabilityTableDdl } from "../../runtime/data/index.ts";
+import { createCapabilityDataTool } from "../../runtime/data/tool.test-support.ts";
+import { READ_HANDLER } from "../units/generation/unit-fixtures.test-support.ts";
 import type { GeneratedUnit, HandlerUnitName } from "../units/generation/units.ts";
 import {
   type BehavioralTierInput,
   CapabilityGateError,
+  type CapabilityGateResult,
   type FrozenBehavioralTestsInput,
   runCapabilityGate,
 } from "./gate.ts";
@@ -41,62 +38,11 @@ import type {
   FullBehavioralTestCase,
 } from "./rungs/behavioral/generation/gate-behavioral-full-schema.ts";
 
+export { createCapabilityDataTool, notesSpec, READ_HANDLER };
+
 /** The whole-capability case list the fixtures author, before the per-Action split. */
 export interface FullBehavioralTestSuite {
   readonly cases: readonly FullBehavioralTestCase[];
-}
-
-export function createCapabilityDataTool(spec: CapabilitySpec, databases: PlatformDatabase) {
-  const mutation = createCapabilityMutationPort(spec, databases.readwrite);
-  const query = createCapabilityQueryPort(databases.readonly, { target: spec });
-  return {
-    insert: (values: Record<string, unknown>) =>
-      materializeCapabilityActionRecord(mutation.create(values)),
-    select: () => selectCapabilityRows(spec, query),
-  };
-}
-
-export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
-  return {
-    id: "notes",
-    label: "Notes",
-    subject: "an open notebook",
-    ground: "grass_green",
-    companion: "coral_orange",
-    noun: "note",
-    schema: {
-      fields: [
-        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
-        { name: "pinned", label: "Pinned", type: "boolean", required: false, lifecycle: "active" },
-      ],
-    },
-    ui_intent: {
-      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
-      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
-      collection: { layout: "feed" },
-    },
-    behavior: "Text is required. Newest notes appear first.",
-    behavioral_errors: [
-      {
-        action: "create",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["text"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
-      {
-        action: "update",
-        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
-        fields: ["text"],
-        expected_markers: BEHAVIORAL_ERROR_MARKERS,
-      },
-    ],
-    tools: ["create", "read", "update", "delete", "search"],
-    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
-    prompt_context: "Stores the user's text notes.",
-    ...overrides,
-  };
 }
 
 /**
@@ -111,15 +57,6 @@ export const CREATE_HANDLER = [
   '    pinned: input.values.pinned === "on" || input.values.pinned === "true",',
   "  });",
   "  return present(note);",
-  "}",
-].join("\n");
-
-export const READ_HANDLER = [
-  "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
-  "  const notes = query.records({",
-  '    sql: \'SELECT "id" AS "target_id" FROM "cap_notes" ORDER BY "created_at" DESC, "id" DESC\',',
-  "  });",
-  '  return notes.map(({ record }) => present(record)).join("");',
   "}",
 ].join("\n");
 
@@ -144,6 +81,8 @@ export function itemRendererFor(spec: CapabilitySpec): string {
 /**
  * Generic five-Action Handler builders: a per-test create/read plus these deterministic ones.
  * The search Handler mirrors the normalized-substring, AND-across-terms contract smoke asserts.
+ * This delete returns a notice rather than the shared fixture's empty string: the smoke rung
+ * reads the answer back.
  */
 export const DELETE_HANDLER = [
   "export default async function remove({ mutation }: CapabilityDeleteContext): Promise<string> {",
@@ -798,4 +737,27 @@ export async function expectGateFailure(
   }
 
   throw new Error("expected gate to fail");
+}
+
+/**
+ * The Gate run over the notes fixture, which is all four publication suites want before they
+ * have a snapshot to publish. Omit `behavioralTier` for the tier as `gateInput` sets it.
+ */
+export async function notesFixtureGate(
+  behavioralTier?: BehavioralTierInput,
+): Promise<CapabilityGateResult> {
+  const units = [...generatedUnitsFor(notesSpec())];
+  const handlers = Object.fromEntries(
+    units.filter((unit) => unit.kind === "handler").map((unit) => [unit.name, unit.content]),
+  );
+  const itemRenderer = units.find((unit) => unit.kind === "item-renderer")?.content;
+  if (!itemRenderer) throw new Error("Expected the item renderer fixture.");
+  return runCapabilityGate(
+    gateInput({
+      spec: notesSpec(),
+      handlers,
+      itemRenderer,
+      ...(behavioralTier && { behavioralTier }),
+    }),
+  );
 }

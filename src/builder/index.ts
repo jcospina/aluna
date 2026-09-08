@@ -9,6 +9,7 @@
 export {
   DERIVED_UNIT_FILES,
   type DerivedUnitFile,
+  descriptorForFile,
   type EvolutionUnitProvenanceInput,
   evolutionUnitProvenance,
   type UnitProvenanceManifest,
@@ -136,6 +137,7 @@ export {
   freezeBehavioralTests,
   frozenBehavioralTestCases,
   frozenBehavioralTestsSchema,
+  GATE_RUNG_ORDER,
   type GateRungName,
   type GateRungOutcome,
   type GateRungStatus,

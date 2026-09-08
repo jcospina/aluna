@@ -1,9 +1,11 @@
 import type { Database } from "bun:sqlite";
 import type { Context } from "hono";
+import { capabilityUrl } from "#shell/routes.js";
 import { type CapabilityRow, getCapability } from "../../registry/index.ts";
 import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 import type { ReadGateCoordinator } from "../../runtime/concurrency/read-gates.ts";
 import { renderCachedCapabilitySurface } from "../../server/http/index.ts";
+import { singleFormValue } from "../form-values.ts";
 import type { DeletionCleanupSupervisor } from "./destruction/cleanup-supervisor.ts";
 import {
   type CapabilityDestructionFaults,
@@ -81,11 +83,7 @@ async function readCapabilityDeletionConfirmation(
   if (!visibleTarget) {
     return alreadyGoneResponse(c, capabilityId, restoration, deps.registryReadonly);
   }
-  const incarnationValues = form.getAll("incarnation_id");
-  const incarnationId =
-    incarnationValues.length === 1 && typeof incarnationValues[0] === "string"
-      ? incarnationValues[0]
-      : "";
+  const incarnationId = singleFormValue(form, "incarnation_id");
   return { capabilityId, incarnationId, restoration, visibleTarget };
 }
 
@@ -287,7 +285,7 @@ export function resolveCapabilityDeletionRestoration(
 }
 
 function capabilityUrlForDeletionRestoration(restoration: CapabilityRow | null): string {
-  return restoration ? `/capability/${encodeURIComponent(restoration.id)}` : "/";
+  return restoration ? capabilityUrl(restoration.id) : "/";
 }
 
 function committedCapabilityDeletionResponse(

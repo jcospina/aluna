@@ -11,6 +11,7 @@ import {
   CAPABILITY_LOGO_FILENAME,
   CAPABILITY_LOGO_STAGING_PATTERN,
 } from "../../../lifecycle/logo/artifact-names.ts";
+import { errorMessage } from "../../../platform/errors.ts";
 import { getGenerationLifecycle } from "../../../platform/metrics/index.ts";
 import {
   type CapabilityRow,
@@ -129,10 +130,7 @@ function verifyCommittedVersion(root: string, row: CapabilityRow, version: numbe
     // intentionally do not resolve those pairs against today's live registry.
     verified = verifyCapabilitySnapshot(directory);
   } catch (error) {
-    throw corruption(
-      row,
-      `committed v${version} is corrupt: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    throw corruption(row, `committed v${version} is corrupt: ${errorMessage(error)}`);
   }
   assertCommittedIdentity(row, version, verified.manifest);
   if (
@@ -315,7 +313,7 @@ function verifiedPublishedCandidate(
     };
   } catch (error) {
     throw new ArtifactReconciliationError(
-      `Artifact reconciliation cannot prove published candidate ${directory}: ${error instanceof Error ? error.message : String(error)}.`,
+      `Artifact reconciliation cannot prove published candidate ${directory}: ${errorMessage(error)}.`,
     );
   }
 }

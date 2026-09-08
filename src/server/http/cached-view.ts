@@ -18,13 +18,13 @@ import {
   listGenerationLifecycles,
 } from "../../platform/metrics/index.ts";
 import type { RenderableCapability } from "../../presentation/fields/field-renderer.ts";
+import { renderableFromRow } from "../../presentation/fields/renderable-capability.ts";
 import {
   type CollectionLayout,
   renderCollection,
 } from "../../presentation/records/list-container.ts";
 import {
   type CapabilityRow,
-  canonicalCapabilityLabel,
   isRegistryInitialized,
   listCapabilities,
 } from "../../registry/index.ts";
@@ -53,14 +53,7 @@ function collectionLayoutForRow(row: CapabilityRow): CollectionLayout {
  * wired through `read`, and the empty state. Deterministic, data-free, label canonicalized.
  */
 function renderCapabilityCollection(row: CapabilityRow): string {
-  const capability: RenderableCapability = {
-    id: row.id,
-    label: canonicalCapabilityLabel(row),
-    noun: row.noun,
-    schema: row.schema,
-    form: row.ui_intent.form,
-    actions: row.tools,
-  };
+  const capability: RenderableCapability = renderableFromRow(row);
   return renderCollection({
     capability,
     layout: collectionLayoutForRow(row),

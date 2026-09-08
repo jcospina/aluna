@@ -3,8 +3,6 @@
 // Split out when the one file grew past what a file should hold.
 
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 
 import {
   askBeforeLeaving,
@@ -24,58 +22,14 @@ import {
   RUN_LEAVING_GO_ATTRIBUTE,
   renderBuildSubscriber,
 } from "../../server/http/fragments.ts";
-import { code as stripComments } from "../safety/source.test-support.ts";
+import { codeOf as code, readSource as read } from "../safety/source.test-support.ts";
+import { windowWithRun } from "./leaving-a-run.test-support.ts";
 
 // The wiring behind leaving a live build or evolution (PLAN decision 17, amending design D3):
 // the markup the run already carries, the desk's press rules, and the one backstop ending.
 
-const ROOT = resolve(import.meta.dir, "../../..");
-const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
-const code = (path: string) => stripComments(read(path));
-
 const MODULE = code("public/leaving-a-run.js");
 const WINDOW = code("public/desk-window.js");
-
-/** One control or answer, as much of one as the rules under test actually touch. */
-function node(name: string, focused: string[]) {
-  return { name, hidden: false, focus: () => focused.push(name) };
-}
-
-/**
- * A window holding one run: its subscriber, the run's own control, the question that
- * ships hidden beside it, and its two answers.
- */
-function windowWithRun(
-  focused: string[],
-  { ending = false, question = true, committed = false } = {},
-) {
-  const back = node("keep going", focused);
-  const warning = {
-    ...node("question", focused),
-    hidden: true,
-    querySelector: (selector: string) => (selector === LEAVING_BACK_SELECTOR ? back : null),
-  };
-  const control = node("cancel", focused);
-  const inside: Record<string, (ReturnType<typeof node> & { childNodes?: unknown[] }) | null> = {
-    "[data-build-ending]": ending ? node("ending", focused) : null,
-    ".build-stream__commit": { ...node("commit", focused), childNodes: committed ? [{}] : [] },
-    ".build-stream__cancel": control,
-    [LEAVING_WARNING_SELECTOR]: question ? warning : null,
-  };
-  const run = {
-    getAttribute: () => "build-7",
-    querySelector: (selector: string) => inside[selector] ?? null,
-  };
-  return {
-    el: {
-      querySelector: (selector: string) => (selector === "[data-build-job-id]" ? run : null),
-    },
-    run,
-    control,
-    warning,
-    back,
-  };
-}
 
 describe("the shell and the server agree on the question", () => {
   const subscriber = renderBuildSubscriber("build-7");

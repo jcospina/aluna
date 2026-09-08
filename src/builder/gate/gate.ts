@@ -10,6 +10,7 @@
 
 import type { Database } from "bun:sqlite";
 import type { Provider, TokenUsage } from "../../platform/provider/index.ts";
+import { addTokenUsage, ZERO_TOKEN_USAGE } from "../../platform/provider/usage.ts";
 import type { CapabilitySpec, CapabilityTool } from "../../registry/index.ts";
 import type { CapabilityCreateValues, CapabilityTableDdl } from "../../runtime/data/index.ts";
 import type { HandlerUnitName } from "../units/generation/units.ts";
@@ -18,6 +19,7 @@ import {
   type CapabilityGateFailureMeasurement,
 } from "./capability-gate-error.ts";
 import { rerunPassedGateRung, runGateRung, skipGateRung } from "./gate-rung-runner.ts";
+import type { GateRungName, GateRungStatus } from "./gate-rungs.ts";
 import type {
   BehavioralExecutionImpact,
   BehavioralExecutionPlan,
@@ -38,12 +40,15 @@ import {
 
 export const BEHAVIORAL_TIER_ENV_VAR = "OMNI_BEHAVIORAL_TIER";
 
-const GATE_RUNG_ORDER = ["structural", "smoke", "behavioral", "design-lint"] as const;
 const BEHAVIORAL_TIER_ON_VALUES = new Set(["1", "true", "on", "yes"]);
 const BEHAVIORAL_TIER_OFF_VALUES = new Set(["0", "false", "off", "no"]);
 
-export type GateRungName = (typeof GATE_RUNG_ORDER)[number];
-export type GateRungStatus = "passed" | "failed" | "skipped";
+export {
+  GATE_RUNG_ORDER,
+  GATE_RUNG_STATUSES,
+  type GateRungName,
+  type GateRungStatus,
+} from "./gate-rungs.ts";
 
 export interface GateRungOutcome {
   readonly rung: GateRungName;
@@ -360,7 +365,8 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
     () => runDesignLintRung(repairedInput),
     (error) => ({
       smokeUsage: smoke.usage,
-      designLintUsage: error instanceof DesignLintRungError ? error.measurement.usage : ZERO_USAGE,
+      designLintUsage:
+        error instanceof DesignLintRungError ? error.measurement.usage : ZERO_TOKEN_USAGE,
     }),
   );
 
@@ -436,7 +442,7 @@ async function revalidateDesignRepair(
     throw new CapabilityGateError(error.failedRung, outcomes, error.cause, {
       smokeUsage: addTokenUsage(
         smoke.usage,
-        error.cause instanceof SmokeRungFailure ? error.cause.measurement.usage : ZERO_USAGE,
+        error.cause instanceof SmokeRungFailure ? error.cause.measurement.usage : ZERO_TOKEN_USAGE,
       ),
       designLintUsage: designLint.usage,
     });
@@ -458,10 +464,10 @@ function rethrowBehavioralPhaseFailure(
       : error.measurement?.behavioral;
   if (!behavioral) throw error;
   throw new CapabilityGateError(error.failedRung, outcomes, error.cause, {
-    smokeUsage: addTokenUsage(smoke.usage, error.measurement?.smokeUsage ?? ZERO_USAGE),
+    smokeUsage: addTokenUsage(smoke.usage, error.measurement?.smokeUsage ?? ZERO_TOKEN_USAGE),
     designLintUsage: addTokenUsage(
       designLint.usage,
-      error.measurement?.designLintUsage ?? ZERO_USAGE,
+      error.measurement?.designLintUsage ?? ZERO_TOKEN_USAGE,
     ),
     behavioral,
   });
@@ -535,8 +541,8 @@ async function runBehavioralPhase(
       smokeUsage:
         error.cause instanceof SmokeRungFailure
           ? error.cause.measurement.usage
-          : (error.measurement?.smokeUsage ?? ZERO_USAGE),
-      designLintUsage: error.measurement?.designLintUsage ?? ZERO_USAGE,
+          : (error.measurement?.smokeUsage ?? ZERO_TOKEN_USAGE),
+      designLintUsage: error.measurement?.designLintUsage ?? ZERO_TOKEN_USAGE,
       behavioral: {
         execution: run.result.execution,
         durationMs: run.result.repair.attempts.reduce(
@@ -600,21 +606,6 @@ function mergeSmokeResults(original: SmokeGateResult, final: SmokeGateResult): S
   };
 }
 
-function addTokenUsage(left: TokenUsage, right: TokenUsage): TokenUsage {
-  return {
-    inputTokens: addOptionalNumber(left.inputTokens, right.inputTokens),
-    outputTokens: addOptionalNumber(left.outputTokens, right.outputTokens),
-    totalTokens: addOptionalNumber(left.totalTokens, right.totalTokens),
-  };
-}
-
-function addOptionalNumber(
-  left: number | undefined,
-  right: number | undefined,
-): number | undefined {
-  return left === undefined && right === undefined ? undefined : (left ?? 0) + (right ?? 0);
-}
-
 /**
  * Resolve whether the behavioral tier is enabled from `OMNI_BEHAVIORAL_TIER`
  * (default ON). Throws on an unrecognized value rather than silently defaulting.
@@ -628,12 +619,10 @@ export function resolveBehavioralTierEnabled(env: NodeJS.ProcessEnv = process.en
   throw new Error(`${BEHAVIORAL_TIER_ENV_VAR} must be one of on/off, true/false, yes/no, or 1/0.`);
 }
 
-const ZERO_USAGE: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-
 function smokeFailureMeasurement(error: unknown): CapabilityGateFailureMeasurement {
   return {
-    smokeUsage: error instanceof SmokeRungFailure ? error.measurement.usage : ZERO_USAGE,
-    designLintUsage: ZERO_USAGE,
+    smokeUsage: error instanceof SmokeRungFailure ? error.measurement.usage : ZERO_TOKEN_USAGE,
+    designLintUsage: ZERO_TOKEN_USAGE,
   };
 }
 

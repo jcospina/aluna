@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { THIRD_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import {
   resolvedExistingCapabilityRequest,
   resolvedNewCapabilityRequest,
@@ -71,7 +72,7 @@ test("a new-capability request over a resolver-proposed id carries that id as it
 
 test("an existing-capability request binds the exact incarnation and version it read", () => {
   const catalogFingerprint = `sha256:${"e".repeat(64)}`;
-  const incarnationId = "33333333-3333-4333-8333-333333333333";
+  const incarnationId = THIRD_INCARNATION_ID;
   const request = resolvedExistingCapabilityRequest({
     prompt: "add a due date to my notes",
     intent: {

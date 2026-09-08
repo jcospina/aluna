@@ -18,6 +18,7 @@ import {
   diffCapabilitySpec,
   verifyCapabilitySnapshot,
 } from "../../../builder/index.ts";
+import { SIXTH_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import {
   type CapabilitySpec,
   type CapabilityTool,
@@ -258,9 +259,9 @@ describe("the list-input mode row", () => {
 });
 
 describe("the read_dependencies row", () => {
-  for (const action of ["create", "read", "update", "delete", "search"] as const) {
+  for (const action of FULL_CAPABILITY_TOOLS) {
     test(`${action} regenerates, Gates, and activates exact dependency provenance`, async () => {
-      const shelvesIncarnation = "66666666-6666-4666-8666-666666666666";
+      const shelvesIncarnation = SIXTH_INCARNATION_ID;
       const shelves = notesSpec({
         id: "shelves",
         label: "Shelves",
@@ -314,7 +315,7 @@ describe("the read_dependencies row", () => {
   }
 
   test("dependency bytes changed before activation fail closed against frozen evidence", async () => {
-    const shelvesIncarnation = "66666666-6666-4666-8666-666666666666";
+    const shelvesIncarnation = SIXTH_INCARNATION_ID;
     const shelves = notesSpec({
       id: "shelves",
       label: "Shelves",

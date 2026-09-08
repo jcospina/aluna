@@ -6,12 +6,14 @@ import {
   createRecordsRegionRequestCoordinator,
   recordsRegionRequestCoordinator,
 } from "./records-region-requests.js";
+import { applyRecordsRegionState, searchUrlWithQuery } from "./records-region-status.js";
 import { registerRegionRelease, releaseRegionContent } from "./region-scope.js";
+import { DEFAULT_SEARCH_DEBOUNCE_MS } from "./shell-dom.js";
 
 /** @typedef {(input: string, init?: RequestInit) => Promise<Response>} SearchRequest */
-/** @typedef {"idle" | "loading" | "results" | "no-matches" | "error"} SearchState */
+/** @typedef {import("./records-region-status.js").RecordsRegionState} SearchState */
 
-export const DEFAULT_SEARCH_DEBOUNCE_MS = 300;
+export { DEFAULT_SEARCH_DEBOUNCE_MS } from "./shell-dom.js";
 
 /**
  * Create the request/state core for one capability search field. The browser adapter below does
@@ -141,46 +143,6 @@ export function createDebouncedCapabilitySearch(options) {
   return { dispose: cancelPendingWork, searchNow, update };
 }
 
-/** @param {string} searchUrl @param {string} query */
-function searchUrlWithQuery(searchUrl, query) {
-  const separator = searchUrl.includes("?") ? "&" : "?";
-  return `${searchUrl}${separator}q=${encodeURIComponent(query)}`;
-}
-
-/** @param {HTMLFormElement} form @param {HTMLElement} region @param {SearchState} state */
-function applySearchState(form, region, state) {
-  form.dataset.searchState = state;
-  region.setAttribute("aria-busy", state === "loading" ? "true" : "false");
-  const collection = form.closest(".capability-collection");
-  if (collection instanceof HTMLElement) collection.dataset.searchState = state;
-  const status = collection?.querySelector("[data-capability-search-status]");
-  if (!(status instanceof HTMLElement)) return;
-  status.textContent = searchStatusMessage(state);
-}
-
-/** @param {SearchState} state @returns {string} */
-function searchStatusMessage(state) {
-  switch (state) {
-    case "loading":
-      return "I’m searching…";
-    case "results":
-      return "I updated the results.";
-    case "error":
-      return "I couldn’t search just now. Try again.";
-    case "no-matches":
-      return "I couldn’t find a match. Try another word.";
-    case "idle":
-      return "";
-    default:
-      return assertNever(state);
-  }
-}
-
-/** @param {never} value @returns {never} */
-function assertNever(value) {
-  throw new Error(`Unhandled search state: ${String(value)}`);
-}
-
 /** @type {WeakMap<HTMLFormElement, ReturnType<typeof createDebouncedCapabilitySearch>>} */
 const controllers = new WeakMap();
 
@@ -207,7 +169,7 @@ function controllerFor(form) {
       htmx?.process(region);
     },
     count: (sentence) => applyCollectionCount(region, sentence),
-    state: (state) => applySearchState(form, region, state),
+    state: (state) => applyRecordsRegionState(form, region, state, "search"),
     queryChanged: (rawQuery) => {
       if (clear instanceof HTMLButtonElement) clear.hidden = rawQuery.length === 0;
     },

@@ -5,6 +5,16 @@
 // the client places them. These renderers are the server side of that contract.
 
 import {
+  buildCancelUrl,
+  buildStreamUrl,
+  capabilityDeletionUrl,
+  capabilityLogoAttemptUrl,
+  capabilityLogoUrl,
+  capabilityUrl,
+} from "#shell/routes.js";
+import { WINDOW_CONTENT_ID as WINDOW_CONTENT_ELEMENT_ID } from "#shell/shell-dom.js";
+import { busyLabelAttribute } from "../../presentation/controls/busy-label.ts";
+import {
   type CapabilityRow,
   canonicalCapabilityLabel,
   LOGO_MAX_CLAIMED_ATTEMPTS,
@@ -62,10 +72,10 @@ const PROVISIONAL_LOGO_ATTRIBUTE = "data-provisional-logo";
 export const DESK_LOGO_LAYER_ELEMENT_ID = "capability-logos";
 
 /**
- * The window's one content region (`WINDOW_CONTENT_ID`, `public/desk-window.js`). It holds one
- * thing at a time, so two requests aimed at it are two answers for one slot: the later wins.
+ * The window's one content region. It holds one thing at a time, so two requests aimed at it are
+ * two answers for one slot: the later wins. Read from the one place the browser reads it from.
  */
-export const WINDOW_CONTENT_ELEMENT_ID = "spec-build-output";
+export { WINDOW_CONTENT_ID as WINDOW_CONTENT_ELEMENT_ID } from "#shell/shell-dom.js";
 
 // The shell's logo-layer placeholder comment (public/index.html) — where the on-load
 // rehydration and direct `/capability/:id` navigation inject one logo per capability.
@@ -213,9 +223,8 @@ function renderLeavingWarning(jobId: string): string {
  * extension's EventSource reconnects when the server closes the stream, and re-runs the build.
  */
 export function renderBuildSubscriber(jobId: string): string {
-  const encodedJobId = encodeURIComponent(jobId);
-  const streamPath = `/build/${encodedJobId}/stream`;
-  const cancelPath = `/build/${encodedJobId}/cancel`;
+  const streamPath = buildStreamUrl(jobId);
+  const cancelPath = buildCancelUrl(jobId);
   return [
     `<section class="build-stream" data-build-job-id="${escapeHtml(jobId)}" hx-ext="sse" sse-connect="${escapeHtml(streamPath)}" sse-close="done">`,
     '  <div class="build-stream__narration" aria-live="polite" sse-swap="narration" hx-swap="beforeend"></div>',
@@ -276,7 +285,7 @@ export function renderCapabilityLogo(
   const label = canonicalCapabilityLabel(row);
   // No `hx-push-url`: the desk pushes this address itself (`public/desk-window.js`), because only
   // it knows whether it already names this capability (design D14, PLAN decision 6).
-  const url = escapeHtml(`/capability/${encodeURIComponent(row.id)}`);
+  const url = escapeHtml(capabilityUrl(row.id));
   return [
     // The slot, not the button, is what the id names: deletion and evolution address the
     // whole of it, and naming the button would leave a menu standing where the logo was.
@@ -333,7 +342,7 @@ export function renderCapabilityLogoFace(
  */
 function renderCapabilityLogoMenu(row: RenderableCapabilityLogo, label: string): string {
   const id = escapeHtml(row.id);
-  const deletionUrl = escapeHtml(`/capability-deletion/${encodeURIComponent(row.id)}`);
+  const deletionUrl = escapeHtml(capabilityDeletionUrl(row.id));
   return [
     "<div",
     `  id="${capabilityLogoMenuElementId(id)}"`,
@@ -406,7 +415,7 @@ function renderCapabilityRenameEditor(row: RenderableCapabilityLogo, label: stri
     `  <input type="hidden" name="previous_label" value="${escapeHtml(row.display_label_override ?? "")}">`,
     '  <div class="logo-rename__actions">',
     '    <button type="submit" class="btn btn--primary btn--sm" data-logo-rename-save',
-    `      data-busy-label="${escapeHtml(SAVING_LABEL)}"`,
+    `     ${busyLabelAttribute(SAVING_LABEL)}`,
     "    >Save</button>",
     '    <button type="button" class="btn btn--outline btn--sm" data-logo-rename-cancel>',
     "      Cancel",
@@ -419,13 +428,13 @@ function renderCapabilityRenameEditor(row: RenderableCapabilityLogo, label: stri
 }
 
 /** The incarnation-keyed address of one capability's accepted artwork. */
-function capabilityLogoUrl(row: Pick<CapabilityRow, "id" | "incarnation_id">): string {
-  return `/capability/${encodeURIComponent(row.id)}/${encodeURIComponent(row.incarnation_id)}/logo.svg`;
+function logoUrlForRow(row: Pick<CapabilityRow, "id" | "incarnation_id">): string {
+  return capabilityLogoUrl(row.id, row.incarnation_id);
 }
 
 /** Where an `absent` tile claims its one attempt. A paid mutation, so never a GET. */
-function capabilityLogoAttemptUrl(row: Pick<CapabilityRow, "id" | "incarnation_id">): string {
-  return `/capability/${encodeURIComponent(row.id)}/${encodeURIComponent(row.incarnation_id)}/logo-attempt`;
+function logoAttemptUrlForRow(row: Pick<CapabilityRow, "id" | "incarnation_id">): string {
+  return capabilityLogoAttemptUrl(row.id, row.incarnation_id);
 }
 
 /**
@@ -434,7 +443,7 @@ function capabilityLogoAttemptUrl(row: Pick<CapabilityRow, "id" | "incarnation_i
  */
 function renderCapabilityLogoTile(row: RenderableCapabilityLogo, arm: boolean): string {
   if (row.logo.status === "present") {
-    return `<span class="logo-tile" style="background-image: url('${escapeHtml(capabilityLogoUrl(row))}')"></span>`;
+    return `<span class="logo-tile" style="background-image: url('${escapeHtml(logoUrlForRow(row))}')"></span>`;
   }
   if (!arm || !hasAnAttemptLeft(row)) {
     return '<span class="logo-tile logo-tile--pending"></span>';
@@ -443,7 +452,7 @@ function renderCapabilityLogoTile(row: RenderableCapabilityLogo, arm: boolean): 
   // attempt answers — which covers the commit gap, where the provisional tile has come down.
   return [
     '<span class="logo-tile logo-tile--pending logo-tile--working"',
-    `  hx-post="${escapeHtml(capabilityLogoAttemptUrl(row))}"`,
+    `  hx-post="${escapeHtml(logoAttemptUrlForRow(row))}"`,
     '  hx-trigger="load"',
     // One attempt at a time across the desk. Every faceless tile arms on `load`, so N of them fired
     // N concurrent 90-second calls, and a 429 from the platform's own burst spends the attempt.

@@ -5,6 +5,8 @@
  * the only two places this desk has (design D14); nothing here knows there is a window.
  */
 
+import { capabilityUrl } from "./routes.js";
+
 /** `/capability/:id`, and nothing below it (design D14). */
 const CAPABILITY_ADDRESS = /^\/capability\/([^/]+)\/?$/;
 
@@ -37,7 +39,7 @@ export const DESK_ADDRESS = "/";
  * @returns {string}
  */
 export function capabilityAddress(id) {
-  return `/capability/${encodeURIComponent(id)}`;
+  return capabilityUrl(id);
 }
 
 /**

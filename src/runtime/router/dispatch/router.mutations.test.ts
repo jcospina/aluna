@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { splitCollectionCount } from "#shell/collection-count.js";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { CapabilityRow } from "../../../registry/index.ts";
+import { FULL_CAPABILITY_TOOLS } from "../../../registry/index.ts";
 import { createApp } from "../../../server/app.ts";
 import type {
   CapabilityCreateContext,
@@ -17,7 +18,7 @@ function fiveActionRow(): CapabilityRow {
   if (!createRequired) throw new Error("notes fixture is missing its required-fields case");
   return {
     ...base,
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     behavioral_errors: [createRequired, { ...createRequired, action: "update" }],
   } as CapabilityRow;

@@ -9,13 +9,14 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { z } from "zod";
-
+import { errorMessage } from "../../../platform/errors.ts";
 import {
   type CapabilitySpec,
   canonicalizeStoredCapabilityShape,
   capabilitySpecSchema,
   FULL_CAPABILITY_TOOLS,
   incarnationIdSchema,
+  sameOrderedStrings,
 } from "../../../registry/index.ts";
 import { assertIssuedCapabilityGateResult, type CapabilityGateResult } from "../../gate/gate.ts";
 import {
@@ -27,11 +28,11 @@ import {
   frozenBehavioralTestsSchema,
 } from "../../gate/rungs/behavioral/generation/gate-behavioral-full-schema.ts";
 import type { GeneratedUnit } from "../../units/generation/units.ts";
+import { DEFAULT_ARTIFACTS_ROOT } from "../artifacts-root.ts";
 import {
   canonicalJson,
   compareFileEntries,
   contentDigest,
-  sameOrderedStrings,
   snapshotContentDigest,
 } from "../inventory/artifact-digests.ts";
 import { assertContained, listSnapshotFiles } from "../inventory/artifact-inventory.ts";
@@ -60,7 +61,7 @@ import {
   SPEC_FILE,
 } from "./snapshot-contract.ts";
 
-export const DEFAULT_ARTIFACTS_ROOT = "capabilities";
+export { DEFAULT_ARTIFACTS_ROOT } from "../artifacts-root.ts";
 
 const digestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/);
 const buildIdSchema = z
@@ -284,7 +285,7 @@ export function readFrozenBehavioralTests(
     value = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
     throw new SnapshotVerificationError(
-      `Invalid ${FROZEN_BEHAVIORAL_TEST_FILE}: ${error instanceof Error ? error.message : String(error)}`,
+      `Invalid ${FROZEN_BEHAVIORAL_TEST_FILE}: ${errorMessage(error)}`,
     );
   }
   const parsed = frozenBehavioralTestsSchema.safeParse(value);
@@ -301,9 +302,7 @@ function readCapabilitySpec(directory: string): CapabilitySpec {
   try {
     value = JSON.parse(readFileSync(join(directory, SPEC_FILE), "utf8"));
   } catch (error) {
-    throw new SnapshotVerificationError(
-      `Invalid spec.json: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    throw new SnapshotVerificationError(`Invalid spec.json: ${errorMessage(error)}`);
   }
   // A published snapshot is immutable, so an older `spec.json` is read forward: a collection
   // added after it was written canonicalizes to empty, leaving its content digest untouched.
@@ -323,9 +322,7 @@ function readSnapshotManifest(directory: string): SnapshotManifest {
   try {
     value = JSON.parse(readFileSync(manifestPath, "utf8"));
   } catch (error) {
-    throw new SnapshotVerificationError(
-      `Invalid snapshot.json: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    throw new SnapshotVerificationError(`Invalid snapshot.json: ${errorMessage(error)}`);
   }
   const parsed = snapshotManifestSchema.safeParse(value);
   if (!parsed.success) {

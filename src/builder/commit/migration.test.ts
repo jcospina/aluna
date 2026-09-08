@@ -8,20 +8,12 @@ import { describe, expect, test } from "bun:test";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
+  FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../registry/index.ts";
 import { deriveCapabilityTableDdl } from "../../runtime/data/index.ts";
+import { tableColumns } from "../../runtime/data/schema/table-shape.test-support.ts";
 import { applyCapabilityMigration, withCapabilityMigrationTransaction } from "./migration.ts";
-
-interface TableColumn {
-  readonly cid: number;
-  readonly name: string;
-  readonly type: string;
-  readonly notnull: 0 | 1;
-  readonly dflt_value: string | null;
-  readonly pk: number;
-  readonly hidden: number;
-}
 
 function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   const spec: CapabilitySpec = {
@@ -70,7 +62,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
     ],
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores notes with optional amount metadata.",
     ...overrides,
@@ -92,10 +84,6 @@ function tableExists(database: Database, tableName: string): boolean {
   return Boolean(
     database.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(tableName),
   );
-}
-
-function tableColumns(database: Database, tableName: string): TableColumn[] {
-  return database.query(`PRAGMA table_xinfo("${tableName}")`).all() as TableColumn[];
 }
 
 function tableSchema(database: Database, tableName: string) {

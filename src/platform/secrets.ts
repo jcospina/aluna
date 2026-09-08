@@ -10,8 +10,17 @@
 // and code that does walk its way to `process.env` finds no key. This bounds the value of an
 // escape rather than preventing one.
 
+/**
+ * The BYO key, under a provider-neutral name: the value may be an OpenAI, Anthropic or any
+ * compatible provider's key, and the spine passes it explicitly rather than by an SDK's own var.
+ */
+export const API_KEY_ENV_VAR = "OMNI_API_KEY";
+
+/** Bring-your-own-key, like `OMNI_API_KEY`. Named in the error so a missing key says so. */
+export const RECRAFT_API_KEY_ENV_VAR = "RECRAFT_API_KEY";
+
 /** The credentials lifted out of the environment. Their names stay public; their values do not. */
-export const VAULTED_SECRET_ENV_VARS = ["OMNI_API_KEY", "RECRAFT_API_KEY"] as const;
+export const VAULTED_SECRET_ENV_VARS = [API_KEY_ENV_VAR, RECRAFT_API_KEY_ENV_VAR] as const;
 
 const vault = new Map<string, string>();
 

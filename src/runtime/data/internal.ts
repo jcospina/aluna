@@ -12,10 +12,6 @@ export class CapabilityDataValidationError extends Error {
   override readonly name: string = "CapabilityDataValidationError";
 }
 
-export function sqlIdentifier(identifier: string): string {
-  return `"${identifier}"`;
-}
-
 export class MissingRequiredFieldsError extends CapabilityDataValidationError {
   override readonly name = "MissingRequiredFieldsError";
   readonly action: "create" | "update";

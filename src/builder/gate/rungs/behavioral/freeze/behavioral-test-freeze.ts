@@ -12,7 +12,9 @@
 //
 // Which frozen suites then execute is deliberately not decided here.
 
+import { errorMessage } from "../../../../../platform/errors.ts";
 import type { Provider, TokenUsage } from "../../../../../platform/provider/index.ts";
+import { addTokenUsage, ZERO_TOKEN_USAGE } from "../../../../../platform/provider/usage.ts";
 import type { CapabilitySpec, CapabilityTool } from "../../../../../registry/index.ts";
 import {
   assertActionSuiteContract,
@@ -32,7 +34,6 @@ import {
   specActionTestInputs,
 } from "./behavioral-test-inputs.ts";
 
-const ZERO_USAGE: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
 export const BEHAVIORAL_TEST_GENERATION_CONCURRENCY = 2;
 
 /**
@@ -51,10 +52,6 @@ export class BehavioralTestGenerationError extends Error {
     if (action) this.action = action;
     this.cause = cause;
   }
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 /**
@@ -226,7 +223,7 @@ export async function freezeBehavioralTests(
     frozenTests,
     report: completeReport,
     durationMs: performance.now() - startedAt,
-    usage: definedEntries(usages).reduce(addTokenUsage, ZERO_USAGE),
+    usage: definedEntries(usages).reduce(addTokenUsage, ZERO_TOKEN_USAGE),
     testCount: frozenTests.actions.reduce((count, entry) => count + entry.cases.length, 0),
   };
 }
@@ -312,16 +309,4 @@ function schemaFieldNames(inputs: ActionTestInputs): readonly string[] {
     return inputs.schema.searchable_fields.map((field) => field.name);
   }
   return inputs.schema.map((field) => field.name);
-}
-
-function addTokenUsage(left: TokenUsage, right: TokenUsage): TokenUsage {
-  return {
-    inputTokens: addOptional(left.inputTokens, right.inputTokens),
-    outputTokens: addOptional(left.outputTokens, right.outputTokens),
-    totalTokens: addOptional(left.totalTokens, right.totalTokens),
-  };
-}
-
-function addOptional(left: number | undefined, right: number | undefined): number | undefined {
-  return left === undefined && right === undefined ? undefined : (left ?? 0) + (right ?? 0);
 }

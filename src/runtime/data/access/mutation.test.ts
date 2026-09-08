@@ -4,6 +4,7 @@ import { describe, expect, test } from "bun:test";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
+  FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../../registry/index.ts";
 import {
@@ -61,7 +62,7 @@ function mutationSpec(): CapabilitySpec {
       { action: "create", ...requiredError },
       { action: "update", ...requiredError },
     ],
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores notes.",
   };

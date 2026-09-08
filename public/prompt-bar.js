@@ -10,7 +10,7 @@
  * so the desk gains no notice surface of its own.
  */
 const PROMPT_FORM_ID = "spec-build-form";
-const PROMPT_NOTICE_ID = "prompt-notice";
+export const PROMPT_NOTICE_ID = "prompt-notice";
 const PROMPT_FIELD_ID = "spec-build-prompt";
 
 /**
@@ -18,7 +18,7 @@ const PROMPT_FIELD_ID = "spec-build-prompt";
  * (`design/styles/components/desk.css`). `renderPromptNotice` writes it on the server's own.
  */
 const PROMPT_REFUSAL_ATTRIBUTE = "data-prompt-refusal";
-const PROMPT_REFUSAL_SELECTOR = `[${PROMPT_REFUSAL_ATTRIBUTE}]`;
+export const PROMPT_REFUSAL_SELECTOR = `[${PROMPT_REFUSAL_ATTRIBUTE}]`;
 const PROMPT_REFUSED_CLASS = "is-refused";
 const PROMPT_REFUSAL_FLASH_MS = 400;
 

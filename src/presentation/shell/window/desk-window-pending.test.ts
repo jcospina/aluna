@@ -1,14 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 
 import { startDeskWindow } from "#shell/desk-window.js";
+import { readSource as read } from "../../safety/source.test-support.ts";
 
 // A window a prompt stood up before anything was known waits out of sight for the first thing
 // worth showing, because a frame that appears and vanishes reads as a fault (PLAN decision 24).
-
-const ROOT = resolve(import.meta.dir, "../../../..");
-const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
 
 // A prompt that never becomes a build earns a window never, so an answer belonging on the prompt
 // bar does not also flash an empty frame across the desk.

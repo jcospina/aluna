@@ -1,4 +1,5 @@
 import { expect } from "bun:test";
+import { FULL_CAPABILITY_TOOLS } from "../../../registry/index.ts";
 
 /** Shared happy-path Gate contract assertions, extracted to keep the route battery focused. */
 export function assertGatePreview(dataFor: (name: string) => string): void {
@@ -63,7 +64,7 @@ export function assertGatePreview(dataFor: (name: string) => string): void {
       outcome: "passed",
       testCount: 9,
       usage: { totalTokens: 5 * 53 },
-      generatedActions: ["create", "read", "update", "delete", "search"],
+      generatedActions: [...FULL_CAPABILITY_TOOLS],
       carriedActions: [],
     },
   });

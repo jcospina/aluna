@@ -5,6 +5,8 @@
  * reaches inside a `<select>`'s popup, so `design/scripts/listbox.js` is the contract instead.
  */
 
+import { watchArrivals } from "./dom-arrivals.js";
+
 /** The field a picker is drawn on, which is what both mounting and the arrival watch look for. */
 const PICKER_SELECTOR = '[data-choice-presentation="picker"]';
 
@@ -631,40 +633,6 @@ export function mountChoicePickers(root, open = new Set()) {
       el.dataset.choicePickerMounted = "true";
       return picker;
     });
-}
-
-/**
- * Mount every picker that arrives, however it arrives. A record view is cloned from a `<template>`
- * with no landing announced, so what a picker waits for is its field entering the document.
- *
- * @param {Document} root
- * @param {(nodes: readonly Element[]) => void} arrived
- */
-function watchArrivals(root, arrived) {
-  const Observer = root.defaultView?.MutationObserver;
-  if (!Observer) return;
-  new Observer((records) => {
-    const added = addedElements(records);
-    if (added.length > 0) arrived(added);
-  }).observe(root, { childList: true, subtree: true });
-}
-
-/**
- * Every element one batch of mutations put in the tree. Text and comment nodes are not asked
- * about: a picker is a field, and a field is an element.
- *
- * @param {readonly MutationRecord[]} records
- * @returns {Element[]}
- */
-function addedElements(records) {
-  /** @type {Element[]} */
-  const added = [];
-  for (const record of records) {
-    for (const node of record.addedNodes) {
-      if (node instanceof Element) added.push(node);
-    }
-  }
-  return added;
 }
 
 /**

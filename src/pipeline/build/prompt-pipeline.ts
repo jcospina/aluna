@@ -12,6 +12,7 @@
 
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import { abortableProvider, type Provider } from "../../platform/provider/index.ts";
+import { NO_TOKEN_USAGE } from "../../platform/provider/usage.ts";
 import {
   type ActiveRegistryCatalog,
   canonicalCapabilityLabel,
@@ -40,7 +41,6 @@ import {
   deflectDuplicateNewCapability,
   duplicateIntentForPrompt,
   existingCapabilityNarration,
-  NO_TOKEN_USAGE,
 } from "./admission/deflection.ts";
 import { streamDeflection } from "./admission/deflection-pipeline.ts";
 import { validateProposedOverlapIdentity } from "./admission/overlap-identity.ts";

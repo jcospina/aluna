@@ -9,6 +9,7 @@ import {
   type CapabilitySpec,
   CHOICE_DISABLED_ERROR_CODE,
   type ChoiceOption,
+  FULL_CAPABILITY_TOOLS,
   INVALID_CHOICE_ERROR_CODE,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../../registry/index.ts";
@@ -76,7 +77,7 @@ function invoicesSpec(
           expected_markers: BEHAVIORAL_ERROR_MARKERS,
         }))
       : [],
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores invoices and the stage each one has reached.",
   };

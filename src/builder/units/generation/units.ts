@@ -12,17 +12,20 @@
 // `unit-prompts.ts` and the static checks in `unit-checks.ts`.
 
 import { z } from "zod";
+import { errorMessage } from "../../../platform/errors.ts";
 import {
   type DeepPartial,
   isProviderAbortError,
   type Provider,
   type TokenUsage,
 } from "../../../platform/provider/index.ts";
+import { sumTokenUsages } from "../../../platform/provider/usage.ts";
 import {
   type CapabilityRow,
   type CapabilitySpec,
   FULL_CAPABILITY_TOOLS,
 } from "../../../registry/index.ts";
+import { normalizeMaxAttempts } from "../../attempts.ts";
 
 import { admissiblePriorSource } from "../safety/prior-source-admissibility.ts";
 import { checkGeneratedUnit } from "../safety/unit-checks.ts";
@@ -155,7 +158,7 @@ export async function generateCapabilityUnits(
   input: GenerateCapabilityUnitsInput,
 ): Promise<GenerateCapabilityUnitsResult> {
   assertHandlerSpec(input.spec);
-  const maxAttempts = normalizeMaxAttempts(input.maxAttempts);
+  const maxAttempts = normalizeMaxAttempts(input.maxAttempts, DEFAULT_UNIT_FIX_ATTEMPTS);
   const units: GeneratedUnit[] = [];
 
   const shared = {
@@ -222,7 +225,7 @@ export function generateCapabilityUnit(input: GenerateCapabilityUnitInput): Prom
     provider: input.provider,
     spec: input.spec,
     unit: input.unit,
-    maxAttempts: normalizeMaxAttempts(input.maxAttempts),
+    maxAttempts: normalizeMaxAttempts(input.maxAttempts, DEFAULT_UNIT_FIX_ATTEMPTS),
     observer: input.observer,
     dependencyCatalog: input.dependencyCatalog,
     priorSource,
@@ -330,7 +333,7 @@ export async function generateUnitContent(
     if (isProviderAbortError(objectResult.reason)) throw objectResult.reason;
     const usage = usageResult.status === "fulfilled" ? usageResult.value : undefined;
     throw new UnitGenerationPassError(
-      generationFailureMessage(objectResult.reason),
+      errorMessage(objectResult.reason),
       performance.now() - startedAt,
       usage,
       objectResult.reason,
@@ -339,7 +342,7 @@ export async function generateUnitContent(
   if (usageResult.status === "rejected") {
     if (isProviderAbortError(usageResult.reason)) throw usageResult.reason;
     throw new UnitGenerationPassError(
-      generationFailureMessage(usageResult.reason),
+      errorMessage(usageResult.reason),
       performance.now() - startedAt,
       undefined,
       usageResult.reason,
@@ -350,7 +353,7 @@ export async function generateUnitContent(
     ({ content } = generatedUnitSchema.parse(objectResult.value));
   } catch (error) {
     throw new UnitGenerationPassError(
-      generationFailureMessage(error),
+      errorMessage(error),
       performance.now() - startedAt,
       usageResult.value,
       error,
@@ -358,10 +361,6 @@ export async function generateUnitContent(
   }
   const usage = usageResult.value;
   return { content, usage, durationMs: performance.now() - startedAt };
-}
-
-function generationFailureMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 async function observeUnitPartials(
@@ -388,7 +387,7 @@ function toGeneratedUnit(
     content,
     attempts,
     durationMs: attempts.reduce((sum, attempt) => sum + attempt.durationMs, 0),
-    usage: sumUsage(attempts.map((attempt) => attempt.usage)),
+    usage: sumTokenUsages(attempts.map((attempt) => attempt.usage)),
   };
 
   if (unit.kind === "handler") {
@@ -432,32 +431,4 @@ function assertHandlerSpec(spec: CapabilitySpec): void {
   ) {
     throw new Error("Unit generation requires the complete fixed five-Action shape.");
   }
-}
-
-function normalizeMaxAttempts(maxAttempts: number | undefined): number {
-  if (maxAttempts === undefined) return DEFAULT_UNIT_FIX_ATTEMPTS;
-  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
-    throw new RangeError("maxAttempts must be a positive integer.");
-  }
-  return maxAttempts;
-}
-
-function sumUsage(usages: readonly TokenUsage[]): TokenUsage {
-  return {
-    inputTokens: sumOptional(usages.map((usage) => usage.inputTokens)),
-    outputTokens: sumOptional(usages.map((usage) => usage.outputTokens)),
-    totalTokens: sumOptional(usages.map((usage) => usage.totalTokens)),
-  };
-}
-
-function sumOptional(values: readonly (number | undefined)[]): number | undefined {
-  let seen = false;
-  let sum = 0;
-  for (const value of values) {
-    if (value !== undefined) {
-      seen = true;
-      sum += value;
-    }
-  }
-  return seen ? sum : undefined;
 }

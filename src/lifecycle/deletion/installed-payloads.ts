@@ -13,10 +13,16 @@
 // ownership rows for the deleted pair are released, so no later incarnation joins purged content.
 
 import type { Database } from "bun:sqlite";
+import {
+  EVENT_LOG_OWNERSHIP_TABLE,
+  EVENT_LOG_TABLE,
+} from "../../platform/persistence/table-names.ts";
 
 /** The fixed installed Event Log store M7 will own; the M4 seam fake installs the same shape. */
-export const EVENT_LOG_TABLE = "event_log";
-export const EVENT_LOG_OWNERSHIP_TABLE = "event_log_ownership";
+export {
+  EVENT_LOG_OWNERSHIP_TABLE,
+  EVENT_LOG_TABLE,
+} from "../../platform/persistence/table-names.ts";
 
 /** What an irreversibly redacted payload becomes. Content-free, never re-derivable. */
 export const REDACTED_EVENT_PAYLOAD = "";

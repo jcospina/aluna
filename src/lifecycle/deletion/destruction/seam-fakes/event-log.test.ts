@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import type { PlatformDatabase } from "../../../../platform/persistence/db.ts";
+import {
+  SEVENTH_INCARNATION_ID,
+  UNKNOWN_INCARNATION_ID,
+} from "../../../../registry/incarnations.test-support.ts";
 import { getCapability } from "../../../../registry/index.ts";
 import {
   type CapabilityIncarnation,
@@ -27,7 +31,7 @@ import {
 
 const SPOOFED_PAIR: CapabilityIncarnation = {
   capabilityId: "billing",
-  incarnationId: "77777777-7777-4777-8777-777777777777",
+  incarnationId: SEVENTH_INCARNATION_ID,
 };
 
 function incarnation(row: { id: string; incarnation_id: string }): CapabilityIncarnation {
@@ -307,7 +311,7 @@ describe("the Module 7 Event Log acceptance fake", () => {
     const readGates = createReadGateCoordinator();
     const rebuilt = {
       capabilityId: notes.id,
-      incarnationId: "99999999-9999-4999-8999-999999999999",
+      incarnationId: UNKNOWN_INCARNATION_ID,
     };
     readGates.synchronizeCatalog([rebuilt]);
 

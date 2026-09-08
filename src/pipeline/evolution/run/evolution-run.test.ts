@@ -26,6 +26,7 @@ import {
   destroyCapability,
 } from "../../../lifecycle/deletion/index.ts";
 import { renderEditForm } from "../../../presentation/index.ts";
+import { SIXTH_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import {
   type CapabilitySpec,
   getCapability,
@@ -181,7 +182,7 @@ describe("evolution during unrelated deletion cleanup", () => {
       label: "Archive",
       prompt_context: "Stores archived text entries.",
     };
-    const archiveIncarnation = "66666666-6666-4666-8666-666666666666";
+    const archiveIncarnation = SIXTH_INCARNATION_ID;
     await addCommittedDependency(env, archiveSpec, archiveIncarnation);
     const archive = getCapability(archiveSpec.id, env.conns.readonly);
     if (!archive) throw new Error("archive capability did not activate");

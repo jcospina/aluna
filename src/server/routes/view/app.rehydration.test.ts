@@ -9,6 +9,10 @@ import {
   startGenerationLifecycle,
 } from "../../../platform/metrics/index.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import {
+  SECOND_INCARNATION_ID,
+  THIRD_INCARNATION_ID,
+} from "../../../registry/incarnations.test-support.ts";
 import { insertCapability } from "../../../registry/index.ts";
 import {
   createScratchDbEnv,
@@ -23,6 +27,7 @@ import {
   teardownScratchDbEnv,
 } from "../../app.test-support.ts";
 import { createApp } from "../../app.ts";
+import { countMatches } from "../../http/fragments.test-support.ts";
 
 // The registry's read-side payoff: on load the logo layer rehydrates from the registry. These run
 // against a scratch db shared with the router, so a committed capability stands on the desk.
@@ -38,10 +43,6 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
   afterEach(() => {
     teardownScratchDbEnv({ dir, conns, artifactsRoot });
   });
-
-  function countMatches(haystack: string, needle: string): number {
-    return haystack.split(needle).length - 1;
-  }
 
   test("a fresh user (empty registry) gets a wallpaper and a prompt bar, and the modal still mounts", async () => {
     const app = createApp({ capabilityRouter: { databases: conns } });
@@ -67,8 +68,8 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
         id: "recipes",
         label: "Recipes",
         noun: "recipe",
-        incarnation_id: "22222222-2222-4222-8222-222222222222",
-        artifacts_path: "capabilities/recipes/22222222-2222-4222-8222-222222222222/v1/",
+        incarnation_id: SECOND_INCARNATION_ID,
+        artifacts_path: `capabilities/recipes/${SECOND_INCARNATION_ID}/v1/`,
         prompt_context: "Stores the user's recipes.",
       }),
       conns.readwrite,
@@ -96,7 +97,7 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
     startGenerationLifecycle(
       {
         buildId: "build-interrupted-preview",
-        incarnationId: "33333333-3333-4333-8333-333333333333",
+        incarnationId: THIRD_INCARNATION_ID,
       },
       conns.readwrite,
     );

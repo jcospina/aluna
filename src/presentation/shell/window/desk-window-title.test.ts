@@ -1,19 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 
 import {
   BUILD_WINDOW_TITLE,
   NAME_THE_WINDOW_EVENT,
   THINKING_WINDOW_TITLE,
 } from "#shell/desk-window.js";
+import { codeOf as code, readSource as read } from "../../safety/source.test-support.ts";
 
 // What the window is called, and who gets to say (M5 plan 1): the desk says `Thinking…` at submit,
 // the server names the run once resolution settles it, and an activation renames after the tool.
-
-const ROOT = resolve(import.meta.dir, "../../../..");
-const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
-const code = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
 
 describe("what the window is called while a run has it", () => {
   test("a build takes the window over and says so, remembering the name it took", () => {

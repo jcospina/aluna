@@ -9,6 +9,7 @@ import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
   type CapabilityTool,
+  FULL_CAPABILITY_TOOLS,
 } from "../../../registry/index.ts";
 import { committedSpec } from "../run/evolution-run.test-support.ts";
 
@@ -205,7 +206,7 @@ export const MATRIX: readonly MatrixCase[] = [
       notesSpec({ behavior: "Text is required and trimmed. Newest notes appear first." }),
     facts: ["behavior"],
     platformWork: [],
-    regenerated: ["create", "read", "update", "delete", "search"],
+    regenerated: [...FULL_CAPABILITY_TOOLS],
     ddl: [],
     fullSuite: true,
   },

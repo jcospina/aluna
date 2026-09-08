@@ -1,8 +1,9 @@
 import type { Database } from "bun:sqlite";
 import { lstatSync, readdirSync, realpathSync, rmdirSync, rmSync } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
-
+import { join, resolve } from "node:path";
 import { DEFAULT_ARTIFACTS_ROOT } from "../../../builder/index.ts";
+import { isPathContained } from "../../../platform/path-containment.ts";
+import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import {
   type CapabilityDeletionTombstone,
   type CapabilityRow,
@@ -135,10 +136,6 @@ async function collectOwnedResourceManifest(
   );
 }
 
-function quoteSqlIdentifier(identifier: string): string {
-  return `"${identifier.replaceAll('"', '""')}"`;
-}
-
 function commitDeletionTombstone(
   input: DestroyCapabilityInput,
   manifest: readonly OwnedResourceEntry[],
@@ -162,7 +159,7 @@ function commitDeletionTombstone(
 
     // `IF EXISTS` so registry/table drift is a repair rather than a wedge: a row whose
     // table is already gone must still be deletable, not permanently undeletable.
-    database.exec(`DROP TABLE IF EXISTS ${quoteSqlIdentifier(tableName)};`);
+    database.exec(`DROP TABLE IF EXISTS ${sqlIdentifier(tableName)};`);
     input.faults?.afterTableDropped?.();
   })();
   return payloads;
@@ -365,13 +362,8 @@ function assertSafeArtifactPath(artifactsRoot: string, parts: readonly string[])
 }
 
 function assertPathContained(root: string, target: string): void {
-  const candidate = relative(root, target);
-  if (
-    candidate.length === 0 ||
-    candidate === ".." ||
-    candidate.startsWith(`..${sep}`) ||
-    isAbsolute(candidate)
-  ) {
+  // No `allowRoot`: deleting the root would take every capability with it.
+  if (!isPathContained(root, target)) {
     throw new Error("Artifact cleanup target escaped its configured root.");
   }
 }

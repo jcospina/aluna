@@ -19,6 +19,7 @@ import {
   capabilitySpecSchema,
   FULL_CAPABILITY_TOOLS,
   fieldTypeSchema,
+  LIST_INPUT_MODES,
   LOGO_HUE_FAMILIES,
   MAX_CAPABILITY_NOUN_LENGTH,
   MAX_CHOICE_GROUP_HEADING_LENGTH,
@@ -69,6 +70,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
   const tools = FULL_CAPABILITY_TOOLS.join(", ");
   const platformColumns = PLATFORM_COLUMNS.join(", ");
   const hues = LOGO_HUE_FAMILIES.join(" | ");
+  const listInputModes = LIST_INPUT_MODES.join(" | ");
 
   return [
     "You are Aluna's Capability Builder. Author the capability spec for what the user wants to keep track of.",
@@ -96,7 +98,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "Presentation intent:",
     "- ui_intent.item.direction is one concise sentence of capability-specific item design direction.",
     "- ui_intent.form.list_inputs contains exactly one { field, mode } entry for every active string[] field, in schema-field order. It contains no scalar, inactive, or unknown fields.",
-    "- list input mode is exactly comma_separated | repeatable. Choose comma_separated only for short atomic values whose grammar cannot meaningfully contain commas (tags, genres, categories, skills). Choose repeatable when an element may contain a comma (quotes, addresses, citations, or names as entered). There is no quoting or escaping in comma_separated mode, so never choose it for comma-bearing element semantics.",
+    `- list input mode is exactly ${listInputModes}. Choose comma_separated only for short atomic values whose grammar cannot meaningfully contain commas (tags, genres, categories, skills). Choose repeatable when an element may contain a comma (quotes, addresses, citations, or names as entered). There is no quoting or escaping in comma_separated mode, so never choose it for comma-bearing element semantics.`,
     "- ui_intent.form.choice_inputs contains exactly one { field, presentation } entry for every active choice field, in schema-field order. It contains no non-choice, inactive, or unknown fields.",
     "- ui_intent.form.long_text lists the active string fields drawn as a multi-line box instead of a single-line input, in schema-field order, with no repeats and no non-string, inactive or unknown names. Name every field that holds more than a line — notes, descriptions, summaries, reviews, journal entries, addresses — and leave out titles, names, codes and anything else a single line holds. [] is a fine answer for a capability of short fields.",
     `- ui_intent.form.guidance lists { field, text } hints shown under a field, in schema-field order, with no repeats and no inactive or unknown names. text is one line of at most ${MAX_FIELD_GUIDANCE_LENGTH} characters. Use it where the field alone leaves a real question — the format a value should take, what a value will be used for, or the sentence announcing a default ("Defaults to today."). There is no placeholder key: guidance stays visible while the field is being typed into, which is when a hint is being read. Most fields need none, and [] is the ordinary answer.`,

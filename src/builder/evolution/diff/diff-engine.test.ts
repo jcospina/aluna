@@ -5,7 +5,12 @@
 // shows); and the fail-closed unknown-difference guard. Pure: no db, no provider.
 
 import { describe, expect, test } from "bun:test";
+import {
+  FOURTH_INCARNATION_ID,
+  THIRD_INCARNATION_ID,
+} from "../../../registry/incarnations.test-support.ts";
 import type { CapabilityRow, CapabilitySpec } from "../../../registry/index.ts";
+import { FULL_CAPABILITY_TOOLS } from "../../../registry/index.ts";
 import {
   type CapabilityDiff,
   committedSpecView,
@@ -296,7 +301,7 @@ describe("collection feed|grid → platform list container + item only", () => {
 describe("read_dependencies.<action> → read catalog + that Action's unit and tests", () => {
   const dependency = {
     capability_id: "shelves",
-    incarnation_id: "33333333-3333-4333-8333-333333333333",
+    incarnation_id: THIRD_INCARNATION_ID,
   };
 
   test("a new dependency on read selects the read unit and its tests", () => {
@@ -312,7 +317,7 @@ describe("read_dependencies.<action> → read catalog + that Action's unit and t
   test("reordering an unchanged dependency set is not a fact (canonical order)", () => {
     const second = {
       capability_id: "shelves",
-      incarnation_id: "44444444-4444-4444-8444-444444444444",
+      incarnation_id: FOURTH_INCARNATION_ID,
     };
     const base = journalCapabilityRow({
       read_dependencies: {
@@ -345,7 +350,7 @@ describe("free-text behavior → all five Handlers + the complete suite", () => 
       "search",
     ]);
     expect(diff.workPlan.gate.behavioral).toEqual({
-      actions: ["create", "read", "update", "delete", "search"],
+      actions: [...FULL_CAPABILITY_TOOLS],
       fullSuite: true,
     });
   });

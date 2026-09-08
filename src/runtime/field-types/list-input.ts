@@ -1,3 +1,4 @@
+import { assertNever } from "../../platform/errors.ts";
 import type { ListInputMode, UiFormIntent } from "../../registry/index.ts";
 
 /**
@@ -29,10 +30,6 @@ export function normalizeListInputValues(
           .filter((segment) => segment.length > 0),
       );
     default:
-      return assertNever(mode);
+      return assertNever(mode, "list input mode");
   }
-}
-
-function assertNever(value: never): never {
-  throw new Error(`Unhandled list input mode: ${String(value)}`);
 }

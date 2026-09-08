@@ -11,6 +11,8 @@
 // `data-length-limit` (which this counts down from) and the server's mutation validation (which
 // refuses anything longer however it arrived). This script only says what is left.
 
+import { characterCountSentence } from "./character-count.js";
+import { watchArrivals } from "./dom-arrivals.js";
 import { registerRegionRelease } from "./region-scope.js";
 
 const GROW_SELECTOR = "textarea[data-grow]";
@@ -62,20 +64,7 @@ function watchLayout(area, refresh) {
   registerRegionRelease(area, "long-text layout watch", () => observer.disconnect());
 }
 
-/**
- * The counter's words. The server paints the identical sentence for the opening value
- * (`src/presentation/fields/field-chrome.ts`), and both count UTF-16 code units, as `maxlength`
- * does.
- *
- * @param {number} limit
- * @param {number} used
- * @returns {string}
- */
-export function characterCountSentence(limit, used) {
-  const left = limit - used;
-  if (left < 0) return `${-left} over the limit`;
-  return `${left} character${left === 1 ? "" : "s"} left`;
-}
+export { characterCountSentence } from "./character-count.js";
 
 /**
  * @param {HTMLInputElement | HTMLTextAreaElement} control
@@ -156,33 +145,6 @@ export function mountLongTextFields(root) {
     mounted += 1;
   }
   return mounted;
-}
-
-/**
- * @param {readonly MutationRecord[]} records
- * @returns {Element[]}
- */
-function addedElements(records) {
-  const added = [];
-  for (const record of records) {
-    for (const node of record.addedNodes) {
-      if (node instanceof Element) added.push(node);
-    }
-  }
-  return added;
-}
-
-/**
- * @param {Document} root
- * @param {(nodes: readonly Element[]) => void} arrived
- */
-function watchArrivals(root, arrived) {
-  const Observer = root.defaultView?.MutationObserver;
-  if (!Observer) return;
-  new Observer((records) => {
-    const added = addedElements(records);
-    if (added.length > 0) arrived(added);
-  }).observe(root, { childList: true, subtree: true });
 }
 
 /** @param {Document} root */

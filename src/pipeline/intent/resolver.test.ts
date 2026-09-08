@@ -6,17 +6,23 @@
 
 import type { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import type { ZodType } from "zod";
 
-import { openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
-import { runMigrations } from "../../platform/persistence/migrations.ts";
+import type { PlatformDatabase } from "../../platform/persistence/db.ts";
+import {
+  createScratchDbEnv,
+  type ScratchDbEnv,
+  teardownScratchDbEnv,
+} from "../../platform/persistence/scratch-db.test-support.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
+import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+} from "../../registry/incarnations.test-support.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilityRow,
+  FULL_CAPABILITY_TOOLS,
   insertCapability,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../registry/index.ts";
@@ -48,7 +54,7 @@ function targetFor(type: (typeof INTENT_TYPES)[number]): string | null {
 }
 
 function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
-  const incarnationId = "11111111-1111-4111-8111-111111111111";
+  const incarnationId = FIRST_INCARNATION_ID;
   return {
     id: "notes",
     label: "Notes",
@@ -85,7 +91,7 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
     ],
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     artifacts_path: `capabilities/notes/${incarnationId}/v1/`,
     seed: 184206,
@@ -104,7 +110,7 @@ function recipesRow(): CapabilityRow {
     ground: "grass_green",
     companion: "coral_orange",
     noun: "note",
-    incarnation_id: "22222222-2222-4222-8222-222222222222",
+    incarnation_id: SECOND_INCARNATION_ID,
     version: 2,
     schema: {
       fields: [
@@ -133,9 +139,9 @@ function recipesRow(): CapabilityRow {
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
     ],
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
-    artifacts_path: "capabilities/recipes/22222222-2222-4222-8222-222222222222/v2/",
+    artifacts_path: `capabilities/recipes/${SECOND_INCARNATION_ID}/v2/`,
     seed: 184206,
     logo: { status: "absent", attempts: 0 },
     display_label_override: null,
@@ -168,19 +174,6 @@ function insertRows(database: Database, rows: readonly CapabilityRow[]): void {
   for (const row of rows) {
     insertCapability(row, database);
   }
-}
-
-function openIntentDatabase(): { dir: string; conns: PlatformDatabase } {
-  const dir = mkdtempSync(join(tmpdir(), "omni-crud-intent-"));
-  const conns = openDatabase(join(dir, "test.db"));
-  runMigrations(conns.readwrite);
-  return { dir, conns };
-}
-
-function closeIntentDatabase(dir: string, conns: PlatformDatabase): void {
-  conns.readwrite.close();
-  conns.readonly.close();
-  rmSync(dir, { recursive: true, force: true });
 }
 
 describe("intent resolver classification — schema", () => {
@@ -241,15 +234,16 @@ describe("intent resolver classification — schema", () => {
 });
 
 describe("intent resolver classification — prompt assembly", () => {
-  let dir: string;
+  let env: ScratchDbEnv;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    ({ dir, conns } = openIntentDatabase());
+    env = createScratchDbEnv("omni-crud-intent-");
+    conns = env.conns;
   });
 
   afterEach(() => {
-    closeIntentDatabase(dir, conns);
+    teardownScratchDbEnv(env);
   });
 
   test("assembles every registry prompt_context plus the active capability for the provider call", async () => {
@@ -320,15 +314,16 @@ describe("intent resolver classification — prompt assembly", () => {
 });
 
 describe("intent resolver classification — narration and round-trip results", () => {
-  let dir: string;
+  let env: ScratchDbEnv;
   let conns: PlatformDatabase;
 
   beforeEach(() => {
-    ({ dir, conns } = openIntentDatabase());
+    env = createScratchDbEnv("omni-crud-intent-");
+    conns = env.conns;
   });
 
   afterEach(() => {
-    closeIntentDatabase(dir, conns);
+    teardownScratchDbEnv(env);
   });
 
   test("narrates the resolver stage in product voice before the provider round trip", async () => {

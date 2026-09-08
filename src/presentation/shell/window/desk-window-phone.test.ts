@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 
 import { PHONE, PROMPT_CLEARANCE } from "#design/desk-geometry.js";
 import {
@@ -11,51 +9,18 @@ import {
   PHONE_CLASS,
   syncForm,
 } from "#shell/desk-window.js";
+import {
+  codeOf as code,
+  readSource as read,
+  rules,
+  under,
+} from "../../safety/source.test-support.ts";
+import { desk, fakeEl, type Stored } from "./desk-window.test-support.ts";
 
 // Below the breakpoint the window is the screen, and the script is told so (PLAN decisions 47 and
 // 48; design D9). What the script does when told, plus the two widths sheets may break on.
 
-const ROOT = resolve(import.meta.dir, "../../../..");
-const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
-const code = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
-const rules = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\//g, "");
-
 const MODULE = code("public/desk-window.js");
-
-type Box = { x: number; y: number; w: number; h: number };
-type Stored = Box & { max?: boolean; restore?: Box };
-
-/** The clamps read a `DOMRect`; width and height are all of one they touch. */
-const desk = (width: number, height: number) => ({ width, height }) as never;
-
-/** An element, as much of one as the form and the geometry actually touch. */
-function fakeEl() {
-  const classes = new Set<string>();
-  const attrs = new Map<string, string>();
-  const bound: string[] = [];
-  const children: unknown[] = [];
-  const props = new Map<string, string>();
-  return {
-    classes,
-    attrs,
-    bound,
-    children,
-    props,
-    classList: {
-      add: (n: string) => classes.add(n),
-      remove: (n: string) => classes.delete(n),
-      contains: (n: string) => classes.has(n),
-      toggle: (n: string, on: boolean) => (on ? classes.add(n) : classes.delete(n)),
-    },
-    setAttribute: (n: string, v: string) => attrs.set(n, v),
-    getAttribute: (n: string) => attrs.get(n) ?? null,
-    toggleAttribute: (n: string, on: boolean) => (on ? attrs.set(n, "") : attrs.delete(n)),
-    append: (c: unknown) => children.push(c),
-    addEventListener: (t: string) => bound.push(t),
-    style: { setProperty: (n: string, v: string) => props.set(n, v) },
-    querySelector: () => null,
-  };
-}
 
 /** A window, as much of one as `syncForm` touches — lamp, bar, and the gestures. */
 function fakeWindow() {
@@ -268,12 +233,7 @@ describe("the focus order advertises nothing it cannot do", () => {
 
 describe("the desk breaks at 720px and forms at 620px", () => {
   /** Every stylesheet the product's own page loads, read off disk rather than listed. */
-  const SHEETS = [
-    "public/app.css",
-    ...readdirSync(join(ROOT, "public/css"))
-      .filter((f) => f.endsWith(".css"))
-      .map((f) => `public/css/${f}`),
-  ];
+  const SHEETS = ["public/app.css", ...under("public/css", "*.css").sort()];
 
   test("the sweep looks at every sheet the shell imports, not a list that can go stale", () => {
     // A literal list is a sweep that stops sweeping the day someone adds a file.

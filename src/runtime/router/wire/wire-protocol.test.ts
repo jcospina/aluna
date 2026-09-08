@@ -3,6 +3,7 @@ import { renderEditForm } from "../../../presentation/fields/field-renderer.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
+  FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../../registry/index.ts";
 import { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from "../../data/index.ts";
@@ -55,7 +56,7 @@ function spec(): CapabilitySpec {
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
     ],
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores notes.",
   };

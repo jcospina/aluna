@@ -9,6 +9,10 @@ import { rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
+import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+} from "../../registry/incarnations.test-support.ts";
 import type { CapabilitySpec } from "../../registry/index.ts";
 import { createReadGateCoordinator } from "../concurrency/read-gates.ts";
 import { deriveCapabilityTableDdl } from "../data/index.ts";
@@ -582,10 +586,7 @@ describe("a turn creates nothing", () => {
     readGates.recoverAtBoot(
       registeredSpecs(platform.database.readonly).map((spec) => ({
         capabilityId: spec.id,
-        incarnationId:
-          spec.id === "notes"
-            ? "11111111-1111-4111-8111-111111111111"
-            : "22222222-2222-4222-8222-222222222222",
+        incarnationId: spec.id === "notes" ? FIRST_INCARNATION_ID : SECOND_INCARNATION_ID,
       })),
     );
 

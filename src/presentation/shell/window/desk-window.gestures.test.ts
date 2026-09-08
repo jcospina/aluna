@@ -3,8 +3,6 @@
 // Split out when the one file grew past what a file should hold.
 
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 
 import { trackPointer } from "#design/window-gestures.js";
 import {
@@ -14,18 +12,10 @@ import {
   logoTitle,
   PROMPT_FORM_ID,
 } from "#shell/desk-window.js";
-import { code as stripComments } from "../../safety/source.test-support.ts";
+import { codeOf as code, readSource as read } from "../../safety/source.test-support.ts";
 
 // The window's gestures, checked where they are written down: one drag and one grip, shared by
 // the product and the design's own desk (PLAN decisions 1 and 2; design D1, D3, D12).
-
-const ROOT = resolve(import.meta.dir, "../../../..");
-const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
-
-/** Source with comments stripped, for questions about what the code does. */
-const code = (path: string) => stripComments(read(path));
-
-/** One rule's body, by exact selector. Flat: nesting is not used in these sheets. */
 
 const SHELL = read("public/index.html");
 

@@ -62,7 +62,6 @@ export {
   type UnitAttemptSummary,
 } from "./shared-schema.ts";
 export {
-  type GateRungOutcome,
   GENERATION_METRICS_TABLE,
   GENERATION_OUTCOMES,
   type GenerationIntent,
@@ -75,6 +74,5 @@ export {
   listGenerationMetrics,
   type StoredGenerationMetrics,
   storedGenerationMetricsSchema,
-  sumTokenUsage,
   writeGenerationMetrics,
 } from "./store.ts";

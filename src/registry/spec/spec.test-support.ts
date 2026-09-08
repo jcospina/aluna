@@ -3,6 +3,7 @@
 // rather than being duplicated across siblings. This module is not run as a
 // test by bun.
 
+import { FULL_CAPABILITY_TOOLS } from "../tools.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
@@ -49,7 +50,7 @@ export function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
         expected_markers: BEHAVIORAL_ERROR_MARKERS,
       },
     ],
-    tools: ["create", "read", "update", "delete", "search"],
+    tools: [...FULL_CAPABILITY_TOOLS],
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     prompt_context: "Stores the user's text notes.",
     ...overrides,
@@ -92,4 +93,52 @@ export function validSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
   }
 
   return spec;
+}
+
+/**
+ * The notes fixture every layer builds on: two fields, both behavioral errors, the full Action
+ * inventory. Fresh per call, and overrides merge shallowly — unlike `validSpec`, nothing here
+ * is re-derived from a replaced `schema`.
+ */
+export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
+  return {
+    id: "notes",
+    label: "Notes",
+    subject: "an open notebook",
+    ground: "grass_green",
+    companion: "coral_orange",
+    noun: "note",
+    schema: {
+      fields: [
+        { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
+        { name: "pinned", label: "Pinned", type: "boolean", required: false, lifecycle: "active" },
+      ],
+    },
+    ui_intent: {
+      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
+      item: { direction: "A text-forward card that emphasizes the note text.", shows: ["text"] },
+      collection: { layout: "feed" },
+    },
+    behavior: "Text is required. Newest notes appear first.",
+    behavioral_errors: [
+      {
+        action: "create",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+      {
+        action: "update",
+        trigger: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        code: MISSING_REQUIRED_FIELDS_ERROR_CODE,
+        fields: ["text"],
+        expected_markers: BEHAVIORAL_ERROR_MARKERS,
+      },
+    ],
+    tools: [...FULL_CAPABILITY_TOOLS],
+    read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
+    prompt_context: "Stores the user's text notes.",
+    ...overrides,
+  };
 }

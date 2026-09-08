@@ -7,7 +7,6 @@
 // really restates one the user already has — deflecting it as an `extend_capability`
 // rather than building a colliding duplicate.
 
-import type { TokenUsage } from "../../../platform/provider/index.ts";
 import { type CapabilityRow, canonicalCapabilityLabel } from "../../../registry/index.ts";
 import type { IntentClassification } from "../../intent/index.ts";
 
@@ -52,13 +51,6 @@ const DUPLICATE_PROMPT_STOP_WORDS = new Set([
   "want",
   "with",
 ]);
-
-/** The empty token usage recorded for a heuristic deflection — no provider call. */
-export const NO_TOKEN_USAGE: TokenUsage = {
-  inputTokens: undefined,
-  outputTokens: undefined,
-  totalTokens: undefined,
-};
 
 function normalizeDuplicateToken(token: string): string {
   if (token.length > 4 && token.endsWith("ies")) {

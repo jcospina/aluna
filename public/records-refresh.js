@@ -10,6 +10,7 @@ import {
   createRecordsRegionRequestCoordinator,
   recordsRegionRequestCoordinator,
 } from "./records-region-requests.js";
+import { applyRecordsRegionState, searchUrlWithQuery } from "./records-region-status.js";
 import { releaseRegionContent } from "./region-scope.js";
 
 /** @typedef {(input: string, init?: RequestInit) => Promise<Response>} RefreshRequest */
@@ -23,8 +24,7 @@ export const RECORDS_REFRESH_START_EVENT = "aluna:records-refresh-start";
 export function committedRecordsRefreshTarget({ readUrl, searchUrl, activeQuery }) {
   const query = activeQuery?.trim() ?? "";
   if (query === "" || !searchUrl) return { url: readUrl, query: "" };
-  const separator = searchUrl.includes("?") ? "&" : "?";
-  return { url: `${searchUrl}${separator}q=${encodeURIComponent(query)}`, query };
+  return { url: searchUrlWithQuery(searchUrl, query), query };
 }
 
 /**
@@ -44,38 +44,6 @@ function activeSearchQuery(region) {
 }
 
 /**
- * @param {HTMLFormElement} form
- * @param {Element} region
- * @param {"idle" | "loading" | "results" | "no-matches" | "error"} state
- */
-function applyRefreshState(form, region, state) {
-  form.dataset.searchState = state;
-  region.setAttribute("aria-busy", state === "loading" ? "true" : "false");
-  const collection = form.closest(".capability-collection");
-  if (collection instanceof HTMLElement) collection.dataset.searchState = state;
-  const status = collection?.querySelector("[data-capability-search-status]");
-  if (status instanceof HTMLElement) status.textContent = refreshStatusMessage(state);
-}
-
-/** @param {"idle" | "loading" | "results" | "no-matches" | "error"} state */
-function refreshStatusMessage(state) {
-  switch (state) {
-    case "loading":
-      return "I’m searching…";
-    case "results":
-      return "I updated the results.";
-    case "error":
-      return "I couldn’t refresh that just now. Try again.";
-    case "no-matches":
-      return "I couldn’t find a match. Try another word.";
-    case "idle":
-      return "";
-    default:
-      throw new Error(`Unhandled refresh state: ${String(state)}`);
-  }
-}
-
-/**
  * Take the region for this refresh: the View's one-shot load or a search still settling leaves
  * through the region rule, so there is no hand-off of its own.
  *
@@ -86,7 +54,7 @@ function startRefresh(region, query) {
   region.dispatchEvent(new CustomEvent(RECORDS_REFRESH_START_EVENT, { bubbles: true }));
   releaseRegionContent(region);
   const form = searchFormForRegion(region);
-  if (form) applyRefreshState(form, region, query === "" ? "idle" : "loading");
+  if (form) applyRecordsRegionState(form, region, query === "" ? "idle" : "loading", "refresh");
 }
 
 /**
@@ -100,10 +68,11 @@ function finishRefresh(region, query, html) {
     region.setAttribute("aria-busy", "false");
     return;
   }
-  applyRefreshState(
+  applyRecordsRegionState(
     form,
     region,
     query === "" ? "idle" : html.trim() === "" ? "no-matches" : "results",
+    "refresh",
   );
 }
 
@@ -111,7 +80,7 @@ function finishRefresh(region, query, html) {
 function failRefresh(region) {
   const form = searchFormForRegion(region);
   if (form) {
-    applyRefreshState(form, region, "error");
+    applyRecordsRegionState(form, region, "error", "refresh");
     return;
   }
   region.setAttribute("aria-busy", "false");

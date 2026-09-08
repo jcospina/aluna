@@ -9,7 +9,6 @@
 
 import { Database } from "bun:sqlite";
 import type { ZodType } from "zod";
-
 import {
   activatePublishedSnapshot,
   applyCapabilityMigration,
@@ -32,6 +31,7 @@ import {
 } from "../../builder/index.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { GenerateResult, Provider, TokenUsage } from "../../platform/provider/index.ts";
+import { sumTokenUsages } from "../../platform/provider/usage.ts";
 import {
   CapabilityIdReservedError,
   type CapabilityRegistryExpectation,
@@ -401,10 +401,7 @@ export function applyGateFixes(
     const repairAttempts = gateRepairAttempts(unit, gate);
     const durationMs =
       unit.durationMs + repairAttempts.reduce((sum, attempt) => sum + attempt.durationMs, 0);
-    const usage = addTokenUsage(
-      unit.usage,
-      repairAttempts.map((attempt) => attempt.usage),
-    );
+    const usage = sumTokenUsages([unit.usage, ...repairAttempts.map((attempt) => attempt.usage)]);
     if (unit.kind === "item-renderer") {
       return {
         ...unit,
@@ -473,19 +470,6 @@ function behavioralRepairAttempts(
       },
     ];
   });
-}
-
-function addTokenUsage(base: TokenUsage, additions: readonly TokenUsage[]): TokenUsage {
-  return {
-    inputTokens: sumOptional([base.inputTokens, ...additions.map((usage) => usage.inputTokens)]),
-    outputTokens: sumOptional([base.outputTokens, ...additions.map((usage) => usage.outputTokens)]),
-    totalTokens: sumOptional([base.totalTokens, ...additions.map((usage) => usage.totalTokens)]),
-  };
-}
-
-function sumOptional(values: readonly (number | undefined)[]): number | undefined {
-  const present = values.filter((value): value is number => value !== undefined);
-  return present.length > 0 ? present.reduce((sum, value) => sum + value, 0) : undefined;
 }
 
 /**

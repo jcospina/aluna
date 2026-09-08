@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 
 import {
   applyLeavingQuestion,
@@ -12,62 +10,17 @@ import {
   goAheadAndLeave,
   LEAVING_A_RUN_UNAVAILABLE,
   LEAVING_BACK_SELECTOR,
-  LEAVING_WARNING_SELECTOR,
   leavingIsBeingAsked,
   standDownWith,
   startLeavingGuard,
 } from "#shell/leaving-a-run.js";
-import { code as stripComments } from "../safety/source.test-support.ts";
+import { codeOf as code } from "../safety/source.test-support.ts";
+import { node, windowWithRun } from "./leaving-a-run.test-support.ts";
 
 // Leaving a live build or evolution warns first, and confirming ends it once (PLAN decision 17,
 // amending design D3). Written against plain objects, so the order an ending owes is proved.
 
-const ROOT = resolve(import.meta.dir, "../../..");
-const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
-const code = (path: string) => stripComments(read(path));
-
 const MODULE = code("public/leaving-a-run.js");
-
-/** One control or answer, as much of one as the rules under test actually touch. */
-function node(name: string, focused: string[]) {
-  return { name, hidden: false, focus: () => focused.push(name) };
-}
-
-/**
- * A window holding one run: its subscriber, the run's own control, the question that
- * ships hidden beside it, and its two answers.
- */
-function windowWithRun(
-  focused: string[],
-  { ending = false, question = true, committed = false } = {},
-) {
-  const back = node("keep going", focused);
-  const warning = {
-    ...node("question", focused),
-    hidden: true,
-    querySelector: (selector: string) => (selector === LEAVING_BACK_SELECTOR ? back : null),
-  };
-  const control = node("cancel", focused);
-  const inside: Record<string, (ReturnType<typeof node> & { childNodes?: unknown[] }) | null> = {
-    "[data-build-ending]": ending ? node("ending", focused) : null,
-    ".build-stream__commit": { ...node("commit", focused), childNodes: committed ? [{}] : [] },
-    ".build-stream__cancel": control,
-    [LEAVING_WARNING_SELECTOR]: question ? warning : null,
-  };
-  const run = {
-    getAttribute: () => "build-7",
-    querySelector: (selector: string) => inside[selector] ?? null,
-  };
-  return {
-    el: {
-      querySelector: (selector: string) => (selector === "[data-build-job-id]" ? run : null),
-    },
-    run,
-    control,
-    warning,
-    back,
-  };
-}
 
 /** A desk with nothing running: the window holds no subscriber at all. */
 const bareWindow = { querySelector: () => null };

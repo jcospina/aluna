@@ -10,7 +10,7 @@
 // The functions take `env` as a parameter (defaulting to the real process env) so
 // they are pure and testable without mutating global state.
 
-import { readSecret } from "../secrets.ts";
+import { API_KEY_ENV_VAR, readSecret } from "../secrets.ts";
 
 /**
  * The configured global model, in exactly one place (ADR-0003 calls the choice empirical). The
@@ -36,11 +36,7 @@ export const DEFAULT_BASE_URL = "https://api.openai.com/v1";
  */
 export const BASE_URL_ENV_VAR = "OMNI_BASE_URL";
 
-/**
- * The BYO key, under a provider-neutral name: the value may be an OpenAI, Anthropic or any
- * compatible provider's key, and the spine passes it explicitly rather than by an SDK's own var.
- */
-export const API_KEY_ENV_VAR = "OMNI_API_KEY";
+export { API_KEY_ENV_VAR } from "../secrets.ts";
 
 /**
  * The resolved provider configuration the spine (issue 02) consumes: the BYO key,

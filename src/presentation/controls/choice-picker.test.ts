@@ -10,6 +10,7 @@
 // live next door, in `choice-picker.mounting.test.ts`.
 
 import { describe, expect, test } from "bun:test";
+import { FIRST_FIELD_SELECTOR } from "#shell/record-view.js";
 import { codeOf, readSource } from "../safety/source.test-support.ts";
 import {
   activeOf,
@@ -59,14 +60,12 @@ describe("the shipped page runs the module against what the server writes", () =
   test("a form opening onto a choice field has something to put focus on", () => {
     // Neither drawn control is a form element, so a capability whose fields are all of that kind
     // matched neither focus selector and opened onto no focus at all.
-    const asked = [
-      readSource("public/record-view.js"),
-      readSource("src/presentation/records/list-container.ts"),
-    ];
-    for (const source of asked) {
-      expect(source).toContain(".listbox__button");
-      expect(source).toContain(".segmented button:not([disabled])");
-    }
+    // One selector now, so this asks what it admits rather than that two copies say the same.
+    expect(FIRST_FIELD_SELECTOR).toContain(".listbox__button");
+    expect(FIRST_FIELD_SELECTOR).toContain(".segmented button:not([disabled])");
+    expect(readSource("src/presentation/records/list-container.ts")).toContain(
+      "FIRST_FIELD_SELECTOR",
+    );
     expect(form("picker")).toContain(
       'class="field__control field__control--select listbox__button"',
     );

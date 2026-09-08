@@ -20,10 +20,15 @@
 @import "css/collection.css"; /* list layout + item wrapper chrome (M3 §3.2)   */
 @import "css/record-view.css"; /* the record's own view inside the window       */
 
-/* No accessibility layer. It held two overrides and both are gone: the focus ring is
+/* No accessibility layer. It held two overrides and both are gone: the global focus ring is
    declared once, in design/styles/base.css (PLAN decision 45), and Reduce Motion is one
    declaration on `--travel` in the token layer (decision 44). A sheet that loads last in
-   order to beat the ones above it is the thing both decisions removed. */
+   order to beat the ones above it is the thing both decisions removed.
+
+   Three controls paint the ring on a shell instead of the focused element, each with its own
+   offset — the search control, the Clear button and the prompt composer. Those are not
+   overrides of the global rule; they are the same width and colour on a different anchor, and
+   they restate `3px solid var(--focus-ring)` because the design layer offers no token for it. */
 
 /* The seam, last — as it is in design/styles/index.css, and for the same reason:
    this is where the drawn line takes over from the CSS border every stylesheet

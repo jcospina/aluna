@@ -1,9 +1,12 @@
 import { describe, expect, test } from "bun:test";
-
+import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+} from "../../../registry/incarnations.test-support.ts";
 import { createRunningLogoClaims } from "./claims.ts";
 
-const NOTES = { capabilityId: "notes", incarnationId: "11111111-1111-4111-8111-111111111111" };
-const REBUILT = { capabilityId: "notes", incarnationId: "22222222-2222-4222-8222-222222222222" };
+const NOTES = { capabilityId: "notes", incarnationId: FIRST_INCARNATION_ID };
+const REBUILT = { capabilityId: "notes", incarnationId: SECOND_INCARNATION_ID };
 const RECIPES = { capabilityId: "recipes", incarnationId: NOTES.incarnationId };
 
 describe("what recovery asks", () => {

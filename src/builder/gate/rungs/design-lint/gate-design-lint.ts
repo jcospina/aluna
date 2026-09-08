@@ -9,11 +9,14 @@
 // violation. Two build-time scans run ahead of the diff so the refusal reads in the contract's
 // own words, and they close its one residual: a named CSS colour in a mixed shorthand.
 
+import { errorMessage } from "../../../../platform/errors.ts";
 import {
   isProviderAbortError,
   type Provider,
   type TokenUsage,
 } from "../../../../platform/provider/index.ts";
+import { sumTokenUsages, TokenUsageAccumulator } from "../../../../platform/provider/usage.ts";
+import { renderableFromSpec } from "../../../../presentation/fields/renderable-capability.ts";
 import {
   createPlatformPresentationAdapter,
   enforceItemMarkup,
@@ -30,6 +33,7 @@ import {
   choiceFieldOptions,
   type SpecField,
 } from "../../../../registry/index.ts";
+import { normalizeMaxAttempts } from "../../../attempts.ts";
 import {
   DEFAULT_UNIT_FIX_ATTEMPTS,
   generateUnitContent,
@@ -40,9 +44,7 @@ import {
 } from "../../../units/generation/units.ts";
 import { checkGeneratedUnit } from "../../../units/safety/unit-checks.ts";
 import type { CapabilityGateInput, DesignLintAttempt, DesignLintGateResult } from "../../gate.ts";
-import { normalizeGateAttempts } from "../../gate-attempts.ts";
-import { errorMessage, loadItemRenderer } from "../../gate-internal.ts";
-import { sumTokenUsages, TokenUsageAccumulator } from "../../gate-token-usage.ts";
+import { loadItemRenderer } from "../../gate-internal.ts";
 import { observableItemRecordContent } from "./gate-item-content.ts";
 import { findInlineStyleViolation } from "./inline-style-scan.ts";
 
@@ -83,7 +85,7 @@ export class DesignLintRungError extends Error {
  * `DEFAULT_UNIT_FIX_ATTEMPTS`. Exhaustion throws {@link DesignLintRungError}: no version bump.
  */
 export async function runDesignLintRung(input: CapabilityGateInput): Promise<DesignLintGateResult> {
-  const knob = normalizeGateAttempts(
+  const knob = normalizeMaxAttempts(
     input.designLint?.maxAttempts,
     DEFAULT_UNIT_FIX_ATTEMPTS,
     "design-lint",
@@ -218,14 +220,7 @@ export function findDesignViolation(
     return `The item renderer could not be loaded for design review: ${errorMessage(error)}`;
   }
 
-  const capability: RenderableCapability = {
-    id: spec.id,
-    label: spec.label,
-    noun: spec.noun,
-    schema: spec.schema,
-    form: spec.ui_intent.form,
-    actions: spec.tools,
-  };
+  const capability: RenderableCapability = renderableFromSpec(spec);
   const records = buildProbeRecords(spec);
   const rendered: { readonly probe: DesignProbe; readonly inner: string }[] = [];
 
@@ -249,7 +244,7 @@ export function findDesignViolation(
       items: records.map((probe) => present(probe.record)).join(""),
     });
   } catch (error) {
-    return `The item renderer threw while composing into the "${layout}" collection: ${error instanceof Error ? error.message : String(error)}`;
+    return `The item renderer threw while composing into the "${layout}" collection: ${errorMessage(error)}`;
   }
   return undefined;
 }

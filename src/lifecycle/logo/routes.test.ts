@@ -3,6 +3,10 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join, resolve } from "node:path";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import {
+  THIRD_INCARNATION_ID,
+  UNKNOWN_INCARNATION_ID,
+} from "../../registry/incarnations.test-support.ts";
+import {
   abandonMissingCapabilityLogo,
   claimLogoGeneration,
   getCapabilityLogoState,
@@ -20,28 +24,25 @@ import {
 } from "../../runtime/router/dispatch/router.test-support.ts";
 import { createApp } from "../../server/app.ts";
 import { LogoGenerationError, type LogoGenerationProvider } from "./generation/provider.ts";
-import { installCapabilityLogo } from "./storage/storage.ts";
+import {
+  ARTWORK,
+  ATTEMPT,
+  ATTEMPT_PATH,
+  drawing,
+  GZIP,
+  LOGO_PATH,
+} from "./logo-routes.test-support.ts";
+import { capabilityLogoPath, installCapabilityLogo } from "./storage/storage.ts";
 
 // A route test, so the provider is injected through `createApp`. Nothing here reaches the
 // network — the whole point of the seam is that a paid call has to be handed in.
-
-const ARTWORK = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
 
 // A real drawing, with its C2PA manifest and its 220 paths — the only thing that can
 // prove the compressed response gives provenance back byte for byte.
 const SPECIMEN = readFileSync(resolve(import.meta.dir, "../../../design/assets/logos/recipes.svg"));
 
-const ATTEMPT_PATH = `/capability/notes/${NOTES_INCARNATION_ID}/logo-attempt`;
-const LOGO_PATH = `/capability/notes/${NOTES_INCARNATION_ID}/logo.svg`;
-
-const GZIP: RequestInit = { headers: { "accept-encoding": "gzip, deflate, br" } };
-
 /** What the ADR's immutable delivery has to say, exactly. */
 const IMMUTABLE = "public, max-age=31536000, immutable";
-
-// What the tile sends. htmx puts `HX-Request` on every request it makes, and the route
-// requires it, so a cross-origin form cannot reach the paid operation.
-const ATTEMPT: RequestInit = { method: "POST", headers: { "HX-Request": "true" } };
 
 let dir: string;
 let conns: PlatformDatabase;
@@ -72,7 +73,6 @@ function appWith(
   });
 }
 
-const drawing: LogoGenerationProvider = { generate: async () => ARTWORK };
 const drawingSpecimen: LogoGenerationProvider = { generate: async () => SPECIMEN };
 const unavailable: LogoGenerationProvider = {
   generate: () => Promise.reject(new LogoGenerationError("http", "the service is down")),
@@ -84,7 +84,7 @@ function logoState() {
 
 /** The one path an incarnation's accepted artwork is ever served from. */
 function storedLogo(): string {
-  return join(artifactsRoot, "notes", NOTES_INCARNATION_ID, "logo.svg");
+  return capabilityLogoPath(artifactsRoot, "notes", NOTES_INCARNATION_ID);
 }
 
 describe("the attempt route", () => {
@@ -168,7 +168,7 @@ describe("the attempt route", () => {
     install(conns, notesRow());
 
     const response = await appWith(drawing).request(
-      "/capability/notes/99999999-9999-4999-8999-999999999999/logo-attempt",
+      `/capability/notes/${UNKNOWN_INCARNATION_ID}/logo-attempt`,
       ATTEMPT,
     );
 
@@ -392,7 +392,7 @@ describe("the logo route, when there is nothing to serve", () => {
     await appWith(drawing).request(ATTEMPT_PATH, ATTEMPT);
 
     const response = await appWith(drawing).request(
-      `/capability/notes/99999999-9999-4999-8999-999999999999/logo.svg`,
+      `/capability/notes/${UNKNOWN_INCARNATION_ID}/logo.svg`,
       GZIP,
     );
 
@@ -508,7 +508,7 @@ describe("the logo route, across a delete and a rebuild", () => {
   });
 
   test("a rebuilt semantic id gets a different address the old cache entry cannot answer", async () => {
-    const REBUILT = "33333333-3333-4333-8333-333333333333";
+    const REBUILT = THIRD_INCARNATION_ID;
     install(conns, deskRow(NOTES_INCARNATION_ID));
     await appWith(drawing).request(ATTEMPT_PATH, ATTEMPT);
     await deleteNotes(appWith(drawing), NOTES_INCARNATION_ID);

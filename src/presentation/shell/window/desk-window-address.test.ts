@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 import { answerTraversal, travelled } from "#shell/desk-address.js";
 import {
   ACTIVE_CAPABILITY_ATTRIBUTE,
@@ -19,15 +17,10 @@ import {
   WINDOW_TOOK_CAPABILITY_EVENT,
 } from "#shell/desk-window.js";
 import { renderCapabilityLogo } from "../../../server/http/fragments.ts";
+import { codeOf as code, readSource as read, under } from "../../safety/source.test-support.ts";
 
 // The address, and the whole of what it may say: `/capability/:id` and nothing below it. A search
 // term, an open record and a draft die with the tab (design D14; PLAN decision 6; ARCH §6.1).
-
-const ROOT = resolve(import.meta.dir, "../../../..");
-const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
-
-/** Source with comments stripped, for questions about what the code does. */
-const code = (path: string) => read(path).replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
 
 const SHELL = read("public/index.html");
 const MODULE = code("public/desk-window.js");
@@ -499,9 +492,8 @@ describe("who moves the address", () => {
     // Two records, one per allowed window, and no third (design D9). Read off every key the whole
     // shell names, so a third key added anywhere in `public/` is what fails this.
     const shellKeys = new Set(
-      readdirSync(join(ROOT, "public"))
-        .filter((name) => name.endsWith(".js"))
-        .flatMap((name) => [...code(`public/${name}`).matchAll(/"aluna\.desk\.[^"]+"/g)])
+      under("public", "*.js")
+        .flatMap((path) => [...code(path).matchAll(/"aluna\.desk\.[^"]+"/g)])
         .map((match) => match[0]),
     );
     expect([...shellKeys].sort()).toEqual(['"aluna.desk.dev.v1"', '"aluna.desk.window.v1"']);

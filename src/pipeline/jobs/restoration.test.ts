@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+} from "../../registry/incarnations.test-support.ts";
 import { insertCapability } from "../../registry/index.ts";
 import {
   createScratchDbEnv,
@@ -24,7 +28,7 @@ describe("complete-View restoration descriptor", () => {
     const descriptor = captureRestorationDescriptor(
       {
         capabilityId: "notes",
-        incarnationId: "11111111-1111-4111-8111-111111111111",
+        incarnationId: FIRST_INCARNATION_ID,
       },
       env.conns.readonly,
     );
@@ -32,14 +36,14 @@ describe("complete-View restoration descriptor", () => {
     expect(descriptor).toEqual({
       kind: "capability",
       capabilityId: "notes",
-      incarnationId: "11111111-1111-4111-8111-111111111111",
+      incarnationId: FIRST_INCARNATION_ID,
     });
     expect(JSON.stringify(descriptor)).not.toContain("artifacts");
     expect(
       captureRestorationDescriptor(
         {
           capabilityId: "notes",
-          incarnationId: "22222222-2222-4222-8222-222222222222",
+          incarnationId: SECOND_INCARNATION_ID,
         },
         env.conns.readonly,
       ),
@@ -50,13 +54,13 @@ describe("complete-View restoration descriptor", () => {
     const descriptor = captureRestorationDescriptor(
       {
         capabilityId: "notes",
-        incarnationId: "11111111-1111-4111-8111-111111111111",
+        incarnationId: FIRST_INCARNATION_ID,
       },
       env.conns.readonly,
     );
     env.conns.readwrite.run(
       "UPDATE capability_registry SET label = ?, version = ?, artifacts_path = ? WHERE id = ?",
-      ["Journal", 2, "capabilities/notes/11111111-1111-4111-8111-111111111111/v2/", "notes"],
+      ["Journal", 2, `capabilities/notes/${FIRST_INCARNATION_ID}/v2/`, "notes"],
     );
 
     const fragment = renderRestorationFragment(descriptor, env.conns.readonly);
@@ -71,7 +75,7 @@ describe("complete-View restoration descriptor", () => {
     const descriptor = captureRestorationDescriptor(
       {
         capabilityId: "notes",
-        incarnationId: "11111111-1111-4111-8111-111111111111",
+        incarnationId: FIRST_INCARNATION_ID,
       },
       env.conns.readonly,
     );
@@ -90,7 +94,7 @@ describe("complete-View restoration descriptor", () => {
     const descriptor = captureRestorationDescriptor(
       {
         capabilityId: "notes",
-        incarnationId: "11111111-1111-4111-8111-111111111111",
+        incarnationId: FIRST_INCARNATION_ID,
       },
       env.conns.readonly,
     );
@@ -109,7 +113,7 @@ describe("complete-View restoration descriptor", () => {
     const descriptor = captureRestorationDescriptor(
       {
         capabilityId: "notes",
-        incarnationId: "11111111-1111-4111-8111-111111111111",
+        incarnationId: FIRST_INCARNATION_ID,
       },
       env.conns.readonly,
     );

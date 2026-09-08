@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import type { PlatformDatabase } from "../../../../platform/persistence/db.ts";
+import { EIGHTH_INCARNATION_ID } from "../../../../registry/incarnations.test-support.ts";
 import type { CapabilityDeletionTombstone } from "../../../../registry/index.ts";
 import {
   insertCapabilityDeletionTombstone,
@@ -25,7 +26,7 @@ import {
   type StagedOwnedResource,
 } from "./owned-resources.test-support.ts";
 
-const FOREIGN_INCARNATION = "88888888-8888-4888-8888-888888888888";
+const FOREIGN_INCARNATION = EIGHTH_INCARNATION_ID;
 
 /** A notes row carrying one retired field, so inactive-field absorption is provable. */
 function notesWithRetiredField() {

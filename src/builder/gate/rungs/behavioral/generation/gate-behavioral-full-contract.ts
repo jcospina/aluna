@@ -15,8 +15,7 @@ import {
   type CapabilitySpec,
   type CapabilityTool,
   FULL_CAPABILITY_TOOLS,
-  isChoiceFieldType,
-  isListFieldType,
+  isSearchableTextType,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../../../../registry/index.ts";
 import { actionTestInputDigest, actionTestInputs } from "../freeze/behavioral-test-inputs.ts";
@@ -126,7 +125,10 @@ function assertCaseContract(spec: CapabilitySpec, testCase: FullBehavioralTestCa
  * Every field a case names must still be active in *this* spec. `read` and `delete` project no
  * schema, so a hidden field moves no digest and a carried suite would fail every retry forever.
  */
-function assertCaseFieldVocabulary(spec: CapabilitySpec, testCase: FullBehavioralTestCase): void {
+export function assertCaseFieldVocabulary(
+  spec: CapabilitySpec,
+  testCase: FullBehavioralTestCase,
+): void {
   const rowFields = new Set(activeSpecFields(spec.schema.fields).map((field) => field.name));
   const inputFields =
     testCase.action === "read" || testCase.action === "delete"
@@ -324,10 +326,6 @@ function setupRowMatchesSearchQuery(
     .split(/\s+/u)
     .map(normalizeSearchText)
     .every((term) => normalizedValues.some((value) => value.includes(term)));
-}
-
-function isSearchableTextType(type: CapabilitySpec["schema"]["fields"][number]["type"]): boolean {
-  return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
 }
 
 function assertMissingRequiredTrigger(testCase: FullBehavioralTestCase): void {

@@ -12,6 +12,7 @@ import { describe, expect, test } from "bun:test";
 import {
   createPlatformPresentationAdapter,
   enforceItemMarkup,
+  PALETTE_COLOR_TOKENS,
   renderCollection,
 } from "../../../../presentation/index.ts";
 import {
@@ -19,32 +20,10 @@ import {
   FEW_SHOT_DESIGN_EXAMPLES,
   type FewShotDesignExample,
 } from "../../../units/generation/few-shot-gallery.ts";
+import { itemRendererReturning as renderer } from "../../../units/generation/unit-fixtures.test-support.ts";
 import { notesSpec } from "../../gate.test-support.ts";
 import { findDesignViolation } from "./gate-design-lint.ts";
 import { findInlineStyleViolation } from "./inline-style-scan.ts";
-
-const ESCAPE_HELPER = [
-  "function escapeHtml(value: unknown): string {",
-  "  return String(value)",
-  '    .replaceAll("&", "&amp;")',
-  '    .replaceAll("<", "&lt;")',
-  '    .replaceAll(">", "&gt;")',
-  '    .replaceAll(\'"\', "&quot;")',
-  '    .replaceAll("\'", "&#39;");',
-  "}",
-].join("\n");
-
-/** Assemble an item renderer whose body returns `bodyExpr` (an interpolated template). */
-function renderer(bodyExpr: string): string {
-  return [
-    "export default function renderItem(record: Record<string, unknown>): string {",
-    '  const text = escapeHtml(record.text ?? "");',
-    `  return ${bodyExpr};`,
-    "}",
-    "",
-    ESCAPE_HELPER,
-  ].join("\n");
-}
 
 const spec = notesSpec();
 
@@ -93,27 +72,9 @@ describe("design-lint — the three closed axes, re-derived", () => {
   });
 
   test("accepts every High Meadow token on each closed axis", () => {
-    // Named one by one rather than sampled: the whole re-derived vocabulary has to clear
-    // the rung, including the tokens that were renamed out of `--color-*`.
-    const colours = [
-      "ground",
-      "ground-deep",
-      "surface",
-      "surface-2",
-      "ink",
-      "ink-2",
-      "ink-3",
-      "leaf",
-      "shade",
-      "teal",
-      "sky",
-      "sun",
-      "ochre",
-      "clay",
-      "violet",
-      "signal",
-    ];
-    for (const colour of colours) {
+    // The whole re-derived vocabulary rather than a sample, including the tokens that were
+    // renamed out of `--color-*`. Read off the axis itself, so an added token is asked about.
+    for (const colour of PALETTE_COLOR_TOKENS) {
       const clean = renderer(
         `\`<div class="stack" style="color: var(--${colour});">\${text}</div>\``,
       );

@@ -13,39 +13,28 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ts from "typescript";
-
-import { capabilitySpecSchema, fieldTypeSchema } from "../../../../registry/index.ts";
+import { errorMessage } from "../../../../platform/errors.ts";
+import { capabilitySpecSchema } from "../../../../registry/index.ts";
+import { SPEC_FILE } from "../../../artifacts/publication/snapshot-contract.ts";
+import {
+  formatDiagnostics,
+  HANDLER_CONTRACT_DECLARATIONS,
+  handlerContractType,
+  hasExportSurface,
+  ITEM_RENDERER_CONTRACT_DECLARATIONS,
+  STRICT_CHECK_OPTIONS,
+} from "../../../generated-code-check.ts";
 import type { HandlerUnitName } from "../../../units/generation/units.ts";
 import {
   checkHandlerSourceContract,
   checkItemRendererSourceContract,
 } from "../../../units/safety/unit-checks.ts";
 import type { CapabilityGateInput } from "../../gate.ts";
-import { errorMessage, formatDiagnostics } from "../../gate-internal.ts";
-
-const STRICT_CHECK_OPTIONS: ts.CompilerOptions = {
-  allowImportingTsExtensions: true,
-  forceConsistentCasingInFileNames: true,
-  lib: ["lib.esnext.d.ts"],
-  module: ts.ModuleKind.ESNext,
-  moduleDetection: ts.ModuleDetectionKind.Force,
-  moduleResolution: ts.ModuleResolutionKind.Bundler,
-  noEmit: true,
-  noFallthroughCasesInSwitch: true,
-  noImplicitOverride: true,
-  noUncheckedIndexedAccess: true,
-  noUnusedLocals: true,
-  noUnusedParameters: true,
-  skipLibCheck: true,
-  strict: true,
-  target: ts.ScriptTarget.ESNext,
-  verbatimModuleSyntax: true,
-};
 
 export interface StructuralUnitOutcome {
   readonly kind: "spec" | "handler" | "item-renderer";
   readonly name: "spec" | HandlerUnitName | "item";
-  readonly filename: "spec.json" | `${HandlerUnitName}.ts` | "item.ts";
+  readonly filename: typeof SPEC_FILE | `${HandlerUnitName}.ts` | "item.ts";
   readonly status: "passed" | "failed";
   readonly error?: string;
 }
@@ -76,7 +65,7 @@ export function runStructuralRung(input: CapabilityGateInput): StructuralGateRes
     spec = capabilitySpecSchema.parse(input.spec);
   } catch (error) {
     throw new StructuralGateError({
-      units: [failedUnit("spec", "spec", "spec.json", errorMessage(error))],
+      units: [failedUnit("spec", "spec", SPEC_FILE, errorMessage(error))],
     });
   }
   const handlerNames = spec.tools;
@@ -97,9 +86,9 @@ function structuralSpecOutcome(
 ): StructuralUnitOutcome {
   try {
     assertSnapshotInventory(handlerNames, handlers);
-    return passedUnit("spec", "spec", "spec.json");
+    return passedUnit("spec", "spec", SPEC_FILE);
   } catch (error) {
-    return failedUnit("spec", "spec", "spec.json", errorMessage(error));
+    return failedUnit("spec", "spec", SPEC_FILE, errorMessage(error));
   }
 }
 
@@ -254,21 +243,13 @@ function assertDefaultFunctionModifiers(
   }
 }
 
-function hasExportSurface(statement: ts.Statement): boolean {
-  if (ts.isExportAssignment(statement) || ts.isExportDeclaration(statement)) return true;
-  if (!ts.canHaveModifiers(statement)) return false;
-  return (ts.getModifiers(statement) ?? []).some(
-    (modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
-  );
-}
-
 function typeCheckHandlerUnits(
   handlerNames: readonly HandlerUnitName[],
   handlers: Readonly<Partial<Record<HandlerUnitName, string>>>,
 ): ReadonlyMap<HandlerUnitName, string> {
   const dir = mkdtempSync(join(tmpdir(), "aluna-gate-typecheck-"));
   try {
-    writeFileSync(join(dir, "contract.d.ts"), handlerContractDeclarations);
+    writeFileSync(join(dir, "contract.d.ts"), HANDLER_CONTRACT_DECLARATIONS);
     for (const name of handlerNames) {
       writeFileSync(join(dir, `${name}.ts`), handlers[name] ?? "");
       const suffix = `${name[0]?.toUpperCase()}${name.slice(1)}`;
@@ -311,17 +292,10 @@ function diagnosticAppliesToHandler(diagnostic: ts.Diagnostic, name: HandlerUnit
   return !filename || filename.endsWith(`/${name}.ts`) || filename.endsWith(`/${name}.assert.ts`);
 }
 
-function handlerContractType(action: HandlerUnitName): string {
-  if (action === "create") return "CapabilityCreateHandler";
-  if (action === "update") return "CapabilityUpdateHandler";
-  if (action === "delete") return "CapabilityDeleteHandler";
-  return "CapabilityReadHandler";
-}
-
 function typeCheckItemRenderer(itemRenderer: string): string | undefined {
   const dir = mkdtempSync(join(tmpdir(), "aluna-gate-renderer-"));
   try {
-    writeFileSync(join(dir, "contract.d.ts"), itemRendererContractDeclarations);
+    writeFileSync(join(dir, "contract.d.ts"), ITEM_RENDERER_CONTRACT_DECLARATIONS);
     writeFileSync(join(dir, "item.ts"), itemRenderer);
     writeFileSync(
       join(dir, "assert.ts"),
@@ -342,95 +316,3 @@ function typeCheckItemRenderer(itemRenderer: string): string | undefined {
     rmSync(dir, { force: true, recursive: true });
   }
 }
-
-// The record shape both contracts speak — the capability data row seen structurally.
-const recordContractDeclarations = `
-type CapabilityDataColumnValue = string | number | boolean | readonly string[] | null;
-interface CapabilityDataRow {
-  readonly id: string;
-  readonly created_at: string;
-  readonly [field: string]: CapabilityDataColumnValue;
-}
-type PresentableRecord = Readonly<Record<string, unknown>>;
-interface CapabilityRecordHandle { readonly __opaqueCapabilityRecord?: never; }
-interface CapabilityActionRecord {
-  readonly fields: Readonly<Record<string, CapabilityDataColumnValue>>;
-  readonly created_at: string;
-  readonly handle: CapabilityRecordHandle;
-}
-type PresentationAdapter = (record: CapabilityActionRecord) => string;
-`;
-
-/**
- * The query-result column types, derived from the registry pantry rather than restated: a mirror
- * missing a new field type would reject a projection the runtime accepts.
- */
-const QUERY_RESULT_TYPE_UNION = fieldTypeSchema.options
-  .map((type) => JSON.stringify(type))
-  .join(" | ");
-
-// The handler contract — including ADR-0005 §2's injected `present` adapter (mirrors
-// `src/runtime/router/contract.ts` and `src/builder/units/safety/unit-checks.ts`).
-const handlerContractDeclarations = `${recordContractDeclarations}
-type CapabilityInputValue = string | readonly string[];
-interface CapabilityInput {
-  readonly values: Readonly<Record<string, CapabilityInputValue>>;
-  readonly submittedFields: ReadonlySet<string>;
-}
-interface CapabilityMutationPort {
-  create(values: Record<string, unknown>): CapabilityActionRecord;
-}
-interface CapabilityUpdateMutationPort {
-  update(values: Record<string, unknown>): CapabilityActionRecord;
-}
-interface CapabilityDeleteMutationPort {
-  delete(): void;
-}
-type CapabilityQueryParameter = string | number | bigint | boolean | null | Uint8Array;
-interface CapabilityQueryResultColumn {
-  readonly alias: string;
-  readonly type: ${QUERY_RESULT_TYPE_UNION};
-}
-interface CapabilityQueryPort {
-  all(input: {
-    readonly sql: string;
-    readonly parameters?: readonly CapabilityQueryParameter[];
-    readonly result: readonly CapabilityQueryResultColumn[];
-  }): Readonly<Record<string, CapabilityDataColumnValue>>[];
-  records(input: {
-    readonly sql: string;
-    readonly parameters?: readonly CapabilityQueryParameter[];
-    readonly targetIdAlias?: string;
-    readonly result?: readonly CapabilityQueryResultColumn[];
-  }): readonly {
-    readonly record: CapabilityActionRecord;
-    readonly values: Readonly<Record<string, CapabilityDataColumnValue>>;
-  }[];
-}
-interface CapabilityContext {
-  readonly input: CapabilityInput;
-  readonly query: CapabilityQueryPort;
-  readonly present: PresentationAdapter;
-}
-interface CapabilityCreateContext extends CapabilityContext {
-  readonly mutation: CapabilityMutationPort;
-}
-interface CapabilityUpdateContext extends CapabilityContext {
-  readonly mutation: CapabilityUpdateMutationPort;
-}
-interface CapabilityDeleteContext {
-  readonly input: CapabilityInput;
-  readonly mutation: CapabilityDeleteMutationPort;
-  readonly query: CapabilityQueryPort;
-}
-type CapabilityCreateHandler = (context: CapabilityCreateContext) => Promise<string>;
-type CapabilityReadHandler = (context: CapabilityContext) => Promise<string>;
-type CapabilityUpdateHandler = (context: CapabilityUpdateContext) => Promise<string>;
-type CapabilityDeleteHandler = (context: CapabilityDeleteContext) => Promise<string>;
-`;
-
-// The item-renderer contract — one record → its inner markup string (mirrors the
-// presentation adapter's `ItemRenderer`).
-const itemRendererContractDeclarations = `${recordContractDeclarations}
-type ItemRenderer = (record: PresentableRecord) => string;
-`;

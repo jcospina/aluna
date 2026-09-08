@@ -8,9 +8,12 @@ import { afterEach, describe, expect, test } from "bun:test";
 
 import { requireRecraftApiKey } from "../lifecycle/logo/generation/provider.ts";
 import { API_KEY_ENV_VAR, requireApiKey } from "./provider/config.ts";
-import { captureProcessSecrets, clearProcessSecrets, VAULTED_SECRET_ENV_VARS } from "./secrets.ts";
-
-const RECRAFT_ENV_VAR = "RECRAFT_API_KEY";
+import {
+  captureProcessSecrets,
+  clearProcessSecrets,
+  RECRAFT_API_KEY_ENV_VAR,
+  VAULTED_SECRET_ENV_VARS,
+} from "./secrets.ts";
 
 function withAmbient(values: Record<string, string | undefined>, body: () => void): void {
   const restore = new Map(VAULTED_SECRET_ENV_VARS.map((name) => [name, process.env[name]]));
@@ -32,19 +35,19 @@ afterEach(clearProcessSecrets);
 
 describe("the process secret vault", () => {
   test("takes both credentials out of the ambient environment", () => {
-    withAmbient({ [API_KEY_ENV_VAR]: "sk-live", [RECRAFT_ENV_VAR]: "rc-live" }, () => {
+    withAmbient({ [API_KEY_ENV_VAR]: "sk-live", [RECRAFT_API_KEY_ENV_VAR]: "rc-live" }, () => {
       captureProcessSecrets();
 
       // The whole point: code that walks its way to `process.env` finds nothing there.
       expect(process.env[API_KEY_ENV_VAR]).toBeUndefined();
-      expect(process.env[RECRAFT_ENV_VAR]).toBeUndefined();
+      expect(process.env[RECRAFT_API_KEY_ENV_VAR]).toBeUndefined();
       expect(API_KEY_ENV_VAR in process.env).toBe(false);
-      expect(RECRAFT_ENV_VAR in process.env).toBe(false);
+      expect(RECRAFT_API_KEY_ENV_VAR in process.env).toBe(false);
     });
   });
 
   test("keeps both credentials readable by the callers that need them", () => {
-    withAmbient({ [API_KEY_ENV_VAR]: "sk-live", [RECRAFT_ENV_VAR]: "rc-live" }, () => {
+    withAmbient({ [API_KEY_ENV_VAR]: "sk-live", [RECRAFT_API_KEY_ENV_VAR]: "rc-live" }, () => {
       captureProcessSecrets();
 
       expect(requireApiKey()).toBe("sk-live");
@@ -53,23 +56,23 @@ describe("the process secret vault", () => {
   });
 
   test("answers an explicitly supplied environment from itself alone", () => {
-    withAmbient({ [API_KEY_ENV_VAR]: "sk-live", [RECRAFT_ENV_VAR]: "rc-live" }, () => {
+    withAmbient({ [API_KEY_ENV_VAR]: "sk-live", [RECRAFT_API_KEY_ENV_VAR]: "rc-live" }, () => {
       captureProcessSecrets();
 
       // A caller that hands in `{}` means "this is not set", whatever the vault holds —
       // which is what keeps every other test in the suite honest.
       expect(() => requireApiKey({})).toThrow(API_KEY_ENV_VAR);
-      expect(() => requireRecraftApiKey({})).toThrow(RECRAFT_ENV_VAR);
+      expect(() => requireRecraftApiKey({})).toThrow(RECRAFT_API_KEY_ENV_VAR);
       expect(requireApiKey({ [API_KEY_ENV_VAR]: "sk-supplied" })).toBe("sk-supplied");
     });
   });
 
   test("capturing an unset variable leaves it unset rather than vaulting an empty value", () => {
-    withAmbient({ [API_KEY_ENV_VAR]: undefined, [RECRAFT_ENV_VAR]: "  " }, () => {
+    withAmbient({ [API_KEY_ENV_VAR]: undefined, [RECRAFT_API_KEY_ENV_VAR]: "  " }, () => {
       captureProcessSecrets();
 
       expect(() => requireApiKey()).toThrow(API_KEY_ENV_VAR);
-      expect(() => requireRecraftApiKey()).toThrow(RECRAFT_ENV_VAR);
+      expect(() => requireRecraftApiKey()).toThrow(RECRAFT_API_KEY_ENV_VAR);
     });
   });
 

@@ -1,5 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
+import { errorMessage } from "../../../../../platform/errors.ts";
+import { sqlIdentifier } from "../../../../../platform/persistence/sql-identifier.ts";
 import type { PresentationAdapter } from "../../../../../presentation/index.ts";
 import { activeSpecFields, type CapabilitySpec } from "../../../../../registry/index.ts";
 import {
@@ -21,7 +23,6 @@ import {
   assertFragment,
   buildGatePresent,
   buildGateQueryPort,
-  errorMessage,
   ItemRendererExecutionError,
   type LoadedHandlers,
   loadHandlers,
@@ -29,14 +30,12 @@ import {
   prepareScratchCatalog,
   sameSnapshot,
   snapshotCapabilityTables,
-  sqlIdentifier,
 } from "../../../gate-internal.ts";
 import { selectedBehavioralCases } from "../freeze/behavioral-execution-plan.ts";
 import {
   ageSetupRows,
   assertFragmentIncludes,
   assertFragmentIncludesInOrder,
-  assertKnownFields,
   assertValidationErrorMarkers,
   rowMatches,
 } from "../gate-behavioral-shared.ts";
@@ -45,7 +44,10 @@ import {
   type BehavioralRungRun,
   runBehavioralRepairLoop,
 } from "../repair/gate-behavioral-repair.ts";
-import { assertFrozenTestsContract } from "./gate-behavioral-full-contract.ts";
+import {
+  assertCaseFieldVocabulary,
+  assertFrozenTestsContract,
+} from "./gate-behavioral-full-contract.ts";
 import type { FullBehavioralTestCase } from "./gate-behavioral-full-schema.ts";
 import {
   type BehavioralScalar,
@@ -143,7 +145,7 @@ async function runFullBehavioralCase(
   present: PresentationAdapter,
   testCase: FullBehavioralTestCase,
 ): Promise<void> {
-  assertCaseFields(input.spec, testCase);
+  assertCaseFieldVocabulary(input.spec, testCase);
   const scratch = openScratchDatabasePair();
   const setupRows = testCase.setupRows.map((row) =>
     fieldValuesToRecord(activeSpecFields(input.spec.schema.fields), row.values),
@@ -394,45 +396,5 @@ function assertExpectedRows(
     if (!rows.some((row) => rowMatches(spec.schema.fields, row, expected))) {
       throw new Error(`did not find a scratch row matching ${JSON.stringify(expected)}.`);
     }
-  }
-}
-
-function assertCaseFields(spec: CapabilitySpec, testCase: FullBehavioralTestCase): void {
-  const rowFields = new Set(activeSpecFields(spec.schema.fields).map((field) => field.name));
-  const inputFields =
-    testCase.action === "read" || testCase.action === "delete"
-      ? new Set<string>()
-      : testCase.action === "search"
-        ? new Set(["q"])
-        : new Set(rowFields);
-  assertKnownFields(
-    testCase.name,
-    "input",
-    testCase.input.map((entry) => entry.field),
-    inputFields,
-  );
-  for (const [index, row] of testCase.setupRows.entries()) {
-    assertKnownFields(
-      testCase.name,
-      `setupRows[${index}]`,
-      row.values.map((entry) => entry.field),
-      rowFields,
-    );
-  }
-  for (const [index, row] of testCase.expectedRows.entries()) {
-    assertKnownFields(
-      testCase.name,
-      `expectedRows[${index}]`,
-      row.values.map((entry) => entry.field),
-      rowFields,
-    );
-  }
-  if (testCase.expectedError) {
-    assertKnownFields(
-      testCase.name,
-      "expectedError.fields",
-      testCase.expectedError.fields,
-      rowFields,
-    );
   }
 }

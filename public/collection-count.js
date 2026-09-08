@@ -5,11 +5,18 @@
  * the records region — htmx's one-shot load, the post-create refresh, the search controller.
  */
 
-/* A comment, not markup: the fragment enforcer passes one straight through, so a generated
-   Handler could open a mutation's answer with a forged sidecar. `readsThisRegion` refuses it. */
-export const COLLECTION_COUNT_SIDECAR_PREFIX = "<!--aluna:count:";
-export const COLLECTION_COUNT_SIDECAR_SUFFIX = "-->";
-export const COLLECTION_COUNT_LABEL_ATTR = "data-capability-count-label";
+import { capabilityActionUrl } from "./routes.js";
+import {
+  COLLECTION_COUNT_LABEL_ATTR,
+  COLLECTION_COUNT_SIDECAR_PREFIX,
+  COLLECTION_COUNT_SIDECAR_SUFFIX,
+} from "./shell-dom.js";
+
+export {
+  COLLECTION_COUNT_LABEL_ATTR,
+  COLLECTION_COUNT_SIDECAR_PREFIX,
+  COLLECTION_COUNT_SIDECAR_SUFFIX,
+} from "./shell-dom.js";
 
 /** The records region's own marker — the only swap target a count may arrive for. */
 const RECORDS_REGION_SELECTOR = '[data-content-region="records"]';
@@ -30,7 +37,8 @@ function readsThisRegion(requestConfig, regionId) {
   const capabilityId = regionId.slice(0, -RECORDS_REGION_ID_SUFFIX.length);
   const path = String(requestConfig.path ?? "").split(/[?#]/)[0];
   return (
-    path === `/capability/${capabilityId}/read` || path === `/capability/${capabilityId}/search`
+    path === capabilityActionUrl(capabilityId, "read") ||
+    path === capabilityActionUrl(capabilityId, "search")
   );
 }
 

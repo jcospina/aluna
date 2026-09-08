@@ -2,8 +2,11 @@
 // callback is immutable; only the Action attributed by a failed execution may be
 // regenerated, statically rechecked, and tried again from fresh scratch state.
 
+import { errorMessage } from "../../../../platform/errors.ts";
 import { isProviderAbortError, type TokenUsage } from "../../../../platform/provider/index.ts";
+import { sumTokenUsages } from "../../../../platform/provider/usage.ts";
 import type { CapabilityRow } from "../../../../registry/index.ts";
+import { normalizeMaxAttempts } from "../../../attempts.ts";
 import {
   DEFAULT_UNIT_FIX_ATTEMPTS,
   generateUnitContent,
@@ -70,7 +73,11 @@ export async function runSmokeRepairLoop(
     handlers: Readonly<Partial<Record<HandlerUnitName, string>>>,
   ) => Promise<SmokeExecutionResult>,
 ): Promise<SmokeRungRun> {
-  const maxAttempts = normalizeMaxAttempts(input.smoke?.maxAttempts);
+  const maxAttempts = normalizeMaxAttempts(
+    input.smoke?.maxAttempts,
+    DEFAULT_UNIT_FIX_ATTEMPTS,
+    "Smoke",
+  );
   const attempts: SmokeGateAttempt[] = [];
   const handlers: Partial<Record<HandlerUnitName, string>> = { ...input.handlers };
   const dependencyCatalog = scratchDependencyRows(input.scratchCatalog);
@@ -181,7 +188,7 @@ function failedRepairGeneration(
           usage: passFailure.usage,
         }
       : {}),
-    error: error instanceof Error ? error.message : String(error),
+    error: errorMessage(error),
   };
 }
 
@@ -255,27 +262,9 @@ function toSmokeFailure(error: unknown): {
 } {
   return error instanceof SmokeActionFailure
     ? { action: error.action, message: error.message }
-    : { message: error instanceof Error ? error.message : String(error) };
+    : { message: errorMessage(error) };
 }
 
-function normalizeMaxAttempts(value: number | undefined): number {
-  if (value === undefined) return DEFAULT_UNIT_FIX_ATTEMPTS;
-  if (!Number.isInteger(value) || value < 1) {
-    throw new RangeError("Smoke maxAttempts must be a positive integer.");
-  }
-  return value;
-}
-
-function sumAttemptUsage(attempts: readonly SmokeGateAttempt[]) {
-  const usages = attempts.flatMap((attempt) => (attempt.usage ? [attempt.usage] : []));
-  return {
-    inputTokens: sumDefined(usages.map((usage) => usage.inputTokens)),
-    outputTokens: sumDefined(usages.map((usage) => usage.outputTokens)),
-    totalTokens: sumDefined(usages.map((usage) => usage.totalTokens)),
-  };
-}
-
-function sumDefined(values: readonly (number | undefined)[]): number | undefined {
-  const present = values.filter((value): value is number => value !== undefined);
-  return present.length === 0 ? undefined : present.reduce((sum, value) => sum + value, 0);
+function sumAttemptUsage(attempts: readonly SmokeGateAttempt[]): TokenUsage {
+  return sumTokenUsages(attempts.flatMap((attempt) => (attempt.usage ? [attempt.usage] : [])));
 }

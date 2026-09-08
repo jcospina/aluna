@@ -71,6 +71,8 @@ self.onmessage = (event: MessageEvent) => {
     self.postMessage({
       kind: "failed",
       id: request.id,
+      // Not the shared `errorMessage`: this file is copied beside the bundle and run directly,
+      // so a relative import would not resolve there (`scripts/build.ts`).
       message: error instanceof Error ? error.message : String(error),
       fault: faultOf(error),
     } satisfies QueryWorkerResponse);

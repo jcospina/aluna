@@ -3,6 +3,10 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { renameCapabilityLabel } from "../../../lifecycle/rename/index.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import {
+  FIRST_INCARNATION_ID,
+  UNKNOWN_INCARNATION_ID,
+} from "../../../registry/incarnations.test-support.ts";
+import {
   type CapabilityRow,
   canonicalCapabilityLabel,
   compareAndSwapCapability,
@@ -23,7 +27,7 @@ import {
 import { createApp } from "../../app.ts";
 import { renderCapabilityLogo } from "../../http/fragments.ts";
 
-const NOTES_INCARNATION = "11111111-1111-4111-8111-111111111111";
+const NOTES_INCARNATION = FIRST_INCARNATION_ID;
 
 function renameRequest(fields: Record<string, string>): RequestInit {
   return { method: "POST", body: new URLSearchParams(fields) };
@@ -144,7 +148,7 @@ describe("renaming a capability from its logo", () => {
   test("a rename bound to another incarnation or another version is refused stale", async () => {
     const wrongIncarnation = await app().request(
       "/capability-rename/notes",
-      renameNotes("Journal", { incarnation_id: "99999999-9999-4999-8999-999999999999" }),
+      renameNotes("Journal", { incarnation_id: UNKNOWN_INCARNATION_ID }),
     );
     expect(wrongIncarnation.status).toBe(409);
     expect(await wrongIncarnation.text()).toContain('data-error-code="rename_refused"');
@@ -176,7 +180,7 @@ describe("renaming a capability from its logo", () => {
   test("a repeated field decides nothing — the submission this form makes carries one", async () => {
     const body = new URLSearchParams({ label: "Journal", version: "1" });
     body.append("incarnation_id", NOTES_INCARNATION);
-    body.append("incarnation_id", "99999999-9999-4999-8999-999999999999");
+    body.append("incarnation_id", UNKNOWN_INCARNATION_ID);
 
     const response = await app().request("/capability-rename/notes", { method: "POST", body });
 
