@@ -465,6 +465,7 @@ describe("a decision that will not parse is a turn, not an ending", () => {
     expect(steps).toHaveLength(2);
     expect(steps[0]).toEqual({
       call: null,
+      collections: [],
       result: { outcome: "failed", message: UNREADABLE_DECISION },
     });
     expect(steps[1]?.result).toEqual({ outcome: "rows", rows: [{ total: 3 }] });

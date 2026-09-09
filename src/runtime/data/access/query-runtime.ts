@@ -201,26 +201,37 @@ interface QueryScopeOptions {
   readonly wholeCatalog?: boolean;
 }
 
+/**
+ * Refuse a statement reaching outside its scope, and hand back the capability tables it names —
+ * the same `EXPLAIN` the bound is enumerated from. A plan opens what it *may* read, so a branch
+ * the parameters never take is still named; over-naming is what makes it sound as a bound.
+ */
 export function assertScopedQuery(
   database: Database,
   scope: CapabilityQueryScope,
   sql: string,
   parameters: readonly CapabilityQueryParameter[],
   options: QueryScopeOptions,
-): void {
-  if (/^\s*(?:INSERT|UPDATE|DELETE|REPLACE)\b/i.test(sql)) return;
+): readonly string[] {
+  if (/^\s*(?:INSERT|UPDATE|DELETE|REPLACE)\b/i.test(sql)) return [];
   if (!/^\s*(?:SELECT|WITH)\b/i.test(sql) || /;\s*\S/.test(sql)) {
     throw new CapabilityDataValidationError("The query port accepts one SELECT statement.");
   }
   assertNoAmbientSchemaReader(sql);
   const allowedTables = new Set(capabilityQueryScopeTableNames(scope));
-  const roots = database
-    .query(
-      "SELECT type, name, rootpage, tbl_name FROM sqlite_master WHERE rootpage > 0 AND type IN ('table', 'index')",
-    )
-    .all() as SchemaRoot[];
-  const sourceByRoot = new Map(roots.map((root) => [root.rootpage, root] as const));
-  const opcodes = explainOpcodes(database, sql, parameters);
+  // One snapshot over both: a `CREATE` committing between the schema read and the plan would
+  // leave the rootpage map stale, and the names read off it are a sentence a person reads.
+  const { sourceByRoot, opcodes } = withReadSnapshot(database, () => {
+    const roots = database
+      .query(
+        "SELECT type, name, rootpage, tbl_name FROM sqlite_master WHERE rootpage > 0 AND type IN ('table', 'index')",
+      )
+      .all() as SchemaRoot[];
+    return {
+      sourceByRoot: new Map(roots.map((root) => [root.rootpage, root] as const)),
+      opcodes: explainOpcodes(database, sql, parameters),
+    };
+  });
   const accessed = new Set(
     opcodes
       .filter(({ opcode, p2 }) => opcode === "OpenRead" && p2 > 0)
@@ -234,6 +245,7 @@ export function assertScopedQuery(
     );
   }
   assertTargetColumnAccess(database, scope, opcodes, sourceByRoot, options);
+  return [...accessed];
 }
 
 /**
