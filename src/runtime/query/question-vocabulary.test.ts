@@ -174,7 +174,7 @@ describe("every other field is left to the data to say", () => {
       GROCERIES,
     );
 
-    if (result.ending !== "answered") throw new Error("unreachable");
+    if (result.ending === "budget_spent") throw new Error("the fixture stops after one step");
     expect(result.steps[0]?.call?.label).toBe("naming");
     expect(result.steps[0]?.result).toEqual({
       outcome: "rows",
@@ -197,7 +197,8 @@ describe("every other field is left to the data to say", () => {
       GROCERIES,
     );
 
-    if (result.ending !== "answered") throw new Error("unreachable");
+    // Refused, so nothing was read and the question found nothing; the cap is what is on trial.
+    if (result.ending === "budget_spent") throw new Error("the fixture stops after one step");
     expect(result.steps[0]?.result).toEqual({
       outcome: "failed",
       message: QUESTION_STEP_RESULT_TOO_LARGE,

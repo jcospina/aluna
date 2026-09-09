@@ -73,7 +73,12 @@ function rowsOfExactly(bytes: number): readonly QueryWorkerRow[] {
 
 /** A step's own weight, the way the turn weighs one. */
 function weigh(rows: readonly QueryWorkerRow[], spent = 0): string | null {
-  const step: QuestionStep = { call: null, collections: [], result: { outcome: "rows", rows } };
+  const step: QuestionStep = {
+    call: null,
+    collections: [],
+    plan: { empty: "no rows" },
+    result: { outcome: "rows", rows },
+  };
   return questionPayloadRefusal(questionPayloadBytes(rows), questionStepBytes(step), spent);
 }
 
@@ -167,7 +172,12 @@ describe("the two numbers", () => {
     // the column names would halve the cost and double the ceiling.
     const desk = bulkyDesk();
     const rows = [{ text: SHORT_TEXT }, { text: `${SHORT_TEXT}er` }];
-    const step: QuestionStep = { call: null, collections: [], result: { outcome: "rows", rows } };
+    const step: QuestionStep = {
+      call: null,
+      collections: [],
+      plan: { empty: "no rows" },
+      result: { outcome: "rows", rows },
+    };
 
     expect(nextPrompt("anything", registeredSpecs(desk.database.readonly), [step])).toContain(
       renderQuestionRows(rows),
@@ -407,6 +417,7 @@ describe("a statement too large to carry is refused before it runs", () => {
       // What it would have opened outlives the statement it could not quote: a collection's name
       // is what a person calls their own things, and never the machinery this refusal is about.
       collections: [NOTES_CAPABILITY.label],
+      plan: { empty: "no rows" },
       result: { outcome: "failed", message: QUESTION_STATEMENT_TOO_LARGE },
     });
     // Never run, and never quoted back into the prompt that refuses it.

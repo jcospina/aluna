@@ -29,13 +29,10 @@ import {
   reads,
   registeredSpecs,
   scriptedProvider,
+  UNREADABLE_STEP,
 } from "./question.test-support.ts";
 import { QUESTION_TOOLS, type QuestionToolCall, READ_ONLY_QUERY_TOOL } from "./question-tool.ts";
-import {
-  QUESTION_TURN_PROMPT_PREFIX,
-  type QuestionStep,
-  UNREADABLE_DECISION,
-} from "./question-turn.ts";
+import { QUESTION_TURN_PROMPT_PREFIX, type QuestionStep } from "./question-turn.ts";
 import {
   createScratchPlatforms,
   gatesFor,
@@ -368,6 +365,7 @@ describe("the result reaches the model", () => {
     const first: QuestionStep = {
       call: call(`SELECT DISTINCT text FROM ${NOTES_TABLE}`),
       collections: [NOTES_CAPABILITY.label],
+      plan: { empty: "no rows" },
       result: { outcome: "rows", rows: [{ text: "groceries" }] },
     };
     const { prompts } = await desk().run(
@@ -458,11 +456,7 @@ describe("the mistakes a model actually makes", () => {
       ),
     );
 
-    expect(step).toEqual({
-      call: null,
-      collections: [],
-      result: { outcome: "failed", message: UNREADABLE_DECISION },
-    });
+    expect(step).toEqual(UNREADABLE_STEP);
   });
 
   test("a generation that faulted still ends the question", async () => {

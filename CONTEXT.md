@@ -629,6 +629,17 @@ one holds records and is only filtered, and it has its own sentence. The two are
 facts about different things, and the collection never states both at once.
 _Avoid_: no results, zero state, blank slate, nothing found
 
+**Nothing matched**:
+What a question's step did when its statement read a collection and no row of it answered.
+The platform decides it off the statement's plan and the values that came back, before an
+answer is written, and a question whose every step matched nothing ends in Aluna's own
+sentence rather than in one the model wrote (PLAN decision 17). Distinct from an **empty
+collection**, which is a fact about the capability rather than about her search, and from
+a question whose statements never came back at all — that one searched nothing, and she
+says so. The distinction is the whole of it: she may say she could not find something, and
+never that this person does not have it.
+_Avoid_: no results, zero rows, empty result, you have none
+
 **Swap target**:
 The named place a server-addressed swap lands — the stable id `commit` and `fragment`
 carry, and the literal anchors page assembly composes a full page by replacing.
