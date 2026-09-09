@@ -19,6 +19,7 @@ export {
 // are what the *model* is told. The prefix is, because a fake provider outside recognizes the call,
 // and so are the shape and the join, because such a provider has to produce one.
 export {
+  QUESTION_ANSWER_NOTHING_MATCHED,
   QUESTION_ANSWER_PROMPT_PREFIX,
   type QuestionAnswerWritten,
   questionAnswerSchema,
@@ -33,10 +34,17 @@ export {
 } from "./question-loop.ts";
 export {
   QUESTION_BUDGET_SPENT_SENTENCE,
+  QUESTION_NOTHING_FOUND,
+  QUESTION_NOTHING_FOUND_ANYWHERE,
+  QUESTION_NOTHING_WORKED,
   questionEndingNarration,
   questionLabelNarration,
+  questionNothingFoundSentence,
   questionStepNarration,
 } from "./question-narration.ts";
+// The plan reader and `questionFoundNothing` are not re-exported: their callers are next door in
+// this directory, and this barrel is what `src/server/` reaches for.
+export { type QuestionStepPlan, questionStepMatchedRows } from "./question-nothing-found.ts";
 export {
   QUESTION_PAYLOAD_BUDGET_SPENT,
   QUESTION_RESULT_PAYLOAD_BUDGET_BYTES,
@@ -83,6 +91,7 @@ export {
   assertWholeCatalogQuery,
   EmptyCatalogQueryError,
   scopedCapabilitySpecs,
+  type WholeCatalogQueryPlan,
   WholeCatalogQueryStatementError,
   wholeCatalogQueryScope,
 } from "./whole-catalog-query-scope.ts";

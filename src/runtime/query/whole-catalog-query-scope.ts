@@ -27,6 +27,12 @@ import {
   type CapabilityQueryScope,
   deriveCapabilityTableDdl,
 } from "../data/index.ts";
+import {
+  NO_PLAN,
+  type PlannedOpcode,
+  type QuestionStepPlan,
+  readQuestionPlan,
+} from "./question-nothing-found.ts";
 
 /** A question asked of a desk that holds nothing to read. */
 export class EmptyCatalogQueryError extends Error {
@@ -100,25 +106,38 @@ export function wholeCatalogQueryScope(
   return { target, dependencies };
 }
 
+/** What the `EXPLAIN` said about one admitted statement, in the capabilities the caller knows. */
+export interface WholeCatalogQueryPlan {
+  /** The capabilities whose collections it reads — the names 6.4/03's restatement uses. */
+  readonly collections: readonly CapabilitySpec[];
+  /** What it would hand back having matched nothing (6.4/04). */
+  readonly plan: QuestionStepPlan;
+}
+
+/** What a statement refused before its plan was ever read reports about one. */
+const NOTHING_EXPLAINED: WholeCatalogQueryPlan = Object.freeze({ collections: [], plan: NO_PLAN });
+
 /**
  * Refuse a read reaching outside this question's snapshot, admit one across every capability
- * inside it, and hand back the capabilities whose collections it reads — the names 6.4/03's
- * restatement uses. Everything it throws, the turn returns to the model as a failed step.
+ * inside it, and hand back what its plan says: the collections it reads, and what it would return
+ * having matched nothing. Everything it throws, the turn returns to the model as a failed step.
  */
 export function assertWholeCatalogQuery(
   database: PlatformDatabase["readonly"],
   specs: readonly CapabilitySpec[],
   sql: string,
   parameters: readonly CapabilityQueryParameter[],
-): readonly CapabilitySpec[] {
-  if (REACHES_THE_SQLITE_SEAM.test(sql.replace(SQL_LITERALS_AND_COMMENTS, " "))) return [];
+): WholeCatalogQueryPlan {
+  if (REACHES_THE_SQLITE_SEAM.test(sql.replace(SQL_LITERALS_AND_COMMENTS, " "))) {
+    return NOTHING_EXPLAINED;
+  }
   const scope = wholeCatalogQueryScope(specs);
   if (!scope) {
     throw new EmptyCatalogQueryError(
       "There is nothing to read: this question's scope holds no collections.",
     );
   }
-  assertStatementIsWellFormed(database, sql, parameters);
+  const plan = assertStatementIsWellFormed(database, sql, parameters);
   // `allowTargetId` because a question may count records and group by one; `wholeCatalog` because
   // the nominated target is an artefact of the scope's shape rather than a chosen capability.
   try {
@@ -130,7 +149,10 @@ export function assertWholeCatalogQuery(
     );
     // Filtered through `specs` rather than mapped from the `EXPLAIN`'s own order, so two runs of
     // one statement name the collections the same way round.
-    return specs.filter((spec) => opened.has(deriveCapabilityTableDdl(spec).tableName));
+    return {
+      collections: specs.filter((spec) => opened.has(deriveCapabilityTableDdl(spec).tableName)),
+      plan,
+    };
   } catch (error) {
     throw asStatementFault(error);
   }
@@ -139,17 +161,25 @@ export function assertWholeCatalogQuery(
 /**
  * Refuse a statement SQLite will not parse, and a `?` count that does not match: Bun reports arity
  * as a plain `Error`, so it ended the question. Finalized, or it pins shared `dbReadonly`'s read.
+ * Stepped as well as prepared, because 6.4/04 reads its plan off what this already compiles. Its
+ * own `EXPLAIN` rather than `assertScopedQuery`'s, which is inside `runtime/data` and may not
+ * import a question's terms back out of `runtime/query`.
  */
 function assertStatementIsWellFormed(
   database: PlatformDatabase["readonly"],
   sql: string,
   parameters: readonly CapabilityQueryParameter[],
-): void {
-  let expected: number;
+): QuestionStepPlan {
+  let expected = 0;
+  let planned: readonly PlannedOpcode[] = [];
   try {
     const statement = database.prepare(`EXPLAIN ${sql}`);
-    expected = (statement as unknown as { paramsCount: number }).paramsCount;
-    statement.finalize();
+    try {
+      expected = (statement as unknown as { paramsCount: number }).paramsCount;
+      if (expected === parameters.length) planned = statement.all(...parameters) as PlannedOpcode[];
+    } finally {
+      statement.finalize();
+    }
   } catch (error) {
     throw asStatementFault(error);
   }
@@ -158,6 +188,7 @@ function assertStatementIsWellFormed(
       `The statement has ${expected} ? placeholder${expected === 1 ? "" : "s"} but ${parameters.length} parameter${parameters.length === 1 ? "" : "s"} were given.`,
     );
   }
+  return readQuestionPlan(planned);
 }
 
 /**

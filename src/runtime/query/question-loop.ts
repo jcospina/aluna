@@ -13,8 +13,11 @@
 //
 // An answered question costs one generation more than it took reads: `question-answer.ts` writes
 // what she found, out of the steps alone. It runs no statement, so it spends no read (decision 8).
+// A question that matched no rows costs none: nothing-found is the platform's own sentence.
 
 import { runQuestionAnswer } from "./question-answer.ts";
+import { QUESTION_NOTHING_WORKED, questionNothingFoundSentence } from "./question-narration.ts";
+import { questionFoundNothing, questionReadSomething } from "./question-nothing-found.ts";
 import type { QuestionStep, QuestionTurn, QuestionTurnDeps } from "./question-turn.ts";
 import { runQuestionTurn } from "./question-turn.ts";
 
@@ -25,7 +28,7 @@ import { runQuestionTurn } from "./question-turn.ts";
 export const QUESTION_STEP_BUDGET = 10;
 
 /** How a question stopped reading. */
-export type QuestionEnding = "answered" | "budget_spent";
+export type QuestionEnding = "answered" | "nothing_found" | "nothing_worked" | "budget_spent";
 
 /**
  * What the loop hands back, in two shapes: a spent budget is the one ending that must not produce
@@ -33,7 +36,9 @@ export type QuestionEnding = "answered" | "budget_spent";
  */
 export type QuestionLoopResult =
   | {
-      readonly ending: "answered";
+      /** The endings that speak. Nothing-found is not found-nothing, and neither is a question
+       * whose every statement failed: she never searched, so she may not report a search. */
+      readonly ending: "answered" | "nothing_found" | "nothing_worked";
       readonly steps: readonly QuestionStep[];
       /** What she says she found, written from those steps and from nothing else (decision 4). */
       readonly answer: string;
@@ -68,18 +73,27 @@ export async function runQuestionLoop(
   // over would hand over `scope.read`, and the answer would be able to go and fetch the rows.
   // The catalog is still held while these words are written, which is what keeps a deletion able
   // to end the question (decision 13); releasing first would leave the generation unstoppable.
-  const answered = async (): Promise<QuestionLoopResult> => ({
-    ending: "answered",
-    steps,
-    answer: await runQuestionAnswer(
-      { provider: deps.provider, signal: deps.scope.signal },
-      { question: input.question, steps },
-    ),
-  });
+  // A question that matched nothing skips all of it: no generation, so nothing to claim in.
+  const spoken = async (): Promise<QuestionLoopResult> => {
+    if (!questionReadSomething(steps)) {
+      return { ending: "nothing_worked", steps, answer: QUESTION_NOTHING_WORKED };
+    }
+    if (questionFoundNothing(steps)) {
+      return { ending: "nothing_found", steps, answer: questionNothingFoundSentence(steps) };
+    }
+    return {
+      ending: "answered",
+      steps,
+      answer: await runQuestionAnswer(
+        { provider: deps.provider, signal: deps.scope.signal },
+        { question: input.question, steps },
+      ),
+    };
+  };
 
   while (steps.length < QUESTION_STEP_BUDGET) {
     const next = await turn();
-    if (next.kind === "answer") return await answered();
+    if (next.kind === "answer") return await spoken();
     if (next.kind === "spent") return { ending: "budget_spent", stepsTaken: steps.length };
     steps.push(next.step);
     input.onStep?.(next.step);
@@ -88,6 +102,6 @@ export async function runQuestionLoop(
   // The budget counts reads, not turns, so the tenth read's result is worth one more decision;
   // bounding turns would leave a question needing exactly ten reads unanswerable.
   const last = await turn();
-  if (last.kind === "answer") return await answered();
+  if (last.kind === "answer") return await spoken();
   return { ending: "budget_spent", stepsTaken: steps.length };
 }

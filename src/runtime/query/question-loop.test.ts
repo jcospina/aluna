@@ -22,12 +22,16 @@ import {
   type QuestionDesk,
   questionDesk,
   reads,
-  SCRIPTED_ANSWER,
   type ScriptedProvider,
   scriptedProvider,
+  UNREADABLE_STEP,
 } from "./question.test-support.ts";
 import { QUESTION_STEP_BUDGET, runQuestionLoop } from "./question-loop.ts";
-import { QUESTION_BUDGET_SPENT_SENTENCE, questionEndingNarration } from "./question-narration.ts";
+import {
+  QUESTION_BUDGET_SPENT_SENTENCE,
+  QUESTION_NOTHING_WORKED,
+  questionEndingNarration,
+} from "./question-narration.ts";
 import { READ_ONLY_QUERY_TOOL } from "./question-tool.ts";
 import { type QuestionStep, UNREADABLE_DECISION } from "./question-turn.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
@@ -79,7 +83,13 @@ describe("the loop runs the model's chosen steps in sequence", () => {
   test("an answer on the very first turn runs no statement at all", async () => {
     const { result, steps, prompts } = await desk().run(scriptedProvider(answers()));
 
-    expect(result).toEqual({ ending: "answered", steps: [], answer: SCRIPTED_ANSWER });
+    // And a question that read nothing found nothing and searched nothing (6.4/04): there is no
+    // step to write an answer from, so the ending is the platform's own sentence.
+    expect(result).toEqual({
+      ending: "nothing_worked",
+      steps: [],
+      answer: QUESTION_NOTHING_WORKED,
+    });
     expect(steps).toEqual([]);
     expect(prompts).toHaveLength(1);
   });
@@ -368,12 +378,15 @@ describe("an empty result and a failed statement are ordinary turns", () => {
   });
 
   test("a mutation refused at the SQLite seam is a turn too", async () => {
-    const { result, steps } = await desk().run(
+    const { result, steps, prompts } = await desk().run(
       scriptedProvider(reads(`UPDATE ${NOTES_TABLE} SET text = ?`, ["rewritten"]), answers()),
     );
 
-    expect(result.ending).toBe("answered");
+    // A turn and not an ending: the refusal went back and the model decided again. The question
+    // then ends having found nothing, because that one refusal is all it ever read.
+    expect(prompts).toHaveLength(2);
     expect(steps[0]?.result.outcome).toBe("failed");
+    expect(result.ending).toBe("nothing_worked");
   });
 
   test("ten failures in a row spend the budget rather than ending early", async () => {
@@ -463,11 +476,7 @@ describe("a decision that will not parse is a turn, not an ending", () => {
 
     expect(result.ending).toBe("answered");
     expect(steps).toHaveLength(2);
-    expect(steps[0]).toEqual({
-      call: null,
-      collections: [],
-      result: { outcome: "failed", message: UNREADABLE_DECISION },
-    });
+    expect(steps[0]).toEqual(UNREADABLE_STEP);
     expect(steps[1]?.result).toEqual({ outcome: "rows", rows: [{ total: 3 }] });
     expect(scratch.readerCounts()).toEqual([0, 0]);
   });

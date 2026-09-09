@@ -158,7 +158,9 @@ describe("a classified data_query", () => {
       { intent: intent("data_query"), question: "rewrite my notes" },
     );
 
-    if (loop.ending !== "answered") throw new Error("the fixture answers");
+    // Nothing was read, so the question ends having found nothing; what this fixture is about
+    // is that the refusal travelled back as a step and the scope went back with it.
+    if (loop.ending === "budget_spent") throw new Error("the fixture stops after one step");
     expect(loop.steps[0]?.result.outcome).toBe("failed");
     expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
   });

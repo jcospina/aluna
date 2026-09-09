@@ -41,7 +41,7 @@ import {
 import {
   ANSWER_STEP_OPEN,
   buildQuestionAnswerPrompt,
-  QUESTION_ANSWER_NOTHING_CAME_BACK,
+  QUESTION_ANSWER_NOTHING_MATCHED,
   QUESTION_ANSWER_PROMPT_PREFIX,
   QUESTION_ANSWER_RULES,
   QuestionAnswerUnreadableError,
@@ -50,7 +50,7 @@ import {
   runQuestionAnswer,
 } from "./question-answer.ts";
 import { runQuestionLoop } from "./question-loop.ts";
-import { questionLabelNarration } from "./question-narration.ts";
+import { QUESTION_NOTHING_WORKED, questionLabelNarration } from "./question-narration.ts";
 import {
   QUESTION_PAYLOAD_BUDGET_SPENT,
   QUESTION_STATEMENT_TOO_LARGE,
@@ -132,6 +132,7 @@ function stepOf(label: QuestionStepLabel, rows: readonly Record<string, never>[]
   return {
     call: { tool: READ_ONLY_QUERY_TOOL, sql: A_FEW_ROWS, label, parameters: [SHOP] },
     collections: [EXPENSES_CAPABILITY.label],
+    plan: { empty: "no rows" },
     result: { outcome: "rows", rows },
   };
 }
@@ -260,6 +261,7 @@ describe("nothing but the results reaches the answer", () => {
         parameters: [hostile],
       },
       collections: [EXPENSES_CAPABILITY.label],
+      plan: { empty: "no rows" },
       result: { outcome: "rows", rows: [{}] },
     };
     const prompt = buildQuestionAnswerPrompt({ question: QUESTION, steps: [step] });
@@ -338,25 +340,33 @@ describe("a step that returned nothing has nothing to report", () => {
     const failed: QuestionStep = {
       call: null,
       collections: [],
+      plan: { empty: "no rows" },
       result: { outcome: "failed", message: QUESTION_STEP_RESULT_TOO_LARGE },
     };
     const rows: QuestionReadStep = {
       call: null,
       collections: [],
+      plan: { empty: "one row", answers: [] },
       result: { outcome: "rows", rows: [{ total: 3 }] },
     };
 
     expect(questionStepsWithRows([failed, rows, failed])).toEqual([rows]);
   });
 
-  test("a question whose every step failed says so rather than carrying the failures", async () => {
-    const { answerPrompts } = await shoppingDesk().run(
+  test("a question whose every step failed is never written at all", async () => {
+    // It used to be written from a prompt saying nothing came back. There is nothing to write
+    // from, so 6.4/04 ends it in the platform's own words and the generation never runs.
+    const { result, answerPrompts } = await shoppingDesk().run(
       scriptedProvider(reads(`SELECT nowhere FROM ${NOTES_TABLE}`), answers()),
       QUESTION,
     );
 
-    expect(answerPrompts[0]).toContain(QUESTION_ANSWER_NOTHING_CAME_BACK);
-    expect(answerPrompts[0]).not.toContain("no such column");
+    expect(answerPrompts).toEqual([]);
+    expect(result).toEqual({
+      ending: "nothing_worked",
+      steps: result.ending === "budget_spent" ? [] : result.steps,
+      answer: QUESTION_NOTHING_WORKED,
+    });
   });
 });
 
@@ -427,6 +437,15 @@ describe("an answer that will not read is not spoken", () => {
     ).rejects.toBeInstanceOf(QuestionAnswerUnreadableError);
   });
 
+  test("a prompt with no step to write from says so, and carries no result of any kind", () => {
+    // The loop no longer reaches this: a question with nothing read never asks for an answer.
+    // The branch stays total all the same, and this is what it renders.
+    const prompt = buildQuestionAnswerPrompt({ question: QUESTION, steps: [] });
+
+    expect(prompt).toContain(`- ${QUESTION_ANSWER_NOTHING_MATCHED}`);
+    expect(prompt).not.toContain("rows:");
+  });
+
   test("the rules are what the model is told, and the suite pins them rather than retyping them", () => {
     expect(buildQuestionAnswerPrompt({ question: QUESTION, steps: [] })).toContain(
       QUESTION_ANSWER_RULES.join("\n"),
@@ -437,7 +456,9 @@ describe("an answer that will not read is not spoken", () => {
 describe("a cancelled question stops waiting for its answer", () => {
   test("the generation is abortable in flight, so the catalog is not held by a stuck one", async () => {
     const desk = shoppingDesk();
-    const scripted = scriptedProvider(answers());
+    // One step that matched, so there is an answer to stall: a question that found nothing runs
+    // no generation at all (6.4/04), and this fixture would then wait on a call never made.
+    const scripted = scriptedProvider(reads(A_FEW_ROWS, [SHOP], "listing"), answers());
     const asked: string[] = [];
     let sawAnswerPrompt = (): void => {};
     const answerAsked = new Promise<void>((resolve) => {

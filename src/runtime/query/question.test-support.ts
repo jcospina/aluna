@@ -32,6 +32,7 @@ import {
   questionAnswerSentence,
 } from "./question-answer.ts";
 import { QUESTION_STEP_BUDGET, type QuestionLoopResult, runQuestionLoop } from "./question-loop.ts";
+import { NO_PLAN } from "./question-nothing-found.ts";
 import {
   QUESTION_STEP_FALLBACK_LABEL,
   type QuestionDecision,
@@ -45,6 +46,7 @@ import {
   type QuestionTurnDeps,
   type QuestionTurnInput,
   runQuestionTurn,
+  UNREADABLE_DECISION,
 } from "./question-turn.ts";
 import { gatesFor, readerCounts, type ScratchPlatforms } from "./read-scope.test-support.ts";
 import {
@@ -165,6 +167,18 @@ export function reads(
 export function answers(): QuestionDecision {
   return { next: "answer", read: null };
 }
+
+/**
+ * The step a decision nobody can read becomes: no call, no plan read off one, and the turn's own
+ * words back to the model. Here because three suites assert it, and a third copy of a shape is a
+ * third thing to keep in step with the turn.
+ */
+export const UNREADABLE_STEP: QuestionStep = Object.freeze({
+  call: null,
+  collections: [],
+  plan: NO_PLAN,
+  result: { outcome: "failed", message: UNREADABLE_DECISION } as const,
+});
 
 /**
  * What a fake provider says when the loop asks for the answer, in the two halves 6.4/03 generates:

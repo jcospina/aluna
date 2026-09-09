@@ -17,6 +17,7 @@ import {
   type QuestionStepLabel,
   type QuestionToolCall,
 } from "./question-tool.ts";
+import type { QuestionStep } from "./question-turn.ts";
 
 /**
  * One sentence per kind of step: each stands alone, carries no number, and claims nothing about
@@ -58,6 +59,46 @@ export function questionStepNarration(call: QuestionToolCall | null): string {
 export const QUESTION_BUDGET_SPENT_SENTENCE =
   "I couldn't work this one out. Want to try asking a different way?";
 
+/** How she finishes a sentence about a search that matched nothing (decision 17). *Matching that*
+ * because a collection she read is named just before it, and *nothing* alone would read as a
+ * claim that the collection is empty — which is the claim about this person she may not make. */
+export const QUESTION_NOTHING_FOUND = "I couldn't find anything matching that.";
+
+/** What she says when nothing matched and no statement of hers ever opened a collection. */
+export const QUESTION_NOTHING_FOUND_ANYWHERE = "I couldn't find anything to answer that with.";
+
+/**
+ * What she says when no statement of hers came back at all — every one failed or was refused.
+ * She did not search, so she may not report a search: this claims only that she got nowhere.
+ */
+export const QUESTION_NOTHING_WORKED =
+  "I couldn't get anywhere with that one. Want to try asking a different way?";
+
+/** Every one of these, in the order first seen. */
+function inOrder(values: readonly string[]): readonly string[] {
+  return [...new Set(values)];
+}
+
+/** A list as a sentence says one: *Expenses*, *Expenses and Notes*, *Expenses, Notes and Trips*. */
+function wordList(words: readonly string[]): string {
+  if (words.length < 2) return words.join("");
+  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+}
+
+/**
+ * What she says when a question searched and matched nothing (decision 17). She names what she
+ * read and then says she could not find it — a claim about her search, written here rather than
+ * generated so there is no sentence for a model to put *you spent nothing on groceries* into.
+ * What she narrowed to is left out: those are bound values of the model's, and its free text
+ * inside a sentence the platform vouches for is the thing this ending exists to prevent.
+ */
+export function questionNothingFoundSentence(steps: readonly QuestionStep[]): string {
+  const read = steps.filter((step) => step.result.outcome === "rows");
+  const collections = inOrder(read.flatMap((step) => step.collections));
+  if (collections.length === 0) return QUESTION_NOTHING_FOUND_ANYWHERE;
+  return `Looking at your ${wordList(collections)}, ${QUESTION_NOTHING_FOUND}`;
+}
+
 /**
  * What the platform says about an ending. `answered` is `null` on purpose: the words for what
  * she *found* are the answer's, in `question-answer.ts`, written from the steps.
@@ -65,6 +106,11 @@ export const QUESTION_BUDGET_SPENT_SENTENCE =
 export function questionEndingNarration(ending: QuestionEnding): string | null {
   switch (ending) {
     case "answered":
+      return null;
+    // Null for the reason `answered` is, and not because there are no words: the ones for these
+    // two ride on the result, out of `questionNothingFoundSentence` and the constant above it.
+    case "nothing_found":
+    case "nothing_worked":
       return null;
     case "budget_spent":
       return QUESTION_BUDGET_SPENT_SENTENCE;

@@ -125,7 +125,9 @@ describe("what she looked at reaches the words she writes", () => {
 
 describe("which collections she names is read off the plan, not off the words", () => {
   test("a statement across two collections names both, in one settled order", async () => {
-    const both = `SELECT n.id FROM ${NOTES_TABLE} n JOIN ${EXPENSES_TABLE} e ON n.text = e.text`;
+    // Joined on what differs rather than on what matches: nothing on this desk is filed under
+    // both, and a join matching nothing would end the question before an answer is written.
+    const both = `SELECT n.id FROM ${NOTES_TABLE} n JOIN ${EXPENSES_TABLE} e ON n.text <> e.text`;
     const { answerPrompts } = await categoriesDesk().run(
       scriptedProviderSaying(SCRIPTED_ANSWER_WRITTEN, reads(both, [], "listing"), answers()),
       GROCERIES_QUESTION,
@@ -141,7 +143,7 @@ describe("which collections she names is read off the plan, not off the words", 
   test("a statement that only mentions a collection does not claim to have read it", async () => {
     // The whole reason the tables come off an `EXPLAIN`: a name inside a string is a word, and
     // a sweep over the statement's text would restate a collection nothing opened.
-    const namesOne = `SELECT count(*) AS n FROM ${EXPENSES_TABLE} WHERE text = '${NOTES_TABLE}'`;
+    const namesOne = `SELECT count(*) AS n FROM ${EXPENSES_TABLE} WHERE text <> '${NOTES_TABLE}'`;
     const { answerPrompts } = await categoriesDesk().run(
       scriptedProviderSaying(SCRIPTED_ANSWER_WRITTEN, reads(namesOne, [], "counting"), answers()),
       GROCERIES_QUESTION,
@@ -161,8 +163,8 @@ describe("which collections she names is read off the plan, not off the words", 
     );
   });
 
-  test("a statement that opens nothing claims nothing, and the rules say to say so", async () => {
-    const { answerPrompts } = await categoriesDesk().run(
+  test("a statement that opens nothing claims nothing, and is never written from", async () => {
+    const { result, answerPrompts } = await categoriesDesk().run(
       scriptedProviderSaying(
         SCRIPTED_ANSWER_WRITTEN,
         reads("SELECT 1 AS n", [], "other"),
@@ -171,9 +173,11 @@ describe("which collections she names is read off the plan, not off the words", 
       GROCERIES_QUESTION,
     );
 
-    // No line to write a restatement from, and `looked_at` is still required — so the rule that
-    // stops her naming a collection she was never shown is the only thing standing there.
-    expect(answerPrompts[0]).not.toContain(ANSWER_STEP_IN);
+    // There would be no line to write a restatement from, and `looked_at` is required. 6.4/04
+    // closes it: a row nothing was scanned into matched nothing, so no generation runs at all
+    // and the rule below is what holds a question that read something else as well.
+    expect(answerPrompts).toEqual([]);
+    expect(result.ending).toBe("nothing_found");
     expect(QUESTION_ANSWER_RULES.join("\n")).toContain("Where nothing is listed");
   });
 });

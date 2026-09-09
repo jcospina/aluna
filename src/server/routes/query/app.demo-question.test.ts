@@ -20,6 +20,7 @@ import type { DeepPartial, GenerateResult, Provider } from "../../../platform/pr
 import {
   QUESTION_ANSWER_PROMPT_PREFIX,
   QUESTION_BUDGET_SPENT_SENTENCE,
+  QUESTION_NOTHING_FOUND,
   QUESTION_RESULT_PAYLOAD_BUDGET_BYTES,
   QUESTION_STEP_BUDGET,
   QUESTION_STEP_LABELS,
@@ -44,7 +45,10 @@ import {
   ANSWER_HEADING,
   BUDGET_SPENT_HEADING,
   DEMO_QUESTION_PATH,
+  NOTHING_FOUND_HEADING,
+  NOTHING_MATCHED,
   STEP_COLLECTIONS_HEADING,
+  STEP_MATCH,
   STEP_NARRATION_HEADING,
   VOCABULARY_HEADING,
 } from "./demo-question.ts";
@@ -84,7 +88,12 @@ const DEMO_ANSWER = questionAnswerSentence(DEMO_ANSWER_WRITTEN);
  * One provider answering three different prompts, told apart by the prompt each stage builds
  * rather than by call order. `reads` is how many statements it runs; `Infinity` never converges.
  */
-function stagedProvider(intent: unknown, sql: string, reads = 1): Provider {
+function stagedProvider(
+  intent: unknown,
+  sql: string,
+  reads: number,
+  parameters: readonly string[],
+): Provider {
   let taken = 0;
   return {
     generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T> {
@@ -93,7 +102,7 @@ function stagedProvider(intent: unknown, sql: string, reads = 1): Provider {
         taken += 1;
         return {
           next: "read",
-          read: { tool: READ_ONLY_QUERY_TOOL, sql, label: "counting", parameters: ["groceries"] },
+          read: { tool: READ_ONLY_QUERY_TOOL, sql, label: "counting", parameters },
         };
       };
       const answer = prompt.startsWith(INTENT_RESOLVER_PROMPT_PREFIX)
@@ -124,8 +133,13 @@ let env: ScratchDbEnv;
 let databases: PlatformDatabase;
 const previousNodeEnv = process.env.NODE_ENV;
 
-function app(intent: unknown, sql: string, reads = 1) {
-  const provider = stagedProvider(intent, sql, reads);
+function app(
+  intent: unknown,
+  sql: string,
+  reads = 1,
+  parameters: readonly string[] = ["groceries"],
+) {
+  const provider = stagedProvider(intent, sql, reads, parameters);
   return createApp({
     getProvider: () => provider,
     buildDatabases: databases,
@@ -148,6 +162,30 @@ afterEach(() => {
   if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
   else process.env.NODE_ENV = previousNodeEnv;
   teardownScratchDbEnv(env);
+});
+
+describe("what the platform read off a result, and how the question ended", () => {
+  test("says what the platform read off each result, and how it ended", async () => {
+    // The block the sign-off gate reads: decision 17's verdict beside the rows it was made
+    // from, and an ending whose heading says which of the two sentences this one is.
+    const response = await app(
+      DATA_QUERY_INTENT,
+      `SELECT count(*) AS total FROM ${NOTES_TABLE} WHERE text = ?`,
+      1,
+      ["nothing is filed under this"],
+    ).request(DEMO_QUESTION_PATH, ask("how many notes about nothing?"));
+    const html = await response.text();
+
+    expect(html).toContain(`<h2>${escapeHtml(STEP_MATCH)}</h2><pre>${escapeHtml(NOTHING_MATCHED)}`);
+    expect(html).not.toContain(ANSWER_HEADING);
+    expect(html).not.toContain(escapeHtml(DEMO_ANSWER));
+    const ending = html.slice(html.indexOf(`<h2>${escapeHtml(NOTHING_FOUND_HEADING)}</h2>`));
+    expect(ending).toBe(
+      `<h2>${escapeHtml(NOTHING_FOUND_HEADING)}</h2><pre>${escapeHtml(
+        `Looking at your ${NOTES_CAPABILITY.label}, ${QUESTION_NOTHING_FOUND}`,
+      )}</pre></section></body></html>`,
+    );
+  });
 });
 
 describe("the one-question exercise", () => {

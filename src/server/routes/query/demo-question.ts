@@ -21,6 +21,8 @@ import type { Provider } from "../../../platform/provider/index.ts";
 import type { ReadGateCoordinator } from "../../../runtime/concurrency/read-gates.ts";
 import {
   QUESTION_BUDGET_SPENT_SENTENCE,
+  QUESTION_NOTHING_FOUND,
+  QUESTION_NOTHING_WORKED,
   QUESTION_RESULT_PAYLOAD_BUDGET_BYTES,
   QUESTION_STEP_BUDGET,
   QUESTION_STEP_LABELS,
@@ -32,6 +34,7 @@ import {
   questionPayloadBytes,
   questionPayloadSpent,
   questionStepBytes,
+  questionStepMatchedRows,
   questionStepNarration,
 } from "../../../runtime/query/index.ts";
 import { developerSurfacesEnabled } from "../../dev-surfaces/dev-surfaces.ts";
@@ -109,12 +112,22 @@ function renderStep(step: QuestionStep, index: number, steps: readonly QuestionS
     ...asked,
     renderSection(STEP_NARRATION_HEADING, questionStepNarration(call)),
     renderSection(STEP_COLLECTIONS_HEADING, step.collections.join(", ") || NOTHING_OPENED),
-    result.outcome === "rows"
-      ? renderSection(`Rows (${result.rows.length})`, JSON.stringify(result.rows, null, 2))
-      : renderSection("Statement failed", result.message, "failure"),
+    // A failed statement read nothing rather than matching nothing, so it gets no verdict here.
+    ...(result.outcome === "rows"
+      ? [
+          renderSection(`Rows (${result.rows.length})`, JSON.stringify(result.rows, null, 2)),
+          renderSection(STEP_MATCH, questionStepMatchedRows(step) ? ROWS_MATCHED : NOTHING_MATCHED),
+        ]
+      : [renderSection("Statement failed", result.message, "failure")]),
     renderSection("Payload", renderPayload(step, index, steps)),
   ].join("");
 }
+
+/** The heading the platform's own reading of a result renders under — decision 17's code check,
+ * beside the rows it was made from, so a human at the gate can check one against the other. */
+export const STEP_MATCH = "What the platform read off that";
+export const ROWS_MATCHED = "rows matched";
+export const NOTHING_MATCHED = "nothing matched";
 
 /** The heading one step's sentence renders under. Exported so a test can pin the words that
  * appear beside a statement, rather than merely that the page mentions Aluna. */
@@ -130,19 +143,28 @@ const NOTHING_OPENED = "(none)";
 export const VOCABULARY_HEADING = "Everything Aluna says while she works";
 
 const READS_SPENT_ROW = "(reads spent)";
+const NOTHING_FOUND_ROW = "(nothing matched)";
+const NOTHING_WORKED_ROW = "(nothing came back)";
 
 /**
  * Every sentence there is, rendered off `QUESTION_STEP_LABELS` so a seventh kind shows up the
  * moment it exists. The labels sit beside them because this is a developer's page.
  */
 function renderVocabulary(): string {
-  const width = Math.max(READS_SPENT_ROW.length, ...QUESTION_STEP_LABELS.map((l) => l.length));
+  const width = Math.max(
+    READS_SPENT_ROW.length,
+    NOTHING_FOUND_ROW.length,
+    NOTHING_WORKED_ROW.length,
+    ...QUESTION_STEP_LABELS.map((l) => l.length),
+  );
   const said = (key: string, sentence: string) => `${key.padEnd(width)}  ${sentence}`;
   return renderSection(
     VOCABULARY_HEADING,
     [
       ...QUESTION_STEP_LABELS.map((label) => said(label, questionLabelNarration(label))),
       said(READS_SPENT_ROW, QUESTION_BUDGET_SPENT_SENTENCE),
+      said(NOTHING_FOUND_ROW, QUESTION_NOTHING_FOUND),
+      said(NOTHING_WORKED_ROW, QUESTION_NOTHING_WORKED),
     ].join("\n"),
   );
 }
@@ -155,6 +177,12 @@ export const ANSWER_HEADING = "What Aluna found";
  * rather than its presence: the ending must be Aluna's sentence and nothing else (decision 3). */
 export const BUDGET_SPENT_HEADING = "The reads ran out — what Aluna says";
 
+/** The heading a question that matched nothing renders under. Its own, so the gate reads the two
+ * endings apart: this sentence is the platform's, and the one under `ANSWER_HEADING` is the
+ * model's. A question whose statements never came back searched nothing and gets a third. */
+export const NOTHING_FOUND_HEADING = "Nothing matched — what Aluna says";
+export const NOTHING_WORKED_HEADING = "Nothing came back — what Aluna says";
+
 /**
  * How the loop stopped. A spent budget renders the platform's own sentence and nothing else.
  */
@@ -164,7 +192,11 @@ function renderEnding(loop: QuestionLoopResult): string {
     // one thing this block exists to show render as an empty box.
     return renderSection(BUDGET_SPENT_HEADING, QUESTION_BUDGET_SPENT_SENTENCE, "failure");
   }
-  return renderSection(ANSWER_HEADING, loop.answer);
+  if (loop.ending === "nothing_worked") {
+    return renderSection(NOTHING_WORKED_HEADING, loop.answer, "failure");
+  }
+  const heading = loop.ending === "nothing_found" ? NOTHING_FOUND_HEADING : ANSWER_HEADING;
+  return renderSection(heading, loop.answer);
 }
 
 function renderExercise(exercise: QuestionExercise): string {
@@ -198,7 +230,9 @@ function renderPage(exercise?: QuestionExercise): string {
     `${QUESTION_STEP_BUDGET} reads — it decides each next step until it has enough or the `,
     "reads run out. Nothing is timed. A read that comes back too large is refused whole, never ",
     "trimmed, and the model is told to narrow it. The statements count and total; when the model ",
-    "stops reading, its answer is written from what they returned and nothing else. ",
+    "stops reading, its answer is written from what they returned and nothing else. A question ",
+    "whose steps matched no rows is not written by the model at all: the platform says it could ",
+    "not find anything, because a zero it never matched is not a fact about you. ",
     "Scaffolding: this page comes down in 6.5/05.</p>",
     renderVocabulary(),
     `<form method="post" action="${DEMO_QUESTION_PATH}">`,

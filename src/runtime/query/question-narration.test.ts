@@ -26,6 +26,7 @@ import {
   reads,
   registeredSpecs,
   scriptedProvider,
+  UNREADABLE_STEP,
 } from "./question.test-support.ts";
 import { QUESTION_STEP_BUDGET, runQuestionLoop } from "./question-loop.ts";
 import {
@@ -246,11 +247,7 @@ describe("a label outside the closed set is rejected", () => {
     expect(result).toEqual({ ending: "budget_spent", stepsTaken: QUESTION_STEP_BUDGET });
     expect(desk.executed()).toBe(0);
     for (const step of steps) {
-      expect(step).toEqual({
-        call: null,
-        collections: [],
-        result: { outcome: "failed", message: UNREADABLE_DECISION },
-      });
+      expect(step).toEqual(UNREADABLE_STEP);
     }
     // And it is still narrated, in the fallback's words rather than in the model's.
     expect(questionStepNarration(steps[0]?.call ?? null)).toBe(

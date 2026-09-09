@@ -31,6 +31,7 @@ import {
   SQLITE_TYPE_BY_FIELD_TYPE,
 } from "../data/index.ts";
 import { type QueryWorkerRow, QueryWorkerStatementError } from "./query-worker.ts";
+import { NO_PLAN, type QuestionStepPlan } from "./question-nothing-found.ts";
 import {
   questionPayloadBytes,
   questionPayloadRefusal,
@@ -70,7 +71,18 @@ export interface QuestionStep {
    * off the SQL's words, and empty for a statement the bound refused before it opened anything.
    */
   readonly collections: readonly string[];
+  /**
+   * What the statement would have handed back having matched nothing (6.4/04), read off the same
+   * `EXPLAIN` as `collections` so no step's classification is the model's.
+   */
+  readonly plan: QuestionStepPlan;
 }
+
+/** Everything a step carries about its statement rather than about its result. */
+type StatementFacts = Pick<QuestionStep, "collections" | "plan">;
+
+/** What a step says about a statement the bound refused before it read a plan at all. */
+const NO_STATEMENT_FACTS: StatementFacts = Object.freeze({ collections: [], plan: NO_PLAN });
 
 /**
  * What one turn decided. `answer` means the steps so far are enough; `spent` is a read asked for
@@ -140,6 +152,9 @@ export const QUESTION_COMPUTATION_RULES = Object.freeze([
   "- The SQL does the arithmetic, rounding included. Every figure you report is one it returned.",
   "- Ranking belongs in the SQL too. ORDER BY and LIMIT, so what comes back is the row you name.",
   "- When you answer, you have what the steps returned and nothing else to work from.",
+  "- Return a total as the plain sum, avg, min or max. Never default its null away with coalesce",
+  "  or ifnull, and never use total: a sum over nothing is not a zero, and this person is told",
+  "  which of the two it was.",
 ]);
 
 /**
@@ -320,12 +335,8 @@ function collectionLabels(catalog: ActiveRegistryCatalog): ReadonlyMap<string, s
   return new Map(catalog.capabilities.map((row) => [row.id, canonicalCapabilityLabel(row)]));
 }
 
-function refused(
-  call: QuestionToolCall,
-  collections: readonly string[],
-  message: string,
-): QuestionTurn {
-  return { kind: "step", step: { call, collections, result: { outcome: "failed", message } } };
+function refused(call: QuestionToolCall, facts: StatementFacts, message: string): QuestionTurn {
+  return { kind: "step", step: { call, ...facts, result: { outcome: "failed", message } } };
 }
 
 /**
@@ -335,7 +346,7 @@ function refused(
 function payloadRefusal(
   steps: readonly QuestionStep[],
   call: QuestionToolCall,
-  collections: readonly string[],
+  facts: StatementFacts,
 ): {
   /** Refused for its own size, and recorded without the call that could not be carried. */
   readonly statement: string | null;
@@ -346,13 +357,13 @@ function payloadRefusal(
   };
 } {
   const spent = questionPayloadSpent(steps);
-  const asked: QuestionStep = { call, collections, result: { outcome: "rows", rows: [] } };
+  const asked: QuestionStep = { call, ...facts, result: { outcome: "rows", rows: [] } };
   const askedBytes = questionStepBytes(asked, steps.length);
   return {
     statement: questionStatementRefusal(askedBytes),
     beforeReading: questionPayloadRefusal(0, askedBytes, spent),
     afterReading(rows) {
-      const step: QuestionStep = { call, collections, result: { outcome: "rows", rows } };
+      const step: QuestionStep = { call, ...facts, result: { outcome: "rows", rows } };
       return {
         step,
         refusal: questionPayloadRefusal(
@@ -370,7 +381,7 @@ function unreadable(): QuestionTurn {
     kind: "step",
     step: {
       call: null,
-      collections: [],
+      ...NO_STATEMENT_FACTS,
       result: { outcome: "failed", message: UNREADABLE_DECISION },
     },
   };
@@ -406,14 +417,16 @@ export async function runQuestionTurn(
   if (steps.length >= input.budget) return { kind: "spent" };
 
   // Declared out here so a statement that was admitted and then failed in the worker still
-  // records what it opened; a statement refused by the bound itself never opened anything.
-  let collections: readonly string[] = [];
+  // records what its plan said; a statement refused by the bound itself never had one read.
+  let facts: StatementFacts = NO_STATEMENT_FACTS;
   try {
     const named = collectionLabels(deps.scope.catalog);
-    collections = assertWholeCatalogQuery(deps.database, specs, call.sql, call.parameters).map(
-      (spec) => named.get(spec.id) ?? spec.label,
-    );
-    const refusal = payloadRefusal(steps, call, collections);
+    const explained = assertWholeCatalogQuery(deps.database, specs, call.sql, call.parameters);
+    facts = {
+      collections: explained.collections.map((spec) => named.get(spec.id) ?? spec.label),
+      plan: explained.plan,
+    };
+    const refusal = payloadRefusal(steps, call, facts);
     // Weighed before it runs: a statement that fails has no rows to weigh, and its text is
     // re-rendered into every later prompt all the same.
     if (refusal.statement !== null) {
@@ -421,23 +434,19 @@ export async function runQuestionTurn(
       // prompt that refuses it would be the failure it is refusing.
       return {
         kind: "step",
-        step: {
-          call: null,
-          collections,
-          result: { outcome: "failed", message: refusal.statement },
-        },
+        step: { call: null, ...facts, result: { outcome: "failed", message: refusal.statement } },
       };
     }
-    if (refusal.beforeReading !== null) return refused(call, collections, refusal.beforeReading);
+    if (refusal.beforeReading !== null) return refused(call, facts, refusal.beforeReading);
     const rows = await deps.scope.read(call.sql, call.parameters);
     // Weighed again with its rows, between the worker and the step, so an over-size result is
     // never something a later reader has to remember not to use. The rows are dropped whole.
     const read = refusal.afterReading(rows);
-    if (read.refusal !== null) return refused(call, collections, read.refusal);
+    if (read.refusal !== null) return refused(call, facts, read.refusal);
     return { kind: "step", step: read.step };
   } catch (error) {
     const message = stepFailureMessage(error);
     if (message === undefined) throw error;
-    return { kind: "step", step: { call, collections, result: { outcome: "failed", message } } };
+    return { kind: "step", step: { call, ...facts, result: { outcome: "failed", message } } };
   }
 }
