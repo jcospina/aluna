@@ -128,26 +128,30 @@ export function theOnlyQuestionTool(tools: readonly QuestionTool[] = QUESTION_TO
 /** The one call shape there is, derived from the one offered tool. */
 export const questionToolCallSchema = theOnlyQuestionTool().call;
 
-/** What a turn may decide: run one more read, or stop reading and answer from what it has. */
-export const QUESTION_DECISIONS = ["read", "answer"] as const;
+/**
+ * What a turn may decide: run one more read, stop reading and answer from what it has, or say
+ * this desk holds nowhere for what was asked about (decision 20). The third runs no statement
+ * and writes no answer; `question-no-home.ts` is where it ends.
+ */
+export const QUESTION_DECISIONS = ["read", "answer", "no_home"] as const;
 export type QuestionNextStep = (typeof QUESTION_DECISIONS)[number];
 
 const questionDecisionObject = z.strictObject({
   next: z.enum(QUESTION_DECISIONS),
-  /** The statement to run, and `null` when the model is done reading. */
+  /** The statement to run, and `null` for either decision that stops reading. */
   read: questionToolCallSchema.nullable(),
 });
 
 /**
  * The schema one turn's generation is validated against. The refinement makes the two fields one
- * decision, so the turn refuses both mismatches rather than handing the loop a shape to interpret.
+ * decision, so the turn refuses every mismatch rather than handing the loop a shape to interpret.
  */
 export const questionDecisionSchema = questionDecisionObject.superRefine((decision, ctx) => {
   if (decision.next === "read" && decision.read === null) {
     ctx.addIssue({ code: "custom", path: ["read"], message: "a read must carry its statement" });
   }
-  if (decision.next === "answer" && decision.read !== null) {
-    ctx.addIssue({ code: "custom", path: ["read"], message: "an answer runs no statement" });
+  if (decision.next !== "read" && decision.read !== null) {
+    ctx.addIssue({ code: "custom", path: ["read"], message: "only a read runs a statement" });
   }
 });
 

@@ -1,4 +1,5 @@
-// Everything Aluna says while she is reading (PLAN decisions 14, 15 and 17; ADR-0001).
+// Everything Aluna says while she is reading, and every ending but the answer's (PLAN
+// decisions 14, 15, 17 and 20; ADR-0001).
 //
 // The model picks the kind of step from a closed set; the words are the platform's, and this
 // file is the only place they exist — nothing copies them, the suite included. So she cannot
@@ -10,6 +11,9 @@
 // percentage. A failed step says what a working one says, because the label is what she set
 // out to do; a statement too large to carry keeps no call, so it falls back like any other
 // step with no label to read.
+//
+// The gap is the one sentence with a word of the model's inside it, and the word is narrowed
+// here to a run this person wrote. `question-no-home.ts` runs the call that offers one.
 
 import type { QuestionEnding } from "./question-loop.ts";
 import {
@@ -99,6 +103,62 @@ export function questionNothingFoundSentence(steps: readonly QuestionStep[]): st
   return `Looking at your ${wordList(collections)}, ${QUESTION_NOTHING_FOUND}`;
 }
 
+/** The gap sentence around whatever it names (decision 20). No control comes with it and none
+ * may: an offer with a yes is a proposal, and Module 8 owns that surface. */
+function noHomeSentence(subject: string): string {
+  return `You don't have anywhere for ${subject} yet — you can ask me to make one.`;
+}
+
+/**
+ * What she says when the words she was handed were not this person's own, and what a naming call
+ * that came back unreadable falls back to. Naming nothing is the honest end of the same sentence.
+ */
+export const QUESTION_NO_HOME_FOR_THAT = noHomeSentence("that");
+
+/** The gap, naming the subject when the narrowing below gave one back and nothing when it did not. */
+export function questionNoHomeSentence(named: string | null): string {
+  return named === null ? QUESTION_NO_HOME_FOR_THAT : noHomeSentence(named);
+}
+
+/** A word as a person writes one. Its marks stay on it, so *café* is one word in either normal
+ * form rather than four, and the apostrophes inside *don't* keep that whole too. */
+const WORD = /[\p{L}\p{N}][\p{L}\p{N}\p{M}'’]*/gu;
+
+/** How many of their words a subject may be. Decision 20's own runs to two, and past a handful
+ * the model has handed back the question rather than the thing it is about. */
+const MOST_SUBJECT_WORDS = 6;
+
+interface WordWritten {
+  readonly written: string;
+  readonly word: string;
+}
+
+function wordsOf(text: string): readonly WordWritten[] {
+  return [...text.matchAll(WORD)].map((match) => ({
+    written: match[0],
+    word: match[0].toLowerCase(),
+  }));
+}
+
+/**
+ * The subject as this person wrote it, or `null` when they did not write it. One unbroken run of
+ * their own words, so a phrase assembled out of words they used apart is not one of theirs. Their
+ * words, though, and not the stretch of question between them: what stands between two of their
+ * words is whatever they typed there, and this sentence carries their characters and ours alone.
+ */
+export function questionSubjectInTheirWords(question: string, subject: string): string | null {
+  const asked = wordsOf(question);
+  const named = wordsOf(subject);
+  if (named.length === 0 || named.length > MOST_SUBJECT_WORDS) return null;
+  for (let from = 0; from + named.length <= asked.length; from += 1) {
+    const run = asked.slice(from, from + named.length);
+    if (named.every((word, index) => run[index]?.word === word.word)) {
+      return run.map((written) => written.written).join(" ");
+    }
+  }
+  return null;
+}
+
 /**
  * What the platform says about an ending. `answered` is `null` on purpose: the words for what
  * she *found* are the answer's, in `question-answer.ts`, written from the steps.
@@ -108,9 +168,10 @@ export function questionEndingNarration(ending: QuestionEnding): string | null {
     case "answered":
       return null;
     // Null for the reason `answered` is, and not because there are no words: the ones for these
-    // two ride on the result, out of `questionNothingFoundSentence` and the constant above it.
+    // three ride on the result, out of the three sentence writers above.
     case "nothing_found":
     case "nothing_worked":
+    case "no_home":
       return null;
     case "budget_spent":
       return QUESTION_BUDGET_SPENT_SENTENCE;

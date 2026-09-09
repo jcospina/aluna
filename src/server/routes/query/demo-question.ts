@@ -21,6 +21,7 @@ import type { Provider } from "../../../platform/provider/index.ts";
 import type { ReadGateCoordinator } from "../../../runtime/concurrency/read-gates.ts";
 import {
   QUESTION_BUDGET_SPENT_SENTENCE,
+  QUESTION_NO_HOME_FOR_THAT,
   QUESTION_NOTHING_FOUND,
   QUESTION_NOTHING_WORKED,
   QUESTION_RESULT_PAYLOAD_BUDGET_BYTES,
@@ -145,6 +146,8 @@ export const VOCABULARY_HEADING = "Everything Aluna says while she works";
 const READS_SPENT_ROW = "(reads spent)";
 const NOTHING_FOUND_ROW = "(nothing matched)";
 const NOTHING_WORKED_ROW = "(nothing came back)";
+/** The gap, with no subject in it: on a real question this person's own words stand there. */
+const NO_HOME_ROW = "(nowhere for it)";
 
 /**
  * Every sentence there is, rendered off `QUESTION_STEP_LABELS` so a seventh kind shows up the
@@ -155,6 +158,7 @@ function renderVocabulary(): string {
     READS_SPENT_ROW.length,
     NOTHING_FOUND_ROW.length,
     NOTHING_WORKED_ROW.length,
+    NO_HOME_ROW.length,
     ...QUESTION_STEP_LABELS.map((l) => l.length),
   );
   const said = (key: string, sentence: string) => `${key.padEnd(width)}  ${sentence}`;
@@ -165,6 +169,7 @@ function renderVocabulary(): string {
       said(READS_SPENT_ROW, QUESTION_BUDGET_SPENT_SENTENCE),
       said(NOTHING_FOUND_ROW, QUESTION_NOTHING_FOUND),
       said(NOTHING_WORKED_ROW, QUESTION_NOTHING_WORKED),
+      said(NO_HOME_ROW, QUESTION_NO_HOME_FOR_THAT),
     ].join("\n"),
   );
 }
@@ -183,6 +188,11 @@ export const BUDGET_SPENT_HEADING = "The reads ran out — what Aluna says";
 export const NOTHING_FOUND_HEADING = "Nothing matched — what Aluna says";
 export const NOTHING_WORKED_HEADING = "Nothing came back — what Aluna says";
 
+/** The heading the gap renders under (decision 20). A fourth, because this ending is about the
+ * desk rather than about one search of it — and what renders under it is a sentence and nothing
+ * else: no button, no link, no control that could accept an offer. That surface is M8's. */
+export const NO_HOME_HEADING = "Nowhere for it — what Aluna says";
+
 /**
  * How the loop stopped. A spent budget renders the platform's own sentence and nothing else.
  */
@@ -195,6 +205,9 @@ function renderEnding(loop: QuestionLoopResult): string {
   if (loop.ending === "nothing_worked") {
     return renderSection(NOTHING_WORKED_HEADING, loop.answer, "failure");
   }
+  // Rendered like an answer rather than like a failure: nothing went wrong, and the one thing
+  // this block may hold is the sentence.
+  if (loop.ending === "no_home") return renderSection(NO_HOME_HEADING, loop.answer);
   const heading = loop.ending === "nothing_found" ? NOTHING_FOUND_HEADING : ANSWER_HEADING;
   return renderSection(heading, loop.answer);
 }
@@ -232,7 +245,8 @@ function renderPage(exercise?: QuestionExercise): string {
     "trimmed, and the model is told to narrow it. The statements count and total; when the model ",
     "stops reading, its answer is written from what they returned and nothing else. A question ",
     "whose steps matched no rows is not written by the model at all: the platform says it could ",
-    "not find anything, because a zero it never matched is not a fact about you. ",
+    "not find anything, because a zero it never matched is not a fact about you. A question this ",
+    "desk holds nowhere for ends with the gap named and nothing to press. ",
     "Scaffolding: this page comes down in 6.5/05.</p>",
     renderVocabulary(),
     `<form method="post" action="${DEMO_QUESTION_PATH}">`,

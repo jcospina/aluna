@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ZodType } from "zod";
 
 import { INTENT_RESOLVER_PROMPT_PREFIX } from "../../../pipeline/intent/index.ts";
+import { A_DATA_QUERY_CLASSIFICATION } from "../../../pipeline/intent/intent.test-support.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import {
   createScratchDbEnv,
@@ -20,6 +21,8 @@ import type { DeepPartial, GenerateResult, Provider } from "../../../platform/pr
 import {
   QUESTION_ANSWER_PROMPT_PREFIX,
   QUESTION_BUDGET_SPENT_SENTENCE,
+  QUESTION_NO_HOME_FOR_THAT,
+  QUESTION_NO_HOME_PROMPT_PREFIX,
   QUESTION_NOTHING_FOUND,
   QUESTION_RESULT_PAYLOAD_BUDGET_BYTES,
   QUESTION_STEP_BUDGET,
@@ -30,6 +33,7 @@ import {
   questionAnswerSchema,
   questionAnswerSentence,
   questionLabelNarration,
+  questionNoHomeSentence,
   READ_ONLY_QUERY_TOOL,
 } from "../../../runtime/query/index.ts";
 import {
@@ -38,6 +42,7 @@ import {
   EXPENSES_CAPABILITY,
   NOTES_CAPABILITY,
   NOTES_TABLE,
+  SCRIPTED_SUBJECT,
 } from "../../../runtime/query/question.test-support.ts";
 import { createApp } from "../../app.ts";
 import { escapeHtml } from "../../http/html.ts";
@@ -45,6 +50,7 @@ import {
   ANSWER_HEADING,
   BUDGET_SPENT_HEADING,
   DEMO_QUESTION_PATH,
+  NO_HOME_HEADING,
   NOTHING_FOUND_HEADING,
   NOTHING_MATCHED,
   STEP_COLLECTIONS_HEADING,
@@ -53,16 +59,7 @@ import {
   VOCABULARY_HEADING,
 } from "./demo-question.ts";
 
-const DATA_QUERY_INTENT = {
-  type: "data_query",
-  confidence: 0.94,
-  target_capability: null,
-  resolution: "none",
-  proposed_identity: null,
-  proposed_action: "Look at what is saved.",
-  user_facing_label: "Let me look at what you've saved.",
-  requires_confirmation: false,
-};
+const DATA_QUERY_INTENT = A_DATA_QUERY_CLASSIFICATION;
 
 const NEW_CAPABILITY_INTENT = {
   ...DATA_QUERY_INTENT,
@@ -93,25 +90,28 @@ function stagedProvider(
   sql: string,
   reads: number,
   parameters: readonly string[],
+  /** What it says once the reads are done: the answer, or 6.4/05's gap around this subject. */
+  gap?: string,
 ): Provider {
   let taken = 0;
+  const decide = () => {
+    if (taken >= reads) return { next: gap === undefined ? "answer" : "no_home", read: null };
+    taken += 1;
+    return {
+      next: "read",
+      read: { tool: READ_ONLY_QUERY_TOOL, sql, label: "counting", parameters },
+    };
+  };
+  const staged = (prompt: string): unknown => {
+    if (prompt.startsWith(INTENT_RESOLVER_PROMPT_PREFIX)) return intent;
+    if (prompt.startsWith(QUESTION_TURN_PROMPT_PREFIX)) return decide();
+    if (prompt.startsWith(QUESTION_NO_HOME_PROMPT_PREFIX)) return { subject: gap };
+    if (prompt.startsWith(QUESTION_ANSWER_PROMPT_PREFIX)) return DEMO_ANSWER_WRITTEN;
+    return undefined;
+  };
   return {
     generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T> {
-      const decide = () => {
-        if (taken >= reads) return { next: "answer", read: null };
-        taken += 1;
-        return {
-          next: "read",
-          read: { tool: READ_ONLY_QUERY_TOOL, sql, label: "counting", parameters },
-        };
-      };
-      const answer = prompt.startsWith(INTENT_RESOLVER_PROMPT_PREFIX)
-        ? intent
-        : prompt.startsWith(QUESTION_TURN_PROMPT_PREFIX)
-          ? decide()
-          : prompt.startsWith(QUESTION_ANSWER_PROMPT_PREFIX)
-            ? DEMO_ANSWER_WRITTEN
-            : undefined;
+      const answer = staged(prompt);
       const object = (async () => schema.parse(answer))();
       object.catch(() => {});
       return {
@@ -138,8 +138,9 @@ function app(
   sql: string,
   reads = 1,
   parameters: readonly string[] = ["groceries"],
+  gap?: string,
 ) {
-  const provider = stagedProvider(intent, sql, reads, parameters);
+  const provider = stagedProvider(intent, sql, reads, parameters, gap);
   return createApp({
     getProvider: () => provider,
     buildDatabases: databases,
@@ -185,6 +186,56 @@ describe("what the platform read off a result, and how the question ended", () =
         `Looking at your ${NOTES_CAPABILITY.label}, ${QUESTION_NOTHING_FOUND}`,
       )}</pre></section></body></html>`,
     );
+  });
+});
+
+/** How many times this appears, so a page can be compared against the same page with no
+ * question asked of it — which is the ask box and nothing else. */
+function occurrences(html: string, text: string): number {
+  return html.split(text).length - 1;
+}
+
+describe("a question this desk holds nowhere for", () => {
+  /** The page for a question this desk has nowhere for, or — for an empty one — the bare page. */
+  async function gapPage(question: string): Promise<string> {
+    const response = await app(
+      DATA_QUERY_INTENT,
+      `SELECT text FROM ${NOTES_TABLE}`,
+      1,
+      [],
+      SCRIPTED_SUBJECT,
+    ).request(DEMO_QUESTION_PATH, ask(question));
+    return await response.text();
+  }
+
+  test("ends with the gap named, and the block holds a sentence and nothing else", async () => {
+    // The plan's living-demo step 6, and the thing it says explicitly: no button appears. The
+    // whole block is asserted rather than searched, so a control added to it fails here.
+    const question = `how many ${SCRIPTED_SUBJECT} did I take last year?`;
+    const html = await gapPage(question);
+
+    const ending = html.slice(html.indexOf(`<h2>${escapeHtml(NO_HOME_HEADING)}</h2>`));
+    expect(ending).toBe(
+      `<h2>${escapeHtml(NO_HOME_HEADING)}</h2><pre>${escapeHtml(
+        questionNoHomeSentence(SCRIPTED_SUBJECT),
+      )}</pre></section></body></html>`,
+    );
+    expect(html).not.toContain(escapeHtml(DEMO_ANSWER));
+  });
+
+  test("adds no control to the page: the ask box is still the only one on it", async () => {
+    // Counted over the whole page rather than swept below the ending, because a control this
+    // ending grew would be a control wherever it landed. An offer with a yes is a proposal.
+    const html = await gapPage(`where do I keep my ${SCRIPTED_SUBJECT}?`);
+    const asking = await gapPage("");
+
+    for (const control of ["<form", "<button", "<input", "<select", "<a ", "href", "onclick"]) {
+      expect({ control, on: occurrences(html, control) }).toEqual({
+        control,
+        on: occurrences(asking, control),
+      });
+    }
+    expect(occurrences(html, "<form")).toBe(1);
   });
 });
 
@@ -465,5 +516,6 @@ describe("the words beside the machinery", () => {
       expect(html).toContain(escapeHtml(questionLabelNarration(label)));
     }
     expect(html).toContain(escapeHtml(QUESTION_BUDGET_SPENT_SENTENCE));
+    expect(html).toContain(escapeHtml(QUESTION_NO_HOME_FOR_THAT));
   });
 });

@@ -10,6 +10,7 @@
 // real bound is decision 6's — the worst a misled turn can do is write another read-only statement.
 //
 // A turn creates nothing (decision 2); its statement compiles three times: shape, `EXPLAIN`, run.
+// It also refuses 6.4/05's ending until she has opened a collection: a gap is earned by looking.
 //
 // The collections block is the one part of a prompt neither of `question-payload.ts`'s budgets
 // weighs: they measure steps, and this is re-sent whole with every one of them. What bounds it is
@@ -31,7 +32,11 @@ import {
   SQLITE_TYPE_BY_FIELD_TYPE,
 } from "../data/index.ts";
 import { type QueryWorkerRow, QueryWorkerStatementError } from "./query-worker.ts";
-import { NO_PLAN, type QuestionStepPlan } from "./question-nothing-found.ts";
+import {
+  NO_PLAN,
+  type QuestionStepPlan,
+  questionOpenedACollection,
+} from "./question-nothing-found.ts";
 import {
   questionPayloadBytes,
   questionPayloadRefusal,
@@ -42,6 +47,7 @@ import {
 import {
   QUESTION_STEP_LABELS,
   QUESTION_TOOLS,
+  type QuestionDecision,
   type QuestionToolCall,
   questionDecisionSchema,
 } from "./question-tool.ts";
@@ -85,12 +91,14 @@ type StatementFacts = Pick<QuestionStep, "collections" | "plan">;
 const NO_STATEMENT_FACTS: StatementFacts = Object.freeze({ collections: [], plan: NO_PLAN });
 
 /**
- * What one turn decided. `answer` means the steps so far are enough; `spent` is a read asked for
- * with none left, so the decision is taken and the statement is not run.
+ * What one turn decided. `answer` means the steps so far are enough; `no_home` that nothing here
+ * could hold what was asked about (decision 20); `spent` is a read asked for with none left, so
+ * the decision is taken and the statement is not run.
  */
 export type QuestionTurn =
   | { readonly kind: "step"; readonly step: QuestionStep }
   | { readonly kind: "answer" }
+  | { readonly kind: "no_home" }
   | { readonly kind: "spent" };
 
 export interface QuestionTurnDeps {
@@ -155,6 +163,18 @@ export const QUESTION_COMPUTATION_RULES = Object.freeze([
   "- Return a total as the plain sum, avg, min or max. Never default its null away with coalesce",
   "  or ifnull, and never use total: a sum over nothing is not a zero, and this person is told",
   "  which of the two it was.",
+]);
+
+/**
+ * What the model is told about the ending it may ask for when nothing here fits (decision 20).
+ * The second rule is the ending's own guard, put to the model: a gap claimed before she looked is
+ * refused below, and 6.6/02 goes on to make the looking the loop's first step.
+ */
+export const QUESTION_NO_HOME_RULES = Object.freeze([
+  '- When nothing listed below could hold what they asked about, set next to "no_home" and leave read null.',
+  "- Look before you say that. Read what these collections hold rather than searching for the",
+  "  thing itself: it is often a value inside one rather than a collection of its own.",
+  "- Having looked, say no_home rather than answering out of a collection about something else.",
 ]);
 
 /**
@@ -264,6 +284,7 @@ export function buildQuestionTurnPrompt(context: QuestionPromptContext): string 
     "Rules:",
     '- To read, set next to "read" and put the call in read.',
     '- When the steps so far are enough to answer the question, set next to "answer" and leave read null.',
+    ...QUESTION_NO_HOME_RULES,
     "- Write one statement and start it with SELECT or WITH. Nothing before it, not even a comment.",
     "- Every value that comes from the question is a parameter. Write ? in the SQL and put the value in parameters.",
     "- Read only the collections listed below. There is no other table.",
@@ -306,9 +327,25 @@ function stepFailureMessage(error: unknown): string | undefined {
 export const UNREADABLE_DECISION = [
   "That was not the shape this tool takes.",
   "Send one object: next set to read with the statement in read,",
-  "or next set to answer with read set to null.",
+  "or next set to answer or no_home with read set to null.",
   `A read also carries label, which is one of: ${QUESTION_STEP_LABELS.join(", ")}.`,
 ].join(" ");
+
+/**
+ * What the model is told when it says there is nowhere for something before it has opened
+ * anything of this person's. The ending is earned by looking, never by shrugging (decision 30).
+ */
+export const LOOK_BEFORE_NO_HOME = [
+  "You have not opened any of these collections yet, so you cannot know there is nowhere for this.",
+  "Read one first. What they asked about is often a value inside a collection rather than a",
+  "collection of its own, and only what the rows say can rule that out.",
+].join(" ");
+
+/** Whether this step is the refusal above, which is what makes a second gap a model that will
+ * not look rather than one that has not looked yet. */
+function toldToLookFirst(step: QuestionStep): boolean {
+  return step.result.outcome === "failed" && step.result.message === LOOK_BEFORE_NO_HOME;
+}
 
 /**
  * What one step costs every later prompt, measured on `formatStep`'s own output because all of it
@@ -376,15 +413,38 @@ function payloadRefusal(
   };
 }
 
-function unreadable(): QuestionTurn {
+/** A turn the model is told to take again: no statement ran, and the words go back as its step. */
+function toldAgain(message: string): QuestionTurn {
   return {
     kind: "step",
-    step: {
-      call: null,
-      ...NO_STATEMENT_FACTS,
-      result: { outcome: "failed", message: UNREADABLE_DECISION },
-    },
+    step: { call: null, ...NO_STATEMENT_FACTS, result: { outcome: "failed", message } },
   };
+}
+
+/**
+ * What a decision comes to before anything runs: the statement to run, an ending, or the model
+ * told to take the turn again. A gap is refused here until she has opened a collection.
+ */
+function decided(
+  decision: QuestionDecision | null,
+  steps: readonly QuestionStep[],
+): QuestionTurn | QuestionToolCall {
+  if (decision === null) return toldAgain(UNREADABLE_DECISION);
+  switch (decision.next) {
+    case "answer":
+      return { kind: "answer" };
+    case "no_home":
+      if (questionOpenedACollection(steps)) return { kind: "no_home" };
+      // Told once, and once only: a second gap claimed with nothing opened is a model that will
+      // not look, and eight more turns of telling it so loses the question's ending altogether.
+      return steps.some(toldToLookFirst) ? { kind: "answer" } : toldAgain(LOOK_BEFORE_NO_HOME);
+    case "read":
+      return decision.read ?? toldAgain(UNREADABLE_DECISION);
+    default: {
+      const unreachable: never = decision.next;
+      throw new Error(`no turn is written for ${String(unreachable)}`);
+    }
+  }
 }
 
 /**
@@ -408,10 +468,9 @@ export async function runQuestionTurn(
   const provider = abortableProvider(deps.provider, deps.scope.signal);
   const generated = provider.generate(prompt, questionDecisionSchema);
   const decision = questionDecisionSchema.safeParse(await generated.object);
-  if (!decision.success) return unreadable();
-  if (decision.data.next === "answer") return { kind: "answer" };
-  const call = decision.data.read;
-  if (call === null) return unreadable();
+  const outcome = decided(decision.success ? decision.data : null, steps);
+  if ("kind" in outcome) return outcome;
+  const call = outcome;
   // The budget is spent *before* the statement: running it first would report ten reads while
   // eleven ran, and with no deadline the eleventh is an unbounded wait nobody sees the rows of.
   if (steps.length >= input.budget) return { kind: "spent" };

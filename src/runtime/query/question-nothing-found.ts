@@ -225,6 +225,14 @@ export function questionReadSomething(steps: readonly QuestionStep[]): boolean {
 }
 
 /**
+ * Whether any step opened one of this person's collections and read from it — what *looking*
+ * is, and 6.4/05's gate. A statement that returned a row of its own did none of it.
+ */
+export function questionOpenedACollection(steps: readonly QuestionStep[]): boolean {
+  return steps.some((step) => step.result.outcome === "rows" && step.collections.length > 0);
+}
+
+/**
  * Whether this question searched and found nothing — which a question whose every statement
  * failed did not do, and `question-narration.ts` has its own words for.
  */

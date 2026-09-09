@@ -147,13 +147,13 @@ describe("the call's wire shape", () => {
 });
 
 describe("the decision a turn is generated against", () => {
-  test("offers exactly two moves, and neither of them is a second tool", () => {
+  test("offers exactly three moves, and none of them is a second tool", () => {
     const properties = decisionJsonSchema().properties as Record<
       string,
       { enum?: readonly string[] }
     >;
     expect(properties.next?.enum).toEqual([...QUESTION_DECISIONS]);
-    expect(QUESTION_DECISIONS).toEqual(["read", "answer"]);
+    expect(QUESTION_DECISIONS).toEqual(["read", "answer", "no_home"]);
     // The read it may ask for is the offered tool's own call, nested rather than restated, so a
     // second member in the inventory still fails at load rather than slipping past.
     expect(JSON.stringify(decisionJsonSchema())).toContain(READ_ONLY_QUERY_TOOL);
@@ -182,16 +182,20 @@ describe("the decision a turn is generated against", () => {
     expect(emitted).toContain("anyOf");
   });
 
-  test("a read must carry its statement and an answer must not", () => {
+  test("a read must carry its statement and the two that stop reading must not", () => {
     expect(questionDecisionSchema.safeParse(aRead()).success).toBe(true);
     expect(questionDecisionSchema.safeParse({ next: "answer", read: null }).success).toBe(true);
+    expect(questionDecisionSchema.safeParse({ next: "no_home", read: null }).success).toBe(true);
     expect(questionDecisionSchema.safeParse({ next: "read", read: null }).success).toBe(false);
-    expect(
-      questionDecisionSchema.safeParse({
-        next: "answer",
-        read: { tool: READ_ONLY_QUERY_TOOL, sql: "SELECT 1", label: "counting", parameters: [] },
-      }).success,
-    ).toBe(false);
+    for (const next of ["answer", "no_home"]) {
+      expect({
+        next,
+        admitted: questionDecisionSchema.safeParse({
+          next,
+          read: { tool: READ_ONLY_QUERY_TOOL, sql: "SELECT 1", label: "counting", parameters: [] },
+        }).success,
+      }).toEqual({ next, admitted: false });
+    }
   });
 
   test("refuses an absent read key, which is what a model omitting it would send", () => {

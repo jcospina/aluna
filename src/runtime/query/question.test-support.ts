@@ -32,6 +32,7 @@ import {
   questionAnswerSentence,
 } from "./question-answer.ts";
 import { QUESTION_STEP_BUDGET, type QuestionLoopResult, runQuestionLoop } from "./question-loop.ts";
+import { QUESTION_NO_HOME_PROMPT_PREFIX } from "./question-no-home.ts";
 import { NO_PLAN } from "./question-nothing-found.ts";
 import {
   QUESTION_STEP_FALLBACK_LABEL,
@@ -168,17 +169,27 @@ export function answers(): QuestionDecision {
   return { next: "answer", read: null };
 }
 
+/** A decision that this desk holds nowhere for what was asked about (6.4/05). The turn refuses
+ * it until a statement has opened a collection, so most suites script a read in front of it. */
+export function noHome(): QuestionDecision {
+  return { next: "no_home", read: null };
+}
+
 /**
- * The step a decision nobody can read becomes: no call, no plan read off one, and the turn's own
- * words back to the model. Here because three suites assert it, and a third copy of a shape is a
- * third thing to keep in step with the turn.
+ * The step a decision the turn will not take becomes: no call, no plan read off one, and the
+ * turn's own words back to the model. Here because four suites assert one, and a fourth copy of
+ * a shape is a fourth thing to keep in step with the turn.
  */
-export const UNREADABLE_STEP: QuestionStep = Object.freeze({
-  call: null,
-  collections: [],
-  plan: NO_PLAN,
-  result: { outcome: "failed", message: UNREADABLE_DECISION } as const,
-});
+export function toldAgainStep(message: string): QuestionStep {
+  return Object.freeze({
+    call: null,
+    collections: [],
+    plan: NO_PLAN,
+    result: { outcome: "failed", message } as const,
+  });
+}
+
+export const UNREADABLE_STEP: QuestionStep = toldAgainStep(UNREADABLE_DECISION);
 
 /**
  * What a fake provider says when the loop asks for the answer, in the two halves 6.4/03 generates:
@@ -192,6 +203,10 @@ export const SCRIPTED_ANSWER_WRITTEN: QuestionAnswerWritten = questionAnswerSche
 
 /** The one sentence those halves make, assembled the one way the platform assembles it. */
 export const SCRIPTED_ANSWER = questionAnswerSentence(SCRIPTED_ANSWER_WRITTEN);
+
+/** What a fake provider names when the loop asks what there is nowhere for. Words the default
+ * question does not hold, so a suite naming it has to choose a question that does. */
+export const SCRIPTED_SUBJECT = "hiking trips";
 
 /**
  * One turn that ran a statement, for a suite that scripts only `read` decisions: a turn coming
@@ -234,6 +249,8 @@ export function providerResolving(...values: readonly unknown[]): Provider {
       // *decision* is not about a rogue answer. It gets the ordinary one.
       if (prompt.startsWith(QUESTION_ANSWER_PROMPT_PREFIX))
         return resolving(SCRIPTED_ANSWER_WRITTEN);
+      if (prompt.startsWith(QUESTION_NO_HOME_PROMPT_PREFIX))
+        return resolving({ subject: SCRIPTED_SUBJECT });
       const value = values[Math.min(next, values.length - 1)];
       next += 1;
       return resolving(value);
@@ -275,10 +292,12 @@ export function providerFaulting(error: Error): Provider {
 }
 
 export interface ScriptedProvider extends Provider {
-  /** Every prompt a *turn* built, in order. The answer's is kept apart: it is not a decision,
+  /** Every prompt a *turn* built, in order. The other two are kept apart: neither is a decision,
    * and every suite counting turns was written before there was a second kind of prompt. */
   readonly prompts: string[];
   readonly answerPrompts: string[];
+  /** Every prompt the gap's own call built (6.4/05), which carries no rows and no collections. */
+  readonly subjectPrompts: string[];
 }
 
 /**
@@ -286,7 +305,7 @@ export interface ScriptedProvider extends Provider {
  * spine's schema. A script that runs out repeats its last, which never converges.
  */
 export function scriptedProvider(...decisions: readonly QuestionDecision[]): ScriptedProvider {
-  return scriptedProviderSaying(SCRIPTED_ANSWER_WRITTEN, ...decisions);
+  return scriptedProviderSpeaking({}, ...decisions);
 }
 
 /**
@@ -297,18 +316,53 @@ export function scriptedProviderSaying(
   written: QuestionAnswerWritten,
   ...decisions: readonly QuestionDecision[]
 ): ScriptedProvider {
+  return scriptedProviderSpeaking({ written }, ...decisions);
+}
+
+/** The same, with the subject the gap's call comes back with chosen — for a suite about the one
+ * ending whose sentence is written around words this person wrote. */
+export function scriptedProviderNaming(
+  subject: string,
+  ...decisions: readonly QuestionDecision[]
+): ScriptedProvider {
+  return scriptedProviderSpeaking({ subject }, ...decisions);
+}
+
+/** What this provider says when the loop stops reading, whichever way it stops. */
+interface ScriptedSpeech {
+  readonly written?: QuestionAnswerWritten;
+  readonly subject?: string;
+}
+
+function scriptedProviderSpeaking(
+  spoken: ScriptedSpeech,
+  ...decisions: readonly QuestionDecision[]
+): ScriptedProvider {
   const prompts: string[] = [];
   const answerPrompts: string[] = [];
+  const subjectPrompts: string[] = [];
   let next = 0;
+
+  /** Which of the three calls this prompt is, where it is kept, and what is said back to it. */
+  const staged = (prompt: string): { kept: string[]; scripted: unknown } => {
+    if (prompt.startsWith(QUESTION_ANSWER_PROMPT_PREFIX)) {
+      return { kept: answerPrompts, scripted: spoken.written ?? SCRIPTED_ANSWER_WRITTEN };
+    }
+    if (prompt.startsWith(QUESTION_NO_HOME_PROMPT_PREFIX)) {
+      return { kept: subjectPrompts, scripted: { subject: spoken.subject ?? SCRIPTED_SUBJECT } };
+    }
+    const decided = decisions[Math.min(next, decisions.length - 1)];
+    next += 1;
+    return { kept: prompts, scripted: decided };
+  };
 
   return {
     prompts,
     answerPrompts,
+    subjectPrompts,
     generate<T>(prompt: string, schema: Parameters<Provider["generate"]>[1]): GenerateResult<T> {
-      const answering = prompt.startsWith(QUESTION_ANSWER_PROMPT_PREFIX);
-      (answering ? answerPrompts : prompts).push(prompt);
-      const scripted = answering ? written : decisions[Math.min(next, decisions.length - 1)];
-      if (!answering) next += 1;
+      const { kept, scripted } = staged(prompt);
+      kept.push(prompt);
       const object = (async () => (schema as { parse(value: unknown): T }).parse(scripted))();
       // A rejected object with nothing awaiting it yet is an unhandled rejection, and the
       // turn awaits it one microtask later.
@@ -345,6 +399,8 @@ export interface LoopRun {
   readonly prompts: readonly string[];
   /** The one prompt the answer was written from, or none when the budget ran out first. */
   readonly answerPrompts: readonly string[];
+  /** The one prompt the gap's subject was named from, or none for every other ending. */
+  readonly subjectPrompts: readonly string[];
 }
 
 export interface QuestionDesk {
@@ -414,7 +470,13 @@ export function questionDesk(
           },
         ),
       );
-      return { result, steps, prompts: provider.prompts, answerPrompts: provider.answerPrompts };
+      return {
+        result,
+        steps,
+        prompts: provider.prompts,
+        answerPrompts: provider.answerPrompts,
+        subjectPrompts: provider.subjectPrompts,
+      };
     },
   };
 }

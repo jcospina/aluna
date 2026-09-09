@@ -13,10 +13,12 @@
 //
 // An answered question costs one generation more than it took reads: `question-answer.ts` writes
 // what she found, out of the steps alone. It runs no statement, so it spends no read (decision 8).
-// A question that matched no rows costs none: nothing-found is the platform's own sentence.
+// A question that matched no rows costs none: nothing-found is the platform's own sentence. So is
+// the gap, bar the one call that names what there is nowhere for, in this person's own words.
 
 import { runQuestionAnswer } from "./question-answer.ts";
 import { QUESTION_NOTHING_WORKED, questionNothingFoundSentence } from "./question-narration.ts";
+import { runQuestionNoHome } from "./question-no-home.ts";
 import { questionFoundNothing, questionReadSomething } from "./question-nothing-found.ts";
 import type { QuestionStep, QuestionTurn, QuestionTurnDeps } from "./question-turn.ts";
 import { runQuestionTurn } from "./question-turn.ts";
@@ -28,7 +30,12 @@ import { runQuestionTurn } from "./question-turn.ts";
 export const QUESTION_STEP_BUDGET = 10;
 
 /** How a question stopped reading. */
-export type QuestionEnding = "answered" | "nothing_found" | "nothing_worked" | "budget_spent";
+export type QuestionEnding =
+  | "answered"
+  | "nothing_found"
+  | "nothing_worked"
+  | "no_home"
+  | "budget_spent";
 
 /**
  * What the loop hands back, in two shapes: a spent budget is the one ending that must not produce
@@ -37,8 +44,9 @@ export type QuestionEnding = "answered" | "nothing_found" | "nothing_worked" | "
 export type QuestionLoopResult =
   | {
       /** The endings that speak. Nothing-found is not found-nothing, and neither is a question
-       * whose every statement failed: she never searched, so she may not report a search. */
-      readonly ending: "answered" | "nothing_found" | "nothing_worked";
+       * whose every statement failed: she never searched, so she may not report a search. Nor is
+       * either of them the gap, which is about the desk rather than about one search of it. */
+      readonly ending: "answered" | "nothing_found" | "nothing_worked" | "no_home";
       readonly steps: readonly QuestionStep[];
       /** What she says she found, written from those steps and from nothing else (decision 4). */
       readonly answer: string;
@@ -91,10 +99,42 @@ export async function runQuestionLoop(
     };
   };
 
+  // The gap, or the ending this question truthfully has instead. A search that matched nothing
+  // keeps its own (decision 17): that ending is about her search, and this one is about the desk,
+  // and the weaker claim is the true one. `runQuestionNoHome` refuses a subject naming a
+  // collection they already have. **This is where Module 8 wires its proposal surface when it has
+  // one** (decision 20); until then the sentence ships with no control of any kind.
+  const named = async (): Promise<QuestionLoopResult> => {
+    if (questionFoundNothing(steps)) return await spoken();
+    const said = await runQuestionNoHome(
+      { provider: deps.provider, signal: deps.scope.signal, catalog: deps.scope.catalog },
+      input.question,
+    );
+    return said === null ? await spoken() : { ending: "no_home", steps, answer: said };
+  };
+
+  // How a question ends once the model has stopped reading. The gap's own words are settled here
+  // rather than in the turn, so the one thing a turn hands back about it stays the decision.
+  const stopped = async (
+    ending: Exclude<QuestionTurn, { kind: "step" }>,
+  ): Promise<QuestionLoopResult> => {
+    switch (ending.kind) {
+      case "answer":
+        return await spoken();
+      case "no_home":
+        return await named();
+      case "spent":
+        return { ending: "budget_spent", stepsTaken: steps.length };
+      default: {
+        const unreachable: never = ending;
+        throw new Error(`no ending is written for ${String(unreachable)}`);
+      }
+    }
+  };
+
   while (steps.length < QUESTION_STEP_BUDGET) {
     const next = await turn();
-    if (next.kind === "answer") return await spoken();
-    if (next.kind === "spent") return { ending: "budget_spent", stepsTaken: steps.length };
+    if (next.kind !== "step") return await stopped(next);
     steps.push(next.step);
     input.onStep?.(next.step);
   }
@@ -102,6 +142,6 @@ export async function runQuestionLoop(
   // The budget counts reads, not turns, so the tenth read's result is worth one more decision;
   // bounding turns would leave a question needing exactly ten reads unanswerable.
   const last = await turn();
-  if (last.kind === "answer") return await spoken();
+  if (last.kind !== "step") return await stopped(last);
   return { ending: "budget_spent", stepsTaken: steps.length };
 }
