@@ -25,7 +25,12 @@ import { validSpec } from "../../registry/spec/spec.test-support.ts";
 import { insertCapability } from "../../registry/store/store.ts";
 import { applyCapabilityTableDdl } from "../data/index.ts";
 import { createQueryWorker, type QueryWorkerValue } from "./query-worker.ts";
-import { QUESTION_ANSWER_PROMPT_PREFIX } from "./question-answer.ts";
+import {
+  QUESTION_ANSWER_PROMPT_PREFIX,
+  type QuestionAnswerWritten,
+  questionAnswerSchema,
+  questionAnswerSentence,
+} from "./question-answer.ts";
 import { QUESTION_STEP_BUDGET, type QuestionLoopResult, runQuestionLoop } from "./question-loop.ts";
 import {
   QUESTION_STEP_FALLBACK_LABEL,
@@ -47,13 +52,17 @@ import {
   withWholeCatalogReadScope,
 } from "./whole-catalog-read-scope.ts";
 
+/** The label is here rather than in the spec below because a suite about what Aluna calls a
+ * collection reads it, and a second copy would let the two drift. */
 export const NOTES_CAPABILITY = {
   id: "notes",
   incarnationId: FIRST_INCARNATION_ID,
+  label: "Notes",
 };
 export const EXPENSES_CAPABILITY = {
   id: "expenses",
   incarnationId: SECOND_INCARNATION_ID,
+  label: "Expenses",
 };
 
 export const NOTES_TABLE = "cap_notes";
@@ -62,7 +71,7 @@ export const EXPENSES_TABLE = "cap_expenses";
 function notesSpec(): CapabilitySpec {
   return validSpec({
     id: NOTES_CAPABILITY.id,
-    label: "Notes",
+    label: NOTES_CAPABILITY.label,
     noun: "note",
     schema: {
       fields: [
@@ -76,7 +85,7 @@ function notesSpec(): CapabilitySpec {
 function expensesSpec(): CapabilitySpec {
   return validSpec({
     id: EXPENSES_CAPABILITY.id,
-    label: "Expenses",
+    label: EXPENSES_CAPABILITY.label,
     noun: "expense",
     schema: {
       fields: [
@@ -157,8 +166,18 @@ export function answers(): QuestionDecision {
   return { next: "answer", read: null };
 }
 
-/** What a fake provider says when the loop asks for the answer; the words are 6.4/03's. */
-export const SCRIPTED_ANSWER = "Here is what I found.";
+/**
+ * What a fake provider says when the loop asks for the answer, in the two halves 6.4/03 generates:
+ * what she looked at, then what she found. Put through the real schema, so a fixture that stopped
+ * being an answer fails here rather than in whichever suite happened to read it.
+ */
+export const SCRIPTED_ANSWER_WRITTEN: QuestionAnswerWritten = questionAnswerSchema.parse({
+  looked_at: "Looking through what you have saved",
+  found: "here is what I found.",
+});
+
+/** The one sentence those halves make, assembled the one way the platform assembles it. */
+export const SCRIPTED_ANSWER = questionAnswerSentence(SCRIPTED_ANSWER_WRITTEN);
 
 /**
  * One turn that ran a statement, for a suite that scripts only `read` decisions: a turn coming
@@ -200,7 +219,7 @@ export function providerResolving(...values: readonly unknown[]): Provider {
       // The answer is a second generation against a schema of its own, and a suite about a rogue
       // *decision* is not about a rogue answer. It gets the ordinary one.
       if (prompt.startsWith(QUESTION_ANSWER_PROMPT_PREFIX))
-        return resolving({ answer: SCRIPTED_ANSWER });
+        return resolving(SCRIPTED_ANSWER_WRITTEN);
       const value = values[Math.min(next, values.length - 1)];
       next += 1;
       return resolving(value);
@@ -253,6 +272,17 @@ export interface ScriptedProvider extends Provider {
  * spine's schema. A script that runs out repeats its last, which never converges.
  */
 export function scriptedProvider(...decisions: readonly QuestionDecision[]): ScriptedProvider {
+  return scriptedProviderSaying(SCRIPTED_ANSWER_WRITTEN, ...decisions);
+}
+
+/**
+ * The same, with the two halves of the answer chosen too — for a suite about what she says rather
+ * than about what she read.
+ */
+export function scriptedProviderSaying(
+  written: QuestionAnswerWritten,
+  ...decisions: readonly QuestionDecision[]
+): ScriptedProvider {
   const prompts: string[] = [];
   const answerPrompts: string[] = [];
   let next = 0;
@@ -263,9 +293,7 @@ export function scriptedProvider(...decisions: readonly QuestionDecision[]): Scr
     generate<T>(prompt: string, schema: Parameters<Provider["generate"]>[1]): GenerateResult<T> {
       const answering = prompt.startsWith(QUESTION_ANSWER_PROMPT_PREFIX);
       (answering ? answerPrompts : prompts).push(prompt);
-      const scripted = answering
-        ? { answer: SCRIPTED_ANSWER }
-        : decisions[Math.min(next, decisions.length - 1)];
+      const scripted = answering ? written : decisions[Math.min(next, decisions.length - 1)];
       if (!answering) next += 1;
       const object = (async () => (schema as { parse(value: unknown): T }).parse(scripted))();
       // A rejected object with nothing awaiting it yet is an unhandled rejection, and the

@@ -25,6 +25,7 @@ import {
   CapabilityDataValidationError,
   type CapabilityQueryParameter,
   type CapabilityQueryScope,
+  deriveCapabilityTableDdl,
 } from "../data/index.ts";
 
 /** A question asked of a desk that holds nothing to read. */
@@ -100,16 +101,17 @@ export function wholeCatalogQueryScope(
 }
 
 /**
- * Refuse a read reaching outside this question's snapshot, and admit one across every capability
- * inside it. Everything it throws, the turn returns to the model as an ordinary failed step.
+ * Refuse a read reaching outside this question's snapshot, admit one across every capability
+ * inside it, and hand back the capabilities whose collections it reads — the names 6.4/03's
+ * restatement uses. Everything it throws, the turn returns to the model as a failed step.
  */
 export function assertWholeCatalogQuery(
   database: PlatformDatabase["readonly"],
   specs: readonly CapabilitySpec[],
   sql: string,
   parameters: readonly CapabilityQueryParameter[],
-): void {
-  if (REACHES_THE_SQLITE_SEAM.test(sql.replace(SQL_LITERALS_AND_COMMENTS, " "))) return;
+): readonly CapabilitySpec[] {
+  if (REACHES_THE_SQLITE_SEAM.test(sql.replace(SQL_LITERALS_AND_COMMENTS, " "))) return [];
   const scope = wholeCatalogQueryScope(specs);
   if (!scope) {
     throw new EmptyCatalogQueryError(
@@ -120,10 +122,15 @@ export function assertWholeCatalogQuery(
   // `allowTargetId` because a question may count records and group by one; `wholeCatalog` because
   // the nominated target is an artefact of the scope's shape rather than a chosen capability.
   try {
-    assertScopedQuery(database, scope, sql, parameters, {
-      allowTargetId: true,
-      wholeCatalog: true,
-    });
+    const opened = new Set(
+      assertScopedQuery(database, scope, sql, parameters, {
+        allowTargetId: true,
+        wholeCatalog: true,
+      }),
+    );
+    // Filtered through `specs` rather than mapped from the `EXPLAIN`'s own order, so two runs of
+    // one statement name the collections the same way round.
+    return specs.filter((spec) => opened.has(deriveCapabilityTableDdl(spec).tableName));
   } catch (error) {
     throw asStatementFault(error);
   }

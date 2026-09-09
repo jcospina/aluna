@@ -8,6 +8,9 @@
 // The pair with 6.3/03 is one fixture and not two: the same run reaches for the rows, meets the
 // size cap, and comes back with a `sum`. What the pair does *not* cover has a fixture of its own —
 // a listing step small enough to be admitted hands its rows over whole.
+//
+// 6.4/03 took the answer's shape and its order; both, and everything the restatement is written
+// from, are proved next door in `question-restatement.test.ts`.
 
 import type { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -23,6 +26,7 @@ import {
 } from "../../platform/provider/index.ts";
 import {
   answers,
+  EXPENSES_CAPABILITY,
   EXPENSES_TABLE,
   NO_USAGE,
   NOTES_TABLE,
@@ -42,7 +46,6 @@ import {
   QUESTION_ANSWER_RULES,
   QuestionAnswerUnreadableError,
   type QuestionReadStep,
-  questionAnswerSchema,
   questionStepsWithRows,
   runQuestionAnswer,
 } from "./question-answer.ts";
@@ -128,6 +131,7 @@ function figuresNoStepRead(desk: QuestionDesk): readonly string[] {
 function stepOf(label: QuestionStepLabel, rows: readonly Record<string, never>[]): QuestionStep {
   return {
     call: { tool: READ_ONLY_QUERY_TOOL, sql: A_FEW_ROWS, label, parameters: [SHOP] },
+    collections: [EXPENSES_CAPABILITY.label],
     result: { outcome: "rows", rows },
   };
 }
@@ -255,6 +259,7 @@ describe("nothing but the results reaches the answer", () => {
         label: "listing",
         parameters: [hostile],
       },
+      collections: [EXPENSES_CAPABILITY.label],
       result: { outcome: "rows", rows: [{}] },
     };
     const prompt = buildQuestionAnswerPrompt({ question: QUESTION, steps: [step] });
@@ -292,15 +297,39 @@ describe("nothing but the results reaches the answer", () => {
     }
   });
 
-  test("the frame it puts round the results stays small however heavy they are", () => {
-    const rows = Array.from({ length: 400 }, () => ({}));
-    const steps = QUESTION_STEP_LABELS.map((label) => stepOf(label, rows));
-    const prompt = buildQuestionAnswerPrompt({ question: QUESTION, steps });
-    const carried = steps.length * questionPayloadBytes(rows);
+  test("the frame it puts round the results does not grow with what came back", () => {
+    const light = QUESTION_STEP_LABELS.map((label) => stepOf(label, [{}]));
+    const heavy = QUESTION_STEP_LABELS.map((label) =>
+      stepOf(
+        label,
+        Array.from({ length: 400 }, () => ({})),
+      ),
+    );
+    const frame = (steps: readonly QuestionStep[]) =>
+      questionRenderedBytes(() => buildQuestionAnswerPrompt({ question: QUESTION, steps })) -
+      steps.reduce(
+        (total, step) =>
+          total + (step.result.outcome === "rows" ? questionPayloadBytes(step.result.rows) : 0),
+        0,
+      );
 
-    // The rows are what the question's payload budget already held down. This is everything
-    // else — the rules, the fences, one sentence and one line of bound values per step.
-    expect(questionRenderedBytes(() => prompt) - carried).toBeLessThan(2048);
+    // The rows are what the question's payload budget already held down. What is left is the
+    // rules, the fences, and per step one sentence and its two named lines — and four hundred
+    // times the rows leaves every byte of it where it was.
+    expect(frame(heavy)).toBe(frame(light));
+    expect(frame(light)).toBeLessThan(3072);
+  });
+
+  test("but it does grow with the desk, the way the turn's own collections block does", () => {
+    // Named rather than left implicit: a collection line carries a label per collection a
+    // statement reads, so a desk of many wide names is a wider frame. The spec gate bounds it,
+    // as it bounds the turn's block; no budget here weighs either.
+    const one = stepOf("listing", [{}]);
+    const many: QuestionStep = { ...one, collections: [...one.collections, "Tea tasting journal"] };
+    const frameOf = (step: QuestionStep) =>
+      questionRenderedBytes(() => buildQuestionAnswerPrompt({ question: QUESTION, steps: [step] }));
+
+    expect(frameOf(many)).toBeGreaterThan(frameOf(one));
   });
 });
 
@@ -308,10 +337,12 @@ describe("a step that returned nothing has nothing to report", () => {
   test("a failed step is not among the results", () => {
     const failed: QuestionStep = {
       call: null,
+      collections: [],
       result: { outcome: "failed", message: QUESTION_STEP_RESULT_TOO_LARGE },
     };
     const rows: QuestionReadStep = {
       call: null,
+      collections: [],
       result: { outcome: "rows", rows: [{ total: 3 }] },
     };
 
@@ -394,13 +425,6 @@ describe("an answer that will not read is not spoken", () => {
         { question: QUESTION, steps: [] },
       ),
     ).rejects.toBeInstanceOf(QuestionAnswerUnreadableError);
-  });
-
-  test("and neither is a blank one, while an answer with room round it is trimmed", () => {
-    expect(questionAnswerSchema.safeParse({ answer: "   " }).success).toBe(false);
-    expect(questionAnswerSchema.parse({ answer: `\n  ${SCRIPTED_ANSWER}  ` })).toEqual({
-      answer: SCRIPTED_ANSWER,
-    });
   });
 
   test("the rules are what the model is told, and the suite pins them rather than retyping them", () => {

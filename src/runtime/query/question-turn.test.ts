@@ -20,6 +20,7 @@ import { createQueryWorker, QueryWorkerConnectionError } from "./query-worker.ts
 import {
   catalogueWithRecords,
   EXPENSES_TABLE,
+  NOTES_CAPABILITY,
   NOTES_TABLE,
   nextPrompt,
   oneTurn,
@@ -366,6 +367,7 @@ describe("the result reaches the model", () => {
   test("a turn handed prior steps carries them into its own prompt", async () => {
     const first: QuestionStep = {
       call: call(`SELECT DISTINCT text FROM ${NOTES_TABLE}`),
+      collections: [NOTES_CAPABILITY.label],
       result: { outcome: "rows", rows: [{ text: "groceries" }] },
     };
     const { prompts } = await desk().run(
@@ -458,6 +460,7 @@ describe("the mistakes a model actually makes", () => {
 
     expect(step).toEqual({
       call: null,
+      collections: [],
       result: { outcome: "failed", message: UNREADABLE_DECISION },
     });
   });

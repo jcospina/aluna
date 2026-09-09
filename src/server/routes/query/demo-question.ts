@@ -108,6 +108,7 @@ function renderStep(step: QuestionStep, index: number, steps: readonly QuestionS
   return [
     ...asked,
     renderSection(STEP_NARRATION_HEADING, questionStepNarration(call)),
+    renderSection(STEP_COLLECTIONS_HEADING, step.collections.join(", ") || NOTHING_OPENED),
     result.outcome === "rows"
       ? renderSection(`Rows (${result.rows.length})`, JSON.stringify(result.rows, null, 2))
       : renderSection("Statement failed", result.message, "failure"),
@@ -118,6 +119,12 @@ function renderStep(step: QuestionStep, index: number, steps: readonly QuestionS
 /** The heading one step's sentence renders under. Exported so a test can pin the words that
  * appear beside a statement, rather than merely that the page mentions Aluna. */
 export const STEP_NARRATION_HEADING = "What Aluna says";
+
+/** The heading the collections a statement names render under — what 6.4/03's answer restates,
+ * shown here so a human reading the answer can check it against what the statement reached for.
+ * *Names*, not *read*: a statement refused for its size records these and never runs. */
+export const STEP_COLLECTIONS_HEADING = "Collections the statement names";
+const NOTHING_OPENED = "(none)";
 
 /** The heading the whole vocabulary renders under — the block 6.3/04's sign-off gate reads. */
 export const VOCABULARY_HEADING = "Everything Aluna says while she works";

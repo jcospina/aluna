@@ -14,6 +14,7 @@ import type { QueryWorkerRow } from "./query-worker.ts";
 import {
   addNotes,
   answers,
+  NOTES_CAPABILITY,
   NOTES_TABLE,
   nextPrompt,
   type QuestionDesk,
@@ -72,7 +73,7 @@ function rowsOfExactly(bytes: number): readonly QueryWorkerRow[] {
 
 /** A step's own weight, the way the turn weighs one. */
 function weigh(rows: readonly QueryWorkerRow[], spent = 0): string | null {
-  const step: QuestionStep = { call: null, result: { outcome: "rows", rows } };
+  const step: QuestionStep = { call: null, collections: [], result: { outcome: "rows", rows } };
   return questionPayloadRefusal(questionPayloadBytes(rows), questionStepBytes(step), spent);
 }
 
@@ -166,7 +167,7 @@ describe("the two numbers", () => {
     // the column names would halve the cost and double the ceiling.
     const desk = bulkyDesk();
     const rows = [{ text: SHORT_TEXT }, { text: `${SHORT_TEXT}er` }];
-    const step: QuestionStep = { call: null, result: { outcome: "rows", rows } };
+    const step: QuestionStep = { call: null, collections: [], result: { outcome: "rows", rows } };
 
     expect(nextPrompt("anything", registeredSpecs(desk.database.readonly), [step])).toContain(
       renderQuestionRows(rows),
@@ -403,6 +404,9 @@ describe("a statement too large to carry is refused before it runs", () => {
 
     expect(steps[0]).toEqual({
       call: null,
+      // What it would have opened outlives the statement it could not quote: a collection's name
+      // is what a person calls their own things, and never the machinery this refusal is about.
+      collections: [NOTES_CAPABILITY.label],
       result: { outcome: "failed", message: QUESTION_STATEMENT_TOO_LARGE },
     });
     // Never run, and never quoted back into the prompt that refuses it.

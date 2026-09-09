@@ -248,6 +248,7 @@ describe("a label outside the closed set is rejected", () => {
     for (const step of steps) {
       expect(step).toEqual({
         call: null,
+        collections: [],
         result: { outcome: "failed", message: UNREADABLE_DECISION },
       });
     }

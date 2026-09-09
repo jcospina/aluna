@@ -26,12 +26,16 @@ import {
   QUESTION_STEP_RESULT_CAP_BYTES,
   QUESTION_STEP_RESULT_TOO_LARGE,
   QUESTION_TURN_PROMPT_PREFIX,
+  questionAnswerSchema,
+  questionAnswerSentence,
   questionLabelNarration,
   READ_ONLY_QUERY_TOOL,
 } from "../../../runtime/query/index.ts";
 import {
   addNotes,
   catalogueWithRecords,
+  EXPENSES_CAPABILITY,
+  NOTES_CAPABILITY,
   NOTES_TABLE,
 } from "../../../runtime/query/question.test-support.ts";
 import { createApp } from "../../app.ts";
@@ -40,6 +44,7 @@ import {
   ANSWER_HEADING,
   BUDGET_SPENT_HEADING,
   DEMO_QUESTION_PATH,
+  STEP_COLLECTIONS_HEADING,
   STEP_NARRATION_HEADING,
   VOCABULARY_HEADING,
 } from "./demo-question.ts";
@@ -63,10 +68,17 @@ const NEW_CAPABILITY_INTENT = {
 };
 
 /**
- * What the fake provider says once the reading is done. Carries the characters an escape has to
- * catch: this is model-authored text rendered into the page, so it is the page's XSS surface.
+ * What the fake provider says once the reading is done, in 6.4/03's two halves. Both carry the
+ * characters an escape has to catch: this is model-authored text rendered into the page, so it is
+ * the page's XSS surface, and the restatement is as much of it as the finding.
  */
-const DEMO_ANSWER = 'You spent £12.50 on groceries & tea <span onclick="x">last week</span>.';
+const DEMO_ANSWER_WRITTEN = questionAnswerSchema.parse({
+  looked_at: "Looking through your groceries & tea",
+  found: 'you spent £12.50 <span onclick="x">last week</span>.',
+});
+
+/** The one sentence they make, assembled the one way the platform assembles it. */
+const DEMO_ANSWER = questionAnswerSentence(DEMO_ANSWER_WRITTEN);
 
 /**
  * One provider answering three different prompts, told apart by the prompt each stage builds
@@ -89,7 +101,7 @@ function stagedProvider(intent: unknown, sql: string, reads = 1): Provider {
         : prompt.startsWith(QUESTION_TURN_PROMPT_PREFIX)
           ? decide()
           : prompt.startsWith(QUESTION_ANSWER_PROMPT_PREFIX)
-            ? { answer: DEMO_ANSWER }
+            ? DEMO_ANSWER_WRITTEN
             : undefined;
       const object = (async () => schema.parse(answer))();
       object.catch(() => {});
@@ -156,10 +168,14 @@ describe("the one-question exercise", () => {
     expect(html).toContain("groceries");
     expect(html).toContain("&quot;total&quot;: 2");
     expect(html).toContain(`Step 1 of at most ${QUESTION_STEP_BUDGET}`);
-    // And then the answer, written from that result and rendered as the last thing on the page.
+    // And then the answer, written from that result and rendered as the last thing on the page:
+    // one sentence, saying what she looked at before what she found (6.4/03).
     expect(html).toContain(ANSWER_HEADING);
     expect(html).toContain(escapeHtml(DEMO_ANSWER));
     expect(html.indexOf(escapeHtml(DEMO_ANSWER))).toBeGreaterThan(html.indexOf("Rows (1)"));
+    expect(html.indexOf(escapeHtml(DEMO_ANSWER_WRITTEN.looked_at))).toBeLessThan(
+      html.indexOf(escapeHtml(DEMO_ANSWER_WRITTEN.found)),
+    );
     // Escaped, not rendered: the answer is the one string on this page the model wrote.
     expect(html).not.toContain("<span onclick=");
   });
@@ -281,6 +297,37 @@ describe("the one-question exercise", () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("<form");
+  });
+});
+
+describe("what the page says a statement went through", () => {
+  test("renders the answer as a sentence and never as a grid", async () => {
+    // Decision 3: there is nothing on this path to render a table, a chart, a heading over a
+    // figure, or a way of taking the numbers away, so the page cannot grow one by accident.
+    const response = await app(
+      DATA_QUERY_INTENT,
+      `SELECT count(*) AS total FROM ${NOTES_TABLE} WHERE text = ?`,
+    ).request(DEMO_QUESTION_PATH, ask("how many grocery notes do I have?"));
+    const html = await response.text();
+
+    for (const surface of ["<table", "<tr", "<th", "<td", "chart", "csv", "download"]) {
+      expect({ surface, present: html.includes(surface) }).toEqual({ surface, present: false });
+    }
+  });
+
+  test("shows which collections a statement opened, so the answer can be checked against them", async () => {
+    // The block a human reads beside the answer at 6.4/03's sign-off: the restatement claims a
+    // collection, and this says which one actually opened, by the name the person gave it.
+    const response = await app(
+      DATA_QUERY_INTENT,
+      `SELECT count(*) AS total FROM ${NOTES_TABLE} WHERE text = ?`,
+    ).request(DEMO_QUESTION_PATH, ask("how many grocery notes do I have?"));
+    const html = await response.text();
+
+    expect(html).toContain(STEP_COLLECTIONS_HEADING);
+    expect(html).toContain(`<pre>${NOTES_CAPABILITY.label}</pre>`);
+    // The desk holds two, and only the one the statement opened is named.
+    expect(html).not.toContain(`<pre>${EXPENSES_CAPABILITY.label}</pre>`);
   });
 });
 

@@ -16,8 +16,14 @@ export {
   type QueryWorkerValue,
 } from "./query-worker.ts";
 // The answer's rules are not re-exported, for the reason `QUESTION_STEP_LABEL_HINTS` is not: they
-// are what the *model* is told. The prefix is, because a fake provider outside recognizes the call.
-export { QUESTION_ANSWER_PROMPT_PREFIX } from "./question-answer.ts";
+// are what the *model* is told. The prefix is, because a fake provider outside recognizes the call,
+// and so are the shape and the join, because such a provider has to produce one.
+export {
+  QUESTION_ANSWER_PROMPT_PREFIX,
+  type QuestionAnswerWritten,
+  questionAnswerSchema,
+  questionAnswerSentence,
+} from "./question-answer.ts";
 export {
   QUESTION_STEP_BUDGET,
   type QuestionEnding,
