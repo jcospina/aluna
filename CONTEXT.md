@@ -637,8 +637,19 @@ sentence rather than in one the model wrote (PLAN decision 17). Distinct from an
 collection**, which is a fact about the capability rather than about her search, and from
 a question whose statements never came back at all — that one searched nothing, and she
 says so. The distinction is the whole of it: she may say she could not find something, and
-never that this person does not have it.
+never that this person does not have it. Distinct again from **nowhere for it**, which is a
+claim about the desk rather than about one search of it.
 _Avoid_: no results, zero rows, empty result, you have none
+
+**Nowhere for it**:
+What this desk has for a subject no collection on it covers, and the ending Aluna reaches by
+saying so and stopping: *"You don't have anywhere for hiking trips yet — you can ask me to
+make one."* She names the subject in the person's own words and offers no control, because an
+offer with a yes is a **proposal** and that surface is Module 8's (PLAN decision 20). Earned by
+looking rather than shrugging: a question that searched and matched **nothing matched** keeps
+that weaker, truer ending, and a subject naming a collection they already have is refused. The
+code calls it `no_home`, and the plan calls it the gap.
+_Avoid_: no such capability, no table for that, unsupported, not tracked, want me to build it?
 
 **Swap target**:
 The named place a server-addressed swap lands — the stable id `commit` and `fragment`

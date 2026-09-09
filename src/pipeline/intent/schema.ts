@@ -45,6 +45,8 @@ const intentClassificationObject = z.strictObject({
   proposed_action: nonBlankText,
   user_facing_label: nonBlankText,
   // Confirmations are reserved for capability delete and implicit-loop proposals.
+  // Data questions named the first of those proposals — the gap answer — and deliberately shipped
+  // it with no control, so the implicit loop inherits a customer rather than a shape guessed at.
   requires_confirmation: z.literal(false),
 });
 type ParsedIntentClassification = z.infer<typeof intentClassificationObject>;

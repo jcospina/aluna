@@ -181,6 +181,7 @@ describe("no timeout exists on a step or on the loop", () => {
     const ticking: ScriptedProvider = {
       prompts: scripted.prompts,
       answerPrompts: scripted.answerPrompts,
+      subjectPrompts: scripted.subjectPrompts,
       generate(prompt, schema) {
         clocks.advance(YEAR_MS);
         return scripted.generate(prompt, schema);
@@ -242,6 +243,7 @@ describe("no timeout exists on a step or on the loop", () => {
     const source = [
       "question-loop.ts",
       "question-answer.ts",
+      "question-no-home.ts",
       "question-turn.ts",
       "question-tool.ts",
       "question-payload.ts",

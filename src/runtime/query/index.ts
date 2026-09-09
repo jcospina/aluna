@@ -34,16 +34,22 @@ export {
 } from "./question-loop.ts";
 export {
   QUESTION_BUDGET_SPENT_SENTENCE,
+  QUESTION_NO_HOME_FOR_THAT,
   QUESTION_NOTHING_FOUND,
   QUESTION_NOTHING_FOUND_ANYWHERE,
   QUESTION_NOTHING_WORKED,
   questionEndingNarration,
   questionLabelNarration,
+  questionNoHomeSentence,
   questionNothingFoundSentence,
   questionStepNarration,
 } from "./question-narration.ts";
-// The plan reader and `questionFoundNothing` are not re-exported: their callers are next door in
-// this directory, and this barrel is what `src/server/` reaches for.
+// The gap's rules, its schema, its catalog check and the call that runs it are not re-exported,
+// for the reason the answer's rules are not. The prefix is, because a fake provider outside
+// recognizes the call. `questionSubjectInTheirWords` is not: its callers are next door.
+export { QUESTION_NO_HOME_PROMPT_PREFIX } from "./question-no-home.ts";
+// The plan reader, `questionFoundNothing` and `questionOpenedACollection` are not re-exported:
+// their callers are next door in this directory, and this barrel is what `src/server/` reaches for.
 export { type QuestionStepPlan, questionStepMatchedRows } from "./question-nothing-found.ts";
 export {
   QUESTION_PAYLOAD_BUDGET_SPENT,
