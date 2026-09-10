@@ -364,8 +364,8 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
 
   // Per-build ephemeral stream ("phone call", ADR-0002 update). App event ids are monotonic per
   // stream; heartbeats are id-less keepalives, so a silent builder stage keeps the connection.
-  app.get("/build/:id/stream", (c) =>
-    streamSSE(c, async (stream) => {
+  app.get("/build/:id/stream", (c) => {
+    const answer = streamSSE(c, async (stream) => {
       const transport = sseTransport(stream);
       await withSseHeartbeat(transport, sseHeartbeatMs, async () => {
         let aborted = false;
@@ -382,8 +382,12 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
           abortController.signal,
         );
       });
-    }),
-  );
+    });
+    // `streamSSE` states `no-cache`, which permits a store; this body carries the user's own
+    // question, and a disposable answer may not be left in a disk cache (ADR-0008).
+    answer.headers.set("cache-control", "no-store");
+    return answer;
+  });
 }
 
 /**

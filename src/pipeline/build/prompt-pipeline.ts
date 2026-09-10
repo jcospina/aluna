@@ -221,12 +221,19 @@ async function runPromptJob(
   const builtAt = performance.now();
   const catalog = readActiveRegistryCatalog(deps.buildDatabases.readonly);
   const duplicateIntent = duplicateIntentForPrompt(job.prompt, catalog.capabilities);
+  const catalogIds = catalog.capabilities.map((capability) => capability.id);
   if (duplicateIntent) {
     const resolution: PromptResolutionMemory = {
       intent: duplicateIntent,
       outcome: "non_build",
       catalogFingerprint: catalog.fingerprint,
-      resolver: carriedResolverMeasurement(duplicateIntent, NO_TOKEN_USAGE, 0, catalog.fingerprint),
+      resolver: carriedResolverMeasurement(
+        duplicateIntent,
+        NO_TOKEN_USAGE,
+        0,
+        catalog.fingerprint,
+        catalogIds,
+      ),
     };
     job.resolution = resolution;
     return streamDeflection({
@@ -264,6 +271,7 @@ async function runPromptJob(
     usage,
     resolverDurationMs,
     classification.catalogFingerprint,
+    catalogIds,
   );
   if (intent.type === "extend_capability" || intent.type === "ui_change") {
     return runExistingCapabilityIntent(

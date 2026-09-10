@@ -293,9 +293,10 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
 
     const streamRes = await app.request(`/build/${jobId}/stream`);
     expect(streamRes.status).toBe(200);
-    // SSE headers, previously asserted on the deleted `/stream` route.
+    // SSE headers, previously asserted on the deleted `/stream` route. `no-store` rather than the
+    // framework's `no-cache`: this body carries the user's own question (ADR-0008, 6.5/02).
     expect(streamRes.headers.get("content-type")).toContain("text/event-stream");
-    expect(streamRes.headers.get("cache-control")).toContain("no-cache");
+    expect(streamRes.headers.get("cache-control")).toContain("no-store");
     const events = collectSseEvents(await readSse(streamRes));
 
     const narration = events.filter((event) => event.event === "narration").at(-1)?.data ?? "";

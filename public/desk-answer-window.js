@@ -153,7 +153,9 @@ function mount(root) {
 
 /**
  * The clay lamp says what it does. `AlunaWindow` reads this back whenever the title changes, so
- * the word is fixed before the question arrives and every later naming keeps it.
+ * the word is fixed before the question arrives and every later naming keeps it. The action stays
+ * the frame's own `putaway` — it names which of the two lamps was pressed, not what pressing it
+ * means — so the vocabulary lives in what a person reads and hears, which is all three of them.
  *
  * @param {AnswerWindow} entry
  */
@@ -269,9 +271,10 @@ export function dismissAnswerWindow() {
   leaveStack(entry);
   entry.win.destroy();
   entry.el.remove();
-  /* Focus goes back to the bar with the person's words still in it, rather than to `<body>`: a
-   * question is what opened this, the way a logo opens a capability window. Whichever of the
-   * bar's controls can take it — `focus()` on a disabled one is a no-op, and a build disables
+  /* Focus goes back to the bar rather than to `<body>`: a question is what opened this, the way a
+   * logo opens a capability window, and the bar is where the next one is typed. It is empty by
+   * now — the run's ending woke it and cleared it — so there are no words to keep. Whichever of
+   * its controls can take focus: `focus()` on a disabled one is a no-op, and a build disables
    * both, which is the case 6.5/04 removes. */
   const bar = document.getElementById(PROMPT_FORM_ID);
   const control = bar?.querySelector("input:not(:disabled), button:not(:disabled)");
