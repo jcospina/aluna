@@ -27,8 +27,13 @@ function tellThePromptBar(sentence) {
   );
 }
 
-/** One run's subscriber — the node the run's id is written on. */
-const BUILD_SUBSCRIBER_SELECTOR = "[data-build-job-id]";
+/**
+ * One run's subscriber — the node the run's id is written on — unless it has already handed the
+ * window back. A question stands in the window while it is classified and then gives the frame
+ * up rather than filling it, and a leave that costs nothing may not be asked about.
+ */
+export const RUN_IN_THE_WINDOW_SELECTOR = "[data-build-job-id]:not([data-preserve-active-view])";
+const BUILD_SUBSCRIBER_SELECTOR = RUN_IN_THE_WINDOW_SELECTOR;
 
 /**
  * The two things a run that is over holds the window with, neither of which leaving can cost you:

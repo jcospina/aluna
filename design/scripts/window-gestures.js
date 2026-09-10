@@ -160,6 +160,9 @@ export function addWindowGrip(host) {
      * raise; it is called before the stand-down check for the same reason the drag calls
      * it: touching a window brings it forward whether or not the gesture goes anywhere. */
     event.stopPropagation();
+    /* Refused for the reason `list-rows.js` refuses its own: a resize sweeps the pointer back
+     * across the window, and without this it drags a text selection along behind it. */
+    event.preventDefault();
     host.onStart?.();
     if (host.standDown?.()) return;
 

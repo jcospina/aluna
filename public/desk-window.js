@@ -35,7 +35,7 @@ import {
   startDeskHistory,
 } from "./desk-address.js";
 import { answerDoorway, WINDOW_DOORWAY_SELECTOR, whenTheRequestFails } from "./desk-doorway.js";
-import { joinStack, leaveStack, raise } from "./desk-stack.js";
+import { joinStack, leaveStack, raise, raiseFromPress } from "./desk-stack.js";
 import {
   forgetOnDismissal,
   loadPresentation,
@@ -364,7 +364,7 @@ function mount(root, title) {
   });
 
   /* A named region rather than an anonymous box: the window is a landmark. The id counts up, so
-   * the developer panel's second window cannot arrive carrying a duplicate of this one. */
+   * neither of the other two windows can arrive carrying a duplicate of this one. */
   mountCount += 1;
   win.titleEl.id = `aluna-window-title-${mountCount}`;
   el.setAttribute("aria-labelledby", win.titleEl.id);
@@ -376,10 +376,10 @@ function mount(root, title) {
   syncMaximiseLamp(entry);
   syncForm(entry, phone);
 
-  /* Two windows may stand at once, so this one has to say which it is: joining puts it in front,
-   * and a pointer landing anywhere on it brings it back (`public/desk-stack.js`). */
+  /* More than one window may stand at once, so this one has to say which it is: joining puts it
+   * in front, and a pointer landing anywhere on it brings it back (`public/desk-stack.js`). */
   joinStack(entry);
-  el.addEventListener("pointerdown", () => raise(entry));
+  el.addEventListener("pointerdown", (event) => raiseFromPress(entry, event), true);
   return entry;
 }
 
@@ -568,11 +568,12 @@ function gestureHost(entry) {
     box: entry.box,
     bounds: () => entry.layer.getBoundingClientRect(),
     standDown: () => entry.maximised || phone,
+    /* The grip stops its own `pointerdown` propagating, so the window's own raise never runs and
+     * the one you are resizing is left behind the one you are not (`window-gestures.js`). */
+    onStart: () => raise(entry),
     /* Only while this is still the window on the desk: a teardown releases the pointer capture,
      * and the `lostpointercapture` reads as an ending that would write a dismissed box back. */
-    onEnd: () => {
-      if (mounted === entry) remember(entry);
-    },
+    onEnd: () => void (mounted === entry && remember(entry)),
   };
 }
 

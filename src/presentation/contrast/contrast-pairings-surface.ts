@@ -17,6 +17,8 @@ const ink2 = { token: "ink-2" } as const;
 const ink3 = { token: "ink-3" } as const;
 /** The halo `--shadow-desk-label` lays around type read straight off the wallpaper. */
 const deskLabelHalo = { token: "ink", alpha: 0.85, over: ground } as const;
+/** The same halo under the prompt notice, where two more passes close it over the glyph. */
+const noticeHalo = { token: "ink", over: ground } as const;
 const wellFaint = { mix: ["surface", "ink"], toward: 0.4, space: "oklab" } as const;
 
 export const SURFACE_PAIRINGS: readonly Pairing[] = [
@@ -228,10 +230,21 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "limit: the three layers are drop shadows offset a pixel or two down, so the " +
       "halo is strongest under a glyph and thinnest above it, where the widest layer's " +
       "7px blur is all there is. This row records a number rather than proving one.",
-    sites: [
-      "design/styles/components/logo-contract.css § .logo-label [color]",
-      "public/css/prompt.css § .prompt__notice [color]",
-    ],
+    sites: ["design/styles/components/logo-contract.css § .logo-label [color]"],
+  },
+  {
+    what: "the sentence Aluna speaks on the desk",
+    foreground: surface,
+    background: noticeHalo,
+    threshold: "text",
+    note:
+      "The same treatment as the name above, deepened for the one line that carries " +
+      "words rather than a label. Two symmetric passes are added to the shared token's " +
+      "three, so the ink adjacent to a glyph is opaque on every side instead of thinning " +
+      "above it — which is what lets this row state a number the whole line meets, where " +
+      "the row above has to caveat one. Grass is the busiest ground on the desk and this " +
+      "is the only type read straight off it at sentence length.",
+    sites: ["public/css/prompt.css § .prompt__notice [color]"],
   },
   {
     what: "the developer tile's name",

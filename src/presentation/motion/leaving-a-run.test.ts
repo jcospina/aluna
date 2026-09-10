@@ -38,6 +38,15 @@ describe("what a run is, and where it is cancelled", () => {
     expect(buildJobIdIn(windowWithRun(focused, { ending: true }).el)).toBeNull();
   });
 
+  test("a run that has handed the window back is not one leaving can cost you either", () => {
+    // A question stands in the window while its sentence is classified and then gives the frame
+    // straight back rather than filling it (`public/desk-answer-window.js`). Asking whether to
+    // stop making something is wrong twice over: it is making nothing, and leaving costs nothing.
+    const focused: string[] = [];
+    expect(buildJobIdIn(windowWithRun(focused, { givenBack: true }).el)).toBeNull();
+    expect(buildJobIdIn(windowWithRun(focused).el)).toBe("build-7");
+  });
+
   test("the ending owes three things, in one order", () => {
     // The cancel first, so the server stops; the release while the story is still connected, the
     // only moment a request under it aborts; the detach last, because that closes the stream.

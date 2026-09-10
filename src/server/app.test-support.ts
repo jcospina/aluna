@@ -128,6 +128,27 @@ export function eventData(events: SseEvent[], name: string): string {
     .join("\n");
 }
 
+/** What `escapeHtml` did, undone, so a test reads back the sentence Aluna actually said. */
+const unescapeHtml = (value: string): string =>
+  value
+    .replaceAll("&lt;", "<")
+    .replaceAll("&gt;", ">")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&#39;", "'")
+    .replaceAll("&amp;", "&");
+
+/**
+ * Every sentence a stream put on the prompt bar, in order. Aluna working out what the typed
+ * sentence is rides here too (`renderResolvingNotice`), so a test asking what a *run* said reads
+ * this rather than searching the fragments for the slot's id and finding the desk's own line.
+ */
+export function promptBarSentences(events: SseEvent[]): string[] {
+  const slot = /<div id="prompt-notice" hx-swap-oob="innerHTML">([\s\S]*?)<\/div>/g;
+  return [...eventData(events, "fragment").matchAll(slot)].map((match) =>
+    unescapeHtml((match[1] ?? "").replace(/<[^>]*>/g, "")),
+  );
+}
+
 /**
  * The data of the last event of one type — the terminal snapshot of a preview that streams
  * repeatedly. Joining those with `eventData` yields concatenated JSON no test can parse.
@@ -445,6 +466,30 @@ export const NEW_CAPABILITY_INTENT: IntentClassification = {
   proposed_identity: null,
   proposed_action: "Create a notes capability.",
   user_facing_label: "Got it. I'm putting that together now.",
+  requires_confirmation: false,
+};
+
+/** The resolver answer for a sentence Aluna will not act on: no build, and no window. */
+export const REJECT_INTENT: IntentClassification = {
+  type: "reject",
+  confidence: 0.91,
+  target_capability: null,
+  resolution: "none",
+  proposed_identity: null,
+  proposed_action: "Refuse a sentence with nothing to make in it.",
+  user_facing_label: "I'm not sure what to make from that.",
+  requires_confirmation: false,
+};
+
+/** The resolver answer for a question: a read across what the user already keeps. */
+export const DATA_QUERY_INTENT: IntentClassification = {
+  type: "data_query",
+  confidence: 0.89,
+  target_capability: "notes",
+  resolution: "none",
+  proposed_identity: null,
+  proposed_action: "Answer a question about saved notes.",
+  user_facing_label: "I can look across your notes.",
   requires_confirmation: false,
 };
 

@@ -491,7 +491,7 @@ describe("the desk changing size is a thing something reacts to", () => {
 
     // The gesture's write is guarded on the window still being the one on the desk: taking a frame
     // out releases the pointer capture, and `onEnd` then arrives after the teardown.
-    expect(MODULE).toMatch(/onEnd: \(\) => \{\s*if \(mounted === entry\) remember\(entry\);\s*\}/);
+    expect(MODULE).toMatch(/onEnd: \(\) => void \(mounted === entry && remember\(entry\)\)/);
     expect(MODULE).toMatch(/syncMaximiseLamp\(entry\);\s*remember\(entry\);/);
     expect(MODULE.match(/remember\(/g), "a fourth place writes").toHaveLength(3);
     // And it is the phone guard that every one of them goes through.

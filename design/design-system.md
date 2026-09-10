@@ -222,11 +222,15 @@ drawn-line rules govern surfaces rather than light.
 
 ## The window and the collection
 
-The desk holds one window and the window is the content area. Everything a
-capability shows happens inside it: the collection, a record, a confirmation, the
-narration of a build. Opening another capability swaps the contents and the frame
-does not move. There is no modal anywhere in Aluna, so opening a record replaces
-the collection inside the window and Back returns to it.
+The desk holds one capability window and that window is the content area.
+Everything a capability shows happens inside it: the collection, a record, a
+confirmation, the narration of a build. Opening another capability swaps the
+contents and the frame does not move. There is no modal anywhere in Aluna, so
+opening a record replaces the collection inside the window and Back returns to it.
+
+Two further windows may stand beside it and neither holds a capability: the
+developer panel (D13) and the answer window, which opens for a question and is
+dismissed rather than put away, because closing it destroys the answer.
 
 One confirmation is read *over* the window rather than inside it: the question a
 navigation asks before it takes a live build or evolution away dims that window's

@@ -13,6 +13,7 @@ export {
   INTENT_RESOLVER_PROMPT_PREFIX,
   type IntentPromptContext,
   type IntentResolverSend,
+  renderResolvingNotice,
 } from "./resolver.ts";
 export {
   INTENT_TYPES,

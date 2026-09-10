@@ -11,6 +11,10 @@ export {
   renderRehydratedShellPage,
 } from "./cached-view.ts";
 export {
+  ANSWER_WINDOW_ATTRIBUTE,
+  ANSWER_WINDOW_OPENING,
+  ANSWER_WINDOW_TITLE_LIMIT,
+  answerWindowTitle,
   BLANK_PROMPT_NOTICE,
   BUILD_WINDOW_TITLE_ATTRIBUTE,
   BUILDING_WINDOW_TITLE,
@@ -23,6 +27,7 @@ export {
   PROMPT_REFUSAL_ATTRIBUTE,
   type PromptNoticeTone,
   type RenderableCapabilityLogo,
+  renderAnswerWindowOpening,
   renderBuildEnding,
   renderBuildSubscriber,
   renderBuildWindowTitle,
