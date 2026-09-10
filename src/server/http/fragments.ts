@@ -261,6 +261,38 @@ export function renderBuildWindowTitle(title: string): string {
 }
 
 /**
+ * The desk being told a sentence turned out to be a question, so the answer window opens beside
+ * whatever is standing rather than taking it over (ADR-0008, PLAN decisions 21, 23). Rides
+ * `fragment` like {@link renderBuildWindowTitle} and lands nowhere: the attribute is what the
+ * window is called, and the text is what Aluna says while she has not looked yet.
+ */
+export const ANSWER_WINDOW_ATTRIBUTE = "data-answer-window";
+
+/** What she says between being asked and having anything to report. */
+export const ANSWER_WINDOW_OPENING = "Let me look at what you’ve saved.";
+
+/**
+ * How much of a question the title bar carries. A window title is read out whole by a screen
+ * reader and again on each lamp, and a prompt may run to {@link MAX_PROMPT_LENGTH} characters —
+ * the other two windows are named after a capability, so nothing has needed a bound before.
+ */
+export const ANSWER_WINDOW_TITLE_LIMIT = 120;
+
+/** The question, shortened at a word to something a title bar can be named after. */
+export function answerWindowTitle(question: string): string {
+  const asked = question.trim().replace(/\s+/g, " ");
+  if (asked.length <= ANSWER_WINDOW_TITLE_LIMIT) return asked;
+  const kept = asked.slice(0, ANSWER_WINDOW_TITLE_LIMIT);
+  const lastSpace = kept.lastIndexOf(" ");
+  return `${(lastSpace > 0 ? kept.slice(0, lastSpace) : kept).trimEnd()}…`;
+}
+
+export function renderAnswerWindowOpening(question: string): string {
+  const attribute = `${ANSWER_WINDOW_ATTRIBUTE}="${escapeHtml(answerWindowTitle(question))}"`;
+  return `<div ${attribute}>${escapeHtml(ANSWER_WINDOW_OPENING)}</div>`;
+}
+
+/**
  * One capability's logo on the desk: its permanent identity and, with no taskbar, the only
  * standing list of what exists. A real `<button>`, so its menu opens from the keyboard.
  */

@@ -93,3 +93,44 @@
     height: var(--prompt-clearance);
   }
 }
+
+/* ── The answer window's own body — the third window's half of the same seam. ── */
+/*
+ * An answer is one utterance, not a list, so this is prose and nothing else: no
+ * table, no grid, no scroller of rows. It scrolls down only, for the same reason
+ * the region above does — a drawn layer that has just been made narrower is still
+ * as wide as it was until the redraw lands, and under `overflow-x: auto` every
+ * frame of a corner resize flicks a horizontal scrollbar in and out.
+ *
+ * The measure is the window's, not the screen's. The frame is dragged and resized
+ * to any width from `--window-min-w` up, so a rule in here that asked the viewport
+ * how much room it had would be asking the wrong box.
+ *
+ * No face, size, leading or colour. An answer is a sentence in Aluna's voice, read
+ * the way every other sentence in Aluna is read, and `design/styles/base.css` already
+ * says what that is on `body` — restating any of it here would only override it.
+ */
+.window--answer .desk-window__answer {
+  container: window / inline-size;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+/*
+ * The same strip the region above reserves, for the same reason: below the
+ * breakpoint the window is the screen, so the geometry that stops a window over
+ * the prompt bar no longer applies and the tail of a long answer would sit behind
+ * the bar. An in-flow box rather than bottom padding, which engines have a long
+ * history of leaving out of a scroller's overflow area.
+ */
+@media (max-width: 720px) {
+  .window--answer .desk-window__answer::after {
+    content: "";
+    display: block;
+    height: var(--prompt-clearance);
+  }
+}

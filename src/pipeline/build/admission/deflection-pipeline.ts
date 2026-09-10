@@ -1,6 +1,7 @@
 import { intentResolutionMetrics } from "../../../platform/metrics/index.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { MutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
+import { renderAnswerWindowOpening } from "../../../server/http/fragments.ts";
 import type { Send } from "../../../server/sse/index.ts";
 import type { BuildPipelineCompletion } from "../../jobs/build-jobs.ts";
 import { type RestorationDescriptor, renderRestorationFragment } from "../../jobs/restoration.ts";
@@ -22,6 +23,11 @@ export interface DeflectionPipelineInput {
   readonly terminalPresenterTimeoutMs: number;
   readonly narration?: string;
   readonly preserveActiveView?: boolean;
+  /**
+   * The question this outcome is about, when it is one. A question opens the answer window and
+   * is spoken there, so the prompt bar is left holding nothing (PLAN decision 23).
+   */
+  readonly question?: string;
 }
 
 /** Record best-effort resolver metrics and narrate the warm non-build outcome. */
@@ -38,6 +44,7 @@ export async function streamDeflection({
   terminalPresenterTimeoutMs,
   narration,
   preserveActiveView,
+  question,
 }: DeflectionPipelineInput): Promise<BuildPipelineCompletion> {
   const resolutionOutcome = isAborted() ? "cancelled" : "completed";
   const metrics = intentResolutionMetrics({
@@ -56,18 +63,23 @@ export async function streamDeflection({
   if (!canPresent()) return;
 
   await send("metrics-preview", JSON.stringify(metrics));
-  const explanation = narration ?? deflectionNarration(resolution.intent);
+  // A question restores nothing, because it displaced nothing: the answer opens in its own
+  // window and the desk gives the frame back untouched, whatever it was holding (decision 21).
+  const fragment =
+    question === undefined
+      ? renderRestorationFragment(
+          restoration,
+          buildDatabases.readonly,
+          narration ?? deflectionNarration(resolution.intent),
+          preserveActiveView ? "preserve" : "replace",
+          // A deflection — a refused prompt, or one restating what is already on the desk — never
+          // starts a build, so the prompt bar speaks and flashes it (PLAN decision 24).
+          "refusal",
+        )
+      : renderAnswerWindowOpening(question);
   await deliverRestoredPresentation(
     send,
-    renderRestorationFragment(
-      restoration,
-      buildDatabases.readonly,
-      explanation,
-      preserveActiveView ? "preserve" : "replace",
-      // A deflection — a refused prompt, or one restating what is already on the desk — never
-      // starts a build, so the prompt bar speaks and flashes it (PLAN decision 24).
-      "refusal",
-    ),
+    fragment,
     resolutionOutcome === "cancelled" ? "cancelled" : "ok",
     terminalPresenterTimeoutMs,
   );

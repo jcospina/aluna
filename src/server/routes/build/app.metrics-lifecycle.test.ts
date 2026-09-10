@@ -116,10 +116,11 @@ describe("admitted generation lifecycle ordering", () => {
       () => false,
     );
 
-    // The whole conversation in order: the resolver's one narration, the `fragment` carrying the
-    // admission tile, the window's name, then the admitted row's opening preview — nothing between.
+    // The whole conversation in order: the resolver's one sentence on the prompt bar, the
+    // `fragment` carrying the admission tile, the window's name, then the admitted row's opening
+    // preview — nothing between. All three ride `fragment` (ADR-0002).
     expect(seen).toEqual([
-      "narration",
+      "fragment",
       "fragment",
       "fragment",
       "metrics-preview",

@@ -178,6 +178,13 @@ const BUILD_WINDOW_TITLE_ATTRIBUTE = "data-build-window-title";
 const NAME_THE_WINDOW_EVENT = "aluna:name-the-window";
 
 /**
+ * A sentence that turned out to be a question (`renderAnswerWindowOpening`, pinned by a test):
+ * the attribute names the answer window, the text is what Aluna says while she has not looked.
+ */
+const ANSWER_WINDOW_ATTRIBUTE = "data-answer-window";
+const OPEN_THE_ANSWER_WINDOW_EVENT = "aluna:open-the-answer-window";
+
+/**
  * Ask the prompt bar to retire anything it was still saying about the run that just ended. Kept
  * in sync with public/prompt-bar.js, and pinned by a platform test.
  * @returns {boolean} whether there was such a sentence
@@ -381,6 +388,40 @@ function nameTheWindowFrom(listener, raw) {
   if (!(named instanceof HTMLElement)) return false;
   const title = named.getAttribute(BUILD_WINDOW_TITLE_ATTRIBUTE);
   if (title) nameTheWindow(title);
+  // The desk has stopped working out what the sentence was, so what it said about that is done.
+  tellThePromptBar("");
+  return true;
+}
+
+/**
+ * The run saying it was a question. It lands nowhere either: the desk owns its windows, and this
+ * one opens beside whatever is standing rather than taking the window over (PLAN decision 23).
+ *
+ * @param {HTMLElement} listener
+ * @param {string} raw
+ * @returns {boolean}
+ */
+function openTheAnswerWindowFrom(listener, raw) {
+  if (!listener.classList.contains("build-stream__fragment")) return false;
+  const template = document.createElement("template");
+  template.innerHTML = raw;
+  const asked = template.content.querySelector(`[${ANSWER_WINDOW_ATTRIBUTE}]`);
+  if (!(asked instanceof HTMLElement)) return false;
+  // The window the submit borrowed was never this run's to keep, and the mark is what makes the
+  // give-back exact: at close the subscriber goes and the region is otherwise untouched, so a
+  // record the user had open is still open. The name goes back now rather than at close, because
+  // a question runs for a while — unless the frame holds nothing but this run, which is one the
+  // prompt stood up and which goes away at close rather than being renamed on its way out.
+  const subscriber = listener.closest(BUILD_SUBSCRIBER_SELECTOR);
+  const output = subscriber?.closest(`#${WINDOW_REGION_ID}`);
+  if (subscriber instanceof HTMLElement && output instanceof HTMLElement) {
+    subscriber.dataset.preserveActiveView = "true";
+    if (!outputHasOnlyDormantSubscriber(output, subscriber)) nameTheWindow(null);
+  }
+  tellThePromptBar("");
+  const question = asked.getAttribute(ANSWER_WINDOW_ATTRIBUTE) ?? "";
+  const detail = { question, saying: asked.textContent ?? "" };
+  document.dispatchEvent(new CustomEvent(OPEN_THE_ANSWER_WINDOW_EVENT, { detail }));
   return true;
 }
 
@@ -415,6 +456,7 @@ document.addEventListener("htmx:sseBeforeMessage", (event) => {
   const message = /** @type {CustomEvent<MessageEvent<string>>} */ (event).detail;
   if (
     nameTheWindowFrom(listener, message.data) ||
+    openTheAnswerWindowFrom(listener, message.data) ||
     preserveActiveView(listener, message.data) ||
     holdRestoration(listener, message.data)
   ) {
@@ -618,12 +660,8 @@ function tellDeskTheWindowTookCapability(navigated) {
 function terminalPresentationContent(subscriber) {
   const restoration = subscriber.querySelector("[data-build-restoration]");
   if (restoration instanceof HTMLElement) {
-    return {
-      element: restoration,
-      promoteElement: false,
-      restorationKind: restoration.dataset.buildRestoration,
-      activated: false,
-    };
+    const restorationKind = restoration.dataset.buildRestoration;
+    return { element: restoration, promoteElement: false, restorationKind, activated: false };
   }
   const commit = subscriber.querySelector(".build-stream__commit");
   if (commit instanceof HTMLElement && commit.childNodes.length > 0) {

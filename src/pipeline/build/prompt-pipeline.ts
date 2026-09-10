@@ -152,6 +152,10 @@ function runNonBuildIntent(
     resolver,
   };
   context.job.resolution = resolution;
+  // A question is not a deflection: the answer window opens beside whatever is standing and
+  // speaks there, and the frame the submit borrowed is given back untouched — the capability
+  // being asked about is still open, still itself (PLAN decisions 21, 23).
+  const question = intent.type === "data_query" ? { question: context.job.prompt } : {};
   return streamDeflection({
     generationId: context.job.id,
     resolution,
@@ -163,6 +167,7 @@ function runNonBuildIntent(
     restoration: context.job.restoration,
     buildDatabases: deps.buildDatabases,
     terminalPresenterTimeoutMs: deps.terminalPresenterTimeoutMs,
+    ...question,
   });
 }
 
@@ -305,10 +310,12 @@ export function createPromptBuildPipeline(input: PromptBuildPipelineDeps): Build
     } catch (error) {
       // Resolution itself failed — before any request existed, and so before any lease.
       if (context.isAborted() && !context.canPresent()) return;
+      // The empty notice, on both: the bar is holding what Aluna said while she worked out what
+      // the sentence was, and a run that ended without getting there has to take it with it.
       if (context.isAborted()) {
         await deliverRestoredPresentation(
           context.send,
-          renderRestorationFragment(context.job.restoration, deps.buildDatabases.readonly),
+          renderRestorationFragment(context.job.restoration, deps.buildDatabases.readonly, ""),
           "cancelled",
           deps.terminalPresenterTimeoutMs,
         );
@@ -318,7 +325,7 @@ export function createPromptBuildPipeline(input: PromptBuildPipelineDeps): Build
         context.send,
         context.job.id,
         error,
-        renderRestorationFragment(context.job.restoration, deps.buildDatabases.readonly),
+        renderRestorationFragment(context.job.restoration, deps.buildDatabases.readonly, ""),
         deps.terminalPresenterTimeoutMs,
       );
       return "terminal-sent";

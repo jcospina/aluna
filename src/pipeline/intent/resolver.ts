@@ -13,12 +13,23 @@ import {
   canonicalCapabilityLabel,
   readActiveRegistryCatalog,
 } from "../../registry/index.ts";
+import { renderPromptNotice } from "../../server/http/fragments.ts";
 import { type IntentClassification, intentClassificationSchema } from "./schema.ts";
 
 export const INTENT_RESOLUTION_NARRATION =
   "I'm sorting out whether this is a new place or belongs with something you've already started. ";
 
-export type IntentResolverSend = (event: "narration", data: string) => Promise<void>;
+/**
+ * Aluna working out what a sentence is belongs on the prompt bar, not in a window. It used to
+ * ride `narration`, which lands in the window and so reveals a frame the prompt stood up before
+ * anything is known (M5 decision 24) — a frame a question never wanted, which then read as a
+ * window minimising when the answer opened elsewhere. Nothing is placed in a window now.
+ */
+export function renderResolvingNotice(): string {
+  return renderPromptNotice(INTENT_RESOLUTION_NARRATION.trim());
+}
+
+export type IntentResolverSend = (event: "narration" | "fragment", data: string) => Promise<void>;
 
 export interface ClassifyIntentInput {
   readonly provider: Provider;
@@ -164,7 +175,7 @@ export async function classifyIntentWithUsage(
     capabilities: catalog.capabilities,
     activeCapabilityId: input.activeCapabilityId ?? null,
   });
-  await input.send?.("narration", INTENT_RESOLUTION_NARRATION);
+  await input.send?.("fragment", renderResolvingNotice());
   const startedAt = performance.now();
   const result = input.provider.generate(prompt, intentClassificationSchema);
   const intent = intentClassificationSchema.parse(await result.object);

@@ -43,6 +43,7 @@ import { mountPromptBar } from "./prompt-bar.js";
 import { wallpaperUrl } from "./wallpaper.js";
 import { AlunaWindow } from "./window.js";
 import { addWindowDrag, addWindowGrip, setMaximised } from "./window-gestures.js";
+import { refusePress } from "./window-press.js";
 
 /*
  * This page's own layout, and named so. The handbook is served from the product's
@@ -525,7 +526,17 @@ export class Desk {
     this.#addLamps(entry);
     this.#syncForm(entry);
 
-    el.addEventListener("pointerdown", () => this.#focus(entry));
+    /* Capture, and refused before the focus moves: the title bar raises the window itself, so a
+     * bubbling listener would meet a window that already reads as the one in front
+     * (`window-press.js`, and the same binding in `public/desk-stack.js`). */
+    el.addEventListener(
+      "pointerdown",
+      (event) => {
+        refusePress(event, !entry.el.classList.contains("is-focused"));
+        this.#focus(entry);
+      },
+      true,
+    );
 
     /* A window arrives where it is going to stand: it fades in, and grows the last 4%
      * into itself. Nothing flies in from anywhere — the box is on `translate` (desk.css),

@@ -56,11 +56,19 @@ function committingApp(provider: Provider, recordMetrics: RecordMetrics) {
   return makeScratchApp({ dir, conns, artifactsRoot }, provider, recordMetrics);
 }
 
+/** The desk's own sentence, on the bar's out-of-band slot and never in a window. */
+function assertResolutionSpokeOnTheBar(events: SseEvent[]): void {
+  expect(events[0]?.data ?? "").toContain('id="prompt-notice"');
+  expect(events[0]?.data ?? "").toContain('hx-swap-oob="innerHTML"');
+}
+
 function assertBuildEventOrder(events: SseEvent[]): void {
   const eventNames = events.map((event) => event.event);
-  // Resolution narrates first — it runs before admission — then the tile lands the moment
-  // resolution admits a new capability. The tile belongs to admission, not to the run.
-  expect(eventNames[0]).toBe("narration");
+  // Resolution speaks first — it runs before admission — and it speaks on the prompt bar, so a
+  // frame the prompt stood up is not revealed before there is a build to reveal it for. Then the
+  // tile lands the moment resolution admits a new capability; the tile belongs to admission.
+  expect(eventNames[0]).toBe("fragment");
+  assertResolutionSpokeOnTheBar(events);
   // It rides `fragment` rather than adding a fifth app-level event name (ADR-0002), and so does
   // the window's name: admission knows this is new, so the window stops saying `Thinking…`.
   expect(eventNames[1]).toBe("fragment");

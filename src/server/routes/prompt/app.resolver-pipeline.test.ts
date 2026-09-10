@@ -18,6 +18,7 @@ import {
   buildJobIdFromSubscriber,
   collectSseEvents,
   createScratchDbEnv,
+  DATA_QUERY_INTENT,
   eventData,
   makeMetricsRecorder,
   makePromptBuildProvider,
@@ -25,13 +26,17 @@ import {
   NEW_CAPABILITY_INTENT,
   notesCapabilityRow,
   postPrompt,
+  REJECT_INTENT,
   readSse,
   responseText,
+  type SseEvent,
   teardownScratchDbEnv,
   throwingProvider,
   wait,
 } from "../../app.test-support.ts";
 import { createApp } from "../../app.ts";
+import { escapeHtml } from "../../http/html.ts";
+import { ANSWER_WINDOW_ATTRIBUTE, ANSWER_WINDOW_OPENING } from "../../http/index.ts";
 
 let dir: string;
 let conns: PlatformDatabase;
@@ -67,7 +72,10 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     const eventNames = events.map((event) => event.event);
     const dataFor = (name: string) => eventData(events, name);
 
-    expect(eventNames[0]).toBe("narration");
+    // The desk works out what the sentence is on the prompt bar, so a build's first narration is
+    // the build's own line and no frame is revealed before there is one.
+    expect(eventNames[0]).toBe("fragment");
+    expect(events[0]?.data).toContain('id="prompt-notice"');
     expect(eventNames).toContain("spec-preview");
     expect(eventNames).toContain("migration-preview");
     expect(eventNames).toContain("units-preview");
@@ -79,7 +87,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(events[0]?.data).toContain("new place");
     expect(events[0]?.data).toContain("already started");
     const narrations = events.filter((event) => event.event === "narration");
-    expect(narrations[1]?.data).toBe(NEW_CAPABILITY_INTENT.user_facing_label);
+    expect(narrations[0]?.data).toBe(NEW_CAPABILITY_INTENT.user_facing_label);
     const metricEvents = events.filter((event) => event.event === "metrics-preview");
     expect(JSON.parse(metricEvents[0]?.data ?? "null")).toMatchObject({
       lifecycleStatus: "running",
@@ -314,23 +322,13 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     teardownScratchDbEnv({ dir, conns, artifactsRoot });
   });
 
-  test("non-new-capability intents stream a warm deflection, write metrics, and build nothing", async () => {
-    const dataQueryIntent: IntentClassification = {
-      type: "data_query",
-      confidence: 0.89,
-      target_capability: "notes",
-      resolution: "none",
-      proposed_identity: null,
-      proposed_action: "Answer a question about saved notes.",
-      user_facing_label: "I can look across your notes.",
-      requires_confirmation: false,
-    };
-    const { provider, prompts } = makePromptBuildProvider(dataQueryIntent);
+  test("a refused sentence streams a warm deflection, writes metrics, and builds nothing", async () => {
+    const { provider, prompts } = makePromptBuildProvider(REJECT_INTENT);
     const { rows, resolutionRows, recordMetrics } = makeMetricsRecorder();
     const app = defaultPipelineApp(provider, recordMetrics);
 
     const jobId = buildJobIdFromSubscriber(
-      await responseText(await postPrompt(app, "how many notes")),
+      await responseText(await postPrompt(app, "delete everything")),
     );
     const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
     const narration = events
@@ -340,14 +338,20 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
 
     // Nothing was admitted, so nothing stands on the desk: a deflection explains itself
     // in the prompt bar and leaves the ground exactly as it found it.
+    // The first fragment is Aluna saying she is working out what the sentence is, which goes on
+    // the prompt bar rather than into a window (`renderResolvingNotice`).
     expect(events.map((event) => event.event)).toEqual([
-      "narration",
+      "fragment",
       "metrics-preview",
       "fragment",
       "done",
     ]);
     expect(eventData(events, "fragment")).toContain('data-build-restoration="neutral"');
-    expect(eventData(events, "fragment")).toContain("what you&#39;ve saved");
+    expect(eventData(events, "fragment")).toContain('id="prompt-notice"');
+    expect(eventData(events, "fragment")).toContain("not quite sure what to make");
+    // A refusal opens no window at all: the bar is the whole of what a refused sentence gets
+    // (PLAN decision 23).
+    expect(eventData(events, "fragment")).not.toContain(ANSWER_WINDOW_ATTRIBUTE);
     expect(events[0]?.data).toContain("new place");
     expect(events[0]?.data).toContain("already started");
     expect(events.at(-1)).toMatchObject({ event: "done", data: "ok" });
@@ -362,7 +366,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       promptJobId: jobId,
       outcome: "completed",
       resolver: {
-        intent: { type: "data_query", confidence: 0.89, targetCapability: "notes" },
+        intent: { type: "reject" },
         catalogFingerprint: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
       },
     });
@@ -422,5 +426,63 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(listCapabilities(conns.readonly)).toHaveLength(1);
     expect(listCapabilities(conns.readonly)[0]?.id).toBe("notes");
     expect(existsSync(artifactsRoot)).toBe(false);
+  });
+});
+
+describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeline) — a question", () => {
+  beforeEach(() => {
+    ({ dir, conns, artifactsRoot } = createScratchDbEnv("omni-crud-prompt-build-"));
+  });
+
+  afterEach(() => {
+    teardownScratchDbEnv({ dir, conns, artifactsRoot });
+  });
+
+  test("a question opens the answer window and gives back the frame it borrowed", async () => {
+    insertCapability(notesCapabilityRow(), conns.readwrite);
+    const { provider, prompts } = makePromptBuildProvider(DATA_QUERY_INTENT);
+    const { rows, resolutionRows, recordMetrics } = makeMetricsRecorder();
+    const app = defaultPipelineApp(provider, recordMetrics);
+
+    const jobId = buildJobIdFromSubscriber(
+      await responseText(await postPrompt(app, "how many notes did I add last week?")),
+    );
+    const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
+    const fragments = eventData(events, "fragment");
+
+    // Two fragments and no narration at all: the desk works the sentence out on the prompt bar,
+    // then the answer window opens. Nothing is ever placed in a window, so no frame is revealed
+    // for a question that never wanted one.
+    expect(events.map((event) => event.event)).toEqual([
+      "fragment",
+      "metrics-preview",
+      "fragment",
+      "done",
+    ]);
+    expect(fragments).toContain(`${ANSWER_WINDOW_ATTRIBUTE}="how many notes did I add last week?"`);
+    expect(fragments).toContain(escapeHtml(ANSWER_WINDOW_OPENING));
+    // A question restores nothing, because it displaced nothing: the desk gives the frame the
+    // submit borrowed straight back (PLAN decisions 21, 23).
+    expect(fragments).not.toContain("data-build-restoration");
+    // And nothing is left on the bar for the window to contradict. The one notice on this path is
+    // the desk working the sentence out, and the window opening is what takes it down.
+    const notices = eventData(events, "fragment").match(/id="prompt-notice"/g) ?? [];
+    expect(notices).toHaveLength(1);
+    expect(eventData([events[0] as SseEvent], "fragment")).toContain('id="prompt-notice"');
+    expect(fragments).not.toContain("I can&#39;t answer across your things yet");
+
+    expect(prompts).toHaveLength(1);
+    expect(rows).toEqual([]);
+    expect(resolutionRows).toHaveLength(1);
+    expect(resolutionRows[0]).toMatchObject({
+      promptJobId: jobId,
+      outcome: "completed",
+      resolver: { intent: { type: "data_query", confidence: 0.89, targetCapability: "notes" } },
+    });
+    // Asking adds nothing to the desk: the one capability that was there is the one that is
+    // there, at the version it was at.
+    expect(listCapabilities(conns.readonly).map((row) => [row.id, row.version])).toEqual([
+      ["notes", 1],
+    ]);
   });
 });

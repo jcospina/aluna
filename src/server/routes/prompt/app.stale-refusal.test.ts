@@ -14,7 +14,10 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import type { ZodType } from "zod";
 import { createMetricsRecorder } from "../../../pipeline/index.ts";
-import type { IntentClassification } from "../../../pipeline/intent/index.ts";
+import {
+  INTENT_RESOLUTION_NARRATION,
+  type IntentClassification,
+} from "../../../pipeline/intent/index.ts";
 import { STALE_BUILD_ENDING } from "../../../pipeline/streaming/terminal-presentation.ts";
 import { listGenerationLifecycles } from "../../../platform/metrics/index.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";
@@ -26,6 +29,7 @@ import {
   eventData,
   NOTES_INCARNATION_ID,
   notesCapabilityRow,
+  promptBarSentences,
   readSse,
   responseText,
   type ScratchDbEnv,
@@ -122,7 +126,9 @@ test("a registry change between resolution and the lease head refuses stale and 
   // the person is looking, the committed View streamed for the window, and a terminal `done`.
   expect(eventData(events, "narration")).toContain(renderBuildEnding(jobId, STALE_BUILD_ENDING));
   expect(eventData(events, "fragment")).toContain('data-build-restoration="capability"');
-  expect(eventData(events, "fragment")).not.toContain("prompt-notice");
+  // The ending speaks in the window, so the only thing this run put on the bar is the desk
+  // working out what the sentence was.
+  expect(promptBarSentences(events)).toEqual([INTENT_RESOLUTION_NARRATION.trim()]);
   expect(eventData(events, "done")).toBe("error");
   // `commit` stays reserved for a real pointer activation, and there was none.
   expect(names).not.toContain("commit");

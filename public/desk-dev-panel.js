@@ -1,8 +1,9 @@
 // @ts-check
 
 /**
- * The developer panel — the one second window, and the last one. D13 is a single named exception
- * to D1: furniture, never a capability, never addressed, and never in the capability list.
+ * The developer panel — the second window. D13 is a named exception to D1: furniture, never a
+ * capability, never addressed, and never in the capability list. Module 6's answer window is the
+ * other (ADR-0008), and it is a sibling of this one rather than anything this file knows about.
  */
 
 import {
@@ -17,7 +18,7 @@ import {
 import { clearStages, devPanelBody, writeStage } from "../design/scripts/devpanel.js";
 import { AlunaWindow } from "../design/scripts/window.js";
 import { addWindowDrag, addWindowGrip, setMaximised } from "../design/scripts/window-gestures.js";
-import { joinStack, leaveStack, raise } from "./desk-stack.js";
+import { joinStack, leaveStack, raise, raiseFromPress } from "./desk-stack.js";
 import {
   fitBox,
   loadPresentation,
@@ -38,7 +39,8 @@ export const DEV_SEED_SELECTOR = "[data-dev-stage-seed]";
 
 /**
  * The second presentation record, and the last (design D9). It carries the capability window's
- * box and maximised flag, plus the one thing only this window has: whether it was open.
+ * box and maximised flag, plus the one thing only this window has: whether it was open. The
+ * answer window adds no third: it remembers nothing at all.
  */
 export const DEV_STORAGE_KEY = "aluna.desk.dev.v1";
 
@@ -206,7 +208,7 @@ function mount(root, front) {
   syncMaximiseLamp(entry);
   syncDevForm(entry, phone);
   joinStack(entry, front);
-  el.addEventListener("pointerdown", () => raise(entry));
+  el.addEventListener("pointerdown", (event) => raiseFromPress(entry, event), true);
   return entry;
 }
 
@@ -261,6 +263,9 @@ function bindGestures(entry) {
     box: entry.box,
     bounds: () => entry.layer.getBoundingClientRect(),
     standDown: () => entry.maximised || phone,
+    /* The grip stops its own `pointerdown`, so without this the panel you are resizing stays
+     * behind the window you are not (`window-gestures.js`). */
+    onStart: () => raise(entry),
     onEnd: () => remember(),
   };
   addWindowGrip(host);

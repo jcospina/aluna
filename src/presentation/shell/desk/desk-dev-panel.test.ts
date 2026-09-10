@@ -1,11 +1,13 @@
-// The developer panel: the one second window, and the last one.
+// The developer panel: the second window.
 //
-// D13 is a single named exception to D1, not the first step towards a window manager.
-// What is pinned here is everything that would quietly turn it into one — a third
-// window, a z-index that climbs, an address of its own — plus the two halves of "it is
-// read-only": the panel carries no controls at all, nothing in it mutates canonical
-// state, and the only thing it writes anywhere is the second of exactly two
-// presentation records.
+// D13 is a named exception to D1, not the first step towards a window manager. What is
+// pinned here is everything that would quietly turn it into one — a z-index that climbs,
+// an address of its own, a panel that opens a window of its own — plus the two halves of
+// "it is read-only": the panel carries no controls at all, nothing in it mutates canonical
+// state, and the only thing it writes anywhere is the second of exactly two presentation
+// records. Module 6's answer window is the other exception and has its own suite
+// (`src/presentation/shell/window/desk-answer-window.test.ts`); what it adds to this one is
+// that it adds nothing — no third record, and no third slot in the stack.
 
 import { describe, expect, test } from "bun:test";
 import { EDGE, PROMPT_CLEARANCE } from "#design/desk-geometry.js";
@@ -19,9 +21,10 @@ import {
   STAGES_CLEARED_EVENT,
   storedOpenFlag,
 } from "#shell/desk-dev-panel.js";
-import { BACK_Z, FRONT_Z, joinStack, leaveStack, raise, standingCount } from "#shell/desk-stack.js";
+import { BACK_Z, FRONT_Z, joinStack, leaveStack, standingCount } from "#shell/desk-stack.js";
 import { WINDOW_STORAGE_KEY } from "#shell/desk-window.js";
 import { codeOf as code, readSource as read } from "../../safety/source.test-support.ts";
+import { stackMember } from "../window/desk-window.test-support.ts";
 
 const PANEL = code("public/desk-dev-panel.js");
 const WINDOW = code("public/desk-window.js");
@@ -45,57 +48,7 @@ const desk = (width: number, height: number) =>
     bottom: height,
   }) as unknown as Parameters<typeof devDefaultBox>[0];
 
-/** A window as the stack sees it: something to mark, and a frame to tell. */
-function stackMember() {
-  const marks = { focused: false, z: "" };
-  return {
-    marks,
-    el: {
-      classList: {
-        toggle(name: string, on: boolean) {
-          if (name === "is-focused") marks.focused = on;
-        },
-      },
-      style: {
-        setProperty(_: string, value: string) {
-          marks.z = value;
-        },
-      },
-    },
-    win: { setFocused: () => {} },
-  };
-}
-
-describe("it is the second window, and there is no third", () => {
-  test("stacking is a pair, not a counter", () => {
-    const capability = stackMember();
-    const panel = stackMember();
-
-    joinStack(capability);
-    expect(capability.marks.focused).toBe(true);
-    expect(capability.marks.z).toBe(FRONT_Z);
-
-    // Opening the panel puts it in front and the capability window steps back one slot. Not down
-    // a counter: there are two slots and that is the whole of it.
-    joinStack(panel);
-    expect(panel.marks.z).toBe(FRONT_Z);
-    expect(capability.marks.z).toBe(BACK_Z);
-    expect(capability.marks.focused).toBe(false);
-    expect(standingCount()).toBe(2);
-
-    raise(capability);
-    expect(capability.marks.z).toBe(FRONT_Z);
-    expect(panel.marks.z).toBe(BACK_Z);
-
-    // Whatever is left when one goes is the only window, so it is the front one — and
-    // on a phone that is the difference between the survivor showing and a blank desk.
-    leaveStack(capability);
-    expect(panel.marks.z).toBe(FRONT_Z);
-    expect(panel.marks.focused).toBe(true);
-    leaveStack(panel);
-    expect(standingCount()).toBe(0);
-  });
-
+describe("it is the second window, and it opens no window of its own", () => {
   test("a window that is already up still comes forward when it is asked for", () => {
     // The press that opens nothing is still a press on the logo of the thing you want to look at,
     // and below the breakpoint only the frontmost window is in the page at all.
@@ -114,15 +67,32 @@ describe("it is the second window, and there is no third", () => {
     // Nobody asked for the panel on this visit, a remembered preference did, so the URL's
     // capability is in front. A lone restored panel is still raised: a phone shows one window.
     expect(PANEL).toMatch(/openPanel\(root, root\.querySelector\(DEV_TILE_SELECTOR\), false\)/);
-    expect(STACK).toMatch(
-      /if \(front \|\| standing\.size === 1\) raise\(member\);\s*else lower\(member\)/,
-    );
+
+    const address = stackMember();
+    const panel = stackMember();
+    joinStack(address);
+    joinStack(panel, false);
+    expect(panel.marks.z).toBe(BACK_Z);
+    expect(panel.marks.focused).toBe(false);
+    // The capability window keeps the front slot, and keeps being read as the window in front:
+    // a panel counted as the front one cancels the next press on the window the person is in.
+    expect(address.marks.z).toBe(FRONT_Z);
+    leaveStack(panel);
+    expect(address.marks.z).toBe(FRONT_Z);
+    leaveStack(address);
+
+    const alone = stackMember();
+    joinStack(alone, false);
+    expect(alone.marks.z, "a lone restored panel was left behind an empty desk").toBe(FRONT_Z);
+    leaveStack(alone);
+    expect(standingCount()).toBe(0);
   });
 
-  test("nothing counts z-indexes up, and no third window is ever built", () => {
-    // Two literals and no arithmetic: a stack that could grow is a window manager.
+  test("nothing counts z-indexes up, and the panel builds exactly one window", () => {
+    // Two literals and no arithmetic: a stack that could grow is a window manager. A third
+    // window shares the slot behind rather than adding one.
     expect(STACK).not.toMatch(/\+\+|\+= *1|Math\.max/);
-    // The panel builds exactly one window and nothing builds another.
+    // One `<section>` each, so no module can quietly start standing two up.
     expect(PANEL.match(/document\.createElement\("section"\)/g)).toHaveLength(1);
     expect(WINDOW.match(/document\.createElement\("section"\)/g)).toHaveLength(1);
   });

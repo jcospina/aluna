@@ -483,8 +483,10 @@ describe("prompt-job admission separation", () => {
     const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
 
     expect(prompts).toHaveLength(1);
+    // The first fragment is the desk working out what the sentence is, which goes on the prompt
+    // bar rather than into a window (`renderResolvingNotice`).
     expect(events.map((event) => event.event)).toEqual([
-      "narration",
+      "fragment",
       "metrics-preview",
       "fragment",
       "done",

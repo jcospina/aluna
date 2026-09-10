@@ -38,3 +38,28 @@ export function fakeEl() {
     querySelector: () => null,
   };
 }
+
+/**
+ * A window as `desk-stack.js` sees it: a slot and a focus mark, and the frame told about the
+ * second. Shared because all three windows join the one stack, and three doubles for one typedef
+ * is three chances to prove a rule against a window the product does not have.
+ */
+export function stackMember() {
+  const marks = { focused: false, z: "" };
+  return {
+    marks,
+    el: {
+      classList: {
+        toggle(name: string, on: boolean) {
+          if (name === "is-focused") marks.focused = on;
+        },
+      },
+      style: {
+        setProperty(_: string, value: string) {
+          marks.z = value;
+        },
+      },
+    },
+    win: { setFocused: () => {} },
+  };
+}

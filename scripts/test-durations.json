@@ -135,6 +135,7 @@
   "src/presentation/shell/regions/region-scope.test.ts": 86,
   "src/presentation/shell/regions/search-chrome.test.ts": 77,
   "src/presentation/shell/regions/swap-target.test.ts": 89,
+  "src/presentation/shell/window/desk-stack.test.ts": 17,
   "src/presentation/shell/window/desk-window-address.test.ts": 78,
   "src/presentation/shell/window/desk-window-design-parity.test.ts": 83,
   "src/presentation/shell/window/desk-window-geometry.test.ts": 79,

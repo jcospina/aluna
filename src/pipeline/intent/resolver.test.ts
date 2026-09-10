@@ -31,6 +31,7 @@ import {
   classifyIntentWithUsage,
   INTENT_TYPES,
   type IntentClassification,
+  type IntentResolverSend,
   intentClassificationSchema,
 } from "./index.ts";
 
@@ -338,7 +339,7 @@ describe("intent resolver classification — narration and round-trip results", 
       user_facing_label: "I'll make a place for your trips.",
       requires_confirmation: false,
     });
-    const send = async (event: "narration", data: string) => {
+    const send: IntentResolverSend = async (event, data) => {
       order.push(`${event}:${data}`);
     };
     const originalGenerate = provider.generate.bind(provider);
@@ -354,7 +355,12 @@ describe("intent resolver classification — narration and round-trip results", 
       send,
     });
 
-    expect(order[0]).toMatch(/^narration:/);
+    // The bar's own slot, not the window's: a frame a prompt stood up may not be revealed by
+    // Aluna reading the sentence, or a question flashes a window it never wanted.
+    expect(order[0]).toMatch(/^fragment:/);
+    expect(order[0]).toContain('id="prompt-notice"');
+    expect(order[0]).toContain('hx-swap-oob="innerHTML"');
+    expect(order[0]).not.toContain("data-prompt-refusal");
     expect(order[1]).toBe("provider");
     expect(order[0]).toContain("new place");
     expect(order[0]).toContain("already started");

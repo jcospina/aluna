@@ -23,7 +23,10 @@ import {
   searchHandlerFor,
   updateHandlerFor,
 } from "../../../builder/gate/gate.test-support.ts";
-import { INTENT_RESOLVER_PROMPT_PREFIX } from "../../../pipeline/intent/index.ts";
+import {
+  INTENT_RESOLUTION_NARRATION,
+  INTENT_RESOLVER_PROMPT_PREFIX,
+} from "../../../pipeline/intent/index.ts";
 import {
   CANDIDATE_NO_CHANGE_ENDING,
   CANDIDATE_REJECTED_ENDING,
@@ -40,6 +43,7 @@ import {
   lastEventData,
   makeMetricsRecorder,
   makeScratchApp,
+  promptBarSentences,
   readSse,
   type ScratchDbEnv,
   teardownScratchDbEnv,
@@ -285,9 +289,13 @@ describe("an accepted candidate", () => {
     expect(prompts[0]).toContain("Add a mood field");
     expect(events.filter((event) => event.event === "commit")).toHaveLength(1);
     expect(eventData(events, "commit")).toContain('data-active-capability-version="2"');
-    // The one `fragment` an evolution sends is the window's name, and the name it keeps: the
-    // capability already exists, so no later moment makes the title truer (M5 plan 1).
-    expect(eventData(events, "fragment")).toBe('<div data-build-window-title="Journal"></div>');
+    // The one `fragment` an evolution sends about the window is its name, and the name it keeps:
+    // the capability already exists, so no later moment makes the title truer (M5 plan 1). The
+    // other is the desk saying, on the prompt bar, that it is working out what was typed.
+    expect(eventData(events, "fragment")).toContain(
+      '<div data-build-window-title="Journal"></div>',
+    );
+    expect(promptBarSentences(events)).toEqual([INTENT_RESOLUTION_NARRATION.trim()]);
     expect(eventData(events, "done")).toBe("ok");
     const commitPreview = JSON.parse(eventData(events, "commit-preview"));
     expect(commitPreview.version).toBe(2);

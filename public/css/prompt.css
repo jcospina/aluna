@@ -129,11 +129,20 @@
   min-height: 1.4em;
   margin: 0 0 var(--space-1);
   font-family: var(--font-body);
-  font-size: var(--type-sm);
+  font-size: var(--type-lg);
   font-weight: 600;
   line-height: 1.4;
+  text-align: center;
   color: var(--surface);
-  text-shadow: var(--shadow-desk-label);
+  /* The shared halo, plus two symmetric passes of its own. Its three grades all fall
+     straight down, so the ink is thinnest exactly above a glyph — enough under an icon
+     label, not enough for the one sentence Aluna speaks on the desk, which is read off
+     grass. A tight pass beds the glyph and a wider one holds the texture off between
+     strokes; both add to those grades rather than restating them, so they cannot drift. */
+  text-shadow:
+    var(--shadow-desk-label),
+    0 0 2px var(--ink),
+    0 0 6px color-mix(in srgb, var(--ink) 65%, transparent);
 }
 .prompt__notice:empty {
   display: none;

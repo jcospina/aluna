@@ -73,11 +73,13 @@
           inert to look at one book is exactly what a desktop is supposed to prevent.
         </p>
         <p class="sm">
-          The developer panel is the one exception and it is furniture rather than a capability: a
-          second window, read-only, opened from its own tile on the ground, and allowed to sit
-          beside the capability you are watching. Between them, the browser remembers exactly two
-          presentation records — one desktop box and its flags per window — and nothing else. Which
-          capability is open is the address's job.
+          Two windows are allowed to stand beside that one, and neither is a capability. The
+          developer panel is furniture: read-only, opened from its own tile on the ground, and
+          allowed to sit beside the capability you are watching. The answer window opens when a
+          sentence is classified as a question, so the capability you are asking about stays open
+          while you ask about it. Between them the browser still remembers exactly two presentation
+          records — one desktop box and its flags per window — because the answer window remembers
+          nothing at all. Which capability is open is the address's job.
         </p>
 
         <p class="sm">
@@ -883,8 +885,9 @@
                   <td>D7</td>
                   <td><strong>Fast and interactive, and no framework</strong></td>
                   <td class="sm">
-                    CSS transforms and a two-level stack — two windows at most, so stacking is a
-                    pair rather than a counter
+                    CSS transforms and three named stacking slots — the one that may not be covered,
+                    the focused one, and everything else — so stacking is a fixed set rather than a
+                    counter however many windows stand
                   </td>
                 </tr>
                 <tr>
@@ -967,27 +970,26 @@
                 <tr>
                   <td>D13</td>
                   <td>
-                    <strong>The developer panel is a second window, and the only one.</strong>
-                    Read-only, opened from its own tile on the ground, and the one surface exempt
+                    <strong>The developer panel is a second window.</strong>
+                    Read-only, opened from its own tile on the ground, and the first surface exempt
                     from D1: it may sit beside the capability you are watching, because reading what
                     a build did while it does it is one activity. It carries the same eight stages
                     it carries today, set as a terminal — and it is the only place in Aluna a
                     monospace face appears, because it shows raw payloads and stands outside the
                     product voice. The experiment harness lands in this window too, since metrics,
-                    latency and gate tuning are the same kind of thing, which keeps this one
-                    exception at one.
+                    latency and gate tuning are the same kind of thing, so this exception buys
+                    nothing further.
                     <br><br>
-                    How far the terminal reading goes is settled: each stage is a code block — a
-                    drawn frame, a caption naming the stage and the bytes that came down the wire,
-                    and the payload in a dark well below it, tinted with the palette&rsquo;s own
-                    anchors and never <code>--signal</code>. The well is the one ground in Aluna
-                    that is not the meadow: every other surface is tinted green, which is right for
-                    something you look past and wrong for the one thing you read a hundred lines of
-                    JSON on. It is the same exemption that gives this panel the only monospace face
-                    in the product, and it stops at that element. No further: no gutter, no prompt
-                    mark and no clock, because those describe a session and this describes a build;
-                    and no imported editor theme, because every colour a payload wears is already
-                    here
+                    <strong>The answer window is the second exemption.</strong>
+                    ADR-0008 gave the row below its answer on the same reasoning this one stands on:
+                    reading an answer about a capability while looking at that capability is one
+                    activity, exactly as watching a build beside it is. It opens when a sentence is
+                    classified as a question and it displaces nothing. It is the one window that
+                    remembers nothing — no stored box, no logo, no tile, no address — so its clay
+                    lamp <em>dismisses</em> rather than puts away. That is the one place D3 bends:
+                    closing an answer destroys the answer. It destroys nothing else, which is why D3
+                    stands. A third exemption has to argue against this reasoning; citing it will
+                    not do.
                   </td>
                   <td class="sm">The terminal tile in the logo grid</td>
                 </tr>
@@ -1114,13 +1116,16 @@
               </thead>
               <tbody>
                 <tr>
-                  <td>Where a disposable query answer appears</td>
+                  <td><s>Where a disposable query answer appears</s> (closed)</td>
                   <td>
-                    Reads Set Free answers a question without building anything, and the answer has
-                    nowhere to live: it is not a capability, so it has no logo and no window of its
-                    own, and it is gone as soon as it is read. Deferred rather than decided. It
-                    belongs to the companion — the talking pet that will carry the narration once it
-                    lands — and the companion is not designed
+                    It appears in a window of its own. ADR-0008 settled it: a third window, opened
+                    when a sentence is classified as a question, standing beside the capability it
+                    is about rather than taking it over — which is the whole reason it is a window
+                    and not something anchored to the prompt bar. It keeps no logo, no tile, no
+                    address and no stored box, so there is no route to an answer that is not on
+                    screen, and a reload starts with none. It is
+                    <a href="#decisions">D13</a>
+                    now. The pet may still carry the narration one day; nothing here waits for it
                   </td>
                 </tr>
                 <tr>

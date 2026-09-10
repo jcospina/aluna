@@ -14,9 +14,10 @@
       on it as a logo, and the prompt bar floating over both clear of every edge
       (PLAN decisions 1, 3 and 4; design D4, D5). It is not inert after first load:
       the window over that ground is created and destroyed by the client, and
-      everything a capability shows happens inside it. The developer panel is the
-      one second window and the last one (design D13): read-only furniture, opened
-      from its own tile, allowed to sit beside the capability it reports on.
+      everything a capability shows happens inside it. Two more windows may stand
+      beside it: the developer panel (design D13), read-only furniture opened from
+      its own tile, and the answer window (ADR-0008), which opens for a question so
+      the capability being asked about stays open while it is asked about.
       High Meadow is the shipped product surface; see design/design-system.md.
     -->
 
@@ -182,7 +183,7 @@
     <script type="module" src="/static/desk-window.js"></script>
 
     <!--
-      The one second window (design D13). It shares the frame, the two lamps and the
+      The second window (design D13). It shares the frame, the two lamps and the
       three gestures with the one above — a window is a window — and differs in the
       three ways the exception is allowed to: it is never addressed, it may stand
       beside the capability window rather than replacing it, and what is inside it is
@@ -191,6 +192,16 @@
       of its own: eight readouts and the frame's own two lamps.
     -->
     <script type="module" src="/static/desk-dev-panel.js"></script>
+
+    <!--
+      The third window, and the second exception (ADR-0008). It shares the frame, the
+      two lamps and the three gestures with the two above, and differs in the ways an
+      answer is allowed to: it is never addressed, it opens beside the capability it is
+      about rather than replacing it, and it is the one window that remembers nothing —
+      no box, no tile, no logo, and a clay lamp that dismisses rather than puts away,
+      because closing it destroys the answer and there is nothing to come back to.
+    -->
+    <script type="module" src="/static/desk-answer-window.js"></script>
 
     <!--
       The drawn line. The ink system ships from design/scripts/ the way the token
