@@ -97,3 +97,20 @@ function digestRows(database: Database, table: string): string {
   const rows = database.query(`SELECT * FROM "${table}"`).all();
   return createHash("sha256").update(JSON.stringify(rows)).digest("hex");
 }
+
+/**
+ * Every cell of every table, as one string. The sweep above catches a row appearing; this catches
+ * a sentence appearing inside one, which is what "the question is not written down" means.
+ */
+export function everythingStored(database: Database): string {
+  const tables = database
+    .query("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+    .all() as { name: string }[];
+  /* Bytes read back as text, not as an object of numbered bytes: a sentence written to a BLOB
+   * column is still the sentence, and a search over `{"0":104,…}` would call it silence. */
+  const asText = (_key: string, value: unknown) =>
+    value instanceof Uint8Array ? Buffer.from(value).toString("utf8") : value;
+  return tables
+    .map(({ name }) => JSON.stringify(database.query(`SELECT * FROM "${name}"`).all(), asText))
+    .join("\n");
+}

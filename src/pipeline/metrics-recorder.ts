@@ -144,17 +144,25 @@ export interface DemoBuildAccumulator {
   activationAttempted?: boolean;
 }
 
+/**
+ * A question's one durable row. `target_capability` is free text the model chose, and this is the
+ * only field of it that is written down — so a target naming nothing in the catalog is carried as
+ * none rather than persisted verbatim. The extend path already refuses such a target outright;
+ * `data_query` and `reject` never looked, and a question may leave behind no words of its own.
+ */
 export function carriedResolverMeasurement(
   intent: IntentClassification,
   usage: TokenUsage,
   durationMs: number,
   catalogFingerprint: string,
+  known: readonly string[],
 ): CarriedResolverMeasurement & { readonly usage: TokenUsage } {
+  const target = intent.target_capability;
   return {
     intent: {
       type: intent.type,
       confidence: intent.confidence,
-      targetCapability: intent.target_capability,
+      targetCapability: target !== null && known.includes(target) ? target : null,
     },
     model: resolveModel(),
     durationMs,
