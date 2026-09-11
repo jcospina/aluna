@@ -1046,8 +1046,10 @@ the query into a built capability. Scope follows the context-aware prompt bar: t
 open capability resolves vague references and never fences the search.
 
 **Aluna speaks the answer.** There is no auto-table — a grid headed by SQL aliases is
-the engineering tool §9.7 forbids. Removing it removes the user's only audit, so
-three rules replace it: she states what she looked at before what she found, no
+the engineering tool §9.7 forbids. Removing it removes the user's only audit, and two
+rules replace it — a third, that she state what she looked at before what she found,
+was withdrawn by the owner on 2026-09-11 for reading as a machine reporting in, and
+ADR-0008 records what its loss costs. What holds: no
 matched rows is never phrased as a fact about the user's data, and the narration is
 platform-owned copy keyed to a closed set of step labels, so the model can neither
 invent progress nor put SQL on screen. Meaning is supplied rather than stored — the
