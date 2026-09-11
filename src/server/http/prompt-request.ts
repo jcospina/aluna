@@ -59,6 +59,17 @@ export function hasMeaningfulPromptContent(prompt: string): boolean {
 }
 
 /**
+ * Whether this submission came from somewhere else. A prompt spends provider tokens and can commit
+ * a capability to this desk, and its body is simple enough that a form on another site posts it
+ * with no preflight at all — so a page the user merely visited could build on their behalf. A
+ * browser sends `Sec-Fetch-Site` on every request, so absence means a client that is not one.
+ */
+export function isCrossSitePrompt(c: Context): boolean {
+  const site = c.req.header("sec-fetch-site");
+  return site !== undefined && site !== "same-origin" && site !== "none";
+}
+
+/**
  * Read the typed prompt from the request body, dispatching on `content-type`: JSON, form, or the
  * raw request text. Always a trimmed string, empty when no usable `prompt` is present.
  */
