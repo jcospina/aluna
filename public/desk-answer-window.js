@@ -32,6 +32,13 @@ import { fitBox, openingGeometry, PROMPT_FORM_ID, windowLayer } from "./desk-win
  */
 export const OPEN_THE_ANSWER_WINDOW_EVENT = "aluna:open-the-answer-window";
 
+/**
+ * One more thing said in the window that already stands: each step as Aluna takes it, and then
+ * the answer in place of the last of them. It never opens a window, so a question whose answer
+ * the user dismissed mid-flight stays dismissed. Restated in `public/app.js` and pinned.
+ */
+export const SAY_IN_THE_ANSWER_WINDOW_EVENT = "aluna:say-in-the-answer-window";
+
 /** What the clay lamp is called here. A capability window is put away and comes back; this is not. */
 export const ANSWER_DISMISS_LABEL = "Dismiss";
 
@@ -73,6 +80,15 @@ let phone = false;
 /** Bound once, however many times an answer window opens and is dismissed. */
 let watching = false;
 let titleCount = 0;
+/** How many times the body has been written. The opening is written in a later task, so a real
+ * sentence can overtake it; this is how that task knows it has been overtaken. */
+let written = 0;
+
+/** @param {AnswerWindow} entry @param {string} text */
+function writeBody(entry, text) {
+  written += 1;
+  entry.body.textContent = text;
+}
 
 /**
  * The answer's first box on a desk this size: centred on the room above the prompt bar's floor,
@@ -250,12 +266,32 @@ export function openAnswerWindow(root = document, question = "", saying = "") {
    *
    * A task and not a frame: a question asked and then left for another tab paints no frames at
    * all, and `requestAnimationFrame` would leave that answer window blank until it was looked at. */
+  const overtaken = written;
   const say = () => {
-    if (mounted === entry) entry.body.textContent = saying;
+    /* Not if she has since said something else. The opening is the oldest thing she has to say,
+     * and a window whose first step arrived inside the same tick would otherwise be put back to
+     * `Let me look…` and stay there, claiming she never looked. */
+    if (mounted === entry && written === overtaken) writeBody(entry, saying);
   };
   if (fresh) setTimeout(say);
   else say();
   return entry;
+}
+
+/**
+ * Say something else in the standing answer window. Nothing is opened, so a question whose window
+ * the user dismissed mid-flight stays dismissed; and nothing is raised, because the window pulling
+ * itself in front of a capability they clicked on would cost the one thing this window buys (PLAN
+ * decision 21). Replaced rather than appended — a log is a build narration, and this is one
+ * utterance (decision 24).
+ *
+ * @param {string} saying
+ * @returns {boolean} whether there was a window standing to say it in
+ */
+export function sayInAnswerWindow(saying) {
+  if (!mounted) return false;
+  writeBody(mounted, saying);
+  return true;
 }
 
 /**
@@ -327,6 +363,12 @@ export function startDeskAnswerWindow(root = document) {
       .detail;
     if (typeof detail?.question !== "string") return;
     openAnswerWindow(root, detail.question, detail.saying ?? "");
+  });
+
+  root.addEventListener(SAY_IN_THE_ANSWER_WINDOW_EVENT, (event) => {
+    const detail = /** @type {CustomEvent<{ saying?: string }>} */ (event).detail;
+    if (typeof detail?.saying !== "string") return;
+    sayInAnswerWindow(detail.saying);
   });
 
   watchViewport(layer);

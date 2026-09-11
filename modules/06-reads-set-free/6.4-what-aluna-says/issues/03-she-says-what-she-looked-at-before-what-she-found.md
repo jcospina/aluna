@@ -1,6 +1,15 @@
 # Aluna says what she looked at before she says what she found
 
-Status: done
+Status: done, then reversed
+
+**Reversed 2026-09-11 by the owner.** What this issue built shipped and was read on a real
+desk, and the reading rejected it: naming what she looked at in front of every answer made
+every answer arrive in the same shape, and the owner's words were that it *"reads awful and
+unnatural"*. The two fields are gone; the answer is one generated sentence and there is no
+restatement. Everything below describes what was built, not what runs — the schema, the join,
+the order check and the acceptance criteria are all superseded. ADR-0008's amendment of the
+same date carries the decision and what it costs; the answer lives in
+`src/runtime/query/question-answer.ts` and is proved in `question-answer-material.test.ts`.
 
 Type: HITL — the answer is authored product voice and it is the sentence the whole
 module exists to produce. Implementation is fully specified and agent-ready; a

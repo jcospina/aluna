@@ -31,7 +31,6 @@ import {
   QUESTION_STEP_RESULT_TOO_LARGE,
   QUESTION_TURN_PROMPT_PREFIX,
   questionAnswerSchema,
-  questionAnswerSentence,
   questionLabelNarration,
   questionNoHomeSentence,
   READ_ONLY_QUERY_TOOL,
@@ -69,17 +68,17 @@ const NEW_CAPABILITY_INTENT = {
 };
 
 /**
- * What the fake provider says once the reading is done, in 6.4/03's two halves. Both carry the
- * characters an escape has to catch: this is model-authored text rendered into the page, so it is
- * the page's XSS surface, and the restatement is as much of it as the finding.
+ * What the fake provider says once the reading is done. It carries the characters an escape has
+ * to catch: this is model-authored text rendered into the page, so it is the page's XSS surface,
+ * and where she says she looked is as much of it as what she found.
  */
 const DEMO_ANSWER_WRITTEN = questionAnswerSchema.parse({
-  looked_at: "Looking through your groceries & tea",
-  found: 'you spent £12.50 <span onclick="x">last week</span>.',
+  answer:
+    'I went through your groceries & tea, and you spent £12.50 <span onclick="x">last week</span>.',
 });
 
-/** The one sentence they make, assembled the one way the platform assembles it. */
-const DEMO_ANSWER = questionAnswerSentence(DEMO_ANSWER_WRITTEN);
+/** The one sentence she says, which is the whole of what the generation came back with. */
+const DEMO_ANSWER = DEMO_ANSWER_WRITTEN.answer;
 
 /**
  * One provider answering three different prompts, told apart by the prompt each stage builds
@@ -257,14 +256,10 @@ describe("the one-question exercise", () => {
     expect(html).toContain("groceries");
     expect(html).toContain("&quot;total&quot;: 2");
     expect(html).toContain(`Step 1 of at most ${QUESTION_STEP_BUDGET}`);
-    // And then the answer, written from that result and rendered as the last thing on the page:
-    // one sentence, saying what she looked at before what she found (6.4/03).
+    // And then the answer, written from that result and rendered as the last thing on the page.
     expect(html).toContain(ANSWER_HEADING);
     expect(html).toContain(escapeHtml(DEMO_ANSWER));
     expect(html.indexOf(escapeHtml(DEMO_ANSWER))).toBeGreaterThan(html.indexOf("Rows (1)"));
-    expect(html.indexOf(escapeHtml(DEMO_ANSWER_WRITTEN.looked_at))).toBeLessThan(
-      html.indexOf(escapeHtml(DEMO_ANSWER_WRITTEN.found)),
-    );
     // Escaped, not rendered: the answer is the one string on this page the model wrote.
     expect(html).not.toContain("<span onclick=");
   });

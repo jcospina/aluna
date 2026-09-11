@@ -8,6 +8,7 @@ import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";
 import { insertCapability } from "../../../registry/index.ts";
 import { createMutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
+import { createReadGateCoordinator } from "../../../runtime/concurrency/read-gates.ts";
 import {
   buildJobIdFromSubscriber,
   collectSseEvents,
@@ -65,6 +66,7 @@ async function expectCancelledBeforeAdmission(
       buildDatabases: conns,
       artifactsRoot,
       mutationCoordinator,
+      readGates: createReadGateCoordinator(),
     }),
   });
   const { job } = buildJobs.create("track my notes");
@@ -100,6 +102,7 @@ async function expectConsistentLateCancellation(
       buildDatabases: conns,
       artifactsRoot,
       mutationCoordinator,
+      readGates: createReadGateCoordinator(),
     }),
   });
   const { job } = buildJobs.create("track my notes");
@@ -135,6 +138,7 @@ async function expectCompletionBeforeMetricsLease(
       buildDatabases: conns,
       artifactsRoot,
       mutationCoordinator,
+      readGates: createReadGateCoordinator(),
     }),
   });
   const { job } = buildJobs.create("purple semaphore");
@@ -244,6 +248,9 @@ describe("blank-prompt refusal", () => {
       const calls = { count: 0 };
       let issuedJobIds = 0;
       const mutationCoordinator = createMutationCoordinator();
+      // One coordinator, handed to both halves. An injected queue building its own would leave the
+      // deletion routes unable to cancel a question this app's pipeline is running.
+      const readGates = createReadGateCoordinator();
       const { resolutionRows, recordMetrics } = makeMetricsRecorder();
       const app = createApp({
         getProvider: () => forbiddenProvider(calls),
@@ -252,6 +259,7 @@ describe("blank-prompt refusal", () => {
         artifactsRoot,
         capabilityRouter: { databases: conns },
         mutationCoordinator,
+        readGates,
         buildJobs: createBuildJobQueue({
           createId: () => {
             issuedJobIds += 1;
@@ -263,6 +271,7 @@ describe("blank-prompt refusal", () => {
             buildDatabases: conns,
             artifactsRoot,
             mutationCoordinator,
+            readGates,
           }),
         }),
       });
@@ -508,6 +517,7 @@ describe("prompt-job admission separation", () => {
         buildDatabases: conns,
         artifactsRoot,
         mutationCoordinator,
+        readGates: createReadGateCoordinator(),
       }),
     });
     const { job } = buildJobs.create("purple semaphore");

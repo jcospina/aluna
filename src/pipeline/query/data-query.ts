@@ -1,8 +1,8 @@
 // Where a classified `data_query` becomes a read (PLAN decision 5, ADR-0008).
 //
-// Until now `data_query` only ever reached `deflectionNarration`'s *I can't answer across your
-// things yet*. Here it stops being a deflection: the intent opens 6.2/02's whole-catalog scope,
-// the bounded loop runs inside it, and the scope closes.
+// A question stops being a deflection here: the intent opens 6.2/02's whole-catalog scope, the
+// bounded loop runs inside it, and the scope closes. What a person sees of it is
+// `question-pipeline.ts`, which narrates this into the answer window (6.5/03).
 //
 // It lives in the pipeline rather than the runtime because it is the one thing on this path that
 // needs an `IntentClassification`; `src/runtime/query/` owns the tool, the turn, the scope and

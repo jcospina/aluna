@@ -293,6 +293,18 @@ export function renderAnswerWindowOpening(question: string): string {
 }
 
 /**
+ * What marks a sentence for the answer window that is already standing. Its own mark rather than
+ * a second opening: opening raises the window and names it, and a question that runs for a while
+ * must not keep pulling itself in front of a capability the user has since clicked on.
+ */
+export const ANSWER_WINDOW_SAYING_ATTRIBUTE = "data-answer-saying";
+
+/** One thing Aluna says while she reads, and then the answer, into the window she is in. */
+export function renderAnswerWindowSaying(saying: string): string {
+  return `<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}>${escapeHtml(saying)}</div>`;
+}
+
+/**
  * One capability's logo on the desk: its permanent identity and, with no taskbar, the only
  * standing list of what exists. A real `<button>`, so its menu opens from the keyboard.
  */

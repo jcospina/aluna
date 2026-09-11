@@ -11,6 +11,7 @@ import { createBuildJobQueue } from "../../../pipeline/jobs/build-jobs.ts";
 import { getGenerationLifecycle } from "../../../platform/metrics/index.ts";
 import type { Provider } from "../../../platform/provider/index.ts";
 import { createMutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
+import { createReadGateCoordinator } from "../../../runtime/concurrency/read-gates.ts";
 import {
   createScratchDbEnv,
   makeMetricsRecorder,
@@ -44,6 +45,7 @@ describe("admitted generation lifecycle ordering", () => {
         buildDatabases: env.conns,
         artifactsRoot: env.artifactsRoot,
         mutationCoordinator: createMutationCoordinator(),
+        readGates: createReadGateCoordinator(),
       }),
     });
   }

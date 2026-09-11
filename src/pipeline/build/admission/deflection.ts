@@ -2,13 +2,22 @@
 // recognizes but will not build.
 //
 // Two related concerns: the warm, product-voice line shown when an intent is
-// understood but not yet actionable (extend, ui_change, data_query, reject), and the
+// understood but not yet actionable (extend, ui_change, reject), and the
 // lightweight token-overlap heuristic that catches a `new_capability` prompt that
 // really restates one the user already has — deflecting it as an `extend_capability`
 // rather than building a colliding duplicate.
 
 import { type CapabilityRow, canonicalCapabilityLabel } from "../../../registry/index.ts";
 import type { IntentClassification } from "../../intent/index.ts";
+
+/** What she says to a sentence she could not make anything of. 6.6/03 is where this is used. */
+export const REJECT_DEFLECTION =
+  "I'm not quite sure what to make from that yet. Try telling me one thing you'd like to keep track of.";
+
+/** Thrown when an intent that is acted on rather than deflected reaches the deflection line. */
+export class NotDeflectableError extends Error {
+  override readonly name = "NotDeflectableError";
+}
 
 /**
  * The product-voice narration for a deflected intent. A `new_capability` reuses its own
@@ -20,10 +29,13 @@ export function deflectionNarration(intent: IntentClassification): string {
       return "I can tell this belongs with something you've already started here. I can't change that place yet, but I'll be able to soon.";
     case "ui_change":
       return "I hear how you'd like this to feel. I can't reshape the space yet, but I'll be able to soon.";
+    // A question is run and answered in the answer window now (6.5/03), so it never deflects.
     case "data_query":
-      return "I can see you're asking about what you've saved. I can't answer across your things yet, but I'll be able to soon.";
+      throw new NotDeflectableError(
+        "A question is answered in the answer window, never deflected.",
+      );
     case "reject":
-      return "I'm not quite sure what to make from that yet. Try telling me one thing you'd like to keep track of.";
+      return REJECT_DEFLECTION;
     case "new_capability":
       return intent.user_facing_label;
   }

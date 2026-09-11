@@ -190,13 +190,13 @@ are **deliberately left alone**: closed module plans are history.
     count. The moment SQL appears on screen Aluna is an engineering tool, and §9.7 says
     she is never one.
 
-16. **Aluna says what she looked at before she says what she found.** Not the SQL — its
-    meaning: *"looking at your expenses from last month, under groceries…"*. Deleting the
-    table deleted the receipt, and this is the honest replacement, because it shows what
-    she **decided** rather than what she found. A user who reads "under groceries" and
-    calls those Food catches the mistake instantly, and correcting her costs nothing
-    because the whole answer is disposable. It also carries the scope (decision 27) at no
-    extra cost.
+16. ~~**Aluna says what she looked at before she says what she found.**~~ **Withdrawn
+    2026-09-11 by the owner**, after reading it on a real desk: every answer arrived in the
+    one shape the restatement forced — *"Under Colombia in your Coffee tasting, you have 7"* —
+    and read as a machine reporting in. She answers and stops now: *"You have tasted 7 coffees
+    from Colombia."* The receipt is gone with it, and ADR-0008's amendment of the same date
+    records what that costs. What the collections and the bound values still cross the answer's
+    prompt for is the sentence itself, which often needs the value she searched on.
 
 17. **Zero rows is never stated as a fact about the user's life.** The platform can tell
     the difference deterministically — `count` returns `0`, `sum` over no rows returns

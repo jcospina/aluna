@@ -29,7 +29,6 @@ import {
   QUESTION_ANSWER_PROMPT_PREFIX,
   type QuestionAnswerWritten,
   questionAnswerSchema,
-  questionAnswerSentence,
 } from "./question-answer.ts";
 import { QUESTION_STEP_BUDGET, type QuestionLoopResult, runQuestionLoop } from "./question-loop.ts";
 import { QUESTION_NO_HOME_PROMPT_PREFIX } from "./question-no-home.ts";
@@ -192,17 +191,16 @@ export function toldAgainStep(message: string): QuestionStep {
 export const UNREADABLE_STEP: QuestionStep = toldAgainStep(UNREADABLE_DECISION);
 
 /**
- * What a fake provider says when the loop asks for the answer, in the two halves 6.4/03 generates:
- * what she looked at, then what she found. Put through the real schema, so a fixture that stopped
- * being an answer fails here rather than in whichever suite happened to read it.
+ * What a fake provider says when the loop asks for the answer. Put through the real schema, so a
+ * fixture that stopped being an answer fails here rather than in whichever suite happened to read
+ * it — and it names where she looked, which is what the prompt asks a real one for.
  */
 export const SCRIPTED_ANSWER_WRITTEN: QuestionAnswerWritten = questionAnswerSchema.parse({
-  looked_at: "Looking through what you have saved",
-  found: "here is what I found.",
+  answer: "I had a look through what you have saved, and here is what I found.",
 });
 
-/** The one sentence those halves make, assembled the one way the platform assembles it. */
-export const SCRIPTED_ANSWER = questionAnswerSentence(SCRIPTED_ANSWER_WRITTEN);
+/** The one sentence that fixture is, which is the whole of what she says. */
+export const SCRIPTED_ANSWER = SCRIPTED_ANSWER_WRITTEN.answer;
 
 /** What a fake provider names when the loop asks what there is nowhere for. Words the default
  * question does not hold, so a suite naming it has to choose a question that does. */
@@ -309,8 +307,8 @@ export function scriptedProvider(...decisions: readonly QuestionDecision[]): Scr
 }
 
 /**
- * The same, with the two halves of the answer chosen too — for a suite about what she says rather
- * than about what she read.
+ * The same, with what she says at the end chosen too — for a suite about her words rather than
+ * about what she read.
  */
 export function scriptedProviderSaying(
   written: QuestionAnswerWritten,

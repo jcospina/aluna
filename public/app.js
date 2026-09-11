@@ -185,6 +185,13 @@ const ANSWER_WINDOW_ATTRIBUTE = "data-answer-window";
 const OPEN_THE_ANSWER_WINDOW_EVENT = "aluna:open-the-answer-window";
 
 /**
+ * One more thing said in the answer window that already stands (`renderAnswerWindowSaying`,
+ * pinned by a test): each step as Aluna takes it, then the answer in place of the last of them.
+ */
+const ANSWER_WINDOW_SAYING_ATTRIBUTE = "data-answer-saying";
+const SAY_IN_THE_ANSWER_WINDOW_EVENT = "aluna:say-in-the-answer-window";
+
+/**
  * Ask the prompt bar to retire anything it was still saying about the run that just ended. Kept
  * in sync with public/prompt-bar.js, and pinned by a platform test.
  * @returns {boolean} whether there was such a sentence
@@ -314,6 +321,31 @@ function shouldPreserveRestoration(
 }
 
 /**
+ * Which capability a node says is standing in it, or nothing when the node is not one.
+ * @param {Element | null} el
+ */
+function activeCapabilityIdentity(el) {
+  if (!(el instanceof HTMLElement)) return null;
+  const { activeCapabilityId: id, activeCapabilityIncarnation: incarnation } = el.dataset;
+  return { id, incarnation, version: el.dataset.activeCapabilityVersion };
+}
+
+/**
+ * The element a fragment frame is marked with, or nothing when this frame is not that one.
+ * @param {HTMLElement} listener
+ * @param {string} raw
+ * @param {string} attribute
+ * @returns {HTMLElement | null}
+ */
+function markedFragment(listener, raw, attribute) {
+  if (!listener.classList.contains("build-stream__fragment")) return null;
+  const template = document.createElement("template");
+  template.innerHTML = raw;
+  const marked = template.content.querySelector(`[${attribute}]`);
+  return marked instanceof HTMLElement ? marked : null;
+}
+
+/**
  * A deterministic duplicate is a true no-op: keep the exact active View node in place, surface
  * only its explanation, and let stream close remove the dormant subscriber.
  * @param {HTMLElement} listener
@@ -336,22 +368,8 @@ function preserveActiveView(listener, raw) {
 
   const current = output.querySelector(":scope > [data-active-capability-id]");
   const restored = restoration.querySelector("[data-active-capability-id]");
-  const currentIdentity =
-    current instanceof HTMLElement
-      ? {
-          id: current.dataset.activeCapabilityId,
-          incarnation: current.dataset.activeCapabilityIncarnation,
-          version: current.dataset.activeCapabilityVersion,
-        }
-      : null;
-  const restoredIdentity =
-    restored instanceof HTMLElement
-      ? {
-          id: restored.dataset.activeCapabilityId,
-          incarnation: restored.dataset.activeCapabilityIncarnation,
-          version: restored.dataset.activeCapabilityVersion,
-        }
-      : null;
+  const currentIdentity = activeCapabilityIdentity(current);
+  const restoredIdentity = activeCapabilityIdentity(restored);
   const shouldPreserve = shouldPreserveRestoration(
     restoration.dataset.buildRestoration,
     currentIdentity,
@@ -381,11 +399,8 @@ function preserveActiveView(listener, raw) {
  * @returns {boolean}
  */
 function nameTheWindowFrom(listener, raw) {
-  if (!listener.classList.contains("build-stream__fragment")) return false;
-  const template = document.createElement("template");
-  template.innerHTML = raw;
-  const named = template.content.querySelector(`[${BUILD_WINDOW_TITLE_ATTRIBUTE}]`);
-  if (!(named instanceof HTMLElement)) return false;
+  const named = markedFragment(listener, raw, BUILD_WINDOW_TITLE_ATTRIBUTE);
+  if (!named) return false;
   const title = named.getAttribute(BUILD_WINDOW_TITLE_ATTRIBUTE);
   if (title) nameTheWindow(title);
   // The desk has stopped working out what the sentence was, so what it said about that is done.
@@ -402,11 +417,8 @@ function nameTheWindowFrom(listener, raw) {
  * @returns {boolean}
  */
 function openTheAnswerWindowFrom(listener, raw) {
-  if (!listener.classList.contains("build-stream__fragment")) return false;
-  const template = document.createElement("template");
-  template.innerHTML = raw;
-  const asked = template.content.querySelector(`[${ANSWER_WINDOW_ATTRIBUTE}]`);
-  if (!(asked instanceof HTMLElement)) return false;
+  const asked = markedFragment(listener, raw, ANSWER_WINDOW_ATTRIBUTE);
+  if (!asked) return false;
   // The window the submit borrowed was never this run's to keep, and the mark is what makes the
   // give-back exact: at close the subscriber goes and the region is otherwise untouched, so a
   // record the user had open is still open. The name goes back now rather than at close, because
@@ -422,6 +434,21 @@ function openTheAnswerWindowFrom(listener, raw) {
   const question = asked.getAttribute(ANSWER_WINDOW_ATTRIBUTE) ?? "";
   const detail = { question, saying: asked.textContent ?? "" };
   document.dispatchEvent(new CustomEvent(OPEN_THE_ANSWER_WINDOW_EVENT, { detail }));
+  return true;
+}
+
+/**
+ * Aluna saying one more thing in the window she is already speaking in.
+ *
+ * @param {HTMLElement} listener
+ * @param {string} raw
+ * @returns {boolean}
+ */
+function sayInTheAnswerWindowFrom(listener, raw) {
+  const said = markedFragment(listener, raw, ANSWER_WINDOW_SAYING_ATTRIBUTE);
+  if (!said) return false;
+  const detail = { saying: said.textContent ?? "" };
+  document.dispatchEvent(new CustomEvent(SAY_IN_THE_ANSWER_WINDOW_EVENT, { detail }));
   return true;
 }
 
@@ -457,6 +484,7 @@ document.addEventListener("htmx:sseBeforeMessage", (event) => {
   if (
     nameTheWindowFrom(listener, message.data) ||
     openTheAnswerWindowFrom(listener, message.data) ||
+    sayInTheAnswerWindowFrom(listener, message.data) ||
     preserveActiveView(listener, message.data) ||
     holdRestoration(listener, message.data)
   ) {

@@ -256,8 +256,7 @@ describe("a question whose statements never came back", () => {
 describe("the model cannot override the classification", () => {
   test("a model writing the forbidden sentence is not the one who ends the question", async () => {
     const claiming = questionAnswerSchema.parse({
-      looked_at: `Looking at your ${EXPENSES_CAPABILITY.label}`,
-      found: `you spent nothing on ${UNSPENT}`,
+      answer: `I looked through your ${EXPENSES_CAPABILITY.label}, and you spent nothing on ${UNSPENT}.`,
     });
     const run = await refundDesk().run(
       scriptedProviderSaying(claiming, reads(TOTAL_UNDER, [UNSPENT], "totalling"), answers()),
@@ -267,7 +266,7 @@ describe("the model cannot override the classification", () => {
     // It was never asked: nothing found runs no answer generation, so there is no sentence of
     // the model's anywhere in this ending.
     expect(run.answerPrompts).toEqual([]);
-    expect(said(run)).not.toContain(claiming.found);
+    expect(said(run)).not.toContain(claiming.answer);
     expect(said(run)).not.toBe(SCRIPTED_ANSWER);
     expect(said(run)).toContain(QUESTION_NOTHING_FOUND);
   });
@@ -330,8 +329,7 @@ describe("a question that found something as well", () => {
     // matched, the sentence is the model's. What the platform holds is that the unmatched step
     // carries no figure, so a claim about it is a fabrication rather than a misread result.
     const claiming = questionAnswerSchema.parse({
-      looked_at: `Looking at your ${EXPENSES_CAPABILITY.label}`,
-      found: `you spent nothing on ${UNSPENT}`,
+      answer: `I looked through your ${EXPENSES_CAPABILITY.label}, and you spent nothing on ${UNSPENT}.`,
     });
     const run = await refundDesk().run(
       scriptedProviderSaying(
@@ -344,7 +342,7 @@ describe("a question that found something as well", () => {
     );
 
     expect(run.result.ending).toBe("answered");
-    expect(said(run)).toContain(claiming.found);
+    expect(said(run)).toContain(claiming.answer);
     expect(run.answerPrompts[0]).not.toContain("null");
   });
 });

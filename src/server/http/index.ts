@@ -13,6 +13,7 @@ export {
 export {
   ANSWER_WINDOW_ATTRIBUTE,
   ANSWER_WINDOW_OPENING,
+  ANSWER_WINDOW_SAYING_ATTRIBUTE,
   ANSWER_WINDOW_TITLE_LIMIT,
   answerWindowTitle,
   BLANK_PROMPT_NOTICE,
@@ -28,6 +29,7 @@ export {
   type PromptNoticeTone,
   type RenderableCapabilityLogo,
   renderAnswerWindowOpening,
+  renderAnswerWindowSaying,
   renderBuildEnding,
   renderBuildSubscriber,
   renderBuildWindowTitle,

@@ -19,6 +19,11 @@ import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../../../platform/persistence/table-names.ts";
 import { resolveModel } from "../../../platform/provider/config.ts";
 import {
+  catalogueWithRecords,
+  NOTES_CAPABILITY,
+  NOTES_TABLE,
+} from "../../../runtime/query/question.test-support.ts";
+import {
   addedPaths,
   everythingStored,
   type PlatformStoreSweep,
@@ -40,6 +45,7 @@ import {
 } from "../../app.test-support.ts";
 import { escapeHtml } from "../../http/html.ts";
 import { ANSWER_WINDOW_ATTRIBUTE } from "../../http/index.ts";
+import { makeQuestionProvider } from "./staged-question.test-support.ts";
 
 /** Deliberately carries an apostrophe and an ampersand: a stored copy would be escaped, and a
  * search for the plain sentence would walk past it. */
@@ -66,6 +72,9 @@ let artifactsRoot: string;
 
 beforeEach(() => {
   ({ dir, path, conns, artifactsRoot } = createScratchDbEnv("omni-crud-question-store-"));
+  // Two real collections with rows in them, so the question below runs to a real answer: a
+  // question that stumbled would prove nothing was written by proving nothing happened.
+  catalogueWithRecords(conns.readwrite);
 });
 
 afterEach(() => {
@@ -74,7 +83,11 @@ afterEach(() => {
 
 /** Ask it for real, through the route the desk posts to, with the platform's own metrics writer. */
 async function ask(question: string) {
-  const { provider } = makePromptBuildProvider(DATA_QUERY_INTENT);
+  const { provider } = makeQuestionProvider({
+    intent: DATA_QUERY_INTENT,
+    reads: [{ sql: `SELECT count(*) AS total FROM ${NOTES_TABLE}`, label: "counting" }],
+    answer: { answer: "I had a look at your notes — you wrote three in July." },
+  });
   const app = makeScratchApp(
     { dir, conns, artifactsRoot },
     provider,
@@ -195,7 +208,8 @@ describe("a question leaves nothing behind on the server", () => {
   test("and every word in it is one the model did not choose", async () => {
     // The strict schema stops a new field; it does not stop a sentence smuggled inside an allowed
     // one. So each string the row may hold is pinned: the model name is the configured one, the
-    // fingerprint is a digest, and the target is null unless it named something in the catalog.
+    // fingerprint is a digest, and the target is an id off this desk — the registry's own word,
+    // never anything the model wrote — or null when it named nothing that exists.
     await ask(QUESTION);
     const stored = await settle(1);
     const measurement = carriedResolverMeasurementSchema.parse(
@@ -204,7 +218,7 @@ describe("a question leaves nothing behind on the server", () => {
 
     expect(measurement.model).toBe(resolveModel());
     expect(measurement.catalogFingerprint ?? "sha256:").toMatch(/^sha256:[0-9a-f]{64}$/);
-    expect(measurement.intent.targetCapability).toBeNull();
+    expect(measurement.intent.targetCapability).toBe(NOTES_CAPABILITY.id);
   });
 
   test("asking twice runs twice and remembers neither, so no answer accumulates", async () => {

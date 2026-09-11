@@ -158,6 +158,8 @@ export const QUESTION_VOCABULARY_RULES = Object.freeze([
  */
 export const QUESTION_COMPUTATION_RULES = Object.freeze([
   "- The SQL does the arithmetic, rounding included. Every figure you report is one it returned.",
+  "- Round an average or a division there — round(avg(x), 2) — so no figure reaches this person",
+  "  with a long tail of decimals after it.",
   "- Ranking belongs in the SQL too. ORDER BY and LIMIT, so what comes back is the row you name.",
   "- When you answer, you have what the steps returned and nothing else to work from.",
   "- Return a total as the plain sum, avg, min or max. Never default its null away with coalesce",

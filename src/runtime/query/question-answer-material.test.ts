@@ -1,7 +1,10 @@
-// Aluna says what she looked at before she says what she found (PLAN decisions 3, 16 and 29).
+// The material an answer is written from, and what the platform does to the words that come back.
 //
-// The order is not asked for and then hoped for. These fixtures prove that a finding on its own
-// does not parse, and that the halves assemble looked-at first whatever they happen to say.
+// She used to say what she looked at before what she found: two fields the platform joined, which
+// made every answer one shape. The owner rejected that shape, so the answer is one field of hers
+// and the restatement is gone (2026-09-11, amending ADR-0008 rule 1). What the collections and the
+// bound values are for now is the sentence itself — *7 coffees from Colombia* needs the value she
+// searched on — so these fixtures still hold what reaches the prompt, and nothing else does.
 //
 // The mis-scoped fixture: a desk filed under food, cheese and vegetables, a question asking about
 // groceries, and a statement counting only the first of the three. What it proves is that the
@@ -36,9 +39,9 @@ import {
 import {
   ANSWER_STEP_IN,
   ANSWER_STEP_UNDER,
+  MOST_ANSWER_CHARACTERS,
   QUESTION_ANSWER_RULES,
   questionAnswerSchema,
-  questionAnswerSentence,
 } from "./question-answer.ts";
 import { QUESTION_NAMING_RULES } from "./question-turn.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
@@ -57,9 +60,20 @@ const GROCERIES_QUESTION = `how much did I spend on ${GROCERIES}?`;
 const EVERY_CATEGORY = `SELECT DISTINCT text FROM ${EXPENSES_TABLE}`;
 const ONE_CATEGORY_TOTAL = `SELECT sum(amount) AS total FROM ${EXPENSES_TABLE} WHERE text = ?`;
 
-/** Two halves that could not be mistaken for each other, whichever order they come out in. Put
- * through the schema, so what the fixture holds is what a generation of those words would be. */
-const OUT_OF_ORDER = questionAnswerSchema.parse({ looked_at: "second", found: "first" });
+/** A second answer, in words the first one could not be mistaken for. Put through the schema, so
+ * what the fixture holds is what a generation of those words would be. */
+const SAID_AGAIN = questionAnswerSchema.parse({ answer: "I looked again, and it says the same." });
+
+/** The characters a fixture cannot carry as itself: written by code, so this file holds none. */
+const character = (code: number) => String.fromCharCode(code);
+const NUL = character(0);
+const BELL = character(7);
+const BREAK = character(10);
+const CARRIAGE_RETURN = character(13);
+const ESCAPE = character(27);
+const ZERO_WIDTH = character(0x200b);
+const LINE_SEPARATOR = character(0x2028);
+const EM_DASH = character(0x2014);
 
 /**
  * Expenses categorised the person's way. What `catalogueWithRecords` writes goes first, because
@@ -81,7 +95,7 @@ function categoriesDesk(): QuestionDesk {
 }
 
 /** The run that gets it wrong: she reads the categories, then counts only the first of them. */
-function askUnderOneCategory(desk: QuestionDesk, said: { looked_at: string; found: string }) {
+function askUnderOneCategory(desk: QuestionDesk, said: { answer: string }) {
   return desk.run(
     scriptedProviderSaying(
       said,
@@ -173,34 +187,37 @@ describe("which collections she names is read off the plan, not off the words", 
       GROCERIES_QUESTION,
     );
 
-    // There would be no line to write a restatement from, and `looked_at` is required. 6.4/04
+    // There would be no name of theirs in front of her at all. 6.4/04
     // closes it: a row nothing was scanned into matched nothing, so no generation runs at all
     // and the rule below is what holds a question that read something else as well.
     expect(answerPrompts).toEqual([]);
     expect(result.ending).toBe("nothing_found");
-    expect(QUESTION_ANSWER_RULES.join("\n")).toContain("Where nothing is listed");
+    expect(QUESTION_ANSWER_RULES.join("\n")).toContain(
+      "The only names of theirs you may use are the ones listed with each result below.",
+    );
   });
 });
 
-describe("the order she says them in is the platform's", () => {
-  test("the two halves are joined one way round, whatever they say", async () => {
-    // Deliberately named the wrong way round: the order a person reads is not the model's to
-    // choose, so halves that argue about which came first are still assembled looked-at first.
-    const { result } = await askUnderOneCategory(categoriesDesk(), OUT_OF_ORDER);
+describe("what she says is one thing she says, and it is hers", () => {
+  test("the words reach a person exactly as they were written", async () => {
+    // Nothing is joined, spliced or cased on the way out any more. A second field was the order,
+    // and it was also the shape every answer arrived in; the prompt asks for the order instead.
+    const { result } = await askUnderOneCategory(categoriesDesk(), SAID_AGAIN);
 
     if (result.ending !== "answered") throw new Error("the fixture answers");
-    expect(result.answer).toBe(questionAnswerSentence(OUT_OF_ORDER));
-    expect(result.answer.indexOf(OUT_OF_ORDER.looked_at)).toBeLessThan(
-      result.answer.indexOf(OUT_OF_ORDER.found),
-    );
+    expect(result.answer).toBe(SAID_AGAIN.answer);
   });
 
-  test("both halves are asked for in the shape a strict provider accepts", () => {
-    // The second field is what carries the order, so it is also a second way to emit a schema
-    // OpenAI's strict mode refuses. `question-tool.ts` says why an absent key is not an option.
+  test("and she is told not to narrate the looking, which is what the two fields made her do", () => {
+    // The owner's decision, and the only place it is written down in the code that runs.
+    expect(QUESTION_ANSWER_RULES.join("\n")).toContain("it is you narrating yourself");
+  });
+
+  test("the one field is asked for in the shape a strict provider accepts", () => {
+    // `question-tool.ts` says why an absent key is not an option under OpenAI's strict mode.
     const emitted = zodSchema(questionAnswerSchema).jsonSchema as Record<string, unknown>;
 
-    expect(emitted.required).toEqual(["looked_at", "found"]);
+    expect(emitted.required).toEqual(["answer"]);
     expect(emitted.additionalProperties).toBe(false);
     for (const keyword of ["oneOf", "minLength", "maxLength", "pattern", "format", "default"]) {
       expect({ keyword, present: JSON.stringify(emitted).includes(keyword) }).toEqual({
@@ -210,111 +227,96 @@ describe("the order she says them in is the platform's", () => {
     }
   });
 
-  test("a finding with nothing in front of it is not an answer at all", () => {
-    const { looked_at, found } = SCRIPTED_ANSWER_WRITTEN;
+  test("the two halves it used to take are not an answer, and neither is neither", () => {
+    const said = SCRIPTED_ANSWER_WRITTEN.answer;
 
-    expect(questionAnswerSchema.safeParse({ found }).success).toBe(false);
-    expect(questionAnswerSchema.safeParse({ looked_at }).success).toBe(false);
-    // Including the shape the answer used to have, before there was an order to keep.
-    expect(questionAnswerSchema.safeParse({ answer: `${looked_at}, ${found}` }).success).toBe(
+    expect(questionAnswerSchema.safeParse({ looked_at: "Looking at your expenses" }).success).toBe(
       false,
     );
+    // Including the shape the answer used to have: a strict object refuses the extra key rather
+    // than quietly speaking half of it.
+    expect(questionAnswerSchema.safeParse({ answer: said, found: "six" }).success).toBe(false);
+    expect(questionAnswerSchema.safeParse({}).success).toBe(false);
   });
 
-  test("a finding that did not stop itself is stopped, and one that did is left alone", () => {
-    const { looked_at } = SCRIPTED_ANSWER_WRITTEN;
-    const finish = (found: string) => questionAnswerSchema.parse({ looked_at, found }).found;
+  test("an answer that did not stop itself is stopped, and one that did is left alone", () => {
+    const finish = (answer: string) => questionAnswerSchema.parse({ answer }).answer;
 
-    expect(finish("six are finished")).toBe("six are finished.");
-    for (const ended of ["you have 22.", "was it?", "none at all!"]) {
+    expect(finish("Six are finished")).toBe("Six are finished.");
+    for (const ended of ["You have 22.", "Was it?", "None at all!"]) {
       expect(finish(ended)).toBe(ended);
     }
   });
 
-  test("and neither is a blank half, while a half with room round it is trimmed", () => {
-    const { looked_at, found } = SCRIPTED_ANSWER_WRITTEN;
+  test("a blank answer is not one, while an answer with room round it is trimmed", () => {
+    const said = SCRIPTED_ANSWER_WRITTEN.answer;
 
-    for (const half of [
-      { looked_at: "   ", found },
-      { looked_at, found: " " },
-    ]) {
-      expect(questionAnswerSchema.safeParse(half).success).toBe(false);
+    for (const blank of ["", "   ", "\n\t "]) {
+      expect(questionAnswerSchema.safeParse({ answer: blank }).success).toBe(false);
     }
-    expect(
-      questionAnswerSchema.parse({ looked_at: `\n  ${looked_at}  `, found: `${found}  ` })
-        .looked_at,
-    ).toBe(looked_at);
+    expect(questionAnswerSchema.parse({ answer: `\n  ${said}  ` }).answer).toBe(said);
   });
 
-  test("a half that was only punctuation is not a restatement once the punctuation is gone", () => {
-    const { found } = SCRIPTED_ANSWER_WRITTEN;
+  test("punctuation that joins is not doubled up, at either end of what she wrote", () => {
+    // Nothing strips these on the way in any more: the two halves each had their own transform,
+    // and the join between them was where a stray comma used to go.
+    const said = (answer: string) => questionAnswerSchema.parse({ answer }).answer;
 
-    expect(questionAnswerSchema.safeParse({ looked_at: ".", found }).success).toBe(false);
-  });
-
-  test("a clause that punctuated itself is still one sentence once it is joined", () => {
-    const { looked_at, found } = SCRIPTED_ANSWER_WRITTEN;
-
-    for (const stop of [",", ".", ";"]) {
-      expect(
-        questionAnswerSentence(
-          questionAnswerSchema.parse({ looked_at: `${looked_at}${stop}`, found }),
-        ),
-      ).toBe(SCRIPTED_ANSWER);
+    for (const trailing of [",", ";", " -", ` ${EM_DASH}`]) {
+      expect(said(`you spent 84.20${trailing}`)).toBe("you spent 84.20.");
     }
+    expect(said(", you spent 84.20")).toBe("you spent 84.20.");
   });
-});
 
-describe("a restatement that is wrong is wrong where a person can see it", () => {
-  test("she names the category she counted, ahead of the figure that is only right for it", async () => {
-    const said = {
-      looked_at: `Looking through your ${EXPENSES_CAPABILITY.label.toLowerCase()} under ${NARROW_CATEGORY.text}`,
-      found: `you have spent ${NARROW_CATEGORY.amount}.`,
-    };
-    const { result } = await askUnderOneCategory(categoriesDesk(), said);
-
-    if (result.ending !== "answered") throw new Error("the fixture answers");
-    expect(result.answer).toContain(NARROW_CATEGORY.text);
-    expect(result.answer.indexOf(NARROW_CATEGORY.text)).toBeLessThan(
-      result.answer.indexOf(String(NARROW_CATEGORY.amount)),
+  test("a list of one item is a list, and keeps its own shape", () => {
+    expect(questionAnswerSchema.parse({ answer: `${BREAK}- July: 120` }).answer).toBe(
+      "- July: 120",
     );
-    // And never in the question's own word, which is what she would have had to invent to hide it.
-    expect(result.answer).not.toContain(GROCERIES);
-    for (const { text } of CATEGORIES.slice(1)) expect(result.answer).not.toContain(text);
   });
 
-  test("and the desk really did hold the two she left out", async () => {
-    // Without this the fixture above would pass over a desk holding one category, where there is
-    // no mistake to catch and nothing for the restatement to expose.
-    const { steps } = await askUnderOneCategory(categoriesDesk(), SCRIPTED_ANSWER_WRITTEN);
+  test("every way of breaking a line becomes the one the desk renders", () => {
+    // `pre-wrap` breaks on all four, and the stream splits its frames on the first three, so a
+    // line count taken here is the line count a person sees.
+    for (const between of [CARRIAGE_RETURN, CARRIAGE_RETURN + BREAK, LINE_SEPARATOR]) {
+      expect(
+        questionAnswerSchema.parse({ answer: `July was quiet${between}August was not` }).answer,
+      ).toBe(`July was quiet${BREAK}August was not.`);
+    }
+  });
 
-    expect(steps[0]?.result).toEqual({
-      outcome: "rows",
-      rows: CATEGORIES.map(({ text }) => ({ text })),
-    });
-    expect(steps[1]?.result).toEqual({
-      outcome: "rows",
-      rows: [{ total: NARROW_CATEGORY.amount }],
-    });
+  test("characters with no shape never reach the desk", () => {
+    // They survive `escapeHtml` untouched and land in `textContent` unseen.
+    const hidden = `${NUL}${BELL}${ESCAPE}[31m${ZERO_WIDTH}four are from Japan`;
+
+    expect(questionAnswerSchema.parse({ answer: hidden }).answer).toBe("[31mfour are from Japan.");
+  });
+
+  test("an answer longer than she would ever say is a generation that failed", () => {
+    // The one bound on what comes back: the payload budget weighs what goes into a prompt.
+    const said = "x".repeat(MOST_ANSWER_CHARACTERS);
+
+    expect(questionAnswerSchema.safeParse({ answer: said }).success).toBe(true);
+    expect(questionAnswerSchema.safeParse({ answer: `${said}x` }).success).toBe(false);
+  });
+
+  test("an answer of nothing but punctuation says nothing, so it is not one", () => {
+    for (const empty of [".", " — ", "…", "-"]) {
+      expect(questionAnswerSchema.safeParse({ answer: empty }).success).toBe(false);
+    }
   });
 });
 
 describe("the answer is prose and it is disposable", () => {
-  test("a finding that is a list is introduced, never spliced onto the clause above it", () => {
-    // Decision 3 asks for bullets where a sentence would be a list, and a comma in front of a
-    // bullet is neither. The list is also left to stop itself.
-    const listed = questionAnswerSchema.parse({
-      looked_at: "Looking at your expenses month by month",
-      found: "- July: 120\n- August: 98",
-    });
+  test("a list she wrote reaches a person as the list she wrote", () => {
+    // Decision 3 asks for bullets where a sentence would be a list. Nothing reshapes one now:
+    // it runs over lines, so it stops itself and no full stop is put on the last item.
+    const listed = "Month by month:\n- July: 120\n- August: 98";
 
-    expect(questionAnswerSentence(listed)).toBe(
-      "Looking at your expenses month by month:\n- July: 120\n- August: 98",
-    );
+    expect(questionAnswerSchema.parse({ answer: listed }).answer).toBe(listed);
   });
 
   test("and there is nothing on this path to render one as a grid instead", () => {
-    // The module renders one string out of two, and holds nothing it could render a grid with.
+    // The module hands over one string and holds nothing it could render a grid with.
     const text = readFileSync(join(import.meta.dir, "question-answer.ts"), "utf8");
     for (const surface of ["<table", "<tr", "<th", "<td", "chart", "csv", ".xlsx", "download"]) {
       expect({ surface, present: text.includes(surface) }).toEqual({ surface, present: false });
@@ -324,7 +326,7 @@ describe("the answer is prose and it is disposable", () => {
   test("the same question asked twice reads again and speaks again", async () => {
     const desk = categoriesDesk();
     const first = await askUnderOneCategory(desk, SCRIPTED_ANSWER_WRITTEN);
-    const second = await askUnderOneCategory(desk, OUT_OF_ORDER);
+    const second = await askUnderOneCategory(desk, SAID_AGAIN);
 
     // Nothing is memoized (decision 2): both statements ran twice, and the words were written
     // twice, so correcting her costs a question and never an edit to something kept.
@@ -340,6 +342,6 @@ describe("the answer is prose and it is disposable", () => {
       throw new Error("both fixtures answer");
     }
     expect(first.result.answer).toBe(SCRIPTED_ANSWER);
-    expect(second.result.answer).toBe(questionAnswerSentence(OUT_OF_ORDER));
+    expect(second.result.answer).toBe(SAID_AGAIN.answer);
   });
 });

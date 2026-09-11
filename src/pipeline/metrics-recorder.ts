@@ -389,10 +389,11 @@ export function lifecycleFailureOutcome(failure: GenerationFailure): GenerationF
 }
 
 /**
- * Write the metrics row for a deflected prompt (an intent the platform recognizes
- * but does not yet act on). Resolver-only measurements remain best-effort.
+ * Write the resolver-only metrics row: the one a prompt leaves when nothing was built. A refusal
+ * and a deflection leave it because the platform does not act on them; a question leaves it
+ * because answering one builds nothing (ARCH §9.3). Best-effort in every case.
  */
-export function writeDeflectionMetrics(
+export function writeResolverOnlyMetrics(
   recordMetrics: RecordMetrics,
   metrics: IntentResolutionMetrics,
 ): void {

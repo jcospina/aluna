@@ -8,6 +8,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { REJECT_DEFLECTION } from "../../../pipeline/build/admission/deflection.ts";
 import type { RecordMetrics } from "../../../pipeline/index.ts";
 import type { IntentClassification } from "../../../pipeline/intent/index.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
@@ -37,6 +38,7 @@ import {
 import { createApp } from "../../app.ts";
 import { escapeHtml } from "../../http/html.ts";
 import { ANSWER_WINDOW_ATTRIBUTE, ANSWER_WINDOW_OPENING } from "../../http/index.ts";
+import { makeQuestionProvider } from "./staged-question.test-support.ts";
 
 let dir: string;
 let conns: PlatformDatabase;
@@ -441,7 +443,11 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
 
   test("a question opens the answer window and gives back the frame it borrowed", async () => {
     insertCapability(notesCapabilityRow(), conns.readwrite);
-    const { provider, prompts } = makePromptBuildProvider(DATA_QUERY_INTENT);
+    const { provider } = makeQuestionProvider({
+      intent: DATA_QUERY_INTENT,
+      reads: [],
+      answer: { answer: "I had a look at your notes — you added four last week." },
+    });
     const { rows, resolutionRows, recordMetrics } = makeMetricsRecorder();
     const app = defaultPipelineApp(provider, recordMetrics);
 
@@ -451,12 +457,13 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
     const fragments = eventData(events, "fragment");
 
-    // Two fragments and no narration at all: the desk works the sentence out on the prompt bar,
-    // then the answer window opens. Nothing is ever placed in a window, so no frame is revealed
-    // for a question that never wanted one.
+    // No narration at all: the desk works the sentence out on the prompt bar, the answer window
+    // opens, and everything after it is said in that window. Nothing is ever placed in a window,
+    // so no frame is revealed for a question that never wanted one.
     expect(events.map((event) => event.event)).toEqual([
       "fragment",
       "metrics-preview",
+      "fragment",
       "fragment",
       "done",
     ]);
@@ -470,9 +477,10 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     const notices = eventData(events, "fragment").match(/id="prompt-notice"/g) ?? [];
     expect(notices).toHaveLength(1);
     expect(eventData([events[0] as SseEvent], "fragment")).toContain('id="prompt-notice"');
-    expect(fragments).not.toContain("I can&#39;t answer across your things yet");
+    // Nothing a deflection would have said reaches the window: a question is answered, and the
+    // refusal's line is the only one `deflectionNarration` still has (6.5/03).
+    expect(fragments).not.toContain(escapeHtml(REJECT_DEFLECTION));
 
-    expect(prompts).toHaveLength(1);
     expect(rows).toEqual([]);
     expect(resolutionRows).toHaveLength(1);
     expect(resolutionRows[0]).toMatchObject({

@@ -164,6 +164,7 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
         buildDatabases,
         artifactsRoot,
         mutationCoordinator,
+        readGates,
       }),
     });
   // The capability router and the on-load shell rehydration read the same registry: a `GET /`

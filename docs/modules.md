@@ -660,7 +660,8 @@ Numbered in build order.
   them — one bound on a step, one on everything a whole question accumulates. No timeout. Never persisted: no registry entry, no logo on the desk, no version,
   no cache. (ARCH §7 "`data_query`"; PLAN decisions 5, 8, 9, 12, 14)
 - **6.4 — What Aluna says.** SQL carries the whole computation; the model only finds the
-  words. She states what she looked at before what she found, never phrases zero matched
+  words. She answers the question and stops — saying what she looked at first was withdrawn
+  by the owner on 2026-09-11 — never phrases zero matched
   rows as a fact about the user's data, is given the vocabulary of that data rather than
   an index of it, and names the gap without offering to fill it when nothing can answer.
   (PLAN decisions 4, 16, 17, 18, 19, 20)

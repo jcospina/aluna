@@ -7,8 +7,9 @@
 // foreground presenter. The lease, lease-head revalidation, the admission row, mutation, Gate
 // and activation all live in `core-builder.ts`, which Module 7 drives with another presenter.
 //
-// `reject` and `data_query` never reach the Builder — they deflect with a warm line and a
-// best-effort resolver-only metrics row.
+// Neither `reject` nor `data_query` reaches the Builder. A refusal deflects with a warm line; a
+// question runs and is answered in the answer window (6.5/03). Both leave the same best-effort
+// resolver-only metrics row and nothing else.
 
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import { abortableProvider, type Provider } from "../../platform/provider/index.ts";
@@ -19,6 +20,7 @@ import {
   readActiveRegistryCatalog,
 } from "../../registry/index.ts";
 import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
+import type { ReadGateCoordinator } from "../../runtime/concurrency/read-gates.ts";
 import {
   BUILDING_WINDOW_TITLE,
   renderBuildWindowTitle,
@@ -32,6 +34,7 @@ import type {
 } from "../jobs/build-jobs.ts";
 import { renderRestorationFragment } from "../jobs/restoration.ts";
 import { carriedResolverMeasurement, type RecordMetrics } from "../metrics-recorder.ts";
+import { streamQuestion } from "../query/question-pipeline.ts";
 import {
   DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
   deliverFailedPresentation,
@@ -62,6 +65,8 @@ export interface PromptBuildPipelineDeps {
   readonly buildDatabases: PlatformDatabase;
   readonly artifactsRoot: string;
   readonly mutationCoordinator: MutationCoordinator;
+  /** A question opens a whole-catalog read scope through these (ADR-0008). */
+  readonly readGates: ReadGateCoordinator;
   readonly terminalPresenterTimeoutMs?: number;
 }
 
@@ -144,6 +149,8 @@ function runNonBuildIntent(
   catalogFingerprint: string,
   intent: IntentClassification,
   resolver: ResolverMeasurement,
+  /** Already bound to this job's signal, so cancelling a question actually stops one. */
+  provider: Provider,
 ): Promise<BuildPipelineCompletion> {
   const resolution: PromptResolutionMemory = {
     intent,
@@ -152,22 +159,33 @@ function runNonBuildIntent(
     resolver,
   };
   context.job.resolution = resolution;
-  // A question is not a deflection: the answer window opens beside whatever is standing and
-  // speaks there, and the frame the submit borrowed is given back untouched — the capability
-  // being asked about is still open, still itself (PLAN decisions 21, 23).
-  const question = intent.type === "data_query" ? { question: context.job.prompt } : {};
-  return streamDeflection({
-    generationId: context.job.id,
+  const shared = {
     resolution,
     recordMetrics: deps.recordMetrics,
     send: context.send,
     isAborted: context.isAborted,
     canPresent: context.canPresent,
     mutationCoordinator: deps.mutationCoordinator,
-    restoration: context.job.restoration,
-    buildDatabases: deps.buildDatabases,
     terminalPresenterTimeoutMs: deps.terminalPresenterTimeoutMs,
-    ...question,
+  };
+  // A question is not a deflection: it runs, and it is answered in a window that opens beside
+  // whatever is standing. The frame the submit borrowed is given back untouched — the capability
+  // being asked about is still open, still itself (PLAN decisions 21, 23).
+  if (intent.type === "data_query") {
+    return streamQuestion({
+      ...shared,
+      promptJobId: context.job.id,
+      databases: deps.buildDatabases,
+      question: context.job.prompt,
+      provider,
+      readGates: deps.readGates,
+    });
+  }
+  return streamDeflection({
+    ...shared,
+    generationId: context.job.id,
+    buildDatabases: deps.buildDatabases,
+    restoration: context.job.restoration,
   });
 }
 
@@ -285,7 +303,14 @@ async function runPromptJob(
     );
   }
   if (intent.type !== "new_capability") {
-    return runNonBuildIntent(context, deps, classification.catalogFingerprint, intent, resolver);
+    return runNonBuildIntent(
+      context,
+      deps,
+      classification.catalogFingerprint,
+      intent,
+      resolver,
+      provider,
+    );
   }
   if (intent.resolution === "namespace" && intent.proposed_identity) {
     validateProposedOverlapIdentity({

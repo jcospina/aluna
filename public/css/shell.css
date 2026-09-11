@@ -112,6 +112,10 @@
  */
 .window--answer .desk-window__answer {
   container: window / inline-size;
+  /* An answer is prose, except where a sentence would be a list — then it is the list, on its
+   * own lines (PLAN decision 3). The break is in the text as she wrote it, so this is what makes
+   * it one, and no markup is built out of her words. */
+  white-space: pre-wrap;
   flex: 1 1 auto;
   min-height: 0;
   overflow-x: hidden;

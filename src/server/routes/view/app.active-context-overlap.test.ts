@@ -15,7 +15,10 @@ import {
   publishCapabilitySnapshot,
   runCapabilityGate,
 } from "../../../builder/index.ts";
-import type { IntentClassification } from "../../../pipeline/intent/index.ts";
+import {
+  INTENT_RESOLVER_PROMPT_PREFIX,
+  type IntentClassification,
+} from "../../../pipeline/intent/index.ts";
 import { type CapabilitySpec, getCapability } from "../../../registry/index.ts";
 import { applyCapabilityTableDdl, deriveCapabilityTableDdl } from "../../../runtime/data/index.ts";
 import {
@@ -128,7 +131,12 @@ describe("homepage active context and semantic overlap", () => {
     const jobId = buildJobIdFromSubscriber(fragment);
     await readSse(await app.request(`/build/${jobId}/stream`));
 
-    expect(prompts).toHaveLength(1);
+    // The classification happens once, and the question that follows it is 6.5/03's — so what is
+    // counted here is the resolver's own calls, not every call the prompt made.
+    const classifications = prompts.filter((prompt) =>
+      prompt.startsWith(INTENT_RESOLVER_PROMPT_PREFIX),
+    );
+    expect(classifications).toHaveLength(1);
     expect(prompts[0]).toContain("Active capability:\nid: contacts");
     expect(prompts[0]).toContain("Prompt bar text:\nhow many are here");
   });

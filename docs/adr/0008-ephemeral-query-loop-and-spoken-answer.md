@@ -82,12 +82,24 @@ person actually asks is answered by a sentence, with bullets where a sentence wo
 list. A one-cell table headed `count(*)` is an engineering artifact, and ARCH §9.7
 forbids the product from being one.
 
+**Amended 2026-09-11 — rule 1 is withdrawn by the owner.** The restatement shipped, was read
+on a real desk, and was rejected: *"THE USER KNOWS WHICH CAPABILITIES IT HAS THERE IS NO NEED
+FOR ALUNA TO SAY OH I LOOKED FOR COFFEES UNDER COFFEE."* Naming what she read before every
+answer made each one arrive in the same shape — *"Under Colombia in your Coffee tasting, you
+have 7"* — which reads as a machine reporting in rather than as her. The answer is now one
+generated sentence with no restatement in front of it: *"You have tasted 7 coffees from
+Colombia."* Rules 2 and 3 are untouched, and so is everything below about what she may not say.
+
+What that costs is written down rather than argued away: the restatement was the user's only
+check on a fluent, confidently wrong answer, and there is now no check at all. The collections
+a statement opened and the values it narrowed to still reach the answer's prompt, because the
+sentence needs them — *from Colombia* is the value she searched on — so a mis-scoped answer can
+still show in the words, but nothing makes it. The owner has this trade and chose it twice.
+
 Three rules make a spoken answer safe to trust:
 
-1. **She says what she looked at before she says what she found** — not the SQL, its
-   meaning. Removing the table removed the receipt; the restatement is the honest
-   replacement, and a better one, because it exposes what she *decided* rather than what
-   she retrieved. It also carries the scope at no extra cost.
+1. ~~**She says what she looked at before she says what she found.**~~ Withdrawn above. She
+   answers the question and stops; where she looked is not part of what she says.
 2. **Zero matched rows is never stated as a fact about the user's life.** The platform
    distinguishes "no rows matched" from "the rows matched and totalled zero"
    deterministically — a count returns `0`, a sum over no rows returns `NULL` — so this is

@@ -15,7 +15,7 @@
 // The gap is the one sentence with a word of the model's inside it, and the word is narrowed
 // here to a run this person wrote. `question-no-home.ts` runs the call that offers one.
 
-import type { QuestionEnding } from "./question-loop.ts";
+import type { QuestionEnding, QuestionLoopResult } from "./question-loop.ts";
 import {
   QUESTION_STEP_FALLBACK_LABEL,
   type QuestionStepLabel,
@@ -70,6 +70,16 @@ export const QUESTION_NOTHING_FOUND = "I couldn't find anything matching that.";
 
 /** What she says when nothing matched and no statement of hers ever opened a collection. */
 export const QUESTION_NOTHING_FOUND_ANYWHERE = "I couldn't find anything to answer that with.";
+
+/**
+ * The third ending: the question stopped before it could finish. A faulted generation, a read
+ * gate closing under a deletion, a context window overrun and an answer that came back unreadable
+ * all arrive here (6.3/02, 6.4/02). She claims only that she did not finish — a deletion closing
+ * a gate is the platform working, not a fault — and asks for the question again rather than for
+ * different words, because nothing about the words was wrong.
+ */
+export const QUESTION_COULD_NOT_FINISH =
+  "I couldn't finish looking at that one. Mind asking me again?";
 
 /**
  * What she says when no statement of hers came back at all — every one failed or was refused.
@@ -157,6 +167,15 @@ export function questionSubjectInTheirWords(question: string, subject: string): 
     }
   }
   return null;
+}
+
+/**
+ * The one sentence a finished question ends on, whichever ending it reached. A spent budget has
+ * no answer to carry — deliberately, so nothing downstream can render half a computation as a
+ * finding — so the platform's own sentence stands in its place (6.5/03).
+ */
+export function questionResultSentence(result: QuestionLoopResult): string {
+  return result.ending === "budget_spent" ? QUESTION_BUDGET_SPENT_SENTENCE : result.answer;
 }
 
 /**

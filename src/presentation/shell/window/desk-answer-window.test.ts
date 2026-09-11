@@ -17,6 +17,9 @@ import {
   answerDefaultBox,
   dismissAnswerWindow,
   OPEN_THE_ANSWER_WINDOW_EVENT,
+  openAnswerWindow,
+  SAY_IN_THE_ANSWER_WINDOW_EVENT,
+  sayInAnswerWindow,
   startDeskAnswerWindow,
   syncAnswerForm,
 } from "#shell/desk-answer-window.js";
@@ -26,8 +29,11 @@ import {
   WINDOW_CONTENT_ID,
   WINDOW_STORAGE_KEY,
 } from "#shell/desk-window.js";
+import { questionLabelNarration } from "../../../runtime/query/index.ts";
+import { ANSWER_WINDOW_OPENING } from "../../../server/http/index.ts";
 import { codeOf as code, readSource as read, rules } from "../../safety/source.test-support.ts";
 import { desk, fakeEl } from "./desk-window.test-support.ts";
+import { standingDesk } from "./standing-desk.test-support.ts";
 
 const ANSWER = code("public/desk-answer-window.js");
 const WINDOW = code("public/desk-window.js");
@@ -37,6 +43,7 @@ const SHELL = read("public/index.html");
 const FRAGMENTS = read("src/server/http/fragments.ts");
 const PIPELINE = code("src/pipeline/build/prompt-pipeline.ts");
 const DEFLECTION = code("src/pipeline/build/admission/deflection-pipeline.ts");
+const QUESTION = code("src/pipeline/query/question-pipeline.ts");
 const SHELL_CSS = rules("public/css/shell.css");
 
 /** A window, as much of one as `syncAnswerForm` touches — lamp, bar, and the gestures. */
@@ -162,11 +169,13 @@ describe("it displaces nothing", () => {
     // nothing — a restoration would put the *canonical collection* back, which replaces a record
     // the user had open. The glue marks the run instead, so at close only the run's own subscriber
     // goes and whatever the region was holding is still exactly what it was holding.
-    expect(PIPELINE).toMatch(
-      /intent\.type === "data_query" \? \{ question: context\.job\.prompt \}/,
-    );
-    expect(DEFLECTION).toMatch(/question === undefined\s*\? renderRestorationFragment\(/);
-    expect(DEFLECTION).toMatch(/: renderAnswerWindowOpening\(question\);/);
+    expect(PIPELINE).toMatch(/if \(intent\.type === "data_query"\) \{\s*return streamQuestion\(/);
+    // The question path has no restoration to render, and no way to reach for one: a deflection
+    // is the only non-build outcome that puts anything back, and it no longer knows what a
+    // question is.
+    expect(QUESTION).not.toContain("renderRestorationFragment");
+    expect(QUESTION).not.toContain("restoration");
+    expect(DEFLECTION).not.toContain("question");
     expect(GLUE).toContain('subscriber.dataset.preserveActiveView = "true";');
     expect(GLUE).toMatch(
       /preserveActiveView = "true";\s*if \(!outputHasOnlyDormantSubscriber\(output, subscriber\)\)\s*nameTheWindow\(null\);/,
@@ -335,6 +344,86 @@ describe("the seam a classic script reaches the answer window across", () => {
     expect(GLUE).toContain('ANSWER_WINDOW_ATTRIBUTE = "data-answer-window"');
     // It lands nowhere, like the window's name: the desk owns its windows (ARCH §6.1).
     expect(GLUE).toMatch(/openTheAnswerWindowFrom\(listener, message\.data\) \|\|/);
+  });
+
+  test("both ends agree on the mark a later sentence rides, and on where it lands", () => {
+    expect(SAY_IN_THE_ANSWER_WINDOW_EVENT).toBe("aluna:say-in-the-answer-window");
+    expect(GLUE).toContain(`SAY_IN_THE_ANSWER_WINDOW_EVENT = "${SAY_IN_THE_ANSWER_WINDOW_EVENT}"`);
+    expect(GLUE).toContain('ANSWER_WINDOW_SAYING_ATTRIBUTE = "data-answer-saying"');
+    expect(FRAGMENTS).toContain(
+      'export const ANSWER_WINDOW_SAYING_ATTRIBUTE = "data-answer-saying";',
+    );
+    // It lands nowhere either, and it is asked before the parked restoration is.
+    expect(GLUE).toMatch(/sayInTheAnswerWindowFrom\(listener, message\.data\) \|\|/);
+  });
+
+  test("a sentence for a window nobody is holding open goes nowhere at all", () => {
+    // Dismissing destroys the answer, and a question still running says the rest of what it had
+    // to say into a desk that is no longer listening. Nothing reopens (ADR-0008).
+    expect(sayInAnswerWindow("I'm counting how many you have.")).toBe(false);
+    const say = wiring({})?.get(SAY_IN_THE_ANSWER_WINDOW_EVENT)?.[0];
+    expect(say).toBeDefined();
+    for (const detail of [undefined, null, {}, { saying: 7 }, { question: "how many?" }]) {
+      expect(() => say?.({ detail })).not.toThrow();
+    }
+    // And a real sentence reaches the same dead end rather than building a window to hold it.
+    expect(() => say?.({ detail: { saying: "I'm adding everything up." } })).not.toThrow();
+  });
+
+  test("each sentence replaces the last: the window is one utterance, never a log", () => {
+    // A build narration is the log; an answer window holds one thing at a time (PLAN decision 24).
+    // Appending instead would make it a history of every step, which is decision 3's "no answer
+    // history" by another route.
+    const desk = standingDesk();
+    try {
+      const answer = openAnswerWindow(desk.doc, "how many notes?", ANSWER_WINDOW_OPENING);
+      const naming = questionLabelNarration("naming");
+      const counting = questionLabelNarration("counting");
+      sayInAnswerWindow(naming);
+      sayInAnswerWindow(counting);
+      expect(answer.body.textContent).toBe(counting);
+    } finally {
+      dismissAnswerWindow();
+      desk.restore();
+    }
+  });
+
+  test("a sentence that overtook the opening line keeps the window", async () => {
+    // The opening is written in a later task, so the first step's sentence can land before it.
+    // Without a guard the timer puts `Let me look…` back and it stays there for good — the window
+    // then claims she never looked, on the first question of the page and no other.
+    const desk = standingDesk();
+    try {
+      const answer = openAnswerWindow(desk.doc, "how many notes?", ANSWER_WINDOW_OPENING);
+      const counting = questionLabelNarration("counting");
+      expect(sayInAnswerWindow(counting)).toBe(true);
+      await new Promise((wake) => setTimeout(wake, 1));
+      expect(answer.body.textContent).toBe(counting);
+    } finally {
+      dismissAnswerWindow();
+      desk.restore();
+    }
+  });
+
+  test("a list in an answer is read as a list rather than run into one line", () => {
+    // An answer that is a list runs over lines exactly as she wrote it, so the breaks have to
+    // survive to the desk — `textContent` alone would collapse them (PLAN decision 3).
+    expect(SHELL_CSS).toMatch(
+      new RegExp(
+        `${ANSWER_WINDOW_SELECTOR.replaceAll(".", "\\.")} ${ANSWER_BODY_SELECTOR.replaceAll(".", "\\.")} \\{[^}]*white-space: pre-wrap;`,
+      ),
+    );
+  });
+
+  test("one prompt bar and no way to pre-classify a sentence", () => {
+    // PLAN decision 1: no mode switch, no slash command, no ask-versus-build control. The composer
+    // is where such a control would have to live, and it carries one field and one submit.
+    const composer = SHELL.slice(SHELL.indexOf("prompt__composer"));
+    const bar = composer.slice(0, composer.indexOf("</form>"));
+    for (const control of ["<select", "<option", 'type="radio"', 'type="checkbox"', 'role="tab"']) {
+      expect({ control, present: bar.includes(control) }).toEqual({ control, present: false });
+    }
+    expect(bar.match(/<input\b/g) ?? []).toHaveLength(1);
   });
 
   test("the layer is demanded at start-up, not at the first question", () => {

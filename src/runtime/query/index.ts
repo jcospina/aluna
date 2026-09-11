@@ -17,13 +17,12 @@ export {
 } from "./query-worker.ts";
 // The answer's rules are not re-exported, for the reason `QUESTION_STEP_LABEL_HINTS` is not: they
 // are what the *model* is told. The prefix is, because a fake provider outside recognizes the call,
-// and so are the shape and the join, because such a provider has to produce one.
+// and so is the shape, because such a provider has to produce one.
 export {
   QUESTION_ANSWER_NOTHING_MATCHED,
   QUESTION_ANSWER_PROMPT_PREFIX,
   type QuestionAnswerWritten,
   questionAnswerSchema,
-  questionAnswerSentence,
 } from "./question-answer.ts";
 export {
   QUESTION_STEP_BUDGET,
@@ -34,6 +33,7 @@ export {
 } from "./question-loop.ts";
 export {
   QUESTION_BUDGET_SPENT_SENTENCE,
+  QUESTION_COULD_NOT_FINISH,
   QUESTION_NO_HOME_FOR_THAT,
   QUESTION_NOTHING_FOUND,
   QUESTION_NOTHING_FOUND_ANYWHERE,
@@ -42,6 +42,7 @@ export {
   questionLabelNarration,
   questionNoHomeSentence,
   questionNothingFoundSentence,
+  questionResultSentence,
   questionStepNarration,
 } from "./question-narration.ts";
 // The gap's rules, its schema, its catalog check and the call that runs it are not re-exported,
