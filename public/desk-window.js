@@ -195,9 +195,7 @@ let watching = false;
  */
 export function windowLayer(root) {
   const layer = root.querySelector(WINDOW_LAYER_SELECTOR);
-  if (layer === null || layer === undefined) {
-    throw new Error("The desk's window layer is missing.");
-  }
+  if (layer === null || layer === undefined) throw new Error("The desk's window layer is missing.");
   return /** @type {HTMLElement} */ (layer);
 }
 
@@ -884,7 +882,7 @@ function openAddressedWindow(root, pathname, logo) {
  * A window opened for a request that never filled it does not get to stand there. Checked against
  * the window up now: a slow read can answer after the user has opened something else.
  *
- * @param {Element} region the region the request was aimed at
+ * @param {Element | null} region the region the request was aimed at, if there is one
  * @returns {boolean} whether there was an unfilled window and it is now gone
  */
 function putAwayUnfilledWindow(region) {
@@ -1034,6 +1032,12 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
   root.addEventListener(PUT_WINDOW_AWAY_EVENT, () => {
     putAway();
   });
+
+  /* A request that never came back leaves the frame it stood up holding nothing, with no swap to
+   * settle and no stream to close: the two moments that otherwise answer for an empty one. */
+  for (const failed of ["htmx:sendError", "htmx:responseError"]) {
+    root.addEventListener(failed, () => putAwayUnfilledWindow(mounted?.region ?? null));
+  }
 
   root.addEventListener(
     "submit",

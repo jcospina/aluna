@@ -51,6 +51,16 @@ export class El {
     this.attrs.set("id", value);
   }
 
+  /**
+   * The browser's own `Node.contains`, itself included. Read by the release a run's story goes
+   * through on its way off the page (`public/region-scope.js`), which walks what the desk has
+   * anchored; a node without it answers that walk with a `TypeError`.
+   */
+  contains(other: El | null | undefined): boolean {
+    for (let at = other ?? null; at; at = at.parent) if (at === this) return true;
+    return false;
+  }
+
   /** Reachable from the page, the way a browser means it — not merely holding a parent. */
   get isConnected(): boolean {
     for (let at: El | null = this; at; at = at.parent) if (at === El.page) return true;

@@ -1,6 +1,8 @@
 import {
   LEAVING_BACK_SELECTOR,
   LEAVING_WARNING_SELECTOR,
+  QUESTION_IN_THE_WINDOW_SELECTOR,
+  RUN_ID_ATTRIBUTE,
   RUN_IN_THE_WINDOW_SELECTOR,
 } from "#shell/leaving-a-run.js";
 
@@ -34,7 +36,7 @@ export function windowWithRun(
     [LEAVING_WARNING_SELECTOR]: question ? warning : null,
   };
   const run = {
-    getAttribute: () => "build-7",
+    getAttribute: (name: string) => (name === RUN_ID_ATTRIBUTE ? "build-7" : null),
     querySelector: (selector: string) => inside[selector] ?? null,
   };
   return {
@@ -48,5 +50,21 @@ export function windowWithRun(
     control,
     warning,
     back,
+  };
+}
+
+/**
+ * A window holding one question: the same subscriber, marked as the question it turned out to be
+ * and having handed the frame back, so only the question's own selector reaches it.
+ */
+export function windowWithQuestion(focused: string[]) {
+  const { run, ...rest } = windowWithRun(focused, { givenBack: true });
+  return {
+    ...rest,
+    run,
+    el: {
+      querySelector: (selector: string) =>
+        selector === QUESTION_IN_THE_WINDOW_SELECTOR ? run : null,
+    },
   };
 }
