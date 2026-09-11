@@ -280,7 +280,9 @@ async function runExercise(deps: DemoQuestionDeps, question: string): Promise<Qu
     }
     const loop = await runDataQuery(
       { provider, readGates: deps.readGates, database: deps.registryReadonly },
-      { intent, question, onStep: (step) => steps.push(step) },
+      // Scaffolding has no one to give up on a question: the two triggers are the desk's, and
+      // this surface has neither (6.5/05 takes it down).
+      { intent, question, onStep: (step) => steps.push(step), signal: undefined },
     );
     return { question, intent, steps, loop };
   } catch (error) {

@@ -6,6 +6,7 @@ import {
   El,
   eventAt,
   narrateEnding,
+  openStream,
   streamRestoration,
 } from "../../app.shell-double.test-support.ts";
 import { renderBuildEnding, renderBuildSubscriber } from "../../http/index.ts";
@@ -224,6 +225,7 @@ describe("the prompt bar while an ending is held", () => {
   test("keeps the words that produced it and hands the keyboard to the control", () => {
     const scene = desk();
     const shell = scene.startShell();
+    openStream(scene);
     scene.promptField.value = "track my houseplants";
     narrateEnding(scene);
     const control = new El("button", { "data-build-dismiss": "" });
@@ -245,6 +247,7 @@ describe("the prompt bar while an ending is held", () => {
   test("a run with no ending clears the field and takes the keyboard back", () => {
     const scene = desk();
     const shell = scene.startShell();
+    openStream(scene);
     scene.promptField.value = "track my houseplants";
 
     closeStream(scene);

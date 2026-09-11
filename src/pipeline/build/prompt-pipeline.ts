@@ -179,6 +179,10 @@ function runNonBuildIntent(
       question: context.job.prompt,
       provider,
       readGates: deps.readGates,
+      // What the person's own two triggers arrive on (PLAN decisions 27, 10). A build reaches the
+      // same signal through `runCoreBuild`; a question needs it to reach the read scope, whose
+      // worker is the only thing a cancel can actually stop.
+      signal: context.signal,
     });
   }
   return streamDeflection({

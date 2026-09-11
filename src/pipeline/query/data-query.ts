@@ -48,6 +48,14 @@ export interface DataQuestion {
    * carry the rows past a spent budget. Threaded straight through to the loop's own seam.
    */
   readonly onStep?: (step: QuestionStep) => void;
+  /**
+   * The person giving up on this question — they asked something else, or dismissed the answer
+   * (PLAN decision 10) — arriving as this job's cancellation and reaching the scope's one entry
+   * point. Asked for rather than optional, `undefined` and all: what it stops is a worker
+   * mid-statement, which no test reaching this through a route can stage, so a caller that
+   * quietly stopped passing it would leave every test green.
+   */
+  readonly signal: AbortSignal | undefined;
 }
 
 /**
@@ -75,10 +83,25 @@ export async function runDataQuery(
       readActiveCatalog: deps.readActiveCatalog,
       createWorker: deps.createWorker,
     },
-    (scope) =>
-      runQuestionLoop(
-        { provider: deps.provider, scope, database },
-        { question: input.question, ...(input.onStep ? { onStep: input.onStep } : {}) },
-      ),
+    async (scope) => {
+      // The raiser 6.2/03 left for 6.5/04. The gate's trigger is wired inside the scope; the
+      // person's two are wired here, and all three call the same `cancel()`. Nothing else stops
+      // a question: a synchronous statement in the worker cannot be asked to stop, only killed.
+      const abandon = () => {
+        scope.cancel();
+      };
+      if (input.signal?.aborted) abandon();
+      input.signal?.addEventListener("abort", abandon, { once: true });
+      try {
+        return await runQuestionLoop(
+          { provider: deps.provider, scope, database },
+          { question: input.question, ...(input.onStep ? { onStep: input.onStep } : {}) },
+        );
+      } finally {
+        // Off before the scope releases, so a job cancelled after its own question ended cannot
+        // reach back into a scope that is already over.
+        input.signal?.removeEventListener("abort", abandon);
+      }
+    },
   );
 }

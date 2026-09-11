@@ -225,7 +225,8 @@
   <body hx-history="false">
     <!--
       The shell. Alpine `shell` component (public/app.js) holds one bit of
-      presentation state: `promptBusy` (an active build stream is open). It is
+      presentation state: `promptBusy` (a build has the window; a question gives it
+      straight back, so it never locks the bar — PLAN decision 27). It is
       reflected as a class and an attribute the stylesheet keys off; without the
       class the markup renders the correct state, so there's no flash before Alpine.
       The developer panel's own shown/put-away state left with the rail: it is the
@@ -326,13 +327,20 @@
 
              HTMX posts to /prompt; the returned subscriber fragment opens the
              per-build stream. Alpine only mirrors stream lifecycle as a courtesy
-             busy presentation state (PLAN decision 7). -->
+             busy presentation state (PLAN decision 7).
+
+             `hx-sync` drops a second submission made before the first one's
+             subscriber has landed. The desk admits one run at a time and reads
+             the window to enforce it, and in that gap the window is empty — a
+             gap the bar used to be disabled across, and no longer is for a
+             question (PLAN decision 27). -->
         <form
           class="prompt"
           id="spec-build-form"
           hx-post="/prompt"
           hx-target="#spec-build-output"
           hx-swap="beforeend"
+          hx-sync="this:drop"
           :class="{ 'prompt--busy': promptBusy }"
           :aria-busy="promptBusy ? 'true' : 'false'"
         >

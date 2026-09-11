@@ -116,14 +116,44 @@ export class El {
     // and quietly answer about the wrong node, which a double is not allowed to do.
     if (/\s/.test(selector.trim())) throw new Error(`not a compound selector: ${selector}`);
     if (selector.startsWith("#")) return this.attributes.get("id") === selector.slice(1);
+    const negated = this.negationIn(selector);
+    if (negated !== null) return negated;
     const tagged = /^([a-z]+)\[/.exec(selector);
     if (tagged && this.tag !== tagged[1]) return false;
-    const attribute = /\[([\w-]+)(?:="([^"]*)")?\]/.exec(selector);
-    if (attribute) {
-      const held = this.attributes.get(attribute[1] ?? "");
-      return held !== undefined && (attribute[2] === undefined || held === attribute[2]);
-    }
+    const attributes = [...selector.matchAll(/\[([\w-]+)(?:="([^"]*)")?\]/g)];
+    if (attributes.length > 0) return this.holdsAll(attributes);
     return selector.startsWith(".") && this.classList.contains(selector.slice(1));
+  }
+
+  /**
+   * `:not([attr])`, the one negation the shell's own selectors use — a run that is not a question.
+   * Answered before the attribute walk, which would otherwise read the negated name as a
+   * requirement and say yes to exactly the node the selector excludes. Any other negation is
+   * refused rather than answered: `:not(.class)` would come out as "no", which is a double
+   * quietly deciding a rule under test.
+   *
+   * @returns the answer, or `null` when the selector negates nothing
+   */
+  private negationIn(selector: string): boolean | null {
+    const negated = /:not\(\[([\w-]+)\]\)/.exec(selector);
+    if (!negated) {
+      if (selector.includes(":not(")) {
+        throw new Error(`only \`:not([attribute])\` is understood here: ${selector}`);
+      }
+      return null;
+    }
+    return !this.attributes.has(negated[1] ?? "") && this.matches(selector.replace(negated[0], ""));
+  }
+
+  /**
+   * Every attribute the selector names, not just the first: `[a][b]` asks for both, and a double
+   * that answered about `[a]` alone would say yes to a node the browser passes over.
+   */
+  private holdsAll(asked: readonly RegExpExecArray[]): boolean {
+    return asked.every(([, name, value]) => {
+      const held = this.attributes.get(name ?? "");
+      return held !== undefined && (value === undefined || held === value);
+    });
   }
 
   closest(selector: string): El | null {
@@ -473,6 +503,15 @@ export function streamRestoration(scene: ReturnType<typeof desk>, raw = RESTORAT
   const event = eventAt("htmx:sseBeforeMessage", scene.surface, { data: raw });
   scene.fire("htmx:sseBeforeMessage", event);
   return event.defaultPrevented;
+}
+
+/**
+ * The run's stream opening, which is what locks the prompt bar while a build has the window
+ * (`public/app.js`). A scene with a run standing in it and no stream open is not a state the
+ * browser can be in, and the rules about waking the bar all begin from the lock.
+ */
+export function openStream(scene: ReturnType<typeof desk>) {
+  scene.fire("htmx:sseOpen", eventAt("htmx:sseOpen", scene.surface, null));
 }
 
 /** The stream closing the way the server closes it. */

@@ -10,6 +10,7 @@ import {
   El,
   eventAt,
   narrateEnding,
+  openStream,
   streamRestoration,
   WINDOW_REGION_ID,
 } from "../../app.shell-double.test-support.ts";
@@ -225,6 +226,7 @@ describe("what retires a sentence on the bar", () => {
   test("the run it was about ending, because it stops being true with it", () => {
     const scene = desk();
     scene.startShell();
+    openStream(scene);
     submitPrompt(scene);
     expect(spoken(scene)).toContain("I’m still making the last thing you asked for");
 
@@ -237,6 +239,7 @@ describe("what retires a sentence on the bar", () => {
   test("but the words typed while waiting are kept, because they were never sent", () => {
     const scene = desk();
     scene.startShell();
+    openStream(scene);
     scene.promptField.value = "and my succulents";
     submitPrompt(scene);
 
@@ -251,6 +254,7 @@ describe("what retires a sentence on the bar", () => {
   test("and a sentence that replaced it since is about something else, so it stays", () => {
     const scene = desk();
     scene.startShell();
+    openStream(scene);
     submitPrompt(scene);
     scene.fire(PROMPT_BAR_MESSAGE_EVENT, { detail: { sentence: "I deleted Notes permanently." } });
 

@@ -54,17 +54,14 @@ function tellThePromptBar(sentence, refused = false, aboutTheRun = false) {
  */
 const htmxConfig = /** @type {Window & { htmx?: { config?: Record<string, unknown> } }} */ (window)
   .htmx?.config;
-if (htmxConfig) {
-  // Set after the vendored htmx build rather than in the page, because htmx reads its config at
-  // swap time.
-  htmxConfig.allowScriptTags = false;
-  htmxConfig.allowEval = false;
-}
+// Set after the vendored htmx build rather than in the page, because htmx reads its config at
+// swap time, and together because they are one decision: this desk executes nothing it is sent.
+if (htmxConfig) Object.assign(htmxConfig, { allowScriptTags: false, allowEval: false });
 
 /**
  * The shell's presentation state.
  * @typedef {Object} ShellState
- * @property {boolean} promptBusy - Courtesy presentation state while a build stream is open.
+ * @property {boolean} promptBusy - Courtesy presentation state while a build has the window.
  * @property {() => void} init - Alpine lifecycle hook; wires the stream courtesy state.
  */
 
@@ -86,19 +83,29 @@ function shell() {
     promptBusy: false,
 
     init() {
-      /** @param {boolean} clear */
-      const wakePrompt = (clear) => {
+      /** @param {boolean} clear @param {boolean} [take] whether the keyboard is owed back */
+      const wakePrompt = (clear, take = true) => {
         this.promptBusy = false;
         requestAnimationFrame(() => {
           const promptField = document.getElementById(PROMPT_FIELD_ID);
           if (clear && promptField instanceof HTMLInputElement) promptField.value = "";
-          promptField?.focus();
+          // A wake the run owns takes the keyboard back, because disabling the field is what
+          // put it on `<body>`. A question's wake asks first: the desk stayed usable while she
+          // read, so the person may be typing somewhere else by now.
+          if (take || document.activeElement === document.body) promptField?.focus();
         });
       };
 
       document.addEventListener("htmx:sseOpen", () => {
-        this.promptBusy = true;
+        // The transport reconnects on its own after a drop, and that is not a new run: a question
+        // that has already said what it is keeps the bar it gave back.
+        this.promptBusy = document.querySelector(QUESTION_RUN_SELECTOR) === null;
       });
+      /* A question does not lock the bar (PLAN decision 27). The lock goes on at the open, where
+       * nothing yet knows what the sentence was; the moment the run says it turned out to be a
+       * question it comes off, and the words that asked it go with it. Waiting for an answer is
+       * not waiting for a commit: asking something else has to be possible immediately. */
+      document.addEventListener(OPEN_THE_ANSWER_WINDOW_EVENT, () => wakePrompt(true, false));
       document.addEventListener("htmx:sseClose", (event) => {
         // Only a stream the server finished: `nodeReplaced` and `nodeMissing` are the desk
         // taking a run down, and the navigation that did it already placed focus.
@@ -109,7 +116,11 @@ function shell() {
         if (ending === null) {
           // A sentence about the run that just ended retires with it. Words typed while the
           // person was told to wait were never submitted, so they stay.
-          wakePrompt(!aSentenceAboutTheRunWasRetired());
+          //
+          // Only a bar this run actually locked: a question woke it when it opened its window,
+          // and the next question may be half typed by the time the answer lands. Waking again
+          // would take those words away and pull focus off whatever the person is doing.
+          if (this.promptBusy) wakePrompt(!aSentenceAboutTheRunWasRetired());
           return;
         }
         this.promptBusy = false;
@@ -125,7 +136,7 @@ function shell() {
       document.addEventListener("htmx:sseError", (event) => {
         const source = /** @type {{detail?: {source?: {readyState?: number}}}} */ (event).detail
           ?.source;
-        if (source?.readyState === EventSource.CLOSED) wakePrompt(false);
+        if (source?.readyState === EventSource.CLOSED && this.promptBusy) wakePrompt(false);
       });
     },
   };
@@ -156,6 +167,8 @@ const STAGES_CLEARED_EVENT = "aluna:stages-cleared";
 
 /** One build's subscriber — the node the run's id is written on. */
 const BUILD_SUBSCRIBER_SELECTOR = "[data-build-job-id]";
+/** What a run that turned out to be a question is marked with (`public/leaving-a-run.js`). */
+const QUESTION_RUN_SELECTOR = "[data-question-run]";
 
 /**
  * A run that ended with something to say, and the control that ends the wait (`renderBuildEnding`,
@@ -427,6 +440,9 @@ function openTheAnswerWindowFrom(listener, raw) {
   const subscriber = listener.closest(BUILD_SUBSCRIBER_SELECTOR);
   const output = subscriber?.closest(`#${WINDOW_REGION_ID}`);
   if (subscriber instanceof HTMLElement && output instanceof HTMLElement) {
+    // What the desk finds a running question by (`public/leaving-a-run.js`), and the one thing
+    // the two triggers of decision 10 need standing in the window to have anything to end.
+    subscriber.dataset.questionRun = "true";
     subscriber.dataset.preserveActiveView = "true";
     if (!outputHasOnlyDormantSubscriber(output, subscriber)) nameTheWindow(null);
   }
@@ -546,7 +562,10 @@ document.addEventListener("htmx:beforeRequest", (event) => {
       tellThePromptBar(BUILD_IN_FLIGHT_REFUSAL, true, true);
       return;
     }
-    dropHeldRun(standing);
+    // Never a question: `dropHeldRun` takes the node out without htmx's cleanup, which would
+    // leave the stream open and the reading going. The answer window has already ended it
+    // (`public/desk-answer-window.js`), and if it could not, leaving it is the lesser harm.
+    if (!standing.matches(QUESTION_RUN_SELECTOR)) dropHeldRun(standing);
   }
   tellThePromptBar("");
 });
@@ -577,14 +596,16 @@ document.addEventListener("htmx:beforeRequest", (event) => {
 });
 
 /**
- * Whether a run is using the window, rather than only standing in it. A run waiting to be read
- * is not — the same line the one-subscriber guard draws, so the two can never disagree.
+ * Whether a run is using the window, rather than only standing in it. A run waiting to be read is
+ * not, and neither is a question, which gave the window back as it opened its answer window —
+ * refusing a press over one would hold the desk for a run that is not in it, and would put the
+ * deletion that cancels a question (decision 10) out of reach. `leaving-a-run.js` draws it so too.
  * @returns {boolean}
  */
 function runIsUsingTheWindow() {
   const standing = document
     .getElementById(WINDOW_REGION_ID)
-    ?.querySelector(BUILD_SUBSCRIBER_SELECTOR);
+    ?.querySelector(`${BUILD_SUBSCRIBER_SELECTOR}:not(${QUESTION_RUN_SELECTOR})`);
   return standing instanceof HTMLElement && standing.querySelector(BUILD_ENDING_SELECTOR) === null;
 }
 

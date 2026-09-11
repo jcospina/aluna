@@ -6,6 +6,10 @@
  * nothing: the capability being asked about stays open and stays itself, which is the whole
  * reason an answer is a window rather than something anchored to the prompt bar.
  *
+ * It is also where the person gives up on a question. Asking something else and dismissing the
+ * answer both end the one that is running, through `leaving-a-run.js` (PLAN decision 10), and
+ * neither asks first.
+ *
  * It is the one window that remembers nothing. No box is stored, no tile or address names it,
  * and its clay lamp dismisses rather than puts away — put away means the logo brings it back,
  * and closing this destroys the answer. The frame is never closed between questions either: a
@@ -24,6 +28,12 @@ import { AlunaWindow } from "../design/scripts/window.js";
 import { addWindowDrag, addWindowGrip, setMaximised } from "../design/scripts/window-gestures.js";
 import { joinStack, leaveStack, raise, raiseFromPress } from "./desk-stack.js";
 import { fitBox, openingGeometry, PROMPT_FORM_ID, windowLayer } from "./desk-window.js";
+import {
+  cancelQuestionIn,
+  detachQuestionIn,
+  QUESTION_IN_THE_WINDOW_SELECTOR,
+} from "./leaving-a-run.js";
+import { WINDOW_CONTENT_ID } from "./shell-dom.js";
 
 /**
  * The desk being told a sentence turned out to be a question: what to call the window, and what
@@ -79,6 +89,17 @@ let mounted = null;
 let phone = false;
 /** Bound once, however many times an answer window opens and is dismissed. */
 let watching = false;
+/** Every root this module is already wired on, the way `leaving-a-run.js` guards its own. */
+const started = new WeakSet();
+/**
+ * The document this module was started on: the one thing both triggers reach the desk through, so
+ * the lamp and the prompt bar can never be answering about two different pages.
+ * @type {{ getElementById?: (id: string) => unknown, dispatchEvent?: (event: Event) => boolean }}
+ */
+let desk = globalThis.document;
+/** Whether the window is showing a question that was given up on before it answered. */
+let abandoned = false;
+
 let titleCount = 0;
 /** How many times the body has been written. The opening is written in a later task, so a real
  * sentence can overtake it; this is how that task knows it has been overtaken. */
@@ -252,6 +273,8 @@ function bindGestures(entry) {
  * @returns {AnswerWindow}
  */
 export function openAnswerWindow(root = document, question = "", saying = "") {
+  // Whatever the window was showing, this question owns it now.
+  abandoned = false;
   const fresh = mounted === null;
   mounted ??= mount(root);
   const entry = mounted;
@@ -294,6 +317,35 @@ export function sayInAnswerWindow(saying) {
   return true;
 }
 
+/** The window region, as the desk this module was started on answers for it. */
+function windowRegion() {
+  return desk?.getElementById?.(WINDOW_CONTENT_ID) ?? null;
+}
+
+/**
+ * End the question the desk is answering, if one is still running. The cancel, the release and
+ * the detach all live in `leaving-a-run.js`; what this module owns is the two moments a person
+ * raises them. A question that has already answered leaves nothing to end, so this says no.
+ *
+ * @returns {boolean} whether a question was ended
+ */
+function abandonTheQuestion(takeTheStoryDown = false) {
+  const region = /** @type {Parameters<typeof cancelQuestionIn>[0] | null} */ (windowRegion());
+  if (region === null) return false;
+  const ended = cancelQuestionIn(region) !== null;
+  // What she was saying stopped mid-sentence and nothing of this question will finish it. A
+  // question asked next takes the window over; anything else has to take it down.
+  if (ended && mounted !== null) abandoned = true;
+  /* Taken down where something is about to replace it, and left standing where nothing is. A
+   * story left standing ends through the close the server sends, which is what puts the frame it
+   * stood in away; one taken down makes room, and closes a stream that could otherwise land a
+   * frame of hers in the window the next question is already speaking in. */
+  if (ended && takeTheStoryDown) {
+    detachQuestionIn(/** @type {Parameters<typeof detachQuestionIn>[0]} */ (region));
+  }
+  return ended;
+}
+
 /**
  * The user closing the answer, and the only way it goes away. The answer goes with the window and
  * there is no logo, tile or address that could bring it back.
@@ -301,6 +353,12 @@ export function sayInAnswerWindow(saying) {
  * @returns {boolean} whether there was an answer window to dismiss
  */
 export function dismissAnswerWindow() {
+  /* Dismissing the answer is giving up on the question (decision 10, second trigger). First, so
+   * the reading stops at the press rather than at whatever the window does next; a question that
+   * has already answered is not running and this costs it nothing. Before the guard below for the
+   * same reason: a question outliving the window it spoke in is worth ending either way. */
+  abandonTheQuestion();
+  abandoned = false;
   const entry = mounted;
   if (!entry) return false;
   mounted = null;
@@ -308,10 +366,9 @@ export function dismissAnswerWindow() {
   entry.win.destroy();
   entry.el.remove();
   /* Focus goes back to the bar rather than to `<body>`: a question is what opened this, the way a
-   * logo opens a capability window, and the bar is where the next one is typed. It is empty by
-   * now — the run's ending woke it and cleared it — so there are no words to keep. Whichever of
-   * its controls can take focus: `focus()` on a disabled one is a no-op, and a build disables
-   * both, which is the case 6.5/04 removes. */
+   * logo opens a capability window, and the bar is where the next one is typed. Whichever of its
+   * controls can take focus, and neither when a build is running: a build still holds the bar,
+   * and `focus()` on a disabled control is a no-op. */
   const bar = document.getElementById(PROMPT_FORM_ID);
   const control = bar?.querySelector("input:not(:disabled), button:not(:disabled)");
   if (control instanceof HTMLElement && control.isConnected) control.focus();
@@ -357,6 +414,11 @@ export function startDeskAnswerWindow(root = document) {
   /* Demanded first, and before a single listener is bound: a shell shipped without a window layer
    * must fail where it can be seen, not leave a question answered by nothing at all. */
   const layer = windowLayer(root);
+  /* Once per root, the way `leaving-a-run.js` guards its own: these are fresh closures
+   * `addEventListener` cannot dedupe, and two of them would cancel one question twice. */
+  if (started.has(root)) return;
+  started.add(root);
+  desk = /** @type {typeof desk} */ (/** @type {unknown} */ (root));
 
   root.addEventListener(OPEN_THE_ANSWER_WINDOW_EVENT, (event) => {
     const detail = /** @type {CustomEvent<{ question?: string, saying?: string }>} */ (event)
@@ -369,6 +431,32 @@ export function startDeskAnswerWindow(root = document) {
     const detail = /** @type {CustomEvent<{ saying?: string }>} */ (event).detail;
     if (typeof detail?.saying !== "string") return;
     sayInAnswerWindow(detail.saying);
+  });
+
+  /* Asking something else ends the question that is running (decision 10, first trigger). The
+   * capture phase, and not a nicety: the shell's one-run guard reads the window on the way back
+   * up (`public/app.js`), and a question still standing there is one it would refuse the second
+   * question over. What it finds instead is a desk with nothing running on it. */
+  root.addEventListener(
+    "htmx:beforeRequest",
+    (event) => {
+      const asking = /** @type {CustomEvent<{ elt?: { id?: string } }>} */ (event).detail?.elt;
+      if (asking?.id === PROMPT_FORM_ID) abandonTheQuestion(true);
+    },
+    true,
+  );
+
+  /* What takes down a window left showing a question nobody will finish. A question asked next
+   * takes the window over instead (decision 25: the frame is never closed between questions), so
+   * this is only reached when the sentence that replaced it was a build or was turned down — and
+   * it waits for that run to end, because until then the desk is still working on it. */
+  root.addEventListener("htmx:sseClose", (event) => {
+    const closed = /** @type {CustomEvent<{ type?: string }>} */ (event);
+    if (closed.detail?.type !== "message" || !abandoned) return;
+    /* Not the stopped question's own ending, which arrives within a moment of the cancel: what
+     * decides whether the window stays is the run that replaced it. */
+    const from = /** @type {{ closest?: (selector: string) => unknown } | null} */ (closed.target);
+    if (from?.closest?.(QUESTION_IN_THE_WINDOW_SELECTOR) == null) dismissAnswerWindow();
   });
 
   watchViewport(layer);

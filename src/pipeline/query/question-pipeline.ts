@@ -38,11 +38,24 @@ export interface QuestionPipelineInput {
   readonly send: Send;
   readonly isAborted: () => boolean;
   readonly canPresent: () => boolean;
+  /**
+   * This job's cancellation, which is how the person's own two triggers reach the read scope
+   * (PLAN decision 10). `isAborted` answers the same question and cannot be waited on, so the
+   * frames are gated by one and the loop is stopped by the other. Required for the reason
+   * `DataQuestion.signal` gives: nothing but the compiler notices it going missing.
+   */
+  readonly signal: AbortSignal | undefined;
   readonly mutationCoordinator: MutationCoordinator;
   /** Where the catalog and the collections are read. Nothing on this path writes to either. */
   readonly databases: PlatformDatabase;
   readonly terminalPresenterTimeoutMs: number;
 }
+
+/**
+ * What the platform writes down when a question could not be finished. Exported because the suite
+ * that proves a cancelled question writes nothing has to ask about this line by name.
+ */
+export const COULD_NOT_FINISH_LOG = "Aluna could not finish that question:";
 
 /** The resolver measurement every non-build prompt leaves, written the way a deflection's is. */
 function rememberTheResolver(
@@ -81,6 +94,9 @@ function answerWindowVoice(input: QuestionPipelineInput) {
         await input.send("fragment", renderAnswerWindowSaying(saying()));
       })
       .catch((error) => {
+        // Not a cancelled question's: the frame failed because the person took the stream away,
+        // which is the desk working rather than a fault to explain.
+        if (input.isAborted()) return;
         console.error(
           "Aluna could not say that in the answer window:",
           error instanceof Error ? error.message : error,
@@ -127,6 +143,7 @@ async function runToAnEnding(
         intent: input.resolution.intent,
         question: input.question,
         onStep: (step) => say(() => questionStepNarration(step.call)),
+        signal: input.signal,
       },
     );
     return questionResultSentence(result);
@@ -136,10 +153,12 @@ async function runToAnEnding(
     if (error instanceof NotADataQuestionError) throw error;
     // The reason is the platform's to log and never the reader's to be handed: an error string on
     // the desk is decision 15's whole ban. The sentence carries its own causes.
-    console.error(
-      "Aluna could not finish that question:",
-      error instanceof Error ? error.message : error,
-    );
+    //
+    // A question the person gave up on is not one of those causes: the loop rejects because that
+    // is what a cancel does to it, so the log stays quiet (6.5/04: cancelling is not an error).
+    if (!input.isAborted()) {
+      console.error(COULD_NOT_FINISH_LOG, error instanceof Error ? error.message : error);
+    }
     return QUESTION_COULD_NOT_FINISH;
   }
 }
@@ -165,11 +184,15 @@ export async function streamQuestion(
   if (input.isAborted()) {
     // Stopped, not broken. A person who cancelled their own question is not owed a sentence
     // about it going wrong, so the window keeps the last thing she said and the run ends here.
-    await runBoundedTerminalPresentation(
-      input.send,
-      (send) => send("done", "error"),
-      input.terminalPresenterTimeoutMs,
-    );
+    // The stream is often already gone with them, and telling a socket nobody is holding that
+    // the run ended is a failure the platform would then write down.
+    if (input.canPresent()) {
+      await runBoundedTerminalPresentation(
+        input.send,
+        (send) => send("done", "error"),
+        input.terminalPresenterTimeoutMs,
+      );
+    }
     return "terminal-sent";
   }
   await deliverRestoredPresentation(

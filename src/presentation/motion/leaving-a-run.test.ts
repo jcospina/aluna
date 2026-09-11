@@ -6,16 +6,19 @@ import {
   backOutOfLeaving,
   buildCancelUrl,
   buildJobIdIn,
+  cancelQuestionIn,
+  detachQuestionIn,
   endTheRun,
   goAheadAndLeave,
   LEAVING_A_RUN_UNAVAILABLE,
   LEAVING_BACK_SELECTOR,
   leavingIsBeingAsked,
+  questionJobIdIn,
   standDownWith,
   startLeavingGuard,
 } from "#shell/leaving-a-run.js";
 import { codeOf as code } from "../safety/source.test-support.ts";
-import { node, windowWithRun } from "./leaving-a-run.test-support.ts";
+import { node, windowWithQuestion, windowWithRun } from "./leaving-a-run.test-support.ts";
 
 // Leaving a live build or evolution warns first, and confirming ends it once (PLAN decision 17,
 // amending design D3). Written against plain objects, so the order an ending owes is proved.
@@ -424,5 +427,61 @@ describe("what answers the question", () => {
     expect(mutations).toMatch(
       /if \(event\.key !== "Escape"\) return;\s*if \(leavingIsBeingAsked\(\)\) return;/,
     );
+  });
+});
+
+// Asking something else and dismissing the answer are decision 10's two user-raised triggers
+// (6.5/04). Both are raised in `public/desk-answer-window.js` and both stop the question here, at
+// the same call a desk action reaches — one cancel path, not three.
+describe("giving up on a question", () => {
+  test("is the same cancel, and nothing is asked first", () => {
+    const posted: string[] = [];
+    const asked = windowWithQuestion([]);
+
+    expect(cancelQuestionIn(asked.el, (url) => posted.push(url))).toBe("build-7");
+
+    expect(posted).toEqual([buildCancelUrl("build-7")]);
+    // A build warns before it is lost (decision 17). A question does not: it can be asked again.
+    expect(asked.warning.hidden).toBe(true);
+    expect(leavingIsBeingAsked()).toBe(false);
+  });
+
+  test("and the story comes down only once something has taken its place", () => {
+    // Left standing until then, so the window is never a frame holding nothing — and taken down
+    // before the run that replaced it can speak, so no frame of hers can reach the new question.
+    const order: string[] = [];
+    const asked = windowWithQuestion([]);
+    const how = {
+      api: { swap: () => order.push("detach") },
+      release: () => order.push("release"),
+    };
+
+    expect(detachQuestionIn(asked.el, how as never)).toBe(true);
+    expect(order).toEqual(["release", "detach"]);
+    // Nothing to take down twice, and a desk with no htmx has no way to close a stream at all.
+    expect(detachQuestionIn(bareWindow, how as never)).toBe(false);
+    expect(detachQuestionIn(asked.el, { api: {}, release: how.release } as never)).toBe(false);
+    expect(order).toEqual(["release", "detach"]);
+  });
+
+  test("a build is not a question, and a question is not a build", () => {
+    const posted: string[] = [];
+    const building = windowWithRun([]);
+    const asked = windowWithQuestion([]);
+
+    // The two live in the window one at a time, and neither lookup may answer about the other:
+    // ending a build without its warning, or warning about a question, are the same mistake.
+    expect(cancelQuestionIn(building.el, (url) => posted.push(url))).toBeNull();
+    expect(questionJobIdIn(building.el)).toBeNull();
+    expect(questionJobIdIn(asked.el)).toBe("build-7");
+    expect(buildJobIdIn(asked.el)).toBeNull();
+    expect(posted).toEqual([]);
+  });
+
+  test("a desk with nothing running has no question to stop", () => {
+    const posted: string[] = [];
+    expect(cancelQuestionIn(bareWindow, (url) => posted.push(url))).toBeNull();
+    expect(questionJobIdIn(bareWindow)).toBeNull();
+    expect(posted).toEqual([]);
   });
 });

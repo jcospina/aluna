@@ -36,6 +36,18 @@ export const RUN_IN_THE_WINDOW_SELECTOR = "[data-build-job-id]:not([data-preserv
 const BUILD_SUBSCRIBER_SELECTOR = RUN_IN_THE_WINDOW_SELECTOR;
 
 /**
+ * What marks a run that turned out to be a question (`public/app.js`, where the answer window's
+ * own opening frame is what says so). Its own mark rather than `data-preserve-active-view`: a
+ * build that turned out to be a deterministic duplicate carries that one too, and is at its last
+ * frame rather than running.
+ */
+export const QUESTION_RUN_ATTRIBUTE = "data-question-run";
+
+/** What a run's id is written on, and what a run is found by at all. */
+export const RUN_ID_ATTRIBUTE = "data-build-job-id";
+export const QUESTION_IN_THE_WINDOW_SELECTOR = `[${RUN_ID_ATTRIBUTE}][${QUESTION_RUN_ATTRIBUTE}]`;
+
+/**
  * The two things a run that is over holds the window with, neither of which leaving can cost you:
  * the ending waiting to be read (PLAN decision 25), and the surface an activation committed.
  */
@@ -131,7 +143,7 @@ export function buildJobIdIn(el) {
   const run = buildRunIn(el);
   if (run === null || run.querySelector(BUILD_ENDING_SELECTOR) !== null) return null;
   if (holdsSomething(run.querySelector(BUILD_COMMIT_SELECTOR))) return null;
-  return run.getAttribute("data-build-job-id");
+  return run.getAttribute(RUN_ID_ATTRIBUTE);
 }
 
 /**
@@ -160,18 +172,29 @@ function postCancel(url) {
 }
 
 /**
- * The run's cancel route, pressed on the person's behalf, and the one place anything
- * outside the run's own control row stops it. A desk action may never grow a second.
+ * The run's cancel route, pressed on the person's behalf, and the one place anything outside the
+ * run's own control row stops it. A desk action may never grow a second, and neither may a
+ * question: both of decision 10's user-raised triggers arrive at this one call.
+ *
+ * @param {string | null} jobId
+ * @param {(url: string) => void} post
+ * @returns {string | null} the run it cancelled, if one was going
+ */
+function cancelRun(jobId, post) {
+  if (jobId === null) return null;
+  post(buildCancelUrl(jobId));
+  return jobId;
+}
+
+/**
+ * Cancel the build this window is narrating.
  *
  * @param {WindowNode} el the window
  * @param {(url: string) => void} [post]
  * @returns {string | null} the run it cancelled, if one was going
  */
 export function cancelBuildIn(el, post = postCancel) {
-  const jobId = buildJobIdIn(el);
-  if (jobId === null) return null;
-  post(buildCancelUrl(jobId));
-  return jobId;
+  return cancelRun(buildJobIdIn(el), post);
 }
 
 /**
@@ -198,6 +221,18 @@ export function endTheRun({ run, cancel, release, detach }) {
 }
 
 /**
+ * How a run's story leaves the page, or nothing when htmx is not here to take it: the swap is
+ * what closes the `EventSource`, and a shell that cannot close one may not detach anything.
+ *
+ * @param {Htmx | undefined} api
+ * @returns {((run: unknown) => void) | null}
+ */
+function detachWith(api) {
+  if (!api?.swap) return null;
+  return (run) => api.swap?.(run, "", { swapStyle: "outerHTML", swapDelay: 0, settleDelay: 0 });
+}
+
+/**
  * End the run this window is narrating.
  *
  * @param {WindowNode} el the window
@@ -210,10 +245,66 @@ export function endRunIn(el, how = {}) {
     run: buildRunIn(el),
     cancel: () => cancelBuildIn(el, post),
     release: /** @type {(run: unknown) => void} */ (release),
-    detach: api?.swap
-      ? (run) => api.swap?.(run, "", { swapStyle: "outerHTML", swapDelay: 0, settleDelay: 0 })
-      : null,
+    detach: detachWith(api),
   });
+}
+
+/**
+ * The question the desk is answering, if it is answering one. A question gave the window back as
+ * it opened its answer window, so `buildRunIn` looks straight past it.
+ *
+ * @param {WindowNode} el the window
+ * @returns {RunNode | null}
+ */
+export function questionRunIn(el) {
+  return el.querySelector(QUESTION_IN_THE_WINDOW_SELECTOR);
+}
+
+/**
+ * The question the desk is answering, by the id its stream is cancelled at. A question never ends
+ * holding the window, so there is no ending and no commit to look past — only whether one stands.
+ *
+ * @param {WindowNode} el the window
+ * @returns {string | null}
+ */
+export function questionJobIdIn(el) {
+  return questionRunIn(el)?.getAttribute(RUN_ID_ATTRIBUTE) ?? null;
+}
+
+/**
+ * Stop the question the desk is answering. Both of decision 10's user-raised triggers — asking
+ * something else, dismissing the answer — come through here, and nothing is asked first.
+ *
+ * Only the cancel, where a build's ending is all three at once: a question's story is left where
+ * it stands, so the close the server sends answers for the window the way it always does.
+ * {@link detachQuestionIn} is what takes it down early, once something has replaced it.
+ *
+ * @param {WindowNode} el the window
+ * @param {(url: string) => void} [post]
+ * @returns {string | null} the question it stopped, if one was going
+ */
+export function cancelQuestionIn(el, post = postCancel) {
+  return cancelRun(questionJobIdIn(el), post);
+}
+
+/**
+ * Take a stopped question's story off the page, because something else has taken its place in the
+ * window. Nothing is cancelled here: this runs after {@link cancelQuestionIn}, and detaching is
+ * what closes the stream, so a frame the server had already sent can never reach the window the
+ * new question is speaking in.
+ *
+ * @param {WindowNode} el the window
+ * @param {{ api?: Htmx | undefined, release?: (run: never) => void }} [how]
+ * @returns {boolean} whether there was a story to take down
+ */
+export function detachQuestionIn(el, how = {}) {
+  const { api = htmx(), release = releaseRegionContent } = how;
+  const run = questionRunIn(el);
+  const detach = detachWith(api);
+  if (run === null || detach === null) return false;
+  release(/** @type {never} */ (run));
+  detach(run);
+  return true;
 }
 
 /* ── the question ──────────────────────────────────────────────────────────── */

@@ -26,6 +26,8 @@ import {
 } from "../../runtime/query/question.test-support.ts";
 import {
   createScratchPlatforms,
+  type FakeWorkerLog,
+  fakeWorkers,
   gatesFor,
   readerCounts,
   type ScratchPlatforms,
@@ -87,6 +89,7 @@ describe("a classified data_query", () => {
         intent: intent("data_query"),
         question: "how much did I spend on groceries?",
         onStep: (step) => steps.push(step),
+        signal: undefined,
       },
     );
 
@@ -104,7 +107,11 @@ describe("a classified data_query", () => {
         reads(`SELECT count(*) AS total FROM ${NOTES_TABLE} WHERE text = ?`, ["groceries"]),
         answers(),
       ),
-      { intent: intent("data_query"), question: "how many notes are about groceries?" },
+      {
+        intent: intent("data_query"),
+        question: "how many notes are about groceries?",
+        signal: undefined,
+      },
     );
 
     if (loop.ending !== "answered") throw new Error("the fixture answers");
@@ -119,6 +126,7 @@ describe("a classified data_query", () => {
     await runDataQuery(deps, {
       intent: intent("data_query"),
       question: "how many notes do I have?",
+      signal: undefined,
     });
 
     const prompts = (deps.provider as { prompts: string[] }).prompts;
@@ -133,7 +141,7 @@ describe("a classified data_query", () => {
     expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
     await runDataQuery(
       scratch.deps(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`), answers()),
-      { intent: intent("data_query"), question: "how many notes do I have?" },
+      { intent: intent("data_query"), question: "how many notes do I have?", signal: undefined },
     );
     expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
   });
@@ -143,7 +151,7 @@ describe("a classified data_query", () => {
 
     const loop = await runDataQuery(
       scratch.deps(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`)),
-      { intent: intent("data_query"), question: "how many notes do I have?" },
+      { intent: intent("data_query"), question: "how many notes do I have?", signal: undefined },
     );
 
     expect(loop).toEqual({ ending: "budget_spent", stepsTaken: QUESTION_STEP_BUDGET });
@@ -155,7 +163,7 @@ describe("a classified data_query", () => {
 
     const loop = await runDataQuery(
       scratch.deps(reads(`UPDATE ${NOTES_TABLE} SET text = 'x'`), answers()),
-      { intent: intent("data_query"), question: "rewrite my notes" },
+      { intent: intent("data_query"), question: "rewrite my notes", signal: undefined },
     );
 
     // Nothing was read, so the question ends having found nothing; what this fixture is about
@@ -178,7 +186,7 @@ describe("a classified data_query", () => {
           throw new Error("the catalog went away mid-question");
         },
       },
-      { intent: intent("data_query"), question: "how many notes do I have?" },
+      { intent: intent("data_query"), question: "how many notes do I have?", signal: undefined },
     );
 
     await expect(failing).rejects.toThrow(/went away/);
@@ -193,12 +201,108 @@ describe("every other intent", () => {
       const deps = scratch.deps(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`));
 
       await expect(
-        runDataQuery(deps, { intent: intent(type), question: "build me a thing" }),
+        runDataQuery(deps, {
+          intent: intent(type),
+          question: "build me a thing",
+          signal: undefined,
+        }),
       ).rejects.toBeInstanceOf(NotADataQuestionError);
 
       // Nothing was asked of the model and no token was taken.
       expect((deps.provider as { prompts: string[] }).prompts).toEqual([]);
       expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
     }
+  });
+});
+
+/**
+ * How long a test waits before calling a promise stuck rather than slow. Far above the chain of
+ * microtasks a cancel and a release take, and no part of any claim here: a regression stops the
+ * question for ever rather than slowly.
+ */
+const SETTLE_MS = 2_000;
+
+/** Wait for the question to be inside a statement, which is where a cancel has work to do. */
+async function untilReading(log: FakeWorkerLog): Promise<void> {
+  for (let tries = 0; tries < 400 && log.calls.length === 0; tries += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
+
+/**
+ * What the question ended as, or that it never ended. Raced rather than awaited: a cancel that
+ * stopped killing would leave the read outstanding for ever, and a regression that hangs the
+ * suite is one nobody reads.
+ */
+async function settled(running: Promise<unknown>): Promise<string> {
+  return await Promise.race([
+    running.then(
+      () => "answered",
+      (error: Error) => error.constructor.name,
+    ),
+    new Promise<string>((resolve) => setTimeout(() => resolve("still waiting"), SETTLE_MS)),
+  ]);
+}
+
+// The person's own two triggers — asking something else, dismissing the answer — arrive as this
+// job's cancellation (`public/desk-answer-window.js` raises them, `src/server/app.ts` routes
+// them). What is proved here is that they reach 6.2/03's one entry point rather than stopping at
+// the model: a question between statements ends, and a question inside one is killed.
+describe("a question the person gave up on", () => {
+  test("terminates the worker mid-statement and gives the whole catalog back", async () => {
+    const scratch = desk();
+    // `hold` keeps the statement outstanding, which is the state a cancel has to beat: an
+    // in-worker `bun:sqlite` read can never observe a signal, so nothing but a kill ends one.
+    const { log, createWorker } = fakeWorkers([], { hold: true });
+    const gaveUp = new AbortController();
+
+    const running = runDataQuery(
+      {
+        ...scratch.deps(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`), answers()),
+        createWorker,
+      },
+      {
+        intent: intent("data_query"),
+        question: "how many notes do I have?",
+        signal: gaveUp.signal,
+      },
+    );
+    await untilReading(log);
+    expect(log.calls).toHaveLength(1);
+
+    gaveUp.abort();
+
+    expect(await settled(running)).toBe("WholeCatalogReadCancelledError");
+    // Terminated, not waited for. And the token set goes back where a cancelled body unwinds,
+    // which is what turns the deletion drain's deadline into a mechanism (decisions 10, 13).
+    expect(log.closed).toBe(1);
+    expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
+  });
+
+  test("a question already given up on never opens a worker at all", async () => {
+    const scratch = desk();
+    const { log, createWorker } = fakeWorkers([], { hold: true });
+    const gaveUp = new AbortController();
+    gaveUp.abort();
+
+    const running = runDataQuery(
+      {
+        ...scratch.deps(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`), answers()),
+        createWorker,
+      },
+      {
+        intent: intent("data_query"),
+        question: "how many notes do I have?",
+        signal: gaveUp.signal,
+      },
+    );
+
+    // A person can ask twice inside one tick, and the second question must not leave the first
+    // one's thread behind it. The scope opens, the first generation is refused on the signal the
+    // cancel aborted, and the whole thing unwinds without a statement ever being written.
+    expect(await settled(running)).toBe("ProviderAbortedError");
+    expect(log.created).toBe(0);
+    expect(log.calls).toEqual([]);
+    expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
   });
 });
