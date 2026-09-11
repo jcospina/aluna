@@ -15,6 +15,7 @@ import {
 import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";
 import {
   QUESTION_ANSWER_PROMPT_PREFIX,
+  QUESTION_NO_HOME_PROMPT_PREFIX,
   QUESTION_TURN_PROMPT_PREFIX,
   READ_ONLY_QUERY_TOOL,
 } from "../../../runtime/query/index.ts";
@@ -38,6 +39,13 @@ export interface StagedQuestionInput {
   readonly fallback?: Provider;
   /** Thrown from the answer generation, so a caller can reach the question's third ending. */
   readonly faultTheAnswer?: Error;
+  /**
+   * The subject it names instead of answering, which is 6.4/05's gap ending. The turn refuses the
+   * decision until a statement has opened a collection, so `reads` still carries one.
+   */
+  readonly gap?: string;
+  /** Start the run of statements over instead of answering, so a question spends its ten reads. */
+  readonly neverStops?: boolean;
 }
 
 /** One staged answer, in the three shapes `Provider.generate` hands back. */
@@ -65,17 +73,24 @@ export function makeQuestionProvider(input: StagedQuestionInput): {
   provider: Provider;
   questionsAsked: () => number;
 } {
+  // Checked here rather than left to the recursion below, where an empty `reads` would spend the
+  // suite's stack instead of failing: a fixture mistake must read as one.
+  if (input.neverStops && input.reads.length === 0) {
+    throw new Error("a model that never stops reading needs a statement to ask for again");
+  }
   let asked = 0;
   let taken = 0;
 
-  /** The next statement it wants, or the decision to stop reading and answer. */
+  /** The next statement it wants, or the decision to stop reading. */
   function decide(): unknown {
     const read = input.reads[taken];
     // Reset where the reading ends rather than where the answer is written: a question the
     // platform answers itself (nothing matched, nothing worked) never reaches that generation.
     if (!read) {
       taken = 0;
-      return { next: "answer", read: null };
+      // A model that never converges asks for the same statements again, which spends the budget.
+      if (input.neverStops) return decide();
+      return { next: input.gap === undefined ? "answer" : "no_home", read: null };
     }
     taken += 1;
     return { next: "read", read: { tool: READ_ONLY_QUERY_TOOL, parameters: [], ...read } };
@@ -102,6 +117,9 @@ export function makeQuestionProvider(input: StagedQuestionInput): {
   function staged(prompt: string): unknown {
     if (prompt.startsWith(QUESTION_TURN_PROMPT_PREFIX)) return turn();
     if (prompt.startsWith(QUESTION_ANSWER_PROMPT_PREFIX)) return answer();
+    if (prompt.startsWith(QUESTION_NO_HOME_PROMPT_PREFIX) && input.gap !== undefined) {
+      return { subject: input.gap };
+    }
     if (prompt.startsWith(INTENT_RESOLVER_PROMPT_PREFIX)) return classification(prompt);
     return undefined;
   }

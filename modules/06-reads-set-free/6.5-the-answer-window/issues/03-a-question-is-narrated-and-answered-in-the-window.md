@@ -2,6 +2,10 @@
 
 Status: ready-for-agent
 
+> **The `/demo/question` exercise this issue names came down in 6.5/05.** What it proved about
+> the loop is proved without it; the references to it below are the record of how this issue was
+> verified while the module was still headless.
+
 Type: HITL — this is where the whole module becomes visible and audible, in
 authored product voice on a surface a human has to look at. Implementation is
 fully specified and agent-ready; a human asks real questions before sign-off.
@@ -105,9 +109,9 @@ I spend on groceries?"* and watch her look at what things are called before she
 totals anything. Then ask something that crosses both capabilities and get one
 spoken answer.
 
-6.3/01's developer-gated exercise of the loop is scaffolding, and it stays standing
-until 6.5/05 — the issue that owns taking it down and re-homing its assertions. This
-issue's own prose used to claim the deletion happened here; it does not.
+6.3/01's developer-gated exercise of the loop was scaffolding, and it stayed standing
+until 6.5/05 — the issue that owned taking it down and re-homing its assertions. This
+issue's own prose used to claim the deletion happened here; it did not.
 
 ## Blocked by
 

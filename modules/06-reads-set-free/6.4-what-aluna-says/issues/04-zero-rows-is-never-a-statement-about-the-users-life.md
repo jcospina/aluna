@@ -2,6 +2,10 @@
 
 Status: done
 
+> **The `/demo/question` exercise this issue names came down in 6.5/05.** What it proved about
+> the loop is proved without it; the references to it below are the record of how this issue was
+> verified while the module was still headless.
+
 Type: HITL — the two sentences this issue separates are authored product voice,
 and the difference between them is the point of the decision. Implementation is
 fully specified and agent-ready; a human reads both before sign-off.

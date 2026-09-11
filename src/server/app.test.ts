@@ -521,8 +521,10 @@ describe("GET / (shell) — stream close glue", () => {
   });
 });
 
-// Every surface these three tests name came down, and none of them answers in any environment.
-// `/demo` itself is reserved for throwaway scaffolding (ADR-0002); 6.5/05 owns its removal.
+// Every surface these four tests name came down, and none of them answers in any environment.
+// `/demo` itself is reserved for throwaway scaffolding (ADR-0002), which is why a route that
+// stood in it is pinned gone rather than merely deleted: a revert restores four lines of
+// registration, and nothing else in the suite would notice.
 describe("the retired /demo surfaces are gone", () => {
   const previous = process.env.NODE_ENV;
   afterEach(() => {
@@ -574,6 +576,26 @@ describe("the retired /demo surfaces are gone", () => {
       ]) {
         expect((await app.request(path, { method: "POST" })).status).toBe(404);
       }
+    }
+  });
+
+  test("module 6's one-question exercise is unregistered in every environment", async () => {
+    // It ran the whole query loop against the real database while the module was headless, so it
+    // was open outside production and spent provider tokens. 6.5/03 made the real path visible
+    // and 6.5/05 took it down; every claim it carried about the loop is proved elsewhere now.
+    for (const nodeEnv of ["production", "development"]) {
+      process.env.NODE_ENV = nodeEnv;
+      const app = createApp();
+      expect((await app.request("/demo/question")).status).toBe(404);
+      expect(
+        (
+          await app.request("/demo/question", {
+            method: "POST",
+            body: new URLSearchParams({ question: "how many notes?" }),
+          })
+        ).status,
+      ).toBe(404);
+      expect((await app.request("/")).status).toBe(200);
     }
   });
 

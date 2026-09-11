@@ -5,7 +5,8 @@
  * `bun build` emits `new Worker(new URL("./query-worker-thread.ts", import.meta.url).href)`
  * from `src/runtime/query/query-worker.ts` exactly as written, so the bundled entry point
  * looks for the query worker's thread beside itself rather than in `src/`. 6.2/01 recorded
- * that seam; 6.3/01 made the server reach the worker, so the thread is copied here.
+ * that seam; the question path the prompt bar reaches (6.5/03) runs every statement in that
+ * worker, so the thread is copied here.
  *
  * It is copied as TypeScript rather than bundled, because the URL in the bundle names
  * `./query-worker-thread.ts` and Bun runs that file directly. The copy stays self-contained

@@ -2,6 +2,10 @@
 
 Status: done, then reversed
 
+> **The `/demo/question` exercise this issue names came down in 6.5/05.** What it proved about
+> the loop is proved without it; the references to it below are the record of how this issue was
+> verified while the module was still headless.
+
 **Reversed 2026-09-11 by the owner.** What this issue built shipped and was read on a real
 desk, and the reading rejected it: naming what she looked at in front of every answer made
 every answer arrive in the same shape, and the owner's words were that it *"reads awful and

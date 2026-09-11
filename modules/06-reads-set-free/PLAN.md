@@ -522,9 +522,15 @@ leaves open. They are 6.1/01 (where the count lands), 6.3/04 (the narration voca
 6.4/03, 6.4/04 and 6.4/05 (the answer, the zero-row form, the gap sentence), 6.5/01 (the
 answer window itself) and 6.5/03 (the module as the user meets it).
 
-**The module is invisible from 6.2/01 to 6.4/05.** Rather than leave that integration gap
-unlit, 6.3/01 stands up a developer-gated exercise of one loop turn behind
-`developerSurfacesEnabled()`, which 6.4's issues then use to read Aluna's sentences before
-there is an answer window to read them in. It is scaffolding, and 6.5/05 — its own issue, not a clause inside another one — takes
-it down once 6.5/03 has made the real path visible, re-homing every assertion that ran
-through it rather than deleting the coverage with the surface.
+**The module was invisible from 6.2/01 to 6.4/05.** Rather than leave that integration gap
+unlit, 6.3/01 stood up a developer-gated exercise of one loop turn behind
+`developerSurfacesEnabled()`, which 6.4's issues then used to read Aluna's sentences before
+there was an answer window to read them in. It was scaffolding, and it came down in 6.5/05 —
+its own issue, not a clause inside another one — once 6.5/03 had made the real path visible.
+What it proved about the loop is proved without it: the three endings the model never writes now
+run through the real prompt path, the answer's shape and its escaping are asserted where the
+window is, and the readonly seam, the size cap and the step vocabulary were already held by
+`runtime/query/`'s own suites. `src/server/app.test.ts` pins the route at 404, the way every
+retired `/demo` surface before it is pinned. The gate is untouched: `developerSurfacesEnabled()`
+is platform infrastructure this module borrowed, and the lifecycle payload it also guards is not
+ours.

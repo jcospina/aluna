@@ -3,9 +3,10 @@
 // `bun build` leaves the query worker's `new URL("./query-worker-thread.ts",
 // import.meta.url)` exactly as written, so the emitted entry point looks for the thread
 // beside itself. 6.2/01 recorded that as a seam that stays harmless only while nothing the
-// server reaches imports the worker, and 6.3/01's `/demo/question` is what made the server
-// reach it. Without the copy, `bun run start` answers a question by starting a thread that
-// is not there — and no test that stops at `bun run test` would ever see it.
+// server reaches imports the worker, and the question a person asks at the prompt bar
+// (6.5/03) is what makes the server reach it. Without the copy, `bun run start` answers a
+// question by starting a thread that is not there — and no test that stops at `bun run test`
+// would ever see it.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";

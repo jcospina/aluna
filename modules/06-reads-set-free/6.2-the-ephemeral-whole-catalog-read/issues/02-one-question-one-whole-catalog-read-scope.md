@@ -2,6 +2,10 @@
 
 Status: done
 
+> **The `/demo/question` exercise this issue names came down in 6.5/05.** What it proved about
+> the loop is proved without it; the references to it below are the record of how this issue was
+> verified while the module was still headless.
+
 ## Epic
 
 Module 6 — Reads Set Free · Epic 6.2 — The ephemeral whole-catalog read

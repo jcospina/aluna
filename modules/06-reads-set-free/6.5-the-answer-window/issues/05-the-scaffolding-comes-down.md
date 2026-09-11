@@ -1,6 +1,6 @@
 # The scaffolding comes down
 
-Status: ready-for-agent
+Status: ready-for-agent — built and verified; the sign-off is the only box left
 
 ## Epic
 
@@ -50,27 +50,28 @@ exercise as present once this lands.
 
 ## Acceptance criteria
 
-- [ ] The developer-gated one-turn exercise, its route, handler, registration and
+- [x] The developer-gated one-turn exercise, its route, handler, registration and
       any markup or fixture existing solely for it are gone
       (`src/server/routes/query/demo-question.ts` and its
       `app.demo-question.test.ts`, and the `registerDemoQuestionRoutes` call in
       `src/server/app.ts`)
-- [ ] `developerSurfacesEnabled()` and the developer panel are untouched
-- [ ] Every assertion that ran through the exercise now runs against the loop
+- [x] `developerSurfacesEnabled()` and the developer panel are untouched
+- [x] Every assertion that ran through the exercise now runs against the loop
       directly or through the real query path; none is deleted
-- [ ] `grep -rn "developerSurfacesEnabled" src/` returns only pre-existing platform
+- [x] `grep -rn "developerSurfacesEnabled" src/` returns only pre-existing platform
       uses, none of them Module 6's
-- [ ] No file in `src/`, `public/`, `scripts/`, `modules/06-reads-set-free/` or
+- [x] No file in `src/`, `public/`, `scripts/`, `modules/06-reads-set-free/` or
       `docs/` still describes the exercise as present
-- [ ] The bundle's worker-thread copy **stays**; only its justification is
+- [x] The bundle's worker-thread copy **stays**; only its justification is
       rewritten. `scripts/build.ts` and `scripts/build.test.ts` name
       `/demo/question` as what first made the server reach the query worker, and
       that sentence becomes 6.5/03's real path — but the copy itself is what keeps
       `bun run start` able to open a worker at all, and deleting it with the
       exercise breaks production silently, in the one place `bun run test` does
       not look
-- [ ] The living demo in the plan passes end to end with the exercise absent
-- [ ] `bun run test`, `bun run typecheck`, `bun run lint` clean
+- [ ] The living demo in the plan passes end to end with the exercise absent — steps 1
+      and 2 driven here; 3 to 11 are the sign-off
+- [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
 
@@ -88,3 +89,63 @@ meant all along.
 Last issue of epic 6.5. Nothing after 6.5/03 depends on the exercise, so this may
 land alongside 6.5/04 rather than after it — but it must not land before 6.5/03,
 which is what makes the exercise redundant in the first place.
+
+## What landed
+
+- **Gone**: `src/server/routes/query/demo-question.ts` and `app.demo-question.test.ts`
+  (858 lines), the `registerDemoQuestionRoutes` import and call in `src/server/app.ts`, and
+  the now-empty `src/server/routes/query/`. Nothing else imported either file.
+- **Pinned gone**: `src/server/app.test.ts`'s `describe("the retired /demo surfaces are gone")`
+  grew a fourth test asserting `GET` and `POST /demo/question` are 404 in both environments
+  while `/` stays 200. Deleting a route without pinning it leaves a revert free to ship it
+  again under a green suite, which is why every retired `/demo` surface before it is pinned.
+- **Re-homed**: `app.endings-the-model-never-writes.test.ts` — the three endings that stop
+  before the answer generation (nothing matched, nowhere for it, reads spent), each now proved
+  through `POST /prompt` and the job stream rather than through the exercise's form. The gap
+  ending keeps its whole-frame assertion and its no-control sweep (decision 20).
+- **Re-homed**: the "never a grid" sweep moved into `KEEPABLE` in
+  `app.question-answered-in-the-window.test.ts`, which gained `<tr`, `chart` and `csv` and now
+  matches case-insensitively.
+- **Shared**: `answer-window.test-support.ts` holds the two readers both route-level question
+  suites use; `staged-question.test-support.ts` gained `gap` and `neverStops`, so the real
+  path's fake model can reach the two endings only the exercise could drive.
+- **Prose**: `dev-surfaces.ts`, `scripts/build.ts`, `scripts/build.test.ts` and the plan's
+  issue-conversion note no longer name the exercise; every 6.2 to 6.5 issue that references it
+  now says at the top that it came down here.
+
+## Findings
+
+- **Nothing pinned the route as gone.** The first cut deleted the registration and stopped
+  there. `src/server/app.test.ts` already holds the house convention for this — three tests
+  pinning twelve retired `/demo` paths at 404 — and its own header still forward-referenced
+  this issue as pending work. Both fixed.
+- **The question was never proved escaped.** `renderAnswerWindowOpening` interpolates the
+  person's own sentence into `data-answer-window="…"`, and the three tests that assert that
+  attribute all use a benign question, for which `escapeHtml` is the identity function:
+  deleting the escape left the whole suite green. Two tests now post a question carrying a
+  quote and a handler, and a long one that the 120-character title bound cuts. Confirmed by
+  mutation — removing `escapeHtml` at `src/server/http/fragments.ts:291` reddens them.
+- **`POST /prompt` had no cross-site guard, and the only implementation of one in the repo
+  was inside the deleted page.** A prompt spends provider tokens and can commit a capability,
+  and a urlencoded POST crosses origins with no preflight, so a page the user merely visited
+  could build on their behalf. `isCrossSitePrompt` now lives in
+  `src/server/http/prompt-request.ts` and guards the route before the body is read, with
+  `app.a-prompt-from-somewhere-else.test.ts` holding both halves of the claim. This is the one
+  change beyond this issue's letter; it is two lines in `app.ts` plus the predicate.
+- **A fixture could have spent the suite's stack.** `neverStops` with an empty `reads` recursed
+  unboundedly inside the fake provider; `makeQuestionProvider` now refuses that at construction.
+- **Two new assertions were vacuous.** The no-control sweep and the nothing-found ending both
+  asserted only absences, and would have passed on an empty stream or on a question that ended
+  somewhere else entirely. Both now assert the ending they are about before sweeping.
+
+## Verification
+
+- `bun run test`, `bun run typecheck`, `bun run lint` clean.
+- `bun run build` still emits `dist/index.js` **and** `dist/query-worker-thread.ts`; the copy's
+  justification in `scripts/build.ts` now names the real prompt-bar path, which is verifiably
+  what reaches the worker with the exercise gone.
+- Live on `:3030`: `/demo/question` answers 404 in the browser; the desk loads with no console
+  error; the developer panel opens and still carries its lifecycle payload; two real questions
+  asked at the prompt bar opened the answer window and were answered in a sentence; a
+  cross-site `POST /prompt` answers 403 while the desk's own submission still returns the
+  subscriber fragment.

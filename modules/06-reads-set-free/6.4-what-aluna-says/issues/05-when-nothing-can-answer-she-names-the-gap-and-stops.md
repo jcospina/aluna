@@ -2,6 +2,10 @@
 
 Status: done
 
+> **The `/demo/question` exercise this issue names came down in 6.5/05.** What it proved about
+> the loop is proved without it; the references to it below are the record of how this issue was
+> verified while the module was still headless.
+
 Type: HITL — the gap sentence is authored product voice and it is the one place
 this module comes closest to a proposal without becoming one. Implementation is
 fully specified and agent-ready; a human reads the words before sign-off.
@@ -106,7 +110,7 @@ own — `SELECT 1` — opened nothing and does not count. It is told once: a sec
 nothing opened answers out of what it has instead, rather than spending ten turns on the same
 refusal. 6.6/02 goes on to make the looking the loop's first step.
 
-**The demo carries it.** `/demo/question` renders the ending under its own heading, *Nowhere for it
+**The demo carried it.** `/demo/question` rendered the ending under its own heading, *Nowhere for it
 — what Aluna says*, as a sentence and nothing else; the vocabulary block that the sign-off gate
 reads lists the gap beside every other sentence there is; and the page's own note says a question
 this desk holds nowhere for ends with the gap named and nothing to press. CONTEXT.md gained

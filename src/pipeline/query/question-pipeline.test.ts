@@ -80,7 +80,7 @@ const wire = (sent: [string, string][]) =>
     .join("\n");
 
 /** Everything said in the answer window, decoded the way the desk reads it. */
-function saidInTheAnswerWindow(sent: [string, string][]): readonly string[] {
+function saidOnTheWire(sent: [string, string][]): readonly string[] {
   const said = wire(sent).matchAll(
     new RegExp(`<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}>(.*?)</div>`, "gs"),
   );
@@ -113,7 +113,7 @@ describe("a question that did not reach an answer", () => {
 
     // Equality rather than containment: a sentence with the thrown reason appended would satisfy
     // a `toContain`, and that reason is exactly what decision 15 bans from the desk.
-    expect(saidInTheAnswerWindow(sent)).toEqual([QUESTION_COULD_NOT_FINISH]);
+    expect(saidOnTheWire(sent)).toEqual([QUESTION_COULD_NOT_FINISH]);
     for (const word of MACHINERY) {
       expect({ leaked: word, present: wire(sent).includes(word) }).toEqual({
         leaked: word,
@@ -134,7 +134,7 @@ describe("a question that did not reach an answer", () => {
 
     // The window keeps the last thing she said. A person who stopped their own question is not
     // owed a sentence about it failing, and the run ends where they stopped it.
-    expect(saidInTheAnswerWindow(sent)).toEqual([]);
+    expect(saidOnTheWire(sent)).toEqual([]);
     expect(wire(sent)).not.toContain(QUESTION_COULD_NOT_FINISH);
     expect(sent.at(-1)).toEqual(["done", "error"]);
     // And it is not written down as a fault either. The platform's log is where someone goes to

@@ -56,6 +56,7 @@ import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../runtime/
 import {
   BLANK_PROMPT_NOTICE,
   hasMeaningfulPromptContent,
+  isCrossSitePrompt,
   LONG_PROMPT_NOTICE,
   MAX_PROMPT_LENGTH,
   readPromptSubmission,
@@ -64,7 +65,6 @@ import {
   renderPromptNotice,
   renderRehydratedShellPage,
 } from "./http/index.ts";
-import { registerDemoQuestionRoutes } from "./routes/query/demo-question.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "./sse/index.ts";
 
 /**
@@ -333,6 +333,12 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
   // Prompt submission enters the build-job lifecycle. The POST creates the ephemeral job and
   // returns the subscriber fragment; resolution and builder stages run from `/build/:id/stream`.
   app.post("/prompt", async (c) => {
+    // Before the body is read, because reading it is the first thing that costs: a build spends
+    // provider tokens and commits to the desk, and neither is another site's to trigger.
+    if (isCrossSitePrompt(c)) {
+      return c.text("Forbidden", 403, { "cache-control": "no-store" });
+    }
+
     const submission = await readPromptSubmission(c);
 
     // Nothing meaningful typed, nothing to build: an empty-looking prompt must not reach
@@ -485,14 +491,6 @@ export function createApp(deps: AppDeps = {}): Hono {
   registerBuildJobRoutes(app, ctx);
   registerCapabilityDeletionRoutes(app, ctx);
   registerCapabilityRenameRoutes(app, ctx);
-
-  // One question turn, exercisable by hand. Scaffolding behind the developer gate: the module is
-  // invisible until 6.5, which takes this down in 6.5/05.
-  registerDemoQuestionRoutes(app, {
-    getProvider: ctx.getProvider,
-    readGates: ctx.readGates,
-    registryReadonly: ctx.registryReadonly,
-  });
 
   // The logo's own two addresses, registered before the generated capability router so the
   // four-segment paths are matched by their owner and the ordering says who owns them.

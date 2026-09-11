@@ -26,8 +26,6 @@ import {
   NOTES_TABLE,
 } from "../../../runtime/query/question.test-support.ts";
 import {
-  buildJobIdFromSubscriber,
-  collectSseEvents,
   createScratchDbEnv,
   DATA_QUERY_INTENT,
   eventData,
@@ -37,7 +35,6 @@ import {
   NEW_CAPABILITY_INTENT,
   postPrompt,
   REJECT_INTENT,
-  readSse,
   responseText,
   teardownScratchDbEnv,
 } from "../../app.test-support.ts";
@@ -46,7 +43,9 @@ import {
   ANSWER_WINDOW_ATTRIBUTE,
   ANSWER_WINDOW_OPENING,
   ANSWER_WINDOW_SAYING_ATTRIBUTE,
+  answerWindowTitle,
 } from "../../http/index.ts";
+import { askInTheWindow, saidInTheAnswerWindow } from "./answer-window.test-support.ts";
 import { makeQuestionProvider } from "./staged-question.test-support.ts";
 
 let dir: string;
@@ -88,24 +87,6 @@ function quiet(): Provider {
   };
 }
 
-/** Post one sentence and drain its stream. */
-async function ask(app: ReturnType<typeof askingApp>, sentence: string) {
-  const jobId = buildJobIdFromSubscriber(await responseText(await postPrompt(app, sentence)));
-  const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
-  return { jobId, events, fragments: eventData(events, "fragment") };
-}
-
-/** Everything said in the answer window, in order, as a person reads it rather than encoded. */
-function saidInTheAnswerWindow(fragments: string): readonly string[] {
-  const said = fragments.matchAll(
-    new RegExp(
-      `<div (?:${ANSWER_WINDOW_ATTRIBUTE}="[^"]*"|${ANSWER_WINDOW_SAYING_ATTRIBUTE})>(.*?)</div>`,
-      "gs",
-    ),
-  );
-  return [...said].map((match) => unescapeHtml(match[1] ?? ""));
-}
-
 /**
  * What must never survive the trip to the desk (PLAN decision 15). The step count is here as the
  * word rather than as a digit: the answer carries the figures its statements computed.
@@ -127,8 +108,21 @@ const MACHINERY: readonly { readonly name: string; readonly pattern: RegExp }[] 
   },
 ];
 
-/** Nothing that would make a disposable answer keepable (PLAN decision 3). */
-const KEEPABLE = ["<table", "<canvas", "<th", "<td", "download", "Export", "Save this"];
+/** Nothing that would make a disposable answer keepable, and nothing that would render it as a
+ * grid or a figure rather than as a sentence (PLAN decision 3). Matched against a lowercased
+ * fragment, because a `CSV` button is the same button as a `csv` one. */
+const KEEPABLE = [
+  "<table",
+  "<tr",
+  "<th",
+  "<td",
+  "<canvas",
+  "chart",
+  "csv",
+  "download",
+  "export",
+  "save this",
+];
 
 beforeEach(() => {
   ({ dir, conns, artifactsRoot } = createScratchDbEnv("aluna-question-window-"));
@@ -148,7 +142,7 @@ describe("a question is narrated and answered in the answer window", () => {
   test("the window opens, every step is said in it, and the answer replaces the last of them", async () => {
     withCollections();
     const { provider } = askingProvider();
-    const { events, fragments } = await ask(askingApp(provider), QUESTION);
+    const { events, fragments } = await askInTheWindow(askingApp(provider), QUESTION);
 
     // The window opens before the first read, so a person who has just pressed the key gets the
     // frame and her first sentence now rather than after a generation.
@@ -180,7 +174,7 @@ describe("a question is narrated and answered in the answer window", () => {
   test("nothing machinery-shaped survives the trip to the desk", async () => {
     withCollections();
     const { provider } = askingProvider();
-    const { fragments } = await ask(askingApp(provider), QUESTION);
+    const { fragments } = await askInTheWindow(askingApp(provider), QUESTION);
 
     // Over the rendered fragment rather than over the sentence: an attribute, an entity and a
     // tag are all places a table name could ride to the desk on.
@@ -191,8 +185,9 @@ describe("a question is narrated and answered in the answer window", () => {
       });
     }
     // And nothing on this path makes a disposable answer keepable.
+    const lowered = fragments.toLowerCase();
     for (const keepable of KEEPABLE) {
-      expect({ keepable, present: fragments.includes(keepable) }).toEqual({
+      expect({ keepable, present: lowered.includes(keepable) }).toEqual({
         keepable,
         present: false,
       });
@@ -208,7 +203,7 @@ describe("a question is narrated and answered in the answer window", () => {
     const { provider } = askingProvider({
       answer: { answer: `I looked through your expenses, and you spent ${hostile}` },
     });
-    const { fragments } = await ask(askingApp(provider), QUESTION);
+    const { fragments } = await askInTheWindow(askingApp(provider), QUESTION);
 
     // One window opened, and it was opened by the question rather than by the answer.
     expect(fragments.match(new RegExp(`${ANSWER_WINDOW_ATTRIBUTE}="`, "g"))).toHaveLength(1);
@@ -219,12 +214,44 @@ describe("a question is narrated and answered in the answer window", () => {
     expect(saidInTheAnswerWindow(fragments).at(-1)).toContain(hostile);
   });
 
+  test("markup in the question is text too, and cannot break out of the title", async () => {
+    // The other half of the same surface, and the one nothing proved: the question is the
+    // *person's* words, and they are interpolated into an attribute rather than into a body
+    // (`renderAnswerWindowOpening`). A benign question makes the escape an identity function, so
+    // every other test here passes with it deleted. This one closes the quote and adds a handler.
+    withCollections();
+    const hostile = `" onmouseover="alert(1)" x="`;
+    const { provider } = askingProvider({ asking: hostile });
+    const { fragments } = await askInTheWindow(askingApp(provider), hostile);
+
+    expect(fragments).toContain(`${ANSWER_WINDOW_ATTRIBUTE}="${escapeHtml(hostile)}"`);
+    // The raw quotes are what would close the attribute; escaped, the handler is inert text.
+    expect(fragments).not.toContain(hostile);
+    // Still one window, named by the question: an attribute that broke out would open a second.
+    expect(fragments.match(new RegExp(`${ANSWER_WINDOW_ATTRIBUTE}="`, "g"))).toHaveLength(1);
+  });
+
+  test("a long question is shortened for the title, and shortened after it is escaped", async () => {
+    // The bound and the escape meet here: a title cut to its limit must not be cut through an
+    // entity, which would leave `&am` in an attribute and the rest of it loose in the markup.
+    withCollections();
+    const hostile = `${"a&b ".repeat(60)}<end>`;
+    const { provider } = askingProvider({ asking: hostile });
+    const { fragments } = await askInTheWindow(askingApp(provider), hostile);
+
+    expect(fragments).toContain(
+      `${ANSWER_WINDOW_ATTRIBUTE}="${escapeHtml(answerWindowTitle(hostile))}"`,
+    );
+    expect(fragments).not.toContain("<end>");
+    expect(unescapeHtml(saidInTheAnswerWindow(fragments)[0] ?? "")).toBe(ANSWER_WINDOW_OPENING);
+  });
+
   test("a question asked twice runs twice and reuses nothing", async () => {
     withCollections();
     const { provider, questionsAsked } = askingProvider();
     const app = askingApp(provider);
-    const first = await ask(app, QUESTION);
-    const second = await ask(app, QUESTION);
+    const first = await askInTheWindow(app, QUESTION);
+    const second = await askInTheWindow(app, QUESTION);
 
     expect(questionsAsked()).toBe(2);
     expect(first.jobId).not.toBe(second.jobId);
@@ -243,7 +270,7 @@ describe("a question is narrated and answered in the answer window", () => {
     const { provider } = askingProvider({
       faultTheAnswer: new Error(`no such column: ${EXPENSES_TABLE}.total`),
     });
-    const { events, fragments } = await ask(askingApp(provider), QUESTION);
+    const { events, fragments } = await askInTheWindow(askingApp(provider), QUESTION);
 
     // The third ending. The reason is the platform's to log, and what reaches the desk is one
     // authored sentence — never the thrown string, which here carries a column of theirs.
@@ -264,8 +291,8 @@ describe("the two things Aluna says are said in different windows", () => {
     });
     const app = askingApp(provider);
 
-    const built = await ask(app, "track my books");
-    const asked = await ask(app, QUESTION);
+    const built = await askInTheWindow(app, "track my books");
+    const asked = await askInTheWindow(app, QUESTION);
 
     // A build that actually finished: it narrated, and it committed a capability to the window.
     expect(eventData(built.events, "narration").length).toBeGreaterThan(0);

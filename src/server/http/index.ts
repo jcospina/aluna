@@ -42,6 +42,7 @@ export {
 } from "./fragments.ts";
 export {
   hasMeaningfulPromptContent,
+  isCrossSitePrompt,
   readPrompt,
   readPromptSubmission,
 } from "./prompt-request.ts";
