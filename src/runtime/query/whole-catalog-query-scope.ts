@@ -16,7 +16,9 @@ import { SQLiteError } from "bun:sqlite";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import {
   type ActiveRegistryCatalog,
+  type CapabilityRow,
   type CapabilitySpec,
+  canonicalCapabilityLabel,
   capabilitySpecFromRow,
 } from "../../registry/index.ts";
 import type { CapabilityIncarnation } from "../concurrency/read-gates.ts";
@@ -81,6 +83,16 @@ const SQL_LITERALS_AND_COMMENTS =
   /'(?:[^']|'')*'|"(?:[^"]|"")*"|`(?:[^`]|``)*`|--[^\n]*|\/\*[\s\S]*?\*\//g;
 
 /**
+ * One row as a question sees it. `label` is the person's, not the model's: a renamed capability
+ * keeps the name it was built with in `label` and carries the person's in `display_label_override`,
+ * and everything downstream of here — the collections a turn may read, the window it was asked in
+ * front of, the names an answer may say — is matched against words the person typed.
+ */
+export function capabilityQuerySpec(row: CapabilityRow): CapabilitySpec {
+  return { ...capabilitySpecFromRow(row), label: canonicalCapabilityLabel(row) };
+}
+
+/**
  * The specs the gate granted, in the gate's canonical order — by `incarnations` rather than the
  * catalog's array, so the nominated target is stable across a snapshot read.
  */
@@ -92,7 +104,7 @@ export function scopedCapabilitySpecs(
   return incarnations
     .map(({ incarnationId }) => rows.get(incarnationId))
     .filter((row) => row !== undefined)
-    .map(capabilitySpecFromRow);
+    .map(capabilityQuerySpec);
 }
 
 /** The whole-catalog `CapabilityQueryScope`, or `undefined` when the granted set is empty. */

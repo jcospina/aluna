@@ -10,6 +10,14 @@ import { type PromptNoticeTone, renderPromptNotice } from "../../server/http/fra
 export const RESTORATION_CAPABILITY_ID_FIELD = "__aluna_restore_capability_id";
 export const RESTORATION_INCARNATION_ID_FIELD = "__aluna_restore_incarnation_id";
 
+/**
+ * Which capability is standing in the window, or null for a desk showing none. The resolver's
+ * context and a question's are the same fact, and this is the one place it is read.
+ */
+export function standingCapabilityId(restoration: RestorationDescriptor): string | null {
+  return restoration.kind === "capability" ? restoration.capabilityId : null;
+}
+
 export type RestorationDescriptor =
   | { readonly kind: "neutral" }
   | {

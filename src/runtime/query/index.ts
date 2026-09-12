@@ -83,6 +83,8 @@ export {
 } from "./question-tool.ts";
 export {
   buildQuestionTurnPrompt,
+  QUESTION_OPEN_WINDOW_HEADING,
+  QUESTION_OPEN_WINDOW_RULES,
   QUESTION_TURN_PROMPT_PREFIX,
   type QuestionPromptContext,
   type QuestionStep,
@@ -96,6 +98,7 @@ export {
 } from "./question-turn.ts";
 export {
   assertWholeCatalogQuery,
+  capabilityQuerySpec,
   EmptyCatalogQueryError,
   scopedCapabilitySpecs,
   type WholeCatalogQueryPlan,

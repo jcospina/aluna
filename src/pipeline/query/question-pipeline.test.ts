@@ -37,6 +37,7 @@ interface Staged {
 function askedInto(sent: [string, string][], staged: Staged = {}): QuestionPipelineInput {
   return {
     promptJobId: "question-1",
+    standing: null,
     resolution: {
       intent: ASKED,
       outcome: "non_build",

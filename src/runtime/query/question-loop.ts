@@ -58,9 +58,15 @@ export interface QuestionLoopInput {
   readonly question: string;
   /**
    * Called with each step as it completes, so a caller can watch the loop without the result
-   * carrying rows past a spent budget. A later caller streams the narration through this seam.
+   * carrying rows past a spent budget. `question-pipeline.ts` narrates each step into the answer
+   * window through this seam.
    */
   readonly onStep?: (step: QuestionStep) => void;
+  /**
+   * The capability whose window the question was asked in front of, or null. Carried to every
+   * turn and nowhere else: the loop reads the whole catalog whatever is standing.
+   */
+  readonly openCapability: string | null;
 }
 
 /**
@@ -75,7 +81,12 @@ export async function runQuestionLoop(
   const steps: QuestionStep[] = [];
 
   const turn = (): Promise<QuestionTurn> =>
-    runQuestionTurn(deps, { question: input.question, steps, budget: QUESTION_STEP_BUDGET });
+    runQuestionTurn(deps, {
+      question: input.question,
+      steps,
+      budget: QUESTION_STEP_BUDGET,
+      openCapability: input.openCapability,
+    });
 
   // The scope lends the answer its cancellation and nothing else. Handing the whole of `deps`
   // over would hand over `scope.read`, and the answer would be able to go and fetch the rows.

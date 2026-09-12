@@ -46,6 +46,8 @@ export const QUESTION_ANSWER_RULES = Object.freeze([
   '- "Under butter in your Recipes, there are 12 recipes with butter." → "You cook 12 things',
   '  with butter." Butter twice.',
   '- "your Recipes recipes" → "your recipes". Their name for a thing already says what it is.',
+  '- "You added six this month." → "You added six recipes this month." Where their own question',
+  "  never says what it is about, yours is the sentence that does.",
   '- "Nothing matched for butter in your Recipes." → "I could not find any recipes with',
   '  butter." Where a result came back empty you looked and did not find — and never in a word',
   "  out of these instructions.",

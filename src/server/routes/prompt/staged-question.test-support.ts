@@ -72,6 +72,8 @@ function stagedGeneration<T>(answer: unknown, schema: ZodType<T>): GenerateResul
 export function makeQuestionProvider(input: StagedQuestionInput): {
   provider: Provider;
   questionsAsked: () => number;
+  /** Every prompt this provider was asked, in order, for a suite about what one carried. */
+  prompts: () => readonly string[];
 } {
   // Checked here rather than left to the recursion below, where an empty `reads` would spend the
   // suite's stack instead of failing: a fixture mistake must read as one.
@@ -80,6 +82,7 @@ export function makeQuestionProvider(input: StagedQuestionInput): {
   }
   let asked = 0;
   let taken = 0;
+  const prompts: string[] = [];
 
   /** The next statement it wants, or the decision to stop reading. */
   function decide(): unknown {
@@ -126,11 +129,12 @@ export function makeQuestionProvider(input: StagedQuestionInput): {
 
   const provider: Provider = {
     generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T> {
+      prompts.push(prompt);
       const staging = staged(prompt);
       if (staging !== undefined) return stagedGeneration(staging, schema);
       if (!input.fallback) throw new Error(`No staged answer for: ${prompt.slice(0, 60)}`);
       return input.fallback.generate(prompt, schema);
     },
   };
-  return { provider, questionsAsked: () => asked };
+  return { provider, questionsAsked: () => asked, prompts: () => prompts };
 }
