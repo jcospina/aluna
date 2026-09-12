@@ -9,6 +9,10 @@
 // Not a test file (no `*.test.ts`), so bun never runs it.
 
 import {
+  RESTORATION_CAPABILITY_ID_FIELD,
+  RESTORATION_INCARNATION_ID_FIELD,
+} from "../../../pipeline/jobs/restoration.ts";
+import {
   buildJobIdFromSubscriber,
   collectSseEvents,
   eventData,
@@ -27,12 +31,32 @@ export interface AskedQuestion {
   readonly fragments: string;
 }
 
-/** Post one sentence the way the desk does, and drain the job's stream. */
+/** What `app.js` puts in the body when a capability's surface is standing in the window. */
+export interface StandingCapability {
+  readonly capabilityId: string;
+  readonly incarnationId: string;
+}
+
+/**
+ * Post one sentence the way the desk does, and drain the job's stream. `standing` is the window
+ * the sentence was asked in front of, which the shell sends as two ordinary body fields.
+ */
 export async function askInTheWindow(
   app: ReturnType<typeof createApp>,
   sentence: string,
+  standing?: StandingCapability,
 ): Promise<AskedQuestion> {
-  const jobId = buildJobIdFromSubscriber(await responseText(await postPrompt(app, sentence)));
+  const submitted = standing
+    ? await app.request("/prompt", {
+        method: "POST",
+        body: new URLSearchParams({
+          prompt: sentence,
+          [RESTORATION_CAPABILITY_ID_FIELD]: standing.capabilityId,
+          [RESTORATION_INCARNATION_ID_FIELD]: standing.incarnationId,
+        }),
+      })
+    : await postPrompt(app, sentence);
+  const jobId = buildJobIdFromSubscriber(await responseText(submitted));
   const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
   return { jobId, events, fragments: eventData(events, "fragment") };
 }

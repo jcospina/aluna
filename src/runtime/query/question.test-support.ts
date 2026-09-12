@@ -16,11 +16,7 @@ import {
   FIRST_INCARNATION_ID,
   SECOND_INCARNATION_ID,
 } from "../../registry/incarnations.test-support.ts";
-import {
-  type CapabilitySpec,
-  capabilitySpecFromRow,
-  readActiveRegistryCatalog,
-} from "../../registry/index.ts";
+import { type CapabilitySpec, readActiveRegistryCatalog } from "../../registry/index.ts";
 import { validSpec } from "../../registry/spec/spec.test-support.ts";
 import { insertCapability } from "../../registry/store/store.ts";
 import { applyCapabilityTableDdl } from "../data/index.ts";
@@ -49,6 +45,7 @@ import {
   UNREADABLE_DECISION,
 } from "./question-turn.ts";
 import { gatesFor, readerCounts, type ScratchPlatforms } from "./read-scope.test-support.ts";
+import { capabilityQuerySpec } from "./whole-catalog-query-scope.ts";
 import {
   type WholeCatalogReadScope,
   withWholeCatalogReadScope,
@@ -148,7 +145,9 @@ export function catalogueWithRecords(database: Database): readonly CapabilitySpe
 
 /** The specs the registry holds, in the order `readActiveRegistryCatalog` returns them. */
 export function registeredSpecs(database: Database): readonly CapabilitySpec[] {
-  return readActiveRegistryCatalog(database).capabilities.map(capabilitySpecFromRow);
+  // `capabilityQuerySpec` rather than `capabilitySpecFromRow`: a helper that built a spec the
+  // other way would hand every suite a name the running loop never sees (6.6/01).
+  return readActiveRegistryCatalog(database).capabilities.map(capabilityQuerySpec);
 }
 
 /**
@@ -212,15 +211,18 @@ export const SCRIPTED_SUBJECT = "hiking trips";
  */
 export async function oneTurn(
   deps: QuestionTurnDeps,
-  input: Omit<QuestionTurnInput, "budget" | "steps"> & {
+  input: Omit<QuestionTurnInput, "budget" | "steps" | "openCapability"> & {
     /** Defaulted here and required on the real input: a question is bounded by its steps. */
     readonly steps?: readonly QuestionStep[];
+    /** Defaulted to nothing standing, which is what most suites here are asking about. */
+    readonly openCapability?: string | null;
   },
 ): Promise<QuestionStep> {
   const turn = await runQuestionTurn(deps, {
     ...input,
     steps: input.steps ?? [],
     budget: QUESTION_STEP_BUDGET,
+    openCapability: input.openCapability ?? null,
   });
   if (turn.kind !== "step") throw new Error("the scripted decision was a read; the turn was not");
   return turn.step;
@@ -231,8 +233,15 @@ export function nextPrompt(
   question: string,
   specs: readonly CapabilitySpec[],
   steps: readonly QuestionStep[],
+  openCapability: string | null = null,
 ): string {
-  return buildQuestionTurnPrompt({ question, specs, steps, budget: QUESTION_STEP_BUDGET });
+  return buildQuestionTurnPrompt({
+    question,
+    specs,
+    steps,
+    budget: QUESTION_STEP_BUDGET,
+    openCapability,
+  });
 }
 
 /**
@@ -413,6 +422,8 @@ export interface QuestionDesk {
     provider: ScriptedProvider,
     question?: string,
     onStep?: (step: QuestionStep) => void,
+    /** What is standing in the window while this question is asked. Nothing, by default. */
+    openCapability?: string | null,
   ): Promise<LoopRun>;
   inScope<T>(body: (scope: WholeCatalogReadScope) => Promise<T>): Promise<T>;
 }
@@ -454,13 +465,14 @@ export function questionDesk(
     statements: () => statements,
     executed: () => statements.length,
     inScope: (body) => withWholeCatalogReadScope(scopeDeps, body),
-    async run(provider, question = "how much did I spend on groceries?", onStep) {
+    async run(provider, question = "how much did I spend on groceries?", onStep, openCapability) {
       const steps: QuestionStep[] = [];
       const result = await withWholeCatalogReadScope(scopeDeps, (scope) =>
         runQuestionLoop(
           { provider, scope, database: platform.database.readonly },
           {
             question,
+            openCapability: openCapability ?? null,
             onStep: (step) => {
               steps.push(step);
               onStep?.(step);

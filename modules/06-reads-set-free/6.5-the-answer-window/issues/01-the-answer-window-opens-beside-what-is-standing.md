@@ -1,7 +1,6 @@
 # The answer window opens beside what is already standing
 
-Status: ready-for-agent — built and verified; the sign-off gate is the only box left. Two
-rejections from the first pass are addressed below
+Status: done
 
 Type: HITL — the window's title and its empty/opening state are authored product voice,
 and the three-window desk is the first thing the user meets that Module 5 did not

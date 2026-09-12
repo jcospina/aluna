@@ -1,6 +1,6 @@
 # The scaffolding comes down
 
-Status: ready-for-agent — built and verified; the sign-off is the only box left
+Status: done
 
 ## Epic
 

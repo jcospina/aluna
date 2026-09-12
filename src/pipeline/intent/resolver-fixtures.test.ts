@@ -7,7 +7,7 @@ import {
 } from "../../registry/incarnations.test-support.ts";
 import { type CapabilityRow, fingerprintActiveRegistryCatalog } from "../../registry/index.ts";
 import { notesCapabilityRow } from "../../server/app.test-support.ts";
-import { buildIntentPrompt, classifyIntent } from "./resolver.ts";
+import { buildIntentPrompt, classifyIntent, INTENT_DATA_QUERY_CONTEXT_RULE } from "./resolver.ts";
 import type { IntentClassification } from "./schema.ts";
 
 const contacts = notesCapabilityRow({
@@ -90,7 +90,8 @@ const catalog = {
 interface Fixture {
   readonly name: string;
   readonly prompt: string;
-  readonly activeCapabilityId: string;
+  /** What is standing in the window, or null for a desk showing none (PLAN decision 28). */
+  readonly activeCapabilityId: string | null;
   readonly expected: IntentClassification;
 }
 
@@ -203,6 +204,54 @@ const fixtures: readonly Fixture[] = [
     },
   },
   {
+    // The three questions of decision 28. What they pin is the classification the desk then acts
+    // on: `data_query` is the one intent whose target the schema neither requires nor forbids,
+    // so these are where its contract is written down.
+    name: "a loose word is resolved against the window it was asked in front of",
+    prompt: "how many did I add this month?",
+    activeCapabilityId: "recipes",
+    expected: {
+      type: "data_query",
+      confidence: 0.93,
+      target_capability: "recipes",
+      resolution: "none",
+      proposed_identity: null,
+      proposed_action: "Count this month's recipes.",
+      user_facing_label: "Let me count what you added this month.",
+      requires_confirmation: false,
+    },
+  },
+  {
+    name: "a question naming its own subject leaves the window out of it",
+    prompt: "how many contacts do I have?",
+    activeCapabilityId: "recipes",
+    expected: {
+      type: "data_query",
+      confidence: 0.95,
+      target_capability: null,
+      resolution: "none",
+      proposed_identity: null,
+      proposed_action: "Count the contacts.",
+      user_facing_label: "Let me count your contacts.",
+      requires_confirmation: false,
+    },
+  },
+  {
+    name: "the same loose question with nothing standing has nothing to lean on",
+    prompt: "how many did I add this month?",
+    activeCapabilityId: null,
+    expected: {
+      type: "data_query",
+      confidence: 0.72,
+      target_capability: null,
+      resolution: "none",
+      proposed_identity: null,
+      proposed_action: "Count this month's records.",
+      user_facing_label: "Let me look at what you added this month.",
+      requires_confirmation: false,
+    },
+  },
+  {
     name: "distinct lifecycle becomes a separate capability",
     prompt: "track my work contacts separately",
     activeCapabilityId: "contacts",
@@ -249,7 +298,12 @@ describe("intent resolver fixture catalog", () => {
 
       expect(intent).toEqual(fixture.expected);
       expect(prompts).toHaveLength(1);
-      expect(prompts[0]).toContain(`Active capability:\nid: ${fixture.activeCapabilityId}`);
+      expect(prompts[0]).toContain(
+        fixture.activeCapabilityId === null
+          ? "Active capability:\nnone"
+          : `Active capability:\nid: ${fixture.activeCapabilityId}`,
+      );
+      expect(prompts[0]).toContain(INTENT_DATA_QUERY_CONTEXT_RULE);
       expect(prompts[0]).toContain(`Prompt bar text:\n${fixture.prompt}`);
       for (const row of catalogRows) {
         expect(prompts[0]).toContain(`prompt_context: ${row.prompt_context}`);

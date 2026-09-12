@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { IntentClassification, IntentType } from "../../pipeline/intent/index.ts";
 import {
   createQueryWorker,
+  QUESTION_OPEN_WINDOW_HEADING,
   QUESTION_STEP_BUDGET,
   type QuestionDecision,
   type QuestionStep,
@@ -19,7 +20,9 @@ import {
 import {
   answers,
   catalogueWithRecords,
+  EXPENSES_CAPABILITY,
   EXPENSES_TABLE,
+  NOTES_CAPABILITY,
   NOTES_TABLE,
   reads,
   scriptedProvider,
@@ -36,11 +39,11 @@ import { NotADataQuestionError, runDataQuery } from "./data-query.ts";
 
 let platforms: ScratchPlatforms;
 
-function intent(type: IntentType): IntentClassification {
+function intent(type: IntentType, standing: string | null = null): IntentClassification {
   return {
     type,
     confidence: 0.9,
-    target_capability: type === "data_query" ? null : "notes",
+    target_capability: type === "data_query" ? standing : "notes",
     resolution: type === "data_query" ? "none" : "extend",
     proposed_identity: null,
     proposed_action: "Look at what is saved.",
@@ -87,6 +90,7 @@ describe("a classified data_query", () => {
       ),
       {
         intent: intent("data_query"),
+        standing: null,
         question: "how much did I spend on groceries?",
         onStep: (step) => steps.push(step),
         signal: undefined,
@@ -109,6 +113,7 @@ describe("a classified data_query", () => {
       ),
       {
         intent: intent("data_query"),
+        standing: null,
         question: "how many notes are about groceries?",
         signal: undefined,
       },
@@ -125,6 +130,7 @@ describe("a classified data_query", () => {
 
     await runDataQuery(deps, {
       intent: intent("data_query"),
+      standing: null,
       question: "how many notes do I have?",
       signal: undefined,
     });
@@ -141,7 +147,12 @@ describe("a classified data_query", () => {
     expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
     await runDataQuery(
       scratch.deps(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`), answers()),
-      { intent: intent("data_query"), question: "how many notes do I have?", signal: undefined },
+      {
+        intent: intent("data_query"),
+        standing: null,
+        question: "how many notes do I have?",
+        signal: undefined,
+      },
     );
     expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
   });
@@ -151,7 +162,12 @@ describe("a classified data_query", () => {
 
     const loop = await runDataQuery(
       scratch.deps(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`)),
-      { intent: intent("data_query"), question: "how many notes do I have?", signal: undefined },
+      {
+        intent: intent("data_query"),
+        standing: null,
+        question: "how many notes do I have?",
+        signal: undefined,
+      },
     );
 
     expect(loop).toEqual({ ending: "budget_spent", stepsTaken: QUESTION_STEP_BUDGET });
@@ -163,7 +179,12 @@ describe("a classified data_query", () => {
 
     const loop = await runDataQuery(
       scratch.deps(reads(`UPDATE ${NOTES_TABLE} SET text = 'x'`), answers()),
-      { intent: intent("data_query"), question: "rewrite my notes", signal: undefined },
+      {
+        intent: intent("data_query"),
+        standing: null,
+        question: "rewrite my notes",
+        signal: undefined,
+      },
     );
 
     // Nothing was read, so the question ends having found nothing; what this fixture is about
@@ -186,7 +207,12 @@ describe("a classified data_query", () => {
           throw new Error("the catalog went away mid-question");
         },
       },
-      { intent: intent("data_query"), question: "how many notes do I have?", signal: undefined },
+      {
+        intent: intent("data_query"),
+        standing: null,
+        question: "how many notes do I have?",
+        signal: undefined,
+      },
     );
 
     await expect(failing).rejects.toThrow(/went away/);
@@ -203,6 +229,7 @@ describe("every other intent", () => {
       await expect(
         runDataQuery(deps, {
           intent: intent(type),
+          standing: null,
           question: "build me a thing",
           signal: undefined,
         }),
@@ -263,6 +290,7 @@ describe("a question the person gave up on", () => {
       },
       {
         intent: intent("data_query"),
+        standing: null,
         question: "how many notes do I have?",
         signal: gaveUp.signal,
       },
@@ -292,6 +320,7 @@ describe("a question the person gave up on", () => {
       },
       {
         intent: intent("data_query"),
+        standing: null,
         question: "how many notes do I have?",
         signal: gaveUp.signal,
       },
@@ -304,5 +333,119 @@ describe("a question the person gave up on", () => {
     expect(log.created).toBe(0);
     expect(log.calls).toEqual([]);
     expect(readerCounts(scratch.readGates)).toEqual([0, 0]);
+  });
+});
+
+// PLAN decision 28. The resolver already classified which capability the question leans on; what
+// these prove is that it arrives as context for the words and never as a bound on the reading.
+describe("the open capability is context, never a filter", () => {
+  const VAGUE = "how many did I add this month?";
+
+  test("the window standing open is named to every turn the question takes", async () => {
+    const scratch = desk();
+    const deps = scratch.deps(reads(`SELECT count(*) AS added FROM ${NOTES_TABLE}`), answers());
+
+    await runDataQuery(deps, {
+      intent: intent("data_query", NOTES_CAPABILITY.id),
+      standing: NOTES_CAPABILITY.id,
+      question: VAGUE,
+      signal: undefined,
+    });
+
+    const { prompts } = deps.provider as { prompts: readonly string[] };
+    expect(prompts).toHaveLength(2);
+    for (const prompt of prompts) {
+      expect(prompt).toContain(`${QUESTION_OPEN_WINDOW_HEADING} ${NOTES_CAPABILITY.label}`);
+    }
+  });
+
+  test("the same question asked with nothing standing carries no window at all", async () => {
+    const scratch = desk();
+    const deps = scratch.deps(reads(`SELECT count(*) AS added FROM ${NOTES_TABLE}`), answers());
+
+    await runDataQuery(deps, {
+      intent: intent("data_query"),
+      standing: null,
+      question: VAGUE,
+      signal: undefined,
+    });
+
+    const { prompts } = deps.provider as { prompts: readonly string[] };
+    for (const prompt of prompts) expect(prompt).not.toContain(QUESTION_OPEN_WINDOW_HEADING);
+  });
+
+  test("the table bound grants a collection other than the one standing", async () => {
+    const scratch = desk();
+    const deps = scratch.deps(
+      reads(`SELECT sum(amount) AS spent FROM ${EXPENSES_TABLE} WHERE text = ?`, ["groceries"]),
+      answers(),
+    );
+
+    const loop = await runDataQuery(deps, {
+      intent: intent("data_query", NOTES_CAPABILITY.id),
+      standing: NOTES_CAPABILITY.id,
+      question: "how much did I spend on groceries?",
+      signal: undefined,
+    });
+
+    // Notes is what is open; the statement reads expenses and is admitted. The question's own
+    // words steer nothing here — the scripted model asks for this statement whatever was typed —
+    // so what this proves is the platform's half: no bound of the window's reaches the read.
+    if (loop.ending !== "answered") throw new Error("the fixture answers");
+    expect(loop.steps[0]?.result).toEqual({ outcome: "rows", rows: [{ spent: 12.5 }] });
+    expect(loop.steps[0]?.collections).toEqual([EXPENSES_CAPABILITY.label]);
+    const [first] = (deps.provider as { prompts: readonly string[] }).prompts;
+    expect(first).toContain(`${QUESTION_OPEN_WINDOW_HEADING} ${NOTES_CAPABILITY.label}`);
+  });
+
+  test("a capability the model named but the desk is not showing is no window at all", async () => {
+    // The resolver's `target_capability` is its reading of the sentence, not a fact about the
+    // screen. Naming it as the collection in front of the person would launder a guess into a
+    // sentence they have no way to check (ADR-0008's 2026-09-11 amendment took the check away).
+    const scratch = desk();
+    const deps = scratch.deps(reads(`SELECT count(*) AS added FROM ${NOTES_TABLE}`), answers());
+
+    await runDataQuery(deps, {
+      intent: intent("data_query", EXPENSES_CAPABILITY.id),
+      standing: null,
+      question: VAGUE,
+      signal: undefined,
+    });
+
+    const { prompts } = deps.provider as { prompts: readonly string[] };
+    for (const prompt of prompts) expect(prompt).not.toContain(QUESTION_OPEN_WINDOW_HEADING);
+  });
+
+  test("nor is a window the person has open that the question did not lean on", async () => {
+    // Expenses is standing and the sentence named notes: the person said what they meant, so
+    // there is no loose word for the window to resolve and naming it would only mislead.
+    const scratch = desk();
+    const deps = scratch.deps(reads(`SELECT count(*) AS added FROM ${NOTES_TABLE}`), answers());
+
+    await runDataQuery(deps, {
+      intent: intent("data_query", NOTES_CAPABILITY.id),
+      standing: EXPENSES_CAPABILITY.id,
+      question: "how many notes do I have?",
+      signal: undefined,
+    });
+
+    const { prompts } = deps.provider as { prompts: readonly string[] };
+    for (const prompt of prompts) expect(prompt).not.toContain(QUESTION_OPEN_WINDOW_HEADING);
+  });
+
+  test("every collection is offered whichever one is standing", async () => {
+    const scratch = desk();
+    const deps = scratch.deps(reads(`SELECT count(*) AS added FROM ${NOTES_TABLE}`), answers());
+
+    await runDataQuery(deps, {
+      intent: intent("data_query", NOTES_CAPABILITY.id),
+      standing: NOTES_CAPABILITY.id,
+      question: VAGUE,
+      signal: undefined,
+    });
+
+    const [first] = (deps.provider as { prompts: readonly string[] }).prompts;
+    expect(first).toContain(`table: ${NOTES_TABLE}`);
+    expect(first).toContain(`table: ${EXPENSES_TABLE}`);
   });
 });

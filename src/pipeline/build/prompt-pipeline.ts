@@ -32,7 +32,7 @@ import type {
   BuildPipelineCompletion,
   BuildPipelineContext,
 } from "../jobs/build-jobs.ts";
-import { renderRestorationFragment } from "../jobs/restoration.ts";
+import { renderRestorationFragment, standingCapabilityId } from "../jobs/restoration.ts";
 import { carriedResolverMeasurement, type RecordMetrics } from "../metrics-recorder.ts";
 import { streamQuestion } from "../query/question-pipeline.ts";
 import {
@@ -179,6 +179,10 @@ function runNonBuildIntent(
       question: context.job.prompt,
       provider,
       readGates: deps.readGates,
+      // The same fact the resolver was classified against, and the reason it is sent twice rather
+      // than read off the intent: what the model returns is its reading of the sentence, and what
+      // is on screen is the desk's. A question resolves loose words against the second.
+      standing: standingCapabilityId(context.job.restoration),
       // What the person's own two triggers arrive on (PLAN decisions 27, 10). A build reaches the
       // same signal through `runCoreBuild`; a question needs it to reach the read scope, whose
       // worker is the only thing a cancel can actually stop.
@@ -279,7 +283,7 @@ async function runPromptJob(
     provider,
     prompt: job.prompt,
     catalog,
-    activeCapabilityId: job.restoration.kind === "capability" ? job.restoration.capabilityId : null,
+    activeCapabilityId: standingCapabilityId(job.restoration),
     send,
   });
   const intent = deflectDuplicateNewCapability(

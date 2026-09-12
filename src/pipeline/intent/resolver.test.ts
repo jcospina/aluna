@@ -29,6 +29,7 @@ import {
 import {
   classifyIntent,
   classifyIntentWithUsage,
+  INTENT_DATA_QUERY_CONTEXT_RULE,
   INTENT_TYPES,
   type IntentClassification,
   type IntentResolverSend,
@@ -275,6 +276,9 @@ describe("intent resolver classification — prompt assembly", () => {
       "prompt_context: Stores recipes the user wants to cook again.",
     );
     expect(provider.calls[0]?.prompt).toContain("Active capability:\nid: notes");
+    // PLAN decision 28. The rule beside this one enumerates the build intents and says nothing
+    // about a question, so without this sentence the field comes back null whatever is standing.
+    expect(provider.calls[0]?.prompt).toContain(INTENT_DATA_QUERY_CONTEXT_RULE);
     expect(provider.calls[0]?.prompt).toContain(
       "Existing capability and overlap check — do this before deciding",
     );

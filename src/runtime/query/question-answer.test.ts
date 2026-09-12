@@ -483,7 +483,7 @@ describe("a cancelled question stops waiting for its answer", () => {
     const asking = desk.inScope(async (scope) => {
       const loop = runQuestionLoop(
         { provider: stalling, scope, database: desk.database.readonly },
-        { question: QUESTION },
+        { question: QUESTION, openCapability: null },
       );
       // Anchored to the generation itself rather than to a count of microtasks: cancelling any
       // earlier is caught by the wrapper's pre-flight check and proves only that.

@@ -240,7 +240,11 @@ describe("a label outside the closed set is rejected", () => {
     const result = await desk.inScope((scope) =>
       runQuestionLoop(
         { provider: rogue, scope, database: desk.database.readonly },
-        { question: "how many notes?", onStep: (step) => steps.push(step) },
+        {
+          question: "how many notes?",
+          openCapability: null,
+          onStep: (step) => steps.push(step),
+        },
       ),
     );
 

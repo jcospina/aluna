@@ -436,6 +436,7 @@ describe("the scope and its tokens go back on every ending", () => {
         },
         {
           question: "how many notes?",
+          openCapability: null,
           onStep: () => {
             steps += 1;
             // The gate closing under a running question is 6.2/03's kill: it arrives as a read
@@ -472,7 +473,11 @@ describe("a decision that will not parse is a turn, not an ending", () => {
     const result = await scratch.inScope((scope) =>
       runQuestionLoop(
         { provider: rogue, scope, database: scratch.database.readonly },
-        { question: "how many notes?", onStep: (step) => steps.push(step) },
+        {
+          question: "how many notes?",
+          openCapability: null,
+          onStep: (step) => steps.push(step),
+        },
       ),
     );
 
@@ -503,6 +508,7 @@ describe("what a watcher gets and what it cannot break", () => {
         },
         {
           question: "how many notes?",
+          openCapability: null,
           onStep: () => {
             throw new Error("the watcher blew up");
           },

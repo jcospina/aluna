@@ -16,6 +16,14 @@ import {
 import { renderPromptNotice } from "../../server/http/fragments.ts";
 import { type IntentClassification, intentClassificationSchema } from "./schema.ts";
 
+/**
+ * What the existing `target_capability` field means on a question (PLAN decision 28). The rule
+ * beside it enumerates the build intents and leaves a question's unsaid, so the field arrives
+ * null whatever is standing; this is the sentence that lets the open window through it.
+ */
+export const INTENT_DATA_QUERY_CONTEXT_RULE =
+  "- On a data_query, target_capability is the active capability when the question leans on it for a vague word — these, ones, how many did I add — and null when the question names its own subject. It says what those words point at; it never limits what may be searched.";
+
 export const INTENT_RESOLUTION_NARRATION =
   "I'm sorting out whether this is a new place or belongs with something you've already started. ";
 
@@ -148,6 +156,7 @@ export function buildIntentPrompt(context: IntentPromptContext): string {
     "- resolution is new for an unrelated new capability, namespace for a meaningfully separate overlapping capability, extend for extend_capability/ui_change, and none for data_query/reject.",
     '- proposed_identity is { id, label } only for namespace: bind the meaningful distinction independently before Builder work (for example { id: "work_contacts", label: "Work contacts" }). It is null for every other resolution.',
     "- target_capability is the overlapping existing capability id for namespace and the existing target for extend/ui_change; it is null for unrelated new capabilities and reject.",
+    INTENT_DATA_QUERY_CONTEXT_RULE,
     "- user_facing_label must be one warm product-voice sentence for the user; do not expose internals.",
     "- requires_confirmation must be false in the explicit loop.",
     "",

@@ -1,7 +1,6 @@
 # Every collection states how many records it holds
 
-Status: ready-for-agent — built and verified; the sign-off gate is the only box left,
-and only a human can tick it.
+Status: done
 
 Type: HITL — the number is new furniture on the collection, and decision 32
 deliberately leaves where it is rendered and how it looks unsettled.

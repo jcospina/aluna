@@ -10,6 +10,7 @@ export {
   type ClassifyIntentResult,
   classifyIntent,
   classifyIntentWithUsage,
+  INTENT_DATA_QUERY_CONTEXT_RULE,
   INTENT_RESOLUTION_NARRATION,
   INTENT_RESOLVER_PROMPT_PREFIX,
   type IntentPromptContext,

@@ -213,6 +213,13 @@ describe("what she says is one thing she says, and it is hers", () => {
     expect(QUESTION_ANSWER_RULES.join("\n")).toContain("it is you narrating yourself");
   });
 
+  test("and she is asked for the subject where the question left it out", () => {
+    // Decision 29 after the reversal: the scope rides as the ordinary noun, never as a clause in
+    // front. What was withdrawn is the preamble; *six of your recipes* was always the good shape,
+    // and the example above it in the rules has been that shape since before the reversal.
+    expect(QUESTION_ANSWER_RULES.join("\n")).toContain("never says what it is about");
+  });
+
   test("the one field is asked for in the shape a strict provider accepts", () => {
     // `question-tool.ts` says why an absent key is not an option under OpenAI's strict mode.
     const emitted = zodSchema(questionAnswerSchema).jsonSchema as Record<string, unknown>;

@@ -19,10 +19,16 @@ import {
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { Provider } from "../../../platform/provider/index.ts";
 import { listCapabilities } from "../../../registry/index.ts";
-import { QUESTION_COULD_NOT_FINISH, questionLabelNarration } from "../../../runtime/query/index.ts";
+import {
+  QUESTION_COULD_NOT_FINISH,
+  QUESTION_OPEN_WINDOW_HEADING,
+  QUESTION_TURN_PROMPT_PREFIX,
+  questionLabelNarration,
+} from "../../../runtime/query/index.ts";
 import {
   catalogueWithRecords,
   EXPENSES_TABLE,
+  NOTES_CAPABILITY,
   NOTES_TABLE,
 } from "../../../runtime/query/question.test-support.ts";
 import {
@@ -319,5 +325,49 @@ describe("the deflection that used to answer a question", () => {
     expect(deflectionNarration(NEW_CAPABILITY_INTENT)).toBe(
       NEW_CAPABILITY_INTENT.user_facing_label,
     );
+  });
+});
+
+// PLAN decision 28, end to end: the shell puts the standing capability in the body, the resolver
+// classifies against it, and what it classified reaches the prompt the loop reads from.
+describe("a question asked in front of an open capability", () => {
+  const VAGUE = "how many did I add this month?";
+
+  function turnPrompts(asked: () => readonly string[]): readonly string[] {
+    return asked().filter((prompt) => prompt.startsWith(QUESTION_TURN_PROMPT_PREFIX));
+  }
+
+  test("carries that window from the body to every turn of the loop", async () => {
+    catalogueWithRecords(conns.readwrite);
+    const { provider, prompts } = askingProvider({ asking: VAGUE });
+
+    await askInTheWindow(askingApp(provider), VAGUE, {
+      capabilityId: NOTES_CAPABILITY.id,
+      incarnationId: NOTES_CAPABILITY.incarnationId,
+    });
+
+    const [classification] = prompts();
+    expect(classification).toContain(`Active capability:\nid: ${NOTES_CAPABILITY.id}`);
+    const turns = turnPrompts(prompts);
+    expect(turns.length).toBeGreaterThan(0);
+    for (const turn of turns) {
+      expect(turn).toContain(`${QUESTION_OPEN_WINDOW_HEADING} ${NOTES_CAPABILITY.label}`);
+    }
+  });
+
+  test("and the same sentence asked with nothing standing carries none", async () => {
+    catalogueWithRecords(conns.readwrite);
+    // The resolver leaves the field null when there is no window for the loose words to point at.
+    const { provider, prompts } = askingProvider({
+      asking: VAGUE,
+      intent: { ...DATA_QUERY_INTENT, target_capability: null },
+    });
+
+    await askInTheWindow(askingApp(provider), VAGUE);
+
+    expect(prompts()[0]).toContain("Active capability:\nnone");
+    const turns = turnPrompts(prompts);
+    expect(turns.length).toBeGreaterThan(0);
+    for (const turn of turns) expect(turn).not.toContain(QUESTION_OPEN_WINDOW_HEADING);
   });
 });

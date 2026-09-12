@@ -45,6 +45,11 @@ export interface QuestionPipelineInput {
    * `DataQuestion.signal` gives: nothing but the compiler notices it going missing.
    */
   readonly signal: AbortSignal | undefined;
+  /**
+   * The capability standing in the window when this sentence was sent, read off the same
+   * restoration the resolver was classified against (PLAN decision 28). Null for a bare desk.
+   */
+  readonly standing: string | null;
   readonly mutationCoordinator: MutationCoordinator;
   /** Where the catalog and the collections are read. Nothing on this path writes to either. */
   readonly databases: PlatformDatabase;
@@ -141,6 +146,7 @@ async function runToAnEnding(
       },
       {
         intent: input.resolution.intent,
+        standing: input.standing,
         question: input.question,
         onStep: (step) => say(() => questionStepNarration(step.call)),
         signal: input.signal,

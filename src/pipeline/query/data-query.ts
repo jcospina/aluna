@@ -41,6 +41,12 @@ export interface DataQueryDeps {
 
 export interface DataQuestion {
   readonly intent: IntentClassification;
+  /**
+   * What the desk actually had open, which is the only authority on it: `target_capability` is
+   * the model's reading of the sentence and can name a capability that is not standing, or none
+   * when one is. Required, so a caller cannot quietly hand the loop the model's guess instead.
+   */
+  readonly standing: string | null;
   /** The prompt bar text, in the person's own words. */
   readonly question: string;
   /**
@@ -56,6 +62,16 @@ export interface DataQuestion {
    * quietly stopped passing it would leave every test green.
    */
   readonly signal: AbortSignal | undefined;
+}
+
+/**
+ * The collection a loose word points at: the one on screen, and only when the resolver read the
+ * sentence as leaning on it (PLAN decision 28). Either half alone is wrong — the desk's fact
+ * alone would scope a question that named its own subject, and the model's alone would let a
+ * hallucinated id be described to the next turn as the window a person is looking at.
+ */
+function windowTheQuestionLeansOn(input: DataQuestion): string | null {
+  return input.intent.target_capability === input.standing ? input.standing : null;
 }
 
 /**
@@ -95,7 +111,13 @@ export async function runDataQuery(
       try {
         return await runQuestionLoop(
           { provider: deps.provider, scope, database },
-          { question: input.question, ...(input.onStep ? { onStep: input.onStep } : {}) },
+          {
+            question: input.question,
+            // Context for what a loose word means, never a bound on what may be read: the scope
+            // above is the whole catalog either way (decision 28).
+            openCapability: windowTheQuestionLeansOn(input),
+            ...(input.onStep ? { onStep: input.onStep } : {}),
+          },
         );
       } finally {
         // Off before the scope releases, so a job cancelled after its own question ended cannot
