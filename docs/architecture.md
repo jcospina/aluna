@@ -246,9 +246,10 @@ live in `localStorage`.
 It is context-aware: it knows which capability is open, if any, so "add a due
 date" scopes to that capability. It submits to the orchestrator and receives
 streamed HTML back. The bar also speaks for itself, and explains anything refused
-before a build starts: the desk has no notice component, and the window is not yet
-involved. Its one replaceable live slot preserves refused input/focus, clears stale
-copy when the user edits, and never stacks or times away competing messages.
+before a build starts: the desk has no notice component. One case reaches a window
+— a refusal arriving while an answer window stands is said there instead
+(ADR-0008). Its one replaceable live slot preserves refused input/focus, clears
+stale copy when the user edits, and never stacks or times away competing messages.
 
 **Logo layer** — empty for a fresh user, otherwise rehydrated from the registry on
 load. Clicking a logo opens that capability's View in the window, and clicking
@@ -1062,9 +1063,12 @@ the developer panel, displacing neither, so a capability stays open while it is 
 about. One answer window: a new question replaces its content in place rather than closing and
 reopening it, the same swap the one window already performs between capabilities. There
 is no route back to an answer once it is gone — no logo, no tile, no address, nothing
-surviving a reload — so it is dismissed rather than put away. A refusal opens nothing: it speaks in the
-prompt bar's notice slot, exactly as it does today. When nothing can answer, Aluna
-names the gap and stops — an offer with a confirmation is a proposal, and the proposal
+surviving a reload — so it is dismissed rather than put away. A refusal opens nothing, but
+where it speaks depends on what the desk is holding: the prompt bar's notice slot when no
+answer window stands, and the window itself when one does, re-titled to the refused words
+and brought forward. An answer left standing beside a refusal goes on answering a question
+nobody asked. When nothing can answer, Aluna names the gap and stops — an offer with a
+confirmation is a proposal, and the proposal
 surface is Module 8's. ADR-0008 is the contract.
 
 ## 8. The two loops

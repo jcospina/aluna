@@ -493,10 +493,12 @@ describe("prompt-job admission separation", () => {
 
     expect(prompts).toHaveLength(1);
     // The first fragment is the desk working out what the sentence is, which goes on the prompt
-    // bar rather than into a window (`renderResolvingNotice`).
+    // bar rather than into a window (`renderResolvingNotice`); then the refusal this provider
+    // classifies every sentence as, and the restoration behind it.
     expect(events.map((event) => event.event)).toEqual([
       "fragment",
       "metrics-preview",
+      "fragment",
       "fragment",
       "done",
     ]);

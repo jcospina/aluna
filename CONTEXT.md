@@ -207,7 +207,8 @@ four edges and never full width. Context-aware: it scopes to the capability in
 the window. The user types intent here and watches the app build in the window.
 No window drags or resizes into the strip it occupies. Anything Aluna refuses
 before a build starts is explained here rather than in the window (design D5;
-M5 plan 5, 24).
+M5 plan 5, 24) — except a refused sentence typed while an answer window stands,
+which is said in that window instead (ADR-0008, amended 2026-09-14).
 _Avoid_: search box, command bar, chat input, composer (acceptable when describing
 the field itself, but the region is the "prompt bar")
 
@@ -281,7 +282,10 @@ and displaces nothing — a capability stays open while it is asked about. One o
 new question replaces its content in place, never closing and reopening the frame. It
 carries **no logo, tile or address**, so it is *dismissed* rather than *put away* —
 closing it destroys the answer and nothing survives a reload (ADR-0008). A refusal never
-opens it and speaks on the prompt bar instead.
+opens it. When one is already standing the refusal takes it — re-titled to the words that
+were refused, brought forward, and said there rather than on the bar — so the window can
+be left holding something that is not an answer. The prompt bar speaks a refusal only
+when no window is there to take it.
 _Avoid_: results panel, query window, output pane, the auto-table (deleted)
 
 **Product voice**:

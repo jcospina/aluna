@@ -169,6 +169,17 @@ slot exactly as it does today. This costs one beat between submit and the window
 and it means M5's notice contract is left entirely untouched — moving answers into a
 window *reduces* what this module changes.
 
+**Amended 2026-09-14 by the owner — a refusal speaks where it lands.** It still opens no
+window, and on a desk holding none it speaks in the notice slot as above. Where an answer
+window is already standing the refusal takes that window instead, re-titled to the words
+that were refused and brought forward, and it is said once rather than on both surfaces.
+The window it takes was answering a question this sentence is not, and leaving that answer
+standing leaves the desk answering something nobody asked. The slot, the sentence and the
+400ms cue are unchanged, so M5's notice contract holds in shape; what moved is who writes
+it. The deflection sends no notice for a `reject`, and the desk says it on the bar once it
+learns no window took it. The typed prompt and the keyboard survive either way, and the
+sentence clears when the words change.
+
 **A query does not lock the prompt bar**; asking something else is always possible and
 cancels the running query.
 

@@ -192,6 +192,7 @@ function runNonBuildIntent(
   return streamDeflection({
     ...shared,
     generationId: context.job.id,
+    prompt: context.job.prompt,
     buildDatabases: deps.buildDatabases,
     restoration: context.job.restoration,
   });
@@ -264,6 +265,7 @@ async function runPromptJob(
     job.resolution = resolution;
     return streamDeflection({
       generationId: job.id,
+      prompt: job.prompt,
       resolution,
       recordMetrics: deps.recordMetrics,
       send,

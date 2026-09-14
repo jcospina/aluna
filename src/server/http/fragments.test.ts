@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { REJECT_DEFLECTION } from "../../pipeline/build/admission/deflection.ts";
 import {
   countMatches,
   LOGO_ABSENT,
@@ -8,14 +9,17 @@ import {
   SHELL_FIXTURE,
 } from "./fragments.test-support.ts";
 import {
+  answerWindowTitle,
   BLANK_PROMPT_NOTICE,
   NOT_FOUND_NOTICE,
   PAGE_ASSEMBLY_ANCHORS,
   PROMPT_REFUSAL_ATTRIBUTE,
+  REFUSED_PROMPT_ATTRIBUTE,
   renderCapabilityCommitSwap,
   renderPromptNotice,
   renderProvisionalLogo,
   renderProvisionalLogoName,
+  renderRefusedPrompt,
   renderRehydratedShell,
 } from "./fragments.ts";
 import { escapeHtml } from "./html.ts";
@@ -109,6 +113,44 @@ describe("prompt notice", () => {
     expect(renderPromptNotice(BLANK_PROMPT_NOTICE)).toBe(
       '<div id="prompt-notice" hx-swap-oob="innerHTML">What would you like me to make?</div>',
     );
+  });
+});
+
+describe("a refused prompt", () => {
+  // The person's own words go into an attribute and Aluna's line into a body, the same two halves
+  // `renderAnswerWindowOpening` has. A benign prompt makes both escapes identity functions, so
+  // every other test of this path stays green with them deleted. These close the quote.
+  test("markup in the refused prompt cannot break out of the attribute", () => {
+    const hostile = `" onmouseover="alert(1)" x="`;
+
+    const fragment = renderRefusedPrompt(hostile, REJECT_DEFLECTION);
+
+    expect(fragment).toContain(`${REFUSED_PROMPT_ATTRIBUTE}="${escapeHtml(hostile)}"`);
+    expect(fragment).not.toContain(hostile);
+    // One mark, so nothing the person typed can present itself to the glue as a second refusal.
+    expect(countMatches(fragment, `${REFUSED_PROMPT_ATTRIBUTE}="`)).toBe(1);
+  });
+
+  test("markup in the sentence is text, not markup", () => {
+    const fragment = renderRefusedPrompt("delete everything", `<img src=x onerror=alert(1)>`);
+
+    expect(fragment).toBe(
+      `<div ${REFUSED_PROMPT_ATTRIBUTE}="delete everything">` +
+        "&lt;img src=x onerror=alert(1)&gt;</div>",
+    );
+  });
+
+  test("a long prompt is shortened for the title, and shortened after it is escaped", () => {
+    // The bound and the escape meet here: a title cut to its limit must not be cut through an
+    // entity, which would leave `&am` in an attribute and the rest of it loose in the markup.
+    const hostile = `${"a&b ".repeat(60)}<end>`;
+
+    const fragment = renderRefusedPrompt(hostile, REJECT_DEFLECTION);
+
+    expect(fragment).toContain(
+      `${REFUSED_PROMPT_ATTRIBUTE}="${escapeHtml(answerWindowTitle(hostile))}"`,
+    );
+    expect(fragment).not.toContain("<end>");
   });
 });
 
