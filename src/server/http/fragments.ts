@@ -299,6 +299,19 @@ export function renderAnswerWindowOpening(question: string): string {
  */
 export const ANSWER_WINDOW_SAYING_ATTRIBUTE = "data-answer-saying";
 
+/**
+ * The prompt that was refused, carrying what Aluna said about it. Which surface says it is the
+ * desk's to settle and not this file's (PLAN decision 31), so the mark names the sentence rather
+ * than a destination — unlike {@link PROMPT_REFUSAL_ATTRIBUTE}, which only ever lives on the bar.
+ */
+export const REFUSED_PROMPT_ATTRIBUTE = "data-refused-prompt";
+
+/** The warm line for a sentence Aluna will not build from, under the words that earned it. */
+export function renderRefusedPrompt(refused: string, saying: string): string {
+  const attribute = `${REFUSED_PROMPT_ATTRIBUTE}="${escapeHtml(answerWindowTitle(refused))}"`;
+  return `<div ${attribute}>${escapeHtml(saying)}</div>`;
+}
+
 /** One thing Aluna says while she reads, and then the answer, into the window she is in. */
 export function renderAnswerWindowSaying(saying: string): string {
   return `<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}>${escapeHtml(saying)}</div>`;

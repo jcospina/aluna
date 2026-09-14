@@ -27,6 +27,7 @@ export {
   PAGE_ASSEMBLY_ANCHORS,
   PROMPT_REFUSAL_ATTRIBUTE,
   type PromptNoticeTone,
+  REFUSED_PROMPT_ATTRIBUTE,
   type RenderableCapabilityLogo,
   renderAnswerWindowOpening,
   renderAnswerWindowSaying,
@@ -38,6 +39,7 @@ export {
   renderPromptNotice,
   renderProvisionalLogo,
   renderProvisionalLogoName,
+  renderRefusedPrompt,
   renderRehydratedShell,
 } from "./fragments.ts";
 export {

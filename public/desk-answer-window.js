@@ -49,6 +49,13 @@ export const OPEN_THE_ANSWER_WINDOW_EVENT = "aluna:open-the-answer-window";
  */
 export const SAY_IN_THE_ANSWER_WINDOW_EVENT = "aluna:say-in-the-answer-window";
 
+/**
+ * A sentence Aluna will not build from, offered to the window standing here. Offered rather than
+ * placed: a desk with no answer window on it takes the refusal on the prompt bar instead, and the
+ * glue learns which happened from whether this was answered. Restated in `public/app.js`.
+ */
+export const REFUSE_IN_THE_ANSWER_WINDOW_EVENT = "aluna:refuse-in-the-answer-window";
+
 /** What the clay lamp is called here. A capability window is put away and comes back; this is not. */
 export const ANSWER_DISMISS_LABEL = "Dismiss";
 
@@ -317,6 +324,28 @@ export function sayInAnswerWindow(saying) {
   return true;
 }
 
+/**
+ * Take a refusal into the window already standing. Nothing is mounted: a refusal opens no window,
+ * and one reaching a desk that has no answer on it belongs on the prompt bar (ADR-0008, PLAN
+ * decision 31). Re-titled and raised the way a question's opening does both, because what it was
+ * holding answered a question this sentence is not. Coming forward under the person's own words
+ * is the whole cue here; the bar's 400ms flash has nothing to flash beside.
+ *
+ * @param {string} refused what the window is called now: the sentence Aluna could make nothing of
+ * @param {string} saying
+ * @returns {boolean} whether there was a window standing to take it
+ */
+export function refuseInAnswerWindow(refused, saying) {
+  const entry = mounted;
+  if (entry === null) return false;
+  // This sentence owns the window now, so the question it interrupted stops deciding its fate.
+  abandoned = false;
+  entry.win.setTitle(refused);
+  raise(entry);
+  writeBody(entry, saying);
+  return true;
+}
+
 /** The window region, as the desk this module was started on answers for it. */
 function windowRegion() {
   return desk?.getElementById?.(WINDOW_CONTENT_ID) ?? null;
@@ -433,6 +462,13 @@ export function startDeskAnswerWindow(root = document) {
     sayInAnswerWindow(detail.saying);
   });
 
+  root.addEventListener(REFUSE_IN_THE_ANSWER_WINDOW_EVENT, (event) => {
+    const detail = /** @type {CustomEvent<{ refused?: string, saying?: string }>} */ (event).detail;
+    if (typeof detail?.refused !== "string") return;
+    // Answered only when a window took it: the glue reads this to decide whether the bar speaks.
+    if (refuseInAnswerWindow(detail.refused, detail.saying ?? "")) event.preventDefault();
+  });
+
   /* Asking something else ends the question that is running (decision 10, first trigger). The
    * capture phase, and not a nicety: the shell's one-run guard reads the window on the way back
    * up (`public/app.js`), and a question still standing there is one it would refuse the second
@@ -448,8 +484,9 @@ export function startDeskAnswerWindow(root = document) {
 
   /* What takes down a window left showing a question nobody will finish. A question asked next
    * takes the window over instead (decision 25: the frame is never closed between questions), so
-   * this is only reached when the sentence that replaced it was a build or was turned down — and
-   * it waits for that run to end, because until then the desk is still working on it. */
+   * this is only reached when the sentence that replaced it was a build — a refusal takes the
+   * window over instead (PLAN decision 31) — and it waits for that run to end, because until
+   * then the desk is still working on it. */
   root.addEventListener("htmx:sseClose", (event) => {
     const closed = /** @type {CustomEvent<{ type?: string }>} */ (event);
     if (closed.detail?.type !== "message" || !abandoned) return;

@@ -43,9 +43,8 @@ const PROMPT_REFUSAL_SELECTOR = "[data-prompt-refusal]";
  * @param {boolean} [refused] @param {boolean} [aboutTheRun]
  */
 function tellThePromptBar(sentence, refused = false, aboutTheRun = false) {
-  document.dispatchEvent(
-    new CustomEvent("aluna:prompt-bar-message", { detail: { sentence, refused, aboutTheRun } }),
-  );
+  const detail = { sentence, refused, aboutTheRun };
+  document.dispatchEvent(new CustomEvent("aluna:prompt-bar-message", { detail }));
 }
 
 /**
@@ -120,7 +119,7 @@ function shell() {
           // Only a bar this run actually locked: a question woke it when it opened its window,
           // and the next question may be half typed by the time the answer lands. Waking again
           // would take those words away and pull focus off whatever the person is doing.
-          if (this.promptBusy) wakePrompt(!aSentenceAboutTheRunWasRetired());
+          if (this.promptBusy) wakePrompt(!theWordsInTheFieldStay());
           return;
         }
         this.promptBusy = false;
@@ -205,14 +204,33 @@ const ANSWER_WINDOW_SAYING_ATTRIBUTE = "data-answer-saying";
 const SAY_IN_THE_ANSWER_WINDOW_EVENT = "aluna:say-in-the-answer-window";
 
 /**
- * Ask the prompt bar to retire anything it was still saying about the run that just ended. Kept
- * in sync with public/prompt-bar.js, and pinned by a platform test.
- * @returns {boolean} whether there was such a sentence
+ * A sentence Aluna will not build from (`renderRefusedPrompt`, pinned by a test). It opens
+ * no window: the desk offers it to the answer window standing here, and says it on the prompt bar
+ * when there is none (PLAN decision 31).
  */
-function aSentenceAboutTheRunWasRetired() {
+const REFUSED_PROMPT_ATTRIBUTE = "data-refused-prompt";
+const REFUSE_IN_THE_ANSWER_WINDOW_EVENT = "aluna:refuse-in-the-answer-window";
+
+/**
+ * Whether the run now ending refused what was typed. The words stay in the field either way,
+ * because a refusal asks the person to tell her one thing they would like to keep track of, and
+ * a field emptied under that sentence takes back the very thing it asks for.
+ */
+let theRunRefusedWhatWasTyped = false;
+
+/**
+ * Retire anything the prompt bar was still saying about the run that just ended, and answer
+ * whether the words that produced it stay in the field. The event is kept in sync with
+ * public/prompt-bar.js and pinned by a platform test.
+ *
+ * A refusal leaves them too, wherever it landed: the try-again its sentence asks for is then one
+ * edit away rather than a retype.
+ * @returns {boolean}
+ */
+function theWordsInTheFieldStay() {
   const asked = new CustomEvent("aluna:retire-run-sentence", { cancelable: true });
-  document.dispatchEvent(asked);
-  return asked.defaultPrevented;
+  // False from `dispatchEvent` is the bar saying it had one to retire, which the DOM answers with.
+  return !document.dispatchEvent(asked) || theRunRefusedWhatWasTyped;
 }
 
 /** @param {string | null} title */
@@ -305,31 +323,22 @@ function outputHasOnlyDormantSubscriber(output, subscriber) {
 }
 
 /**
- * @param {string | undefined} restorationKind
+ * @param {string | undefined} kind
  * @param {{ id?: string, incarnation?: string, version?: string } | null} current
  * @param {{ id?: string, incarnation?: string, version?: string } | null} restored
- * @param {boolean} currentIsCanonical
- * @param {boolean} neutralOutput
+ * @param {boolean} canonical whether the View standing is the capability's own
+ * @param {boolean} neutral whether the output holds nothing but a dormant subscriber
  */
-function shouldPreserveRestoration(
-  restorationKind,
-  current,
-  restored,
-  currentIsCanonical,
-  neutralOutput,
-) {
-  if (restorationKind === "neutral") return current === null && neutralOutput;
+function shouldPreserveRestoration(kind, current, restored, canonical, neutral) {
+  if (kind === "neutral") return current === null && neutral;
+  if (kind !== "capability" || current === null || restored === null || !canonical) return false;
   return (
-    restorationKind === "capability" &&
-    current !== null &&
-    restored !== null &&
     current.id !== undefined &&
     current.incarnation !== undefined &&
     current.version !== undefined &&
     current.id === restored.id &&
     current.incarnation === restored.incarnation &&
-    current.version === restored.version &&
-    currentIsCanonical
+    current.version === restored.version
   );
 }
 
@@ -394,10 +403,8 @@ function preserveActiveView(listener, raw) {
 
   const explanation = template.content.querySelector(`#${PROMPT_NOTICE_ID}`);
   if (explanation instanceof HTMLElement) {
-    tellThePromptBar(
-      explanation.textContent ?? "",
-      explanation.querySelector(PROMPT_REFUSAL_SELECTOR) !== null,
-    );
+    const marked = explanation.querySelector(PROMPT_REFUSAL_SELECTOR) !== null;
+    tellThePromptBar(explanation.textContent ?? "", marked);
   }
   subscriber.dataset.preserveActiveView = "true";
   return true;
@@ -469,6 +476,30 @@ function sayInTheAnswerWindowFrom(listener, raw) {
 }
 
 /**
+ * Aluna declining a sentence, and the desk choosing where that lands. A refusal opens no window,
+ * so an answer standing here takes it — under the words that were refused, in place of an answer
+ * to a question nobody asked — and a desk holding none hears it on the prompt bar instead.
+ *
+ * @param {HTMLElement} listener
+ * @param {string} raw
+ * @returns {boolean}
+ */
+function placeTheRefusalFrom(listener, raw) {
+  const refused = markedFragment(listener, raw, REFUSED_PROMPT_ATTRIBUTE);
+  if (!refused) return false;
+  const saying = refused.textContent ?? "";
+  const detail = { refused: refused.getAttribute(REFUSED_PROMPT_ATTRIBUTE) ?? "", saying };
+  theRunRefusedWhatWasTyped = true;
+  // A window that took it answers the offer; one left unanswered means there was no window. Either
+  // way the bar is told, because the deflection stopped sending a notice for a refusal and nothing
+  // else retires the resolver's sentence from under a window that has since said the real thing.
+  // The empty sentence retires rather than speaks, so the refusal mark rides only the spoken one.
+  const offer = new CustomEvent(REFUSE_IN_THE_ANSWER_WINDOW_EVENT, { detail, cancelable: true });
+  tellThePromptBar(document.dispatchEvent(offer) ? saying : "", true);
+  return true;
+}
+
+/**
  * Park a held run's restoration instead of letting htmx place it. The ending arrives first, so
  * the subscriber already says whether this run waits; the fragment itself is the ordinary one.
  *
@@ -501,6 +532,7 @@ document.addEventListener("htmx:sseBeforeMessage", (event) => {
     nameTheWindowFrom(listener, message.data) ||
     openTheAnswerWindowFrom(listener, message.data) ||
     sayInTheAnswerWindowFrom(listener, message.data) ||
+    placeTheRefusalFrom(listener, message.data) ||
     preserveActiveView(listener, message.data) ||
     holdRestoration(listener, message.data)
   ) {
@@ -514,9 +546,8 @@ document.addEventListener("htmx:sseBeforeMessage", (event) => {
   event.preventDefault();
   // Handed over rather than written in place: the panel may not be standing when a stage arrives,
   // and it keeps them (`public/desk-dev-panel.js`).
-  document.dispatchEvent(
-    new CustomEvent(STAGE_PAYLOAD_EVENT, { detail: { stage, payload: message.data } }),
-  );
+  const detail = { stage, payload: message.data };
+  document.dispatchEvent(new CustomEvent(STAGE_PAYLOAD_EVENT, { detail }));
 });
 
 /**
@@ -567,6 +598,9 @@ document.addEventListener("htmx:beforeRequest", (event) => {
     // (`public/desk-answer-window.js`), and if it could not, leaving it is the lesser harm.
     if (!standing.matches(QUESTION_RUN_SELECTOR)) dropHeldRun(standing);
   }
+  // The last run's leftovers, retired where a run starts rather than at its stream open: a
+  // transport reconnect opens a stream for the same run, and must not take its words away.
+  theRunRefusedWhatWasTyped = false;
   tellThePromptBar("");
 });
 

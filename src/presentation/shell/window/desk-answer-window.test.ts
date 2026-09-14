@@ -18,21 +18,30 @@ import {
   dismissAnswerWindow,
   OPEN_THE_ANSWER_WINDOW_EVENT,
   openAnswerWindow,
+  REFUSE_IN_THE_ANSWER_WINDOW_EVENT,
+  refuseInAnswerWindow,
   SAY_IN_THE_ANSWER_WINDOW_EVENT,
   sayInAnswerWindow,
   startDeskAnswerWindow,
   syncAnswerForm,
 } from "#shell/desk-answer-window.js";
+import { joinStack, leaveStack, raise } from "#shell/desk-stack.js";
 import {
   fitBox,
   openingGeometry,
   WINDOW_CONTENT_ID,
   WINDOW_STORAGE_KEY,
 } from "#shell/desk-window.js";
+import { REJECT_DEFLECTION } from "../../../pipeline/build/admission/deflection.ts";
 import { questionLabelNarration } from "../../../runtime/query/index.ts";
-import { ANSWER_WINDOW_OPENING } from "../../../server/http/index.ts";
-import { codeOf as code, readSource as read, rules } from "../../safety/source.test-support.ts";
-import { desk, fakeEl } from "./desk-window.test-support.ts";
+import { ANSWER_WINDOW_OPENING, REFUSED_PROMPT_ATTRIBUTE } from "../../../server/http/index.ts";
+import {
+  codeOf as code,
+  flat,
+  readSource as read,
+  rules,
+} from "../../safety/source.test-support.ts";
+import { desk, fakeEl, stackMember } from "./desk-window.test-support.ts";
 import { standingDesk } from "./standing-desk.test-support.ts";
 
 const ANSWER = code("public/desk-answer-window.js");
@@ -182,11 +191,52 @@ describe("it displaces nothing", () => {
     );
   });
 
-  test("a refusal opens no window, and the prompt bar keeps every sentence it carries", () => {
-    // `#prompt-notice` is written by the restoration's own notice, and a question is the one
-    // outcome that sends none — every other sentence the bar carries goes on being carried.
-    expect(DEFLECTION).toContain("narration ?? deflectionNarration(resolution.intent),");
-    expect(FRAGMENTS).toContain('export const ANSWER_WINDOW_ATTRIBUTE = "data-answer-window";');
+  test("a refusal opens no window, and a desk holding none is told so", () => {
+    // Still true of a refusal that nothing opens for it: this mounts no window and reaches for
+    // nothing that would. What it answers is whether there was one — a desk with no answer on it
+    // says no, and the glue puts the sentence on the prompt bar instead (PLAN decision 31).
+    expect(refuseInAnswerWindow("delete everything", REJECT_DEFLECTION)).toBe(false);
+    expect(ANSWER).not.toMatch(/function refuseInAnswerWindow[\s\S]*?mount\(/);
+  });
+
+  test("and it comes forward, because on this desk nothing else is saying it", () => {
+    // Behind a capability window a refusal is invisible, and the prompt bar stayed silent for it
+    // precisely because there was a window to put it in — so a refusal that does not come forward
+    // is the desk answering with nothing at all. The long-question rule `sayInAnswerWindow` keeps
+    // does not reach this: the person typed these words a beat ago.
+    const desk = standingDesk();
+    const other = stackMember();
+    try {
+      const answer = openAnswerWindow(desk.doc, "how many notes?", "You have 22 notes.");
+      joinStack(other);
+      raise(other);
+      expect(answer.el.classList.contains("is-focused")).toBe(false);
+
+      refuseInAnswerWindow("delete everything", REJECT_DEFLECTION);
+
+      expect(answer.el.classList.contains("is-focused")).toBe(true);
+    } finally {
+      leaveStack(other);
+      dismissAnswerWindow();
+      desk.restore();
+    }
+  });
+
+  test("a refusal takes the answer window already standing, under the words it refused", () => {
+    // The window held an answer to a question this sentence is not, and leaving it there leaves
+    // the desk answering something nobody asked. So the refusal takes the frame over the way a
+    // second question does — re-titled and in front, never a second window (PLAN decisions 25, 31).
+    const desk = standingDesk();
+    try {
+      const answer = openAnswerWindow(desk.doc, "how many notes?", "You have 22 notes.");
+      expect(refuseInAnswerWindow("delete everything", REJECT_DEFLECTION)).toBe(true);
+      expect(answer.body.textContent).toBe(REJECT_DEFLECTION);
+      expect(answer.win.titleEl.textContent).toBe("delete everything");
+      expect(desk.doc.querySelectorAll(ANSWER_WINDOW_SELECTOR)).toHaveLength(1);
+    } finally {
+      dismissAnswerWindow();
+      desk.restore();
+    }
   });
 });
 
@@ -355,6 +405,25 @@ describe("the seam a classic script reaches the answer window across", () => {
     );
     // It lands nowhere either, and it is asked before the parked restoration is.
     expect(GLUE).toMatch(/sayInTheAnswerWindowFrom\(listener, message\.data\) \|\|/);
+  });
+
+  test("both ends agree on the mark a refusal rides, and that it may find nowhere", () => {
+    expect(REFUSE_IN_THE_ANSWER_WINDOW_EVENT).toBe("aluna:refuse-in-the-answer-window");
+    expect(GLUE).toContain(
+      `REFUSE_IN_THE_ANSWER_WINDOW_EVENT = "${REFUSE_IN_THE_ANSWER_WINDOW_EVENT}"`,
+    );
+    expect(GLUE).toContain(`REFUSED_PROMPT_ATTRIBUTE = "${REFUSED_PROMPT_ATTRIBUTE}"`);
+    expect(FRAGMENTS).toContain(
+      `export const REFUSED_PROMPT_ATTRIBUTE = "${REFUSED_PROMPT_ATTRIBUTE}";`,
+    );
+    // Asked before the parked restoration, like the other two, and cancellable — which is the one
+    // thing this mark needs that they do not: an unanswered offer is how the bar learns to speak.
+    // The whole statement, because `cancelable: true` alone is a string this file already carries
+    // for the retire-the-run-sentence event, and would pass with the offer's own dropped.
+    expect(GLUE).toMatch(/placeTheRefusalFrom\(listener, message\.data\) \|\|/);
+    expect(flat(GLUE)).toContain(
+      "new CustomEvent(REFUSE_IN_THE_ANSWER_WINDOW_EVENT, { detail, cancelable: true })",
+    );
   });
 
   test("a sentence for a window nobody is holding open goes nowhere at all", () => {

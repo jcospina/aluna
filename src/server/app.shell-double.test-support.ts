@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 
 import { startPromptBar } from "#shell/prompt-bar.js";
 
+import { unescapeHtml } from "./http/html.ts";
+
 // Shell glue, run rather than grepped: `public/app.js` imports nothing, so it runs with the DOM
 // globals its rules touch. Shared with app.build-ending and app.prompt-bar-messages.
 
@@ -201,6 +203,9 @@ export class El {
 
   replaceChildren(...nodes: El[]): void {
     for (const child of [...this.childNodes]) child.remove();
+    // This node's own text is a child too, and a `replaceChildren()` that left it standing would
+    // go on answering for a slot it had just emptied.
+    this.ownText = "";
     this.append(...nodes);
   }
 
@@ -231,10 +236,11 @@ export class El {
    * The browser runs a node's own listeners whether or not the node is still in the document, so
    * a rule that must hear about a swap into a detached region binds here rather than to it.
    */
-  dispatchEvent(event: { type: string }): boolean {
+  dispatchEvent(event: { type: string; defaultPrevented?: boolean }): boolean {
     this.dispatched.push(event.type);
     for (const listener of [...(this.handlers.get(event.type) ?? [])]) listener(event);
-    return true;
+    // The browser's answer: false once a listener has cancelled a cancellable event.
+    return event.defaultPrevented !== true;
   }
 }
 
@@ -274,7 +280,9 @@ function takeStep(step: RegExpExecArray, roots: El[], open: El[]): void {
   const [, closing, tag = "div", attributes = "", selfClosing, text] = step;
   const holder = open.at(-1);
   if (text !== undefined) {
-    if (holder) holder.ownText += text.trim();
+    // Decoded, because a browser decodes: every sentence on this desk is escaped on its way into
+    // a fragment, and a double handing it back escaped tests the desk against words nobody sees.
+    if (holder) holder.ownText += unescapeHtml(text.trim());
     return;
   }
   if (closing === "/") {
@@ -290,7 +298,7 @@ function takeStep(step: RegExpExecArray, roots: El[], open: El[]): void {
 function elementFrom(tag: string, attributes: string): El {
   const node = new El(tag);
   for (const [, name, value] of attributes.matchAll(/([\w-]+)(?:="([^"]*)")?/g)) {
-    if (name) node.setAttribute(name, value ?? "");
+    if (name) node.setAttribute(name, unescapeHtml(value ?? ""));
   }
   return node;
 }
@@ -339,10 +347,11 @@ function documentOver(
       for (let at = node as El | null; at; at = at.parent) if (at === page.page) return true;
       return false;
     },
-    dispatchEvent: (event: { type: string; detail?: unknown }) => {
+    /** False when a listener answered a cancellable event, which is how the browser reports it. */
+    dispatchEvent: (event: { type: string; detail?: unknown; defaultPrevented?: boolean }) => {
       dispatched.push({ type: event.type, detail: event.detail });
       for (const listener of listeners.get(event.type) ?? []) listener(event);
-      return true;
+      return event.defaultPrevented !== true;
     },
   };
 }

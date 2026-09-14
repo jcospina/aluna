@@ -9,9 +9,11 @@
 
 import { describe, expect, test } from "bun:test";
 import {
+  ANSWER_BODY_SELECTOR,
   ANSWER_WINDOW_SELECTOR,
   dismissAnswerWindow,
   openAnswerWindow,
+  refuseInAnswerWindow,
   startDeskAnswerWindow,
 } from "#shell/desk-answer-window.js";
 import { openWindow, PROMPT_FORM_ID, putAway, startDeskWindow } from "#shell/desk-window.js";
@@ -22,6 +24,7 @@ import {
   RUN_ID_ATTRIBUTE,
 } from "#shell/leaving-a-run.js";
 import { WINDOW_CONTENT_ID } from "#shell/shell-dom.js";
+import { REJECT_DEFLECTION } from "../../../pipeline/build/admission/deflection.ts";
 import {
   closeStream,
   desk,
@@ -323,6 +326,31 @@ describe("a question given up on for something that is not a question", () => {
       next.setAttribute(RUN_ID_ATTRIBUTE, "question-8");
       closeFrom(scene, next);
       expect(windows()).toHaveLength(1);
+    } finally {
+      dismissAnswerWindow();
+      scene.restore();
+    }
+  });
+
+  test("and a refusal takes it over the same way, rather than going down with the run", () => {
+    // The sentence that replaced her question was refused, and the refusal is what the window is
+    // showing. Taking it down at the close would destroy the only place that sentence was said —
+    // the prompt bar stayed silent for it, because there was a window (6.6/03).
+    const { scene, windows } = askingDesk();
+    try {
+      withCancelling(() => {
+        scene.doc.dispatchEvent(new CustomEvent("htmx:beforeRequest", ASKING_AGAIN) as never);
+      });
+      expect(refuseInAnswerWindow("delete everything", REJECT_DEFLECTION)).toBe(true);
+
+      const refused = new El("section");
+      refused.setAttribute(RUN_ID_ATTRIBUTE, "refusal-8");
+      closeFrom(scene, refused);
+
+      expect(windows()).toHaveLength(1);
+      expect(windows()[0]?.querySelector(ANSWER_BODY_SELECTOR)?.textContent).toBe(
+        REJECT_DEFLECTION,
+      );
     } finally {
       dismissAnswerWindow();
       scene.restore();

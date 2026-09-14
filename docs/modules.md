@@ -672,15 +672,18 @@ Numbered in build order.
   new question replaces its content in place rather than closing and reopening the frame.
   It carries no logo, tile or address and is dismissed rather than put away — closing it
   destroys the answer, nothing survives a reload, and future persistence is out of scope.
-  A refusal opens no window and still speaks on the prompt bar.
+  A refusal opens no window, and 6.6 settles where it speaks instead.
   A query never locks the prompt bar. First point the module can be seen.
   (PLAN decisions 1, 3, 15, 21, 22, 24, 25, 26, 27)
 - **6.6 — Context and refusal.** The prompt bar scopes a query to the capability in the
   window when relevant — context, never a filter — and scope is stated in the answer
   rather than shown as a control. A friendly refusal for obvious non-queries ("delete
   everything") reuses the resolver's existing `reject` bucket rather than adding a second
-  classifier; the write restriction itself lives in the supplied read-only adapter from
-  6.2, never here. (ARCH §6.1, §7; PLAN decisions 28, 29, 30, 31, 33)
+  classifier. It opens no window, and speaks on the prompt bar or — where an answer window
+  already stands — in that window, re-titled to the refused words, so a stale answer is not
+  left standing beside it. The bar's 400ms cue belongs to the bar; a refusal in the window
+  is cued by the window coming forward. The write restriction itself lives in the supplied
+  read-only adapter from 6.2, never here. (ARCH §6.1, §7; PLAN decisions 28, 29, 30, 31, 33)
 
 ### Verify by running it
 With Notes and one other capability built and populated, open a collection and confirm it
@@ -690,7 +693,8 @@ works and answers in a sentence, and no logo is added to the desk. Ask about a c
 whose stored values do not use the word you typed → she looks at what things are called
 before totalling, and says which values she counted. Ask a cross-capability question → one
 spoken answer. Ask about something you do not track → she names the gap and mentions you
-can ask her to build one, with no button. Type *"delete everything"* → a friendly refusal.
+can ask her to build one, with no button. Type *"delete everything"* → a friendly refusal,
+in the answer window if one is standing and on the prompt bar if none is.
 Start a long question and immediately ask another → the first is abandoned. Confirm the
 desk stayed responsive throughout, and that no registry row, version, or cache was created
 for any of it.

@@ -271,12 +271,15 @@ are **deliberately left alone**: closed module plans are history.
     which should settle itself on machinery that exists rather than inherit this
     deferral.
 
-23. **A refusal opens no window, and `#prompt-notice` is left alone.** The classification
-    says which it is, so the window opens only once the resolver returns `data_query`;
-    `reject` speaks on the prompt bar exactly as it does today. This costs one beat
-    between submit and the window opening, and it means M5's decision 24 and its notice
-    contract are untouched — moving answers into a window *reduces* what this module
-    changes rather than adding to it.
+23. **A refusal opens no window.** The classification says which it is, so the window opens
+    only once the resolver returns `data_query`. This costs one beat between submit and the
+    window opening. ~~`reject` speaks on the prompt bar exactly as it does today, and
+    `#prompt-notice` is left alone.~~ **Amended 2026-09-14 by the owner**: a refusal speaks
+    in the answer window when one is already standing, because an answer left standing
+    beside a refusal goes on answering a question nobody asked. It still opens none. The
+    slot, the sentence and the 400ms cue are unchanged, so M5's decision 24 holds; what
+    moved is who writes the notice. `streamDeflection` sends none for a `reject`, and the
+    desk says it on the bar once it learns no window took it.
 
 24. **Build narration stays in the capability window, untouched.** M5's reasoning holds
     unchanged: during a build the capability window is where the user is already looking,
@@ -328,8 +331,9 @@ are **deliberately left alone**: closed module plans are history.
 
 31. **Refusal reuses the resolver's existing `reject` bucket; no new classifier is
     built.** "Delete everything" already classifies as `reject`, and
-    `src/pipeline/build/admission/deflection.ts` already writes a warm line for it. Epic
-    6.6 routes that line into the answer window and proves the behaviour. `docs/modules.md` is
+    `src/pipeline/build/admission/deflection.ts` already writes a warm line for it. Epic 6.6
+    settles where that line lands and proves the behaviour: the answer window when one is
+    standing, the prompt bar when none is (decision 23, amended). `docs/modules.md` is
     emphatic that this path "is never the safety seam" — decision 6 is — and a second
     classifier would be a second thing to drift from the resolver's own judgment.
 
@@ -439,8 +443,11 @@ literally read "groceries" — food, cheese, vegetables.
    open; she answers about expenses, not about what is on screen.
 6. Ask about something you do not track at all. She names the gap and mentions you can ask
    her to build one. No button appears.
-7. Type *"delete everything."* A friendly refusal **on the prompt bar** — no window opens
-   for it, and the answer window standing from step 6 is left alone.
+7. With the answer window from step 6 still standing, type *"delete everything."* The
+   refusal lands **in that window**, which is re-titled to the words you typed and comes
+   forward; no second window opens and the prompt bar stays quiet. Dismiss the window and
+   type it again: this time the refusal is **on the prompt bar**, with its flash. Both
+   times the words are still in the field, and editing them clears the sentence.
 8. Ask several questions in a row and watch the window stay put — the content changes in
    place, the frame never closes and reopens. Then dismiss it and confirm there is no
    logo, tile or address that brings that answer back. Reload and confirm nothing of it

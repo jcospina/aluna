@@ -37,7 +37,12 @@ import {
 } from "../../app.test-support.ts";
 import { createApp } from "../../app.ts";
 import { escapeHtml } from "../../http/html.ts";
-import { ANSWER_WINDOW_ATTRIBUTE, ANSWER_WINDOW_OPENING } from "../../http/index.ts";
+import {
+  ANSWER_WINDOW_ATTRIBUTE,
+  ANSWER_WINDOW_OPENING,
+  ANSWER_WINDOW_SAYING_ATTRIBUTE,
+  REFUSED_PROMPT_ATTRIBUTE,
+} from "../../http/index.ts";
 import { makeQuestionProvider } from "./staged-question.test-support.ts";
 
 let dir: string;
@@ -339,22 +344,31 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       .map((event) => event.data)
       .join("");
 
-    // Nothing was admitted, so nothing stands on the desk: a deflection explains itself
-    // in the prompt bar and leaves the ground exactly as it found it.
+    // Nothing was admitted, so nothing stands on the desk: a deflection explains itself and
+    // leaves the ground exactly as it found it.
     // The first fragment is Aluna saying she is working out what the sentence is, which goes on
-    // the prompt bar rather than into a window (`renderResolvingNotice`).
+    // the prompt bar rather than into a window (`renderResolvingNotice`). The second carries the
+    // refusal, marked for wherever the desk finds to put it, and the third is the restoration.
     expect(events.map((event) => event.event)).toEqual([
       "fragment",
       "metrics-preview",
       "fragment",
+      "fragment",
       "done",
     ]);
     expect(eventData(events, "fragment")).toContain('data-build-restoration="neutral"');
-    expect(eventData(events, "fragment")).toContain('id="prompt-notice"');
-    expect(eventData(events, "fragment")).toContain("not quite sure what to make");
-    // A refusal opens no window at all: the bar is the whole of what a refused sentence gets
-    // (PLAN decision 23).
+    expect(eventData(events, "fragment")).toContain(
+      `${REFUSED_PROMPT_ATTRIBUTE}="delete everything"`,
+    );
+    expect(eventData(events, "fragment")).toContain(escapeHtml(REJECT_DEFLECTION));
+    // A refusal opens no window: nothing on this stream asks for one, whatever the desk turns out
+    // to be holding when the sentence arrives (PLAN decisions 23, 31).
     expect(eventData(events, "fragment")).not.toContain(ANSWER_WINDOW_ATTRIBUTE);
+    // And the deflection writes the bar's own slot no longer, so the refusal cannot be said twice
+    // on a desk with an answer window standing. The one notice here is the resolver saying it is
+    // still working the sentence out, which is sent before the classification comes back.
+    const settled = events.slice(events.findIndex((event) => event.event === "metrics-preview"));
+    expect(eventData(settled, "fragment")).not.toContain('id="prompt-notice"');
     expect(events[0]?.data).toContain("new place");
     expect(events[0]?.data).toContain("already started");
     expect(events.at(-1)).toMatchObject({ event: "done", data: "ok" });
@@ -362,7 +376,12 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       /capability|intent|data_query|registry|schema|migration|handler|artifact|metrics|provider/i,
     );
 
+    // One round trip, and it is the resolver's. Nothing classifies the sentence a second time,
+    // and no read scope opens behind it: a question's loop would spend a generation per step and
+    // narrate each one into the window (6.6/03 — the safety seam is the read-only adapter 6.2
+    // supplies, never a sentence anyone writes here).
     expect(prompts).toHaveLength(1);
+    expect(eventData(events, "fragment")).not.toContain(ANSWER_WINDOW_SAYING_ATTRIBUTE);
     expect(rows).toEqual([]);
     expect(resolutionRows).toHaveLength(1);
     expect(resolutionRows[0]).toMatchObject({
