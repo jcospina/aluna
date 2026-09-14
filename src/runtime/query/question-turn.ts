@@ -178,14 +178,32 @@ export const QUESTION_COMPUTATION_RULES = Object.freeze([
 
 /**
  * What the model is told about the ending it may ask for when nothing here fits (decision 20).
- * The second rule is the ending's own guard, put to the model: a gap claimed before she looked is
- * refused below, and 6.6/02 goes on to make the looking the loop's first step.
+ * Where to look first is the block below, which is the step this ending is earned by; a gap
+ * claimed before she looked is refused further down whatever the model was told.
  */
 export const QUESTION_NO_HOME_RULES = Object.freeze([
   '- When nothing listed below could hold what they asked about, set next to "no_home" and leave read null.',
-  "- Look before you say that. Read what these collections hold rather than searching for the",
-  "  thing itself: it is often a value inside one rather than a collection of its own.",
-  "- Having looked, say no_home rather than answering out of a collection about something else.",
+  "- Having read what these collections hold, say no_home rather than answering out of a",
+  "  collection about something else.",
+]);
+
+/** What the catalog below is headed with, and what the block under it sends the model to weigh. */
+export const QUESTION_COLLECTIONS_HEADING = "The collections:";
+
+/**
+ * Where the subject would live, worked out before anything is ruled out (decision 30). The
+ * resolver's own version of this check is one prompt line away (`src/pipeline/intent/resolver.ts`,
+ * "Compare the prompt against every capability's id, label, prompt_context, and … field catalog").
+ */
+export const QUESTION_WHERE_IT_LIVES_HEADING = "Where this would live:";
+export const QUESTION_WHERE_IT_LIVES_RULES = Object.freeze([
+  "- Settle this before you say there is nowhere for what they asked about.",
+  "- Weigh it against every collection below: the name, what the collection calls one record,",
+  "  and each of the columns.",
+  "- Read what a collection holds rather than searching for the thing itself. It is often a",
+  "  value inside one rather than a collection of its own, and a column you have not read is a",
+  "  home you have not ruled out — but a search of every collection for a thing none of them",
+  "  holds is how a real gap ends up reported as a search that found nothing.",
 ]);
 
 /**
@@ -331,7 +349,10 @@ export function buildQuestionTurnPrompt(context: QuestionPromptContext): string 
     "Reads left:",
     formatBudget(context),
     "",
-    "The collections:",
+    QUESTION_WHERE_IT_LIVES_HEADING,
+    ...QUESTION_WHERE_IT_LIVES_RULES,
+    "",
+    QUESTION_COLLECTIONS_HEADING,
     formatCollections(context.specs),
     ...formatOpenWindow(context),
     "",

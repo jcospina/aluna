@@ -67,7 +67,7 @@ export const EXPENSES_CAPABILITY = {
 export const NOTES_TABLE = "cap_notes";
 export const EXPENSES_TABLE = "cap_expenses";
 
-function notesSpec(): CapabilitySpec {
+export function notesSpec(): CapabilitySpec {
   return validSpec({
     id: NOTES_CAPABILITY.id,
     label: NOTES_CAPABILITY.label,
@@ -204,6 +204,10 @@ export const SCRIPTED_ANSWER = SCRIPTED_ANSWER_WRITTEN.answer;
 /** What a fake provider names when the loop asks what there is nowhere for. Words the default
  * question does not hold, so a suite naming it has to choose a question that does. */
 export const SCRIPTED_SUBJECT = "hiking trips";
+
+/** The plan's own worked question, on a desk that holds nowhere for what it asks about. Here
+ * rather than in either suite that asks it, because both derive it from the subject above. */
+export const A_QUESTION_WITH_NO_HOME = `how many ${SCRIPTED_SUBJECT} did I take last year?`;
 
 /**
  * One turn that ran a statement, for a suite that scripts only `read` decisions: a turn coming

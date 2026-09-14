@@ -45,7 +45,7 @@ export {
   questionResultSentence,
   questionStepNarration,
 } from "./question-narration.ts";
-// The gap's rules, its schema, its catalog check and the call that runs it are not re-exported,
+// The gap's rules, its schema, its catalog checks and the call that runs them are not re-exported,
 // for the reason the answer's rules are not. The prefix is, because a fake provider outside
 // recognizes the call. `questionSubjectInTheirWords` is not: its callers are next door.
 export { QUESTION_NO_HOME_PROMPT_PREFIX } from "./question-no-home.ts";

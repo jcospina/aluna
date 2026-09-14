@@ -8,17 +8,23 @@
 //
 // One call, carrying the question and nothing else: no rows, no collections, no steps. What comes
 // back is narrowed to a run of words this person wrote, and then refused outright when those words
-// name a collection they already have — the one part of this claim the platform can check against
-// the catalog it is already holding, and *you don't have anywhere for expenses* is what it stops.
-// The rest of the claim rests on the loop: the turn refuses the decision until she has opened a
-// collection, a question that searched and matched nothing keeps its own ending, and 6.6/02 goes
-// on to make the looking the loop's first step.
+// name something the desk already holds, or when they name nothing at all and a window is standing
+// open — decision 30's two checks, against the catalog this question is already holding. The rest
+// of the claim rests on the loop: the turn refuses the decision until she has opened a collection,
+// and a question that searched and matched nothing keeps its own ending.
 
 import { z } from "zod";
 
 import { abortableProvider, type Provider } from "../../platform/provider/index.ts";
-import { type ActiveRegistryCatalog, canonicalCapabilityLabel } from "../../registry/index.ts";
+import {
+  type ActiveRegistryCatalog,
+  activeSpecFields,
+  type CapabilitySpec,
+  choiceFieldOptions,
+  isChoiceFieldType,
+} from "../../registry/index.ts";
 import { questionNoHomeSentence, questionSubjectInTheirWords } from "./question-narration.ts";
+import { capabilityQuerySpec } from "./whole-catalog-query-scope.ts";
 
 /**
  * The opening line of this call's prompt, and how a fake provider tells it from a turn's and an
@@ -57,19 +63,65 @@ export function buildQuestionNoHomePrompt(question: string): string {
 }
 
 /**
- * Whether these words name a collection this desk already holds, by the name the person gave it
- * or by what one of its records is called. Either way round, because *notes from my doctor* holds
- * a collection's name and *hiking* is held by one. Names it catches, never meanings: this is the
- * cheap half of decision 30's check, and 6.6/02 owns the half that reads the data.
+ * What names a collection: what this person called it, and what it calls one of its records. Not
+ * its id, though the resolver's own check compares one: an id is engineering language and never
+ * this person's (`src/registry/spec/spec.ts`), and a renamed capability's is a word nobody on the
+ * desk uses any more — *notes from my landlord* would be held by a Journal whose id is `notes`.
  */
-export function questionNamesACollection(catalog: ActiveRegistryCatalog, named: string): boolean {
-  return catalog.capabilities.some((row) =>
-    [canonicalCapabilityLabel(row), row.noun].some(
-      (name) =>
-        questionSubjectInTheirWords(name, named) !== null ||
-        questionSubjectInTheirWords(named, name) !== null,
-    ),
-  );
+function collectionNames(spec: CapabilitySpec): readonly string[] {
+  return [spec.label, spec.noun];
+}
+
+/**
+ * What a collection holds: each live column's name and label, and a choice field's declared
+ * values, a disabled one included for the reason `formatChoiceValues` lists it. A retired field
+ * is not here — its column is gone from what a statement may read, so a subject naming one has
+ * nowhere to be found after all. Nor is `prompt_context`, though the resolver weighs it: prose
+ * matched mechanically would suppress gaps this desk really has, which is this file's whole job.
+ */
+function namesInsideCollection(spec: CapabilitySpec): readonly string[] {
+  return activeSpecFields(spec.schema.fields).flatMap((field) => [
+    field.name,
+    field.label,
+    ...(isChoiceFieldType(field.type)
+      ? choiceFieldOptions(field).flatMap((option) => [option.value, option.label])
+      : []),
+  ]);
+}
+
+/** Whether one of these runs of words sits inside the other, by the word notion the subject was
+ * narrowed with. Both ways round is the two being the same words, since neither can be longer. */
+function inside(name: string, named: string): boolean {
+  return questionSubjectInTheirWords(name, named) !== null;
+}
+
+/**
+ * Whether these words name something this desk already holds. A collection is caught either way
+ * round: *hiking* is held by one called Hiking trips, and *notes from my doctor* holds one called
+ * Notes. What is inside a collection has to be the whole subject, because a column's name found
+ * inside a longer subject is a coincidence — one desk of nine collections puts two hundred names
+ * in reach, most of them one ordinary word, and *light bulbs* is no gap once *light* is a roast.
+ */
+export function questionNamesSomethingOnThisDesk(
+  catalog: ActiveRegistryCatalog,
+  named: string,
+): boolean {
+  // Through `capabilityQuerySpec`, so every name weighed here is one on this person's own desk.
+  return catalog.capabilities
+    .map(capabilityQuerySpec)
+    .some(
+      (spec) =>
+        collectionNames(spec).some((name) => inside(name, named) || inside(named, name)) ||
+        namesInsideCollection(spec).some((name) => inside(name, named) && inside(named, name)),
+    );
+}
+
+/** Whether a window naming one of these collections is standing open. An id naming nothing the
+ * catalog lists is nothing standing, the way it is nothing in a turn's own prompt — which in
+ * production it cannot be: `windowTheQuestionLeansOn` (`src/pipeline/query/data-query.ts`) names
+ * a collection only where the desk's own restoration and the model's claim agree. */
+function windowIsStanding(catalog: ActiveRegistryCatalog, open: string | null): boolean {
+  return catalog.capabilities.some((row) => row.id === open);
 }
 
 export interface QuestionNoHomeDeps {
@@ -77,8 +129,11 @@ export interface QuestionNoHomeDeps {
   /** The question's cancellation, and the only thing the scope lends this step, for the reason
    * the answer is lent it: the whole catalog is held while these words are settled. */
   readonly signal: AbortSignal;
-  /** That same held catalog, which is what makes the check above cost nothing. */
+  /** That same held catalog, which is what makes the checks above cost nothing. */
   readonly catalog: ActiveRegistryCatalog;
+  /** What was standing in their window while they asked (decision 28), which is the second home
+   * decision 30 weighs: a question whose words name no thing of their own asked about that. */
+  readonly openCapability: string | null;
 }
 
 /** What the generation named, or `null` for one that came back unreadable — which a cancellation
@@ -94,9 +149,10 @@ async function namedSubject(object: Promise<unknown>, signal: AbortSignal): Prom
 }
 
 /**
- * The gap sentence, or `null` when what came back names a collection they already have — which is
- * no gap, so the question answers instead. A generation that will not read settles the sentence
- * without a subject rather than ending the question: the words are the platform's either way.
+ * The gap sentence, or `null` for the two ways this desk turns out to have a home after all —
+ * either way no gap, so the question answers instead. A generation that will not read settles the
+ * sentence without a subject rather than ending the question, whatever is standing: the words are
+ * the platform's, and a provider that hiccuped is no evidence about anybody's desk.
  */
 export async function runQuestionNoHome(
   deps: QuestionNoHomeDeps,
@@ -105,7 +161,17 @@ export async function runQuestionNoHome(
   const provider = abortableProvider(deps.provider, deps.signal);
   const generated = provider.generate(buildQuestionNoHomePrompt(question), questionNoHomeSchema);
   const named = await namedSubject(generated.object, deps.signal);
-  const narrowed = named === null ? null : questionSubjectInTheirWords(question, named);
-  if (narrowed !== null && questionNamesACollection(deps.catalog, narrowed)) return null;
-  return questionNoHomeSentence(narrowed);
+  if (named === null) return questionNoHomeSentence(null);
+  const narrowed = questionSubjectInTheirWords(question, named);
+  // It named something and the words were not theirs to name. Asked in front of a window that is
+  // *how many did I add this month*, which is about the collection standing there and they
+  // plainly have that one; asked in front of nothing, the unnamed sentence is all it can be.
+  if (narrowed === null) {
+    return windowIsStanding(deps.catalog, deps.openCapability)
+      ? null
+      : questionNoHomeSentence(null);
+  }
+  return questionNamesSomethingOnThisDesk(deps.catalog, narrowed)
+    ? null
+    : questionNoHomeSentence(narrowed);
 }
