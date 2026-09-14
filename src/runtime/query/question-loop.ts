@@ -112,13 +112,18 @@ export async function runQuestionLoop(
 
   // The gap, or the ending this question truthfully has instead. A search that matched nothing
   // keeps its own: that ending is about her search, and this one is about the desk,
-  // and the weaker claim is the true one. `runQuestionNoHome` refuses a subject naming a
-  // collection they already have. **This is where the implicit loop wires its proposal surface
-  // when it has one**; until then the sentence ships with no control of any kind.
+  // and the weaker claim is the true one. `runQuestionNoHome` then runs its two checks
+  // against the held catalog. **This is where the implicit loop wires its proposal surface when
+  // it has one**; until then the sentence ships with no control of any kind.
   const named = async (): Promise<QuestionLoopResult> => {
     if (questionFoundNothing(steps)) return await spoken();
     const said = await runQuestionNoHome(
-      { provider: deps.provider, signal: deps.scope.signal, catalog: deps.scope.catalog },
+      {
+        provider: deps.provider,
+        signal: deps.scope.signal,
+        catalog: deps.scope.catalog,
+        openCapability: input.openCapability,
+      },
       input.question,
     );
     return said === null ? await spoken() : { ending: "no_home", steps, answer: said };

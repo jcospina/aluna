@@ -6,9 +6,9 @@
 // accept an offer is the implicit loop's. The subject is words this person wrote, because free text
 // of the model's inside a sentence the platform vouches for can make that sentence claim something
 // about the person — a bound value once did. The claim is about their desk, so it is refused when
-// it names a collection they already have, and a question that searched and matched nothing keeps
-// its own weaker, truer ending. And the whole of it is earned by looking: the turn refuses a gap
-// until a statement has opened a collection.
+// it names something they already have, and a question that searched and matched nothing keeps its
+// own weaker, truer ending. And the whole of it is earned by looking: the turn refuses a gap until
+// a statement has opened a collection.
 
 import { beforeEach, describe, expect, test } from "bun:test";
 import { zodSchema } from "ai";
@@ -18,6 +18,7 @@ import { A_DATA_QUERY_CLASSIFICATION } from "../../pipeline/intent/intent.test-s
 import type { GenerateResult, Provider } from "../../platform/provider/index.ts";
 import { type ActiveRegistryCatalog, readActiveRegistryCatalog } from "../../registry/index.ts";
 import {
+  A_QUESTION_WITH_NO_HOME,
   answers,
   EXPENSES_CAPABILITY,
   NO_USAGE,
@@ -47,16 +48,12 @@ import {
   buildQuestionNoHomePrompt,
   QUESTION_NO_HOME_PROMPT_PREFIX,
   QUESTION_SUBJECT_RULES,
-  questionNamesACollection,
+  questionNamesSomethingOnThisDesk,
   questionNoHomeSchema,
   runQuestionNoHome,
 } from "./question-no-home.ts";
 import { LOOK_BEFORE_NO_HOME, QUESTION_NO_HOME_RULES } from "./question-turn.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
-
-/** The example question, against a desk holding Notes and Expenses — neither of which
- * is anywhere for it. `SCRIPTED_SUBJECT` is the thing it asks about. */
-const HIKING = `how many ${SCRIPTED_SUBJECT} did I take last year?`;
 
 let platforms: ScratchPlatforms;
 
@@ -108,9 +105,11 @@ beforeEach(() => {
 
 describe("the sentence", () => {
   test("names the gap in this person's own words and says they can ask for one", () => {
-    expect(questionNoHomeSentence(questionSubjectInTheirWords(HIKING, SCRIPTED_SUBJECT))).toBe(
-      "You don't have anywhere for hiking trips yet — you can ask me to make one.",
-    );
+    expect(
+      questionNoHomeSentence(
+        questionSubjectInTheirWords(A_QUESTION_WITH_NO_HOME, SCRIPTED_SUBJECT),
+      ),
+    ).toBe("You don't have anywhere for hiking trips yet — you can ask me to make one.");
   });
 
   test("states rather than asks, so there is nothing to answer yes to", () => {
@@ -192,24 +191,30 @@ describe("the subject, narrowed to what this person wrote", () => {
   });
 
   test("refuses a word they did not write, and a longer word holding one they did", () => {
-    expect(questionSubjectInTheirWords(HIKING, "hiking boots")).toBeNull();
+    expect(questionSubjectInTheirWords(A_QUESTION_WITH_NO_HOME, "hiking boots")).toBeNull();
     expect(questionSubjectInTheirWords("how many hikings?", "hiking")).toBeNull();
   });
 
   test("refuses a run long enough to be the question rather than the thing it asks about", () => {
     // Their own words, and still not a subject: *anywhere for how many hiking trips did I take
     // last year* names nothing, so the sentence is better off naming nothing outright.
-    expect(questionSubjectInTheirWords(HIKING, "how many hiking trips did I take last year")).toBe(
-      null,
-    );
-    expect(questionSubjectInTheirWords(HIKING, "many hiking trips did I take")).toBe(
-      "many hiking trips did I take",
-    );
+    expect(
+      questionSubjectInTheirWords(
+        A_QUESTION_WITH_NO_HOME,
+        "how many hiking trips did I take last year",
+      ),
+    ).toBe(null);
+    expect(
+      questionSubjectInTheirWords(A_QUESTION_WITH_NO_HOME, "many hiking trips did I take"),
+    ).toBe("many hiking trips did I take");
   });
 
   test("refuses a subject that is no words at all", () => {
     for (const subject of ["", "   ", "…"]) {
-      expect({ subject, named: questionSubjectInTheirWords(HIKING, subject) }).toEqual({
+      expect({
+        subject,
+        named: questionSubjectInTheirWords(A_QUESTION_WITH_NO_HOME, subject),
+      }).toEqual({
         subject,
         named: null,
       });
@@ -217,7 +222,7 @@ describe("the subject, narrowed to what this person wrote", () => {
   });
 });
 
-describe("a subject naming a collection they already have", () => {
+describe("a subject naming something they already have", () => {
   test("is caught by the name this person gave it, and either way round", () => {
     // *note paper* is caught by what one Notes record is called, which is more than those words
     // strictly name. The check errs that way on purpose: a suppressed gap costs her the stronger
@@ -225,9 +230,33 @@ describe("a subject naming a collection they already have", () => {
     const catalog = catalogued();
     const held = [EXPENSES_CAPABILITY.label, "expenses", "notes from my doctor", "note paper"];
     for (const named of held) {
-      expect({ named, held: questionNamesACollection(catalog, named) }).toEqual({
+      expect({ named, held: questionNamesSomethingOnThisDesk(catalog, named) }).toEqual({
         named,
         held: true,
+      });
+    }
+  });
+
+  test("and by a column of one, which is where a value lives (decision 30)", () => {
+    const catalog = catalogued();
+    for (const named of ["amount", "Amount", "what"]) {
+      expect({ named, held: questionNamesSomethingOnThisDesk(catalog, named) }).toEqual({
+        named,
+        held: true,
+      });
+    }
+  });
+
+  test("but a column's name found inside a subject is a coincidence, not a home", () => {
+    // The asymmetry is the whole guard. A collection's name inside a subject is what the subject
+    // is about, and a column's is not: *what I spent the summer on* is not held by Expenses
+    // having a column called What, and a desk of nine collections puts two hundred such words in
+    // reach. Suppressing this gap would answer a question about one thing out of another.
+    const catalog = catalogued();
+    for (const named of ["what I spent the summer on", "the amount of sleep I get"]) {
+      expect({ named, held: questionNamesSomethingOnThisDesk(catalog, named) }).toEqual({
+        named,
+        held: false,
       });
     }
   });
@@ -235,7 +264,7 @@ describe("a subject naming a collection they already have", () => {
   test("while a real gap is not", () => {
     const catalog = catalogued();
     for (const named of [SCRIPTED_SUBJECT, "guitar practice", "parking tickets"]) {
-      expect({ named, held: questionNamesACollection(catalog, named) }).toEqual({
+      expect({ named, held: questionNamesSomethingOnThisDesk(catalog, named) }).toEqual({
         named,
         held: false,
       });
@@ -245,9 +274,9 @@ describe("a subject naming a collection they already have", () => {
 
 describe("the call that names it", () => {
   test("opens on a prefix of its own, and carries the question and the rules", () => {
-    const prompt = buildQuestionNoHomePrompt(HIKING);
+    const prompt = buildQuestionNoHomePrompt(A_QUESTION_WITH_NO_HOME);
     expect(prompt.startsWith(QUESTION_NO_HOME_PROMPT_PREFIX)).toBe(true);
-    expect(prompt).toContain(HIKING);
+    expect(prompt).toContain(A_QUESTION_WITH_NO_HOME);
     for (const rule of QUESTION_SUBJECT_RULES) expect(prompt).toContain(rule);
   });
 
@@ -276,11 +305,32 @@ describe("the call that names it", () => {
     ];
     for (const provider of providers) {
       const said = await runQuestionNoHome(
-        { provider, signal: new AbortController().signal, catalog },
-        HIKING,
+        { provider, signal: new AbortController().signal, catalog, openCapability: null },
+        A_QUESTION_WITH_NO_HOME,
       );
       expect(said).toBe(QUESTION_NO_HOME_FOR_THAT);
     }
+  });
+
+  test("and says it whatever is standing, because a hiccup is no evidence about a desk", async () => {
+    // The two ways there is nothing to name are not the same way. A generation that
+    // came back unreadable says nothing about where the subject lives, so the unnamed sentence
+    // stands even with a window open; words that were merely not theirs give way to that window.
+    const catalog = catalogued();
+    const standing = { openCapability: NOTES_CAPABILITY.id, signal: new AbortController().signal };
+
+    expect(
+      await runQuestionNoHome(
+        { ...standing, catalog, provider: namingProvider({ nothing: true }) },
+        A_QUESTION_WITH_NO_HOME,
+      ),
+    ).toBe(QUESTION_NO_HOME_FOR_THAT);
+    expect(
+      await runQuestionNoHome(
+        { ...standing, catalog, provider: namingProvider({ subject: "outdoor activities" }) },
+        A_QUESTION_WITH_NO_HOME,
+      ),
+    ).toBeNull();
   });
 
   test("a cancellation still ends the question rather than settling a sentence", async () => {
@@ -291,8 +341,9 @@ describe("the call that names it", () => {
         provider: namingProviderFaulting(new Error("cancelled")),
         signal: cancelled.signal,
         catalog: catalogued(),
+        openCapability: null,
       },
-      HIKING,
+      A_QUESTION_WITH_NO_HOME,
     );
     await expect(run).rejects.toThrow();
   });
@@ -303,6 +354,7 @@ describe("the call that names it", () => {
         provider: namingProvider({ subject: "expenses" }),
         signal: new AbortController().signal,
         catalog: catalogued(),
+        openCapability: null,
       },
       "do I have anywhere for expenses?",
     );
@@ -314,7 +366,7 @@ describe("the ending", () => {
   test("names the gap, and no answer of the model's is written for it", async () => {
     const run = await desk().run(
       scriptedProviderNaming(SCRIPTED_SUBJECT, looksAtNotes(), noHome()),
-      HIKING,
+      A_QUESTION_WITH_NO_HOME,
     );
 
     expect(run.result).toEqual({
@@ -330,11 +382,11 @@ describe("the ending", () => {
     // back from it lands inside a sentence the platform vouches for.
     const run = await desk().run(
       scriptedProviderNaming(SCRIPTED_SUBJECT, looksAtNotes(), noHome()),
-      HIKING,
+      A_QUESTION_WITH_NO_HOME,
     );
 
     const prompt = run.subjectPrompts[0] ?? "";
-    expect(prompt).toContain(HIKING);
+    expect(prompt).toContain(A_QUESTION_WITH_NO_HOME);
     for (const leak of [NOTES_CAPABILITY.label, EXPENSES_CAPABILITY.label, NOTES_TABLE, "rows"]) {
       expect({ leak, present: prompt.includes(leak) }).toEqual({ leak, present: false });
     }
@@ -355,8 +407,12 @@ describe("the ending", () => {
     expect(questionEndingNarration("no_home")).toBeNull();
   });
 
-  test("is the one thing in the turn's prompt that tells the model this ending exists", () => {
-    const prompt = nextPrompt(HIKING, registeredSpecs(desk().database.readonly), []);
+  test("is the decision the turn's prompt offers the model", () => {
+    const prompt = nextPrompt(
+      A_QUESTION_WITH_NO_HOME,
+      registeredSpecs(desk().database.readonly),
+      [],
+    );
     for (const rule of QUESTION_NO_HOME_RULES) expect(prompt).toContain(rule);
   });
 });
@@ -384,7 +440,10 @@ describe("a search that matched nothing keeps its own ending", () => {
 
 describe("she cannot say it without having looked", () => {
   test("a gap claimed before any read is refused, and the model is told to look", async () => {
-    const run = await desk().run(scriptedProvider(noHome(), looksAtNotes(), answers()), HIKING);
+    const run = await desk().run(
+      scriptedProvider(noHome(), looksAtNotes(), answers()),
+      A_QUESTION_WITH_NO_HOME,
+    );
 
     expect(run.steps[0]).toEqual(toldAgainStep(LOOK_BEFORE_NO_HOME));
     expect(run.result).toMatchObject({ ending: "answered", answer: SCRIPTED_ANSWER });
@@ -394,7 +453,7 @@ describe("she cannot say it without having looked", () => {
   test("a statement that returned a row of its own is not looking", async () => {
     const run = await desk().run(
       scriptedProvider(reads("SELECT 1 AS anything"), noHome(), answers()),
-      HIKING,
+      A_QUESTION_WITH_NO_HOME,
     );
 
     expect(run.steps[1]).toEqual(toldAgainStep(LOOK_BEFORE_NO_HOME));
@@ -407,7 +466,7 @@ describe("she cannot say it without having looked", () => {
   test("a model that will not look is told once, and then answers out of what it has", async () => {
     // Never ten turns of the same refusal: that spends the whole budget, ends on the sentence
     // for a question she could not work out, and narrates ten looks she never took.
-    const run = await desk().run(scriptedProvider(noHome()), HIKING);
+    const run = await desk().run(scriptedProvider(noHome()), A_QUESTION_WITH_NO_HOME);
 
     expect(run.steps).toEqual([toldAgainStep(LOOK_BEFORE_NO_HOME)]);
     expect(run.result).toMatchObject({ ending: "nothing_worked" });
@@ -417,7 +476,7 @@ describe("she cannot say it without having looked", () => {
   test("and once she has opened a collection, the refusal is behind her", async () => {
     const run = await desk().run(
       scriptedProviderNaming(SCRIPTED_SUBJECT, noHome(), looksAtNotes(), noHome()),
-      HIKING,
+      A_QUESTION_WITH_NO_HOME,
     );
 
     expect(run.steps[0]).toEqual(toldAgainStep(LOOK_BEFORE_NO_HOME));
@@ -428,7 +487,10 @@ describe("she cannot say it without having looked", () => {
   });
 
   test("an ordinary answer is untouched by the gate", async () => {
-    const run = await desk().run(scriptedProvider(looksAtNotes(), answers()), HIKING);
+    const run = await desk().run(
+      scriptedProvider(looksAtNotes(), answers()),
+      A_QUESTION_WITH_NO_HOME,
+    );
     expect(run.result).toMatchObject({ ending: "answered", answer: SCRIPTED_ANSWER });
   });
 });

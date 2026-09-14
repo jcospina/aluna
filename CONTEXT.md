@@ -647,8 +647,11 @@ saying so and stopping: *"You don't have anywhere for hiking trips yet — you c
 make one."* She names the subject in the person's own words and offers no control, because an
 offer with a yes is a **proposal** and that surface is Module 8's (PLAN decision 20). Earned by
 looking rather than shrugging: a question that searched and matched **nothing matched** keeps
-that weaker, truer ending, and a subject naming a collection they already have is refused. The
-code calls it `no_home`, and the plan calls it the gap.
+that weaker, truer ending; a subject naming anything the desk already holds — a collection, what
+it calls one record, a column, one of a column's declared values — is refused; and so is a
+question naming nothing of its own asked in front of an open window, which is about the
+collection standing there (PLAN decision 30). The code calls it `no_home`, and the plan calls it
+the gap.
 _Avoid_: no such capability, no table for that, unsupported, not tracked, want me to build it?
 
 **Swap target**:
