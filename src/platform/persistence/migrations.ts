@@ -291,6 +291,23 @@ export const MIGRATIONS: readonly Migration[] = [
       database.exec(`ALTER TABLE ${REGISTRY_TABLE} ADD COLUMN display_label_override TEXT;`);
     },
   },
+  // What one question cost the person who asked it (PLAN decision 33, ADR-0008). Columns rather
+  // than two more keys in the measurement JSON: `INTEGER` on a `STRICT` table cannot hold a
+  // sentence at all, so the row stays content-free by the database's own rule. NULL is a row no
+  // loop ran for — a refusal spends no step, and counting it zero would read as a spent one.
+  {
+    id: "0015_intent_resolution_question_cost",
+    up: (database) => {
+      database.exec(
+        `ALTER TABLE ${INTENT_RESOLUTION_METRICS_TABLE}
+         ADD COLUMN steps_taken INTEGER CHECK (steps_taken IS NULL OR steps_taken >= 0);`,
+      );
+      database.exec(
+        `ALTER TABLE ${INTENT_RESOLUTION_METRICS_TABLE}
+         ADD COLUMN elapsed_ms INTEGER CHECK (elapsed_ms IS NULL OR elapsed_ms >= 0);`,
+      );
+    },
+  },
 ];
 
 // The set of migration ids already recorded in the ledger. Empty when the ledger table does not

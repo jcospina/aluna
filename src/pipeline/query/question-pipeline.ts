@@ -7,7 +7,12 @@
 // Nothing on this path writes to the desk. The scope creates nothing (`data-query.ts`), and the
 // one row a question leaves behind is the resolver measurement every non-build prompt leaves.
 
-import { intentResolutionMetrics } from "../../platform/metrics/index.ts";
+import {
+  type IntentResolutionMetrics,
+  type IntentResolutionOutcome,
+  intentResolutionMetrics,
+  type QuestionCost,
+} from "../../platform/metrics/index.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { Provider } from "../../platform/provider/index.ts";
 import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
@@ -16,12 +21,13 @@ import {
   QUESTION_COULD_NOT_FINISH,
   questionResultSentence,
   questionStepNarration,
+  questionStepsTaken,
 } from "../../runtime/query/index.ts";
 import { renderAnswerWindowOpening, renderAnswerWindowSaying } from "../../server/http/index.ts";
 import type { Send } from "../../server/sse/index.ts";
 import type { PromptResolutionMemory } from "../build/admission/resolved-request.ts";
 import type { BuildPipelineCompletion } from "../jobs/build-jobs.ts";
-import { type RecordMetrics, writeResolverOnlyMetrics } from "../metrics-recorder.ts";
+import { questionCost, type RecordMetrics, writeResolverOnlyMetrics } from "../metrics-recorder.ts";
 import {
   deliverRestoredPresentation,
   runBoundedTerminalPresentation,
@@ -30,6 +36,12 @@ import { NotADataQuestionError, runDataQuery } from "./data-query.ts";
 
 export interface QuestionPipelineInput {
   readonly promptJobId: string;
+  /**
+   * When this run started, on the clock `questionCost` reads: the moment the desk opened the
+   * stream, not the moment the sentence was posted. Above the loop rather than inside it, so the
+   * classification that decided this was a question is part of the wait (PLAN decision 33).
+   */
+  readonly askedAt: number;
   readonly resolution: PromptResolutionMemory;
   readonly question: string;
   readonly provider: Provider;
@@ -62,25 +74,60 @@ export interface QuestionPipelineInput {
  */
 export const COULD_NOT_FINISH_LOG = "Aluna could not finish that question:";
 
-/** The resolver measurement every non-build prompt leaves, written the way a deflection's is. */
-function rememberTheResolver(
+/**
+ * What this question has taken so far, mutable because the row is written from wherever it ends.
+ * `asked` is false until the loop is entered, so a question nobody was left to hear leaves no cost
+ * rather than a zero; `remembered` keeps the ending's own write from being repeated by the
+ * backstop below it.
+ */
+interface QuestionSoFar {
+  taken: number;
+  asked: boolean;
+  remembered: boolean;
+}
+
+/**
+ * The resolver measurement every non-build prompt leaves, and what this one cost on top. `outcome`
+ * is passed in rather than read here: the preview and the row are two readings of it, and a row
+ * built inside the platform-write queue would otherwise sample it after the desk had closed.
+ */
+function theResolverRow(
   input: QuestionPipelineInput,
-  outcome: "completed" | "cancelled",
-): string {
-  const metrics = intentResolutionMetrics({
+  outcome: IntentResolutionOutcome,
+  cost?: QuestionCost,
+): IntentResolutionMetrics {
+  return intentResolutionMetrics({
     promptJobId: input.promptJobId,
     outcome,
     resolver: input.resolution.resolver,
+    ...(cost ? { question: cost } : {}),
   });
+}
+
+/**
+ * Written the way a deflection's is, and once the question has stopped reading rather than before
+ * it starts, because neither number on it exists until then (PLAN decision 33). Still best-effort:
+ * the write is fired and never awaited, so an answer is delivered whether or not the row lands.
+ */
+function rememberTheResolver(input: QuestionPipelineInput, steps: QuestionSoFar): void {
+  if (steps.remembered) return;
+  steps.remembered = true;
+  // Both readings are taken now and the row is built inside the write. The queue can hold a write
+  // behind a lease for seconds, and a row built in there would read a clock and a cancellation
+  // that belong to whatever ran next; building it in there is what keeps a refused row from
+  // throwing out of the `finally` this can be called from, over an answer already delivered.
+  const cost = steps.asked ? questionCost(input.askedAt, steps.taken) : undefined;
+  const outcome = input.isAborted() ? "cancelled" : "completed";
   void input.mutationCoordinator
-    .withPlatformWrite(() => writeResolverOnlyMetrics(input.recordMetrics, metrics))
+    .withPlatformWrite(() =>
+      writeResolverOnlyMetrics(input.recordMetrics, theResolverRow(input, outcome, cost)),
+    )
     .catch((error) => {
       console.error(
         "Aluna resolver metrics write did not complete:",
         error instanceof Error ? error.message : error,
       );
     });
-  return JSON.stringify(metrics);
 }
 
 /**
@@ -136,6 +183,7 @@ async function openTheAnswerWindow(
 async function runToAnEnding(
   input: QuestionPipelineInput,
   say: (saying: () => string) => void,
+  steps: QuestionSoFar,
 ): Promise<string> {
   try {
     const result = await runDataQuery(
@@ -148,10 +196,15 @@ async function runToAnEnding(
         intent: input.resolution.intent,
         standing: input.standing,
         question: input.question,
-        onStep: (step) => say(() => questionStepNarration(step.call)),
+        onStep: (step) => {
+          // The only count a cancelled question has: it reaches neither shape of the result.
+          steps.taken += 1;
+          say(() => questionStepNarration(step.call));
+        },
         signal: input.signal,
       },
     );
+    steps.taken = questionStepsTaken(result);
     return questionResultSentence(result);
   } catch (error) {
     // A prompt that is not a question reached the one path that only answers questions: that is a
@@ -170,20 +223,43 @@ async function runToAnEnding(
 }
 
 /**
- * The window is opened before the loop starts rather than at the first step: the loop's first
- * read costs a generation, and a person who has just pressed the key gets the frame and Aluna's
- * first sentence now (PLAN decision 21).
+ * The whole of a question, wrapped in the one row it leaves. Every ending writes it, the two that
+ * never open a window included: what a question cost is data whether or not anyone was still
+ * there to be told the answer (ARCH §9.6). Those two write no cost, having run nothing to cost.
  */
 export async function streamQuestion(
   input: QuestionPipelineInput,
 ): Promise<BuildPipelineCompletion> {
-  const metricsPreview = rememberTheResolver(input, input.isAborted() ? "cancelled" : "completed");
+  const steps: QuestionSoFar = { taken: 0, asked: false, remembered: false };
+  try {
+    return await answerTheQuestion(input, steps);
+  } finally {
+    // The backstop. The ordinary path already wrote the row the moment the question ended, so
+    // a presentation that never comes back cannot cost the dataset its slowest measurement.
+    rememberTheResolver(input, steps);
+  }
+}
+
+/**
+ * The window is opened before the loop starts rather than at the first step: the loop's first
+ * read costs a generation, and a person who has just pressed the key gets the frame and Aluna's
+ * first sentence now (PLAN decision 21).
+ */
+async function answerTheQuestion(
+  input: QuestionPipelineInput,
+  steps: QuestionSoFar,
+): Promise<BuildPipelineCompletion> {
   if (!input.canPresent()) return;
 
-  if (!(await openTheAnswerWindow(input, metricsPreview))) return "terminal-sent";
+  // The row before the loop has cost anything: the developer panel is shown the resolver
+  // measurement with no cost attached.
+  const preview = theResolverRow(input, input.isAborted() ? "cancelled" : "completed");
+  if (!(await openTheAnswerWindow(input, JSON.stringify(preview)))) return "terminal-sent";
 
   const voice = answerWindowVoice(input);
-  const ending = await runToAnEnding(input, voice.say);
+  steps.asked = true;
+  const ending = await runToAnEnding(input, voice.say, steps);
+  rememberTheResolver(input, steps);
 
   // Every step's sentence is on the wire before the ending replaces the last of them.
   await voice.settled();

@@ -7,6 +7,7 @@
 // `app.question-answered-in-the-window.test.ts`.
 
 import { describe, expect, test } from "bun:test";
+import type { IntentResolutionMetrics } from "../../platform/metrics/index.ts";
 import { NO_TOKEN_USAGE } from "../../platform/provider/usage.ts";
 import { QUESTION_COULD_NOT_FINISH } from "../../runtime/query/index.ts";
 import { unescapeHtml } from "../../server/http/html.ts";
@@ -27,6 +28,10 @@ interface Staged {
   readonly aborted?: () => boolean;
   readonly present?: () => boolean;
   readonly send?: QuestionPipelineInput["send"];
+  /** The rows this run wrote, for the arms that ask what a question left behind. */
+  readonly wrote?: IntentResolutionMetrics[];
+  /** A resolver measurement the row's schema refuses, so building the row throws. */
+  readonly unwritable?: boolean;
 }
 
 /**
@@ -37,12 +42,20 @@ interface Staged {
 function askedInto(sent: [string, string][], staged: Staged = {}): QuestionPipelineInput {
   return {
     promptJobId: "question-1",
+    askedAt: performance.now(),
     standing: null,
     resolution: {
       intent: ASKED,
       outcome: "non_build",
       catalogFingerprint: "sha256:none",
-      resolver: carriedResolverMeasurement(ASKED, NO_TOKEN_USAGE, 0, "sha256:none", []),
+      resolver: {
+        ...carriedResolverMeasurement(ASKED, NO_TOKEN_USAGE, 0, "sha256:none", []),
+        // A confidence outside 0..1 is refused by `carriedResolverMeasurementSchema`, which is
+        // the cheapest way to stage a row that cannot be built at all.
+        ...(staged.unwritable
+          ? { intent: { type: ASKED.type, confidence: 9, targetCapability: null } }
+          : {}),
+      },
     },
     question: "how many notes did I add last week?",
     provider: {
@@ -53,7 +66,9 @@ function askedInto(sent: [string, string][], staged: Staged = {}): QuestionPipel
     readGates: {} as never,
     // The resolver measurement every non-build prompt leaves, written to nowhere. A stub that
     // threw would put its own line in the platform log, which is what two of these tests read.
-    recordMetrics: { resolve: () => {} } as never,
+    recordMetrics: {
+      resolve: (metrics: IntentResolutionMetrics) => void staged.wrote?.push(metrics),
+    } as never,
     send:
       staged.send ??
       (async (event, data) => {
@@ -182,5 +197,43 @@ describe("a question that did not reach an answer", () => {
         leaked: false,
       });
     }
+  });
+});
+
+describe("the one row a question leaves, whichever way it ended", () => {
+  test("a question nobody was left to hear leaves the row with no cost on it", async () => {
+    // The loop never ran, so there is nothing it cost. A zero would be the same number an
+    // answered question that read nothing writes, and those are not the same fact (6.6/04).
+    const wrote: IntentResolutionMetrics[] = [];
+    expect(await streamQuestion(askedInto([], { present: () => false, wrote }))).toBeUndefined();
+
+    expect(wrote).toHaveLength(1);
+    expect(wrote[0]?.question).toBeUndefined();
+  });
+
+  test("and it is written once, not once per ending the unwinding passes", async () => {
+    const wrote: IntentResolutionMetrics[] = [];
+    expect(await streamQuestion(askedInto([], { wrote }))).toBe("terminal-sent");
+
+    expect(wrote).toHaveLength(1);
+    expect(wrote[0]?.question).toEqual({ stepsTaken: 0, elapsedMs: expect.any(Number) });
+  });
+
+  test("and a row the schema refuses is lost quietly rather than thrown out of the ending", async () => {
+    // The row is built inside the write for this reason. This is the one path that reaches the
+    // write without the window's preview having validated the same measurement first, so a
+    // refused row thrown from here would come out of `streamQuestion` as this run's failure.
+    const wrote: IntentResolutionMetrics[] = [];
+    const logged = logging();
+    try {
+      expect(
+        await streamQuestion(askedInto([], { present: () => false, unwritable: true, wrote })),
+      ).toBeUndefined();
+    } finally {
+      logged.stop();
+    }
+
+    expect(wrote).toEqual([]);
+    expect(logged.said.some((line) => line.includes("resolver metrics write"))).toBe(true);
   });
 });

@@ -32,6 +32,7 @@ import type {
   GenerationSuccessOutcome,
   GenerationTimings,
   IntentResolutionMetrics,
+  QuestionCost,
   StartGenerationLifecycleInput,
   StoredGenerationLifecycle,
   UnitAttemptSummary,
@@ -170,6 +171,17 @@ export function carriedResolverMeasurement(
     catalogFingerprint,
     overlapResolution: intent.resolution,
   };
+}
+
+/**
+ * What one question cost (PLAN decision 33, ADR-0008). The clock is read here because decision
+ * 9's sweep (`../runtime/query/question-loop.test.ts`) refuses one on the query path. A reading
+ * the row could not hold is dropped rather than carried: the cost is an addition to a row that
+ * lands without it, and a broken clock may not take the resolver measurement down with it.
+ */
+export function questionCost(askedAt: number, stepsTaken: number): QuestionCost | undefined {
+  const elapsedMs = Math.round(performance.now() - askedAt);
+  return Number.isSafeInteger(elapsedMs) && elapsedMs >= 0 ? { stepsTaken, elapsedMs } : undefined;
 }
 
 export function lifecycleMeasurement(
@@ -391,7 +403,7 @@ export function lifecycleFailureOutcome(failure: GenerationFailure): GenerationF
 /**
  * Write the resolver-only metrics row: the one a prompt leaves when nothing was built. A refusal
  * and a deflection leave it because the platform does not act on them; a question leaves it
- * because answering one builds nothing (ARCH §9.3). Best-effort in every case.
+ * because answering one builds nothing (ARCH §9.6). Best-effort in every case.
  */
 export function writeResolverOnlyMetrics(
   recordMetrics: RecordMetrics,

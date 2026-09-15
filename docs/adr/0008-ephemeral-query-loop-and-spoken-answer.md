@@ -206,7 +206,7 @@ rather than shown as a chip, badge or pill.
 **Nothing is created.** No registry row, no logo, no version, no artifact, no cache, no
 persisted read dependency, no conversation thread. The same question asked twice runs
 twice. Metrics remain the existing best-effort, content-free `intent_resolution_metrics`
-row, gaining turns taken and wall-clock elapsed — no prompt, no SQL, no results, nothing
+row, gaining steps taken and wall-clock elapsed — no prompt, no SQL, no results, nothing
 about the user's data.
 
 **Every collection states how many records it holds**, and when that number is filtered

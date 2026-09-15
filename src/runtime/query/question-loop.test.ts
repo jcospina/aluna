@@ -26,7 +26,7 @@ import {
   scriptedProvider,
   UNREADABLE_STEP,
 } from "./question.test-support.ts";
-import { QUESTION_STEP_BUDGET, runQuestionLoop } from "./question-loop.ts";
+import { QUESTION_STEP_BUDGET, questionStepsTaken, runQuestionLoop } from "./question-loop.ts";
 import {
   QUESTION_BUDGET_SPENT_SENTENCE,
   QUESTION_NOTHING_WORKED,
@@ -518,5 +518,34 @@ describe("what a watcher gets and what it cannot break", () => {
 
     await expect(thrown).rejects.toThrow(/watcher blew up/);
     expect(scratch.readerCounts()).toEqual([0, 0]);
+  });
+});
+
+describe("how many steps it took, off the result and off the narration seam", () => {
+  test("the two counts agree, on every ending either of them can see", async () => {
+    // 6.6/04 reads the count off the result and falls back to the `onStep` tally for a question
+    // ended by a cancellation, which reaches no result at all. That fallback is only trustworthy
+    // while the two agree, and they agree by construction — one push, one `onStep`, per step.
+    const scripts = {
+      answered: scriptedProvider(reads(`SELECT count(*) AS total FROM ${NOTES_TABLE}`), answers()),
+      nothing_worked: scriptedProvider(answers()),
+      budget_spent: scriptedProvider(reads(`SELECT sum(amount) AS spent FROM ${EXPENSES_TABLE}`)),
+    };
+    for (const [named, provider] of Object.entries(scripts)) {
+      const { result, steps } = await desk().run(provider);
+      expect({ named, ending: result.ending, counted: questionStepsTaken(result) }).toEqual({
+        named,
+        ending: result.ending,
+        counted: steps.length,
+      });
+    }
+  });
+
+  test("and a spent budget is counted as the whole budget", async () => {
+    const { result } = await desk().run(
+      scriptedProvider(reads(`SELECT sum(amount) AS spent FROM ${EXPENSES_TABLE}`)),
+    );
+
+    expect(questionStepsTaken(result)).toBe(QUESTION_STEP_BUDGET);
   });
 });

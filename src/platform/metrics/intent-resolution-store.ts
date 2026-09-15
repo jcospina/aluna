@@ -19,10 +19,23 @@ export const INTENT_RESOLUTION_OUTCOMES = ["completed", "cancelled", "expired"] 
 export const intentResolutionOutcomeSchema = z.enum(INTENT_RESOLUTION_OUTCOMES);
 export type IntentResolutionOutcome = z.infer<typeof intentResolutionOutcomeSchema>;
 
+/**
+ * What one question cost the person who asked it: the steps it took and the wall-clock it took
+ * them (PLAN decision 33, ADR-0008). Two integers and no third field, so the pair that answers
+ * decision 8 cannot grow a place to put a prompt, a statement or a row that was read.
+ */
+export const questionCostSchema = z.strictObject({
+  stepsTaken: z.number().int().nonnegative(),
+  elapsedMs: z.number().int().nonnegative(),
+});
+export type QuestionCost = z.infer<typeof questionCostSchema>;
+
 export const intentResolutionMetricsSchema = z.strictObject({
   promptJobId: z.string().min(1),
   outcome: intentResolutionOutcomeSchema,
   resolver: carriedResolverMeasurementSchema,
+  /** Absent on every row no read loop ran for, which is every row but a question's. */
+  question: questionCostSchema.optional(),
 });
 export type IntentResolutionMetrics = z.infer<typeof intentResolutionMetricsSchema>;
 
@@ -35,20 +48,25 @@ interface StoredRow {
   prompt_job_id: string;
   outcome: string;
   resolver_measurement: string;
+  steps_taken: number | null;
+  elapsed_ms: number | null;
   created_at: string;
 }
 
-const ROW_COLUMNS = "prompt_job_id, outcome, resolver_measurement, created_at";
+const ROW_COLUMNS =
+  "prompt_job_id, outcome, resolver_measurement, steps_taken, elapsed_ms, created_at";
 
 export function intentResolutionMetrics(input: {
   readonly promptJobId: string;
   readonly outcome?: IntentResolutionOutcome;
   readonly resolver: CarriedResolverMeasurement;
+  readonly question?: QuestionCost;
 }): IntentResolutionMetrics {
   return intentResolutionMetricsSchema.parse({
     promptJobId: input.promptJobId,
     outcome: input.outcome ?? "completed",
     resolver: input.resolver,
+    ...(input.question ? { question: input.question } : {}),
   });
 }
 
@@ -59,9 +77,15 @@ export function writeIntentResolutionMetrics(
   const row = intentResolutionMetricsSchema.parse(input);
   database.run(
     `INSERT INTO ${INTENT_RESOLUTION_METRICS_TABLE}
-       (prompt_job_id, outcome, resolver_measurement)
-     VALUES (?, ?, ?)`,
-    [row.promptJobId, row.outcome, JSON.stringify(row.resolver)],
+       (prompt_job_id, outcome, resolver_measurement, steps_taken, elapsed_ms)
+     VALUES (?, ?, ?, ?, ?)`,
+    [
+      row.promptJobId,
+      row.outcome,
+      JSON.stringify(row.resolver),
+      row.question?.stepsTaken ?? null,
+      row.question?.elapsedMs ?? null,
+    ],
   );
   return row;
 }
@@ -92,10 +116,17 @@ export function listIntentResolutionMetrics(
 }
 
 function parseStoredRow(stored: StoredRow): StoredIntentResolutionMetrics {
+  // A half-written row loses its cost rather than reporting half of one: either column NULL and
+  // the caller is told no loop ran.
+  const cost =
+    stored.steps_taken === null || stored.elapsed_ms === null
+      ? {}
+      : { question: { stepsTaken: stored.steps_taken, elapsedMs: stored.elapsed_ms } };
   return storedIntentResolutionMetricsSchema.parse({
     promptJobId: stored.prompt_job_id,
     outcome: stored.outcome,
     resolver: JSON.parse(stored.resolver_measurement),
+    ...cost,
     createdAt: stored.created_at,
   });
 }

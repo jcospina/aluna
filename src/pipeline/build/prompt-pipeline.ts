@@ -151,6 +151,8 @@ function runNonBuildIntent(
   resolver: ResolverMeasurement,
   /** Already bound to this job's signal, so cancelling a question actually stops one. */
   provider: Provider,
+  /** When this run started, which is what a question's measured wall-clock runs from (6.6/04). */
+  askedAt: number,
 ): Promise<BuildPipelineCompletion> {
   const resolution: PromptResolutionMemory = {
     intent,
@@ -175,6 +177,7 @@ function runNonBuildIntent(
     return streamQuestion({
       ...shared,
       promptJobId: context.job.id,
+      askedAt,
       databases: deps.buildDatabases,
       question: context.job.prompt,
       provider,
@@ -320,6 +323,7 @@ async function runPromptJob(
       intent,
       resolver,
       provider,
+      builtAt,
     );
   }
   if (intent.resolution === "namespace" && intent.proposed_identity) {

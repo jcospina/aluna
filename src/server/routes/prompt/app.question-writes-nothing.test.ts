@@ -14,7 +14,11 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createMetricsRecorder } from "../../../pipeline/metrics-recorder.ts";
-import { carriedResolverMeasurementSchema } from "../../../platform/metrics/index.ts";
+import {
+  carriedResolverMeasurementSchema,
+  listIntentResolutionMetrics,
+  questionCostSchema,
+} from "../../../platform/metrics/index.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../../../platform/persistence/table-names.ts";
 import { resolveModel } from "../../../platform/provider/config.ts";
@@ -203,6 +207,24 @@ describe("a question leaves nothing behind on the server", () => {
     expect(() =>
       carriedResolverMeasurementSchema.parse(JSON.parse(stored[0]?.resolver_measurement ?? "null")),
     ).not.toThrow();
+  });
+
+  test("and what it cost is two integers the database itself keeps that way", async () => {
+    // The half of the row 6.6/04 added, read where it is stored rather than where it was built,
+    // so the two cells are proved integers by the database and not by the shape they came from.
+    await ask(QUESTION);
+    await settle(1);
+
+    const cells = conns.readonly
+      .query(
+        `SELECT typeof(steps_taken) AS steps, typeof(elapsed_ms) AS elapsed
+         FROM ${INTENT_RESOLUTION_METRICS_TABLE}`,
+      )
+      .all();
+    expect(cells).toEqual([{ steps: "integer", elapsed: "integer" }]);
+    // And back through the strict schema, so the cost is those two keys and no third.
+    const [row] = listIntentResolutionMetrics(conns.readonly);
+    expect(() => questionCostSchema.parse(row?.question)).not.toThrow();
   });
 
   test("and every word in it is one the model did not choose", async () => {

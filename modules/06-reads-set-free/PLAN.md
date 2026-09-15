@@ -351,7 +351,7 @@ are **deliberately left alone**: closed module plans are history.
 
 33. **The content-free metrics row gains step count and duration.** `data_query` already
     writes a best-effort row to `intent_resolution_metrics` (ARCH §6.3) carrying no
-    content. Adding turns taken and wall-clock elapsed keeps it content-free — no prompt,
+    content. Adding steps taken and wall-clock elapsed keeps it content-free — no prompt,
     no SQL, no results, nothing about the user's data — and answers the one question
     decision 8 guessed at. Latency is explicitly part of this PoC's thesis, and Module 9
     is the customer.

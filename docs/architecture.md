@@ -592,7 +592,8 @@ on, item renderer generation is recorded under the semantic stage name. Module 9
 need not assume every version writes `.html` or behavioral tests.
 
 `reject` and `data_query` create no generation row. Their classification, timing,
-and outcome, plus cancellation or expiry before an active lease, may be written
+and outcome — and, for a `data_query`, the steps it spent and the wall-clock the
+person waited — plus cancellation or expiry before an active lease, may be written
 best-effort to a separate content-free `intent_resolution_metrics` row through a
 queued short platform write. Neither the query nor the user-visible completion waits
 for that write, so a crash may lose an unwritten non-admitted row. Durable lifecycle
@@ -881,7 +882,11 @@ but in a separate content-free `intent_resolution_metrics` table keyed by prompt
 job. They, and cancellation or expiry before an active lease, are best-effort:
 never mislabeled as generations, and lost if the process exits before their short
 write. Admitted build rows embed their own resolver measurement rather than
-duplicating that row.
+duplicating that row. A `data_query` row carries two numbers more: `steps_taken`,
+how much of the question's ten-step budget it used, and `elapsed_ms`, the wall-clock
+the person waited through — a cancelled question included, up to where they stopped
+it. Both are integer columns, so the row stays content-free by the database's own
+rule, and both are absent on every row no read loop ran for.
 
 #### Object Store — user files on disk
 

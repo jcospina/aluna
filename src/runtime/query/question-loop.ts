@@ -1,6 +1,6 @@
-// The loop: 6.3/01's turn, repeated until the model answers or its reads run out (PLAN decisions
+// The loop: 6.3/01's turn, repeated until the model answers or its steps run out (PLAN decisions
 // 5, 8, 9, 15; ADR-0008). Every result goes back to the model and it chooses again, so an empty
-// result and a failed statement are ordinary turns rather than retry branches. Ten reads is a guess
+// result and a failed statement are ordinary turns rather than retry branches. Ten steps is a guess
 // a real question never approaches; bytes are the second budget, in `question-payload.ts`.
 //
 // Nothing on this path arms a wall-clock deadline (decision 9); `question-loop.test.ts` pins the
@@ -11,7 +11,7 @@
 //
 // The sentence a person reads is Aluna's (decision 15, ADR-0001), in `question-narration.ts`.
 //
-// An answered question costs one generation more than it took reads: `question-answer.ts` writes
+// An answered question costs one generation more than it took steps: `question-answer.ts` writes
 // what she found, out of the steps alone. It runs no statement, so it spends no read (decision 8).
 // A question that matched no rows costs none: nothing-found is the platform's own sentence. So is
 // the gap, bar the one call that names what there is nowhere for, in this person's own words.
@@ -24,7 +24,7 @@ import type { QuestionStep, QuestionTurn, QuestionTurnDeps } from "./question-tu
 import { runQuestionTurn } from "./question-turn.ts";
 
 /**
- * How many reads one question gets (decision 8). Not injectable: a budget a caller could
+ * How many steps one question gets (decision 8). Not injectable: a budget a caller could
  * lower is a budget no test proves, and this number is the one 6.6/04 goes on to measure.
  */
 export const QUESTION_STEP_BUDGET = 10;
@@ -52,6 +52,14 @@ export type QuestionLoopResult =
       readonly answer: string;
     }
   | { readonly ending: "budget_spent"; readonly stepsTaken: number };
+
+/**
+ * How many steps a finished question took, off whichever of the two shapes it came back in. A
+ * question ended by a cancellation reaches neither, and is counted through `onStep` instead.
+ */
+export function questionStepsTaken(result: QuestionLoopResult): number {
+  return result.ending === "budget_spent" ? result.stepsTaken : result.steps.length;
+}
 
 export interface QuestionLoopInput {
   /** What the user asked, in their own words. */
@@ -154,8 +162,8 @@ export async function runQuestionLoop(
     input.onStep?.(next.step);
   }
 
-  // The budget counts reads, not turns, so the tenth read's result is worth one more decision;
-  // bounding turns would leave a question needing exactly ten reads unanswerable.
+  // The budget counts steps, not turns, so the tenth step's result is worth one more decision;
+  // bounding turns would leave a question needing exactly ten steps unanswerable.
   const last = await turn();
   if (last.kind !== "step") return await stopped(last);
   return { ending: "budget_spent", stepsTaken: steps.length };
