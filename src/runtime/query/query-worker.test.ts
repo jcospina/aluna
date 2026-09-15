@@ -16,6 +16,7 @@ import { join } from "node:path";
 
 import { DB_PATH, openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
 import { runMigrations } from "../../platform/persistence/migrations.ts";
+import { codeOf, flat } from "../../presentation/safety/source.test-support.ts";
 import {
   createQueryWorker,
   type QueryWorker,
@@ -25,6 +26,7 @@ import {
 } from "./query-worker.ts";
 import { RUNAWAY_QUERY_SQL } from "./runaway-query.test-support.ts";
 import { addedPaths, sweepPlatformStores } from "./store-sweep.test-support.ts";
+import { SQL_LITERALS_AND_COMMENTS, STATEMENT_RESULT_CODES } from "./whole-catalog-query-scope.ts";
 
 const HEARTBEAT_INTERVAL_MS = 20;
 const LIVENESS_WINDOW_MS = 1_000;
@@ -339,5 +341,23 @@ describe("the query worker's connection cannot leave its own file", () => {
     const rows = await start(path).read("SELECT ';  ATTACH' AS text, 1 AS ok;");
 
     expect(rows).toEqual([{ text: ";  ATTACH", ok: 1 }]);
+  });
+});
+
+describe("the two things the thread mirrors rather than imports", () => {
+  // It is copied beside the bundle and run directly (`scripts/build.ts`), and `build.test.ts`
+  // refuses it a relative import of any kind. So the copies stay and this is what keeps them
+  // honest: a code added on one side and not the other splits one read's two ends over whether
+  // a failure is the model's to fix.
+  const THREAD = codeOf("src/runtime/query/query-worker-thread.ts");
+
+  test("classifies a statement fault by the same result codes", () => {
+    const mirrored = `new Set([${[...STATEMENT_RESULT_CODES].join(", ")}])`;
+
+    expect(flat(THREAD)).toContain(mirrored);
+  });
+
+  test("and reads a literal with the same expression", () => {
+    expect(THREAD).toContain(SQL_LITERALS_AND_COMMENTS.source);
   });
 });

@@ -10,6 +10,7 @@
 
 import { DEFAULT_ARTIFACTS_ROOT, reconcileCapabilityArtifacts } from "./builder/index.ts";
 import { recoverCapabilityLogos } from "./lifecycle/logo/index.ts";
+import { errorDetail } from "./platform/errors.ts";
 import { db, dbReadonly } from "./platform/persistence/db.ts";
 import { runMigrations } from "./platform/persistence/migrations.ts";
 import { captureProcessSecrets } from "./platform/secrets.ts";
@@ -86,10 +87,7 @@ try {
 } catch (error) {
   // An unhandled rejection at module top level means `Bun.serve` below is never reached, and
   // this module has shipped that failure once (`lifecycle/logo/artifact-names.ts`).
-  console.error(
-    "omni-crud could not reconcile capability logos at boot:",
-    error instanceof Error ? error.message : error,
-  );
+  console.error("omni-crud could not reconcile capability logos at boot:", errorDetail(error));
 }
 
 const DEFAULT_PORT = 3030;

@@ -18,7 +18,7 @@ import {
   listGenerationLifecycles,
 } from "../../platform/metrics/index.ts";
 import type { RenderableCapability } from "../../presentation/fields/field-renderer.ts";
-import { renderableFromRow } from "../../presentation/fields/renderable-capability.ts";
+import { renderableFromRow } from "../../presentation/index.ts";
 import {
   type CollectionLayout,
   renderCollection,

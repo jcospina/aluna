@@ -2,8 +2,10 @@
 //
 // Mutation is constrained and serialized; reading is free and concurrent. `db` is the read-write
 // connection and the platform's only write path. `dbReadonly` opens with `SQLITE_OPEN_READONLY`,
-// so a write on the read path is impossible whatever SQL is issued — SQLite rejects it, and
-// safety does not depend on the model emitting only SELECTs.
+// so a write to *this* file is impossible whatever SQL is issued, and safety does not depend on
+// the model emitting only SELECTs. That flag is narrower than it reads, and `query-worker-thread.ts`
+// measured what it leaves open: `PRAGMA query_only` closes `VACUUM INTO` and `CREATE TEMP TABLE`,
+// and `ATTACH` is refused by text at every seam that admits SQL rather than here.
 //
 // Both open against the one documented db file, `data/omni-crud.db`, whose WAL sidecars sit
 // beside it (data/README.md). No domain tables here — those are created at runtime by the
@@ -80,6 +82,10 @@ export function openDatabase(path = DB_PATH): PlatformDatabase {
   // readonly database"), which is the deterministic boundary the read path relies on.
   const readonly = new Database(path, { readonly: true });
   readonly.exec("PRAGMA busy_timeout = 5000;");
+  // The same two the query worker takes, and for the same measured reason: a read-only connection
+  // still writes a whole copy of the catalog through `VACUUM INTO` and spills a temp table to disk.
+  readonly.exec("PRAGMA query_only = ON;");
+  readonly.exec("PRAGMA temp_store = MEMORY;");
 
   return { readwrite, readonly };
 }

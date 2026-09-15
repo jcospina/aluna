@@ -41,6 +41,7 @@ import {
 } from "../pipeline/index.ts";
 import { type BuildJobQueue, createBuildJobQueue } from "../pipeline/jobs/build-jobs.ts";
 import { captureRestorationDescriptor } from "../pipeline/jobs/restoration.ts";
+import { errorDetail } from "../platform/errors.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../platform/persistence/db.ts";
 import { createProvider, type Provider } from "../platform/provider/index.ts";
 import { getCapability, listCapabilityDependents } from "../registry/index.ts";
@@ -311,7 +312,7 @@ function createPlatformLogoRecovery(ctx: ResolvedAppDeps): () => Promise<void> {
     } catch (error) {
       console.error(
         "omni-crud could not reconcile capability logos on desk load:",
-        error instanceof Error ? error.message : error,
+        errorDetail(error),
       );
     } finally {
       running = null;

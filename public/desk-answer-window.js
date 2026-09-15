@@ -17,17 +17,18 @@
  * having been written down.
  */
 
-import {
-  fitToDesk,
-  PHONE,
-  PROMPT_CLEARANCE,
-  placeWindow,
-  refreshGeometry,
-} from "../design/scripts/desk-geometry.js";
+import { PHONE, placeWindow, refreshGeometry } from "../design/scripts/desk-geometry.js";
 import { AlunaWindow } from "../design/scripts/window.js";
 import { addWindowDrag, addWindowGrip, setMaximised } from "../design/scripts/window-gestures.js";
 import { joinStack, leaveStack, raise, raiseFromPress } from "./desk-stack.js";
 import { fitBox, openingGeometry, PROMPT_FORM_ID, windowLayer } from "./desk-window.js";
+import {
+  centredBox,
+  onDeskReady,
+  syncMaximiseLamp,
+  syncWindowForm,
+  WALL_SHADOW,
+} from "./desk-window-frame.js";
 import {
   cancelQuestionIn,
   detachQuestionIn,
@@ -67,9 +68,6 @@ export const ANSWER_WINDOW_SELECTOR = `.${ANSWER_WINDOW_CLASS}`;
 export const ANSWER_BODY_CLASS = "desk-window__answer";
 export const ANSWER_BODY_SELECTOR = `.${ANSWER_BODY_CLASS}`;
 
-/** Over a wallpaper, a window carries its shadow at 40% rather than 24%. */
-const WALL_SHADOW = 0.4;
-
 /**
  * How much of the desk an answer takes when it first opens: centred, and smaller than a
  * capability window's own first box, because it is about what is standing there. Where either
@@ -99,9 +97,10 @@ let watching = false;
 /** Every root this module is already wired on, the way `leaving-a-run.js` guards its own. */
 const started = new WeakSet();
 /**
- * The document this module was started on: the one thing both triggers reach the desk through, so
- * the lamp and the prompt bar can never be answering about two different pages.
- * @type {{ getElementById?: (id: string) => unknown, dispatchEvent?: (event: Event) => boolean }}
+ * The root this module was started on, for the one lookup that happens outside an event: the
+ * window region a running question is cancelled through. Everything else here reads `document`,
+ * as the other two windows do, and one desk per page is what `watching` below already assumes.
+ * @type {{ getElementById?: (id: string) => unknown }}
  */
 let desk = globalThis.document;
 /** Whether the window is showing a question that was given up on before it answered. */
@@ -126,16 +125,7 @@ function writeBody(entry, text) {
  * @returns {Box}
  */
 export function answerDefaultBox(bounds) {
-  refreshGeometry();
-  const floor = bounds.height - PROMPT_CLEARANCE;
-  const w = Math.round(bounds.width * ANSWER_FILL.w);
-  const h = Math.round(floor * ANSWER_FILL.h);
-  return fitToDesk(bounds, {
-    x: Math.round((bounds.width - w) / 2),
-    y: Math.round((floor - h) / 2),
-    w,
-    h,
-  });
+  return centredBox(bounds, ANSWER_FILL);
 }
 
 /* ── the window ────────────────────────────────────────────────────────────── */
@@ -220,12 +210,6 @@ function addLamps(entry) {
 }
 
 /** @param {AnswerWindow} entry */
-function syncMaximiseLamp(entry) {
-  const lamp = entry.el.querySelector('.lamp[data-action="maximise"]');
-  lamp?.setAttribute("aria-pressed", entry.maximised ? "true" : "false");
-}
-
-/** @param {AnswerWindow} entry */
 function toggleMaximise(entry) {
   if (phone) return;
   entry.maximised = !entry.maximised;
@@ -242,9 +226,8 @@ function toggleMaximise(entry) {
  * @param {boolean} isPhone
  */
 export function syncAnswerForm(entry, isPhone) {
-  entry.el.querySelector('.lamp[data-action="maximise"]')?.toggleAttribute("hidden", isPhone);
+  syncWindowForm(entry, isPhone);
   if (!isPhone) bindGestures(entry);
-  entry.win.bar.classList.toggle("window__bar--draggable", !isPhone);
 }
 
 /** @param {AnswerWindow} entry */
@@ -501,12 +484,4 @@ export function startDeskAnswerWindow(root = document) {
 
 /* Guarded the way every other browser module here is: Bun has no `document`, so the
  * module can be imported by a test for what it exports without starting a desk. */
-if (typeof document !== "undefined") {
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => startDeskAnswerWindow(document), {
-      once: true,
-    });
-  } else {
-    startDeskAnswerWindow(document);
-  }
-}
+onDeskReady(() => startDeskAnswerWindow(document));

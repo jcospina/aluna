@@ -18,7 +18,6 @@ import {
   fillDesk,
   fitToDesk,
   PHONE,
-  PROMPT_CLEARANCE,
   placeWindow,
   refreshGeometry,
 } from "../design/scripts/desk-geometry.js";
@@ -36,6 +35,13 @@ import {
 } from "./desk-address.js";
 import { answerDoorway, WINDOW_DOORWAY_SELECTOR, whenTheRequestFails } from "./desk-doorway.js";
 import { joinStack, leaveStack, raise, raiseFromPress } from "./desk-stack.js";
+import {
+  centredBox,
+  onDeskReady,
+  syncMaximiseLamp,
+  syncWindowForm,
+  WALL_SHADOW,
+} from "./desk-window-frame.js";
 import {
   forgetOnDismissal,
   loadPresentation,
@@ -125,12 +131,6 @@ export const PHONE_CLASS = "desk--phone";
  * one is not fatal the way a missing window layer is; every gesture reads the script's answer.
  */
 export const DESK_GROUND_SELECTOR = ".shell";
-
-/**
- * Over a wallpaper the window carries its shadow at 40% rather than 24% — the
- * design's own number for a window standing on the desk rather than in a document.
- */
-const WALL_SHADOW = 0.4;
 
 /**
  * How much of the desk a window takes when it first opens. A collection is a list, so height is
@@ -243,14 +243,7 @@ const laidOut = (bounds) => bounds.width >= 2 && bounds.height >= 2;
  * @returns {Box}
  */
 function defaultBox(bounds) {
-  refreshGeometry();
-  // No floor of its own under the halved room: `fitToDesk` clamps `y` into the desk anyway, and a
-  // second, higher floor here would only ever disagree with the one that wins.
-  const floor = bounds.height - PROMPT_CLEARANCE;
-  const w = Math.round(bounds.width * DEFAULT_FILL.w);
-  const h = Math.round(floor * DEFAULT_FILL.h);
-  const y = Math.round((floor - h) / 2);
-  return fitToDesk(bounds, { x: Math.round((bounds.width - w) / 2), y, w, h });
+  return centredBox(bounds, DEFAULT_FILL);
 }
 
 /**
@@ -389,11 +382,8 @@ function mount(root, title) {
  * @param {boolean} isPhone
  */
 export function syncForm(entry, isPhone) {
-  entry.el.querySelector('.lamp[data-action="maximise"]')?.toggleAttribute("hidden", isPhone);
+  syncWindowForm(entry, isPhone);
   if (!isPhone) bindGestures(entry);
-  /* `.window__bar--draggable` carries `touch-action: none`, so left on a phone the browser hands
-   * every touch on the title bar to a drag that stands itself down, and a scroll does nothing. */
-  entry.win.bar.classList.toggle("window__bar--draggable", !isPhone);
 }
 
 /**
@@ -588,17 +578,6 @@ function toggleMaximise(entry) {
   refit(entry);
   syncMaximiseLamp(entry);
   remember(entry);
-}
-
-/**
- * The leaf lamp is a toggle, so it reports whether it is pressed. Without this the only way to
- * know a window is maximised is to look at it.
- *
- * @param {DeskWindow} entry
- */
-function syncMaximiseLamp(entry) {
-  const lamp = entry.el.querySelector('.lamp[data-action="maximise"]');
-  lamp?.setAttribute("aria-pressed", entry.maximised ? "true" : "false");
 }
 
 /* ── the desk changing size ────────────────────────────────────────────────── */
@@ -1115,10 +1094,4 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
   renderAddress(root, pathname);
 }
 
-if (typeof document !== "undefined") {
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => startDeskWindow(document), { once: true });
-  } else {
-    startDeskWindow(document);
-  }
-}
+onDeskReady(() => startDeskWindow(document));

@@ -216,7 +216,7 @@ describe("the focus order advertises nothing it cannot do", () => {
     expect(windowScript).toContain('const button = document.createElement("button")');
     expect(windowScript).toContain('button.type = "button"');
     expect(windowScript.match(/{ action: "\w+"/g)).toHaveLength(2);
-    expect(MODULE).toContain('lamp?.setAttribute("aria-pressed"');
+    expect(code("public/desk-window-frame.js")).toContain('setAttribute("aria-pressed"');
   });
 
   test("the design page's own desk keeps the same two promises", () => {

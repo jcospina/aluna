@@ -13,7 +13,6 @@
 
 import type { Database } from "bun:sqlite";
 import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
-
 import { type CapabilitySpec, capabilitySpecSchema } from "../../../registry/index.ts";
 import { CapabilityDataValidationError } from "../internal.ts";
 import { deriveCapabilityTableDdl } from "../schema/ddl.ts";

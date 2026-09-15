@@ -1,3 +1,4 @@
+import { errorDetail } from "../../platform/errors.ts";
 import { CapabilityIdReservedError } from "../../registry/index.ts";
 import { renderBuildEnding } from "../../server/http/fragments.ts";
 import type { Send } from "../../server/sse/index.ts";
@@ -47,10 +48,7 @@ export async function runBoundedTerminalPresentation(
     ]);
     return true;
   } catch (error) {
-    console.error(
-      "Aluna terminal build presentation did not complete:",
-      error instanceof Error ? error.message : error,
-    );
+    console.error("Aluna terminal build presentation did not complete:", errorDetail(error));
     return false;
   } finally {
     // A timed-out in-flight write cannot be cancelled through the generic transport Promise, so

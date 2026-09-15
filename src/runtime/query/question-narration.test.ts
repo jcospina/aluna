@@ -40,6 +40,7 @@ import {
   QUESTION_STATEMENT_TOO_LARGE,
   QUESTION_STEP_RESULT_TOO_LARGE,
 } from "./question-payload.ts";
+import type { QuestionStep } from "./question-step.ts";
 import {
   QUESTION_STEP_FALLBACK_LABEL,
   QUESTION_STEP_LABELS,
@@ -47,7 +48,7 @@ import {
   type QuestionToolCall,
   READ_ONLY_QUERY_TOOL,
 } from "./question-tool.ts";
-import { type QuestionStep, UNREADABLE_DECISION } from "./question-turn.ts";
+import { UNREADABLE_DECISION } from "./question-turn.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
 
 let platforms: ScratchPlatforms;
@@ -181,7 +182,7 @@ describe("the closed set and its one sentence each", () => {
     // The switch fails closed rather than falling off the end and putting `undefined` in
     // front of a person — the one way a cast could still produce a machinery leak.
     expect(() => questionLabelNarration("summarising" as QuestionStepLabel)).toThrow(
-      /no sentence is written/,
+      /Unhandled question step label/,
     );
   });
 

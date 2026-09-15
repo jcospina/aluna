@@ -12,6 +12,7 @@
 // closed with `no-store`, so an early 404 cannot outlive artwork that arrives later (L8).
 
 import type { Context, Hono } from "hono";
+import { errorDetail } from "../../platform/errors.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 import type {
@@ -145,7 +146,7 @@ async function spendOrObserve(
     // The desk still gets a tile: a logo is never worth a broken desk.
     console.error(
       `omni-crud logo attempt for ${target.capabilityId}/${target.incarnationId} raised:`,
-      error instanceof Error ? error.message : error,
+      errorDetail(error),
     );
     return;
   }

@@ -87,8 +87,8 @@ function mountCounters(root) {
     const limit = Number(area.dataset.countLimit ?? 0);
     const paint = () => {
       const left = limit - area.value.length;
-      // "1 characters left" is wrong wherever it is drawn. Carried back from
-      // `public/long-text-field.js`, which is the port of this file, so the two do not drift.
+      // "1 characters left" is wrong wherever it is drawn. The product's own copy of these words
+      // is `public/character-count.js`, which this bench cannot import, so a test pins the two.
       out.textContent =
         left >= 0 ? `${left} character${left === 1 ? "" : "s"} left` : `${-left} over the limit`;
       out.classList.toggle("is-over", left < 0);

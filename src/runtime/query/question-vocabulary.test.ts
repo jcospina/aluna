@@ -32,7 +32,7 @@ import {
   scriptedProvider,
 } from "./question.test-support.ts";
 import { QUESTION_STEP_RESULT_TOO_LARGE } from "./question-payload.ts";
-import { QUESTION_VOCABULARY_RULES } from "./question-turn.ts";
+import { QUESTION_VOCABULARY_RULES } from "./question-turn-prompt.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
 import { addedPaths, sweepPlatformStores } from "./store-sweep.test-support.ts";
 

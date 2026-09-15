@@ -9,6 +9,8 @@
 // it was, `focus` is what `activeElement` then answers, `closest` walks the real parent chain,
 // and an event dispatched on a node runs that node's listeners and then every ancestor's.
 
+import { unescapeHtml } from "../../server/http/html.ts";
+
 /** One parsed selector step: a tag, some classes, and some attribute tests. */
 interface Step {
   readonly tag: string | null;
@@ -37,14 +39,6 @@ function parseSelector(selector: string): Step[] {
       };
     });
 }
-
-const decode = (text: string) =>
-  text
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#39;", "'")
-    .replaceAll("&amp;", "&");
 
 type Listener = (event: Record<string, unknown>) => void;
 
@@ -618,7 +612,7 @@ function consumeToken(stack: El[], match: RegExpMatchArray): void {
     return;
   }
   if (text) {
-    appendText(top, decode(text));
+    appendText(top, unescapeHtml(text));
     return;
   }
   if (opening) openElement(stack, top, opening, rawAttributes ?? "", selfClosed === "/");
@@ -644,7 +638,7 @@ function parseAttributes(raw: string): Record<string, string> {
   const attributes: Record<string, string> = {};
   for (const match of raw.matchAll(/([^\s=]+)(?:="([^"]*)")?/g)) {
     const name = match[1];
-    if (name) attributes[name] = decode(match[2] ?? "");
+    if (name) attributes[name] = unescapeHtml(match[2] ?? "");
   }
   return attributes;
 }

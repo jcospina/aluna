@@ -46,16 +46,18 @@ export async function askInTheWindow(
   sentence: string,
   standing?: StandingCapability,
 ): Promise<AskedQuestion> {
-  const submitted = standing
-    ? await app.request("/prompt", {
-        method: "POST",
-        body: new URLSearchParams({
-          prompt: sentence,
+  // Through `postPrompt` either way, so a window's question is submitted exactly as a bare
+  // desk's is: one shape for what the bar sends, and one place it changes.
+  const submitted = await postPrompt(
+    app,
+    sentence,
+    standing
+      ? {
           [RESTORATION_CAPABILITY_ID_FIELD]: standing.capabilityId,
           [RESTORATION_INCARNATION_ID_FIELD]: standing.incarnationId,
-        }),
-      })
-    : await postPrompt(app, sentence);
+        }
+      : {},
+  );
   const jobId = buildJobIdFromSubscriber(await responseText(submitted));
   const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
   return { jobId, events, fragments: eventData(events, "fragment") };

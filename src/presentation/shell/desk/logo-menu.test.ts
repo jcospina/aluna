@@ -9,6 +9,7 @@ import {
   LONG_PRESS_SLOP_PX,
   labelNotice,
 } from "#shell/logo-menu.js";
+import { PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
 import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import { isCapabilityNameLabel, MAX_CAPABILITY_LABEL_CHARS } from "../../../registry/index.ts";
 import { renderCapabilityLogo } from "../../../server/http/fragments.ts";
@@ -579,10 +580,15 @@ describe("the module and the markup agree", () => {
     const bar = readFileSync(resolve("public/prompt-bar.js"), "utf8");
 
     expect(module).toContain(`const PROMPT_FORM_ID = "${PROMPT_FORM_ID}";`);
-    // And the slot it speaks in, which stands above the rail and raises the floor with
-    // whatever it is holding.
-    const notice = /const PROMPT_NOTICE_ID = "([^"]+)";/.exec(module)?.[1];
-    expect(notice).toBeDefined();
-    expect(bar).toContain(`const PROMPT_NOTICE_ID = "${notice}";`);
+    // And the slot it speaks in, which stands above the rail and raises the floor with whatever
+    // it is holding. Both read the name off `shell-dom.js` now, so the two cannot disagree at
+    // all — which is the stronger form of the pin that used to compare two restatements.
+    expect(module).toContain("PROMPT_NOTICE_ID");
+    expect(module).toContain('from "./shell-dom.js"');
+    expect(bar).toContain("PROMPT_NOTICE_ID");
+    expect(bar).toContain('from "./shell-dom.js"');
+    expect(readFileSync(resolve("public/shell-dom.js"), "utf8")).toContain(
+      `export const PROMPT_NOTICE_ID = "${PROMPT_NOTICE_ID}";`,
+    );
   });
 });

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { ZodType } from "zod";
+import { BUILD_JOB_ID_ATTRIBUTE, PROMPT_FIELD_ID } from "#shell/shell-dom.js";
 import { createPromptBuildPipeline, type RecordMetrics } from "../../../pipeline/index.ts";
 import { createBuildJobQueue } from "../../../pipeline/jobs/build-jobs.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
@@ -291,7 +292,7 @@ describe("blank-prompt refusal", () => {
       expect(body).toContain("What would you like me to make?");
       // No subscriber fragment means no SSE stream opens, so `promptBusy` never flips
       // and the prompt bar stays live for the next attempt.
-      expect(body).not.toContain("data-build-job-id");
+      expect(body).not.toContain(BUILD_JOB_ID_ATTRIBUTE);
       expect(body).not.toContain("sse-connect");
       expect(issuedJobIds).toBe(0);
       expect(resolutionRows).toEqual([]);
@@ -314,11 +315,11 @@ describe("blank-prompt refusal", () => {
     const html = await responseText(
       await createApp({ capabilityRouter: { databases: conns } }).request("/"),
     );
-    const fieldStart = html.lastIndexOf("<input", html.indexOf('id="spec-build-prompt"'));
+    const fieldStart = html.lastIndexOf("<input", html.indexOf(`id="${PROMPT_FIELD_ID}"`));
     const field = html.slice(fieldStart, html.indexOf(">", fieldStart) + 1);
     const bar = readFileSync(resolve("public/prompt-bar.js"), "utf8");
 
-    expect(field).toContain('id="spec-build-prompt"');
+    expect(field).toContain(`id="${PROMPT_FIELD_ID}"`);
     expect(field).toContain('name="prompt"');
     expect(field).not.toContain("required");
     expect(bar).toContain(`const BLANK_PROMPT_NOTICE = "${BLANK_PROMPT_NOTICE}";`);
@@ -339,7 +340,7 @@ describe("blank-prompt refusal", () => {
 
     const body = await responseText(await postPrompt(app, "track my notes"));
 
-    expect(body).toContain('data-build-job-id="typed-job"');
+    expect(body).toContain(`${BUILD_JOB_ID_ATTRIBUTE}="typed-job"`);
     expect(body).toContain('sse-connect="/build/typed-job/stream"');
     expect(calls.count).toBe(0);
   });

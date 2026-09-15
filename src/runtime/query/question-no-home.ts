@@ -24,7 +24,12 @@ import {
   choiceFieldOptions,
   isChoiceFieldType,
 } from "../../registry/index.ts";
-import { questionNoHomeSentence, questionSubjectInTheirWords } from "./question-narration.ts";
+import { questionNoHomeSentence } from "./question-narration.ts";
+import {
+  questionSubjectInTheirWords,
+  wordsSitAtAnEdge,
+  wordsSitInside,
+} from "./question-their-words.ts";
 import { capabilityQuerySpec } from "./whole-catalog-query-scope.ts";
 
 /**
@@ -90,18 +95,12 @@ function namesInsideCollection(spec: CapabilitySpec): readonly string[] {
   ]);
 }
 
-/** Whether one of these runs of words sits inside the other, by the word notion the subject was
- * narrowed with. Both ways round is the two being the same words, since neither can be longer. */
-function inside(name: string, named: string): boolean {
-  return questionSubjectInTheirWords(name, named) !== null;
-}
-
 /**
  * Whether these words name something this desk already holds. A collection is caught either way
- * round: *hiking* is held by one called Hiking trips, and *notes from my doctor* holds one called
- * Notes. What is inside a collection has to be the whole subject, because a column's name found
- * inside a longer subject is a coincidence — one desk of nine collections puts two hundred names
- * in reach, most of them one ordinary word, and *light bulbs* is no gap once *light* is a roast.
+ * round — *hiking* by one called Hiking trips, *notes from my doctor* by one called Notes — but
+ * only at one end of the subject, since a name in the middle is a coincidence: *grocery item
+ * list* is a real gap on a desk whose Gym Equipment calls a record an *item*. What is inside a
+ * collection has to be the whole subject, the same guard read harder.
  */
 export function questionNamesSomethingOnThisDesk(
   catalog: ActiveRegistryCatalog,
@@ -112,8 +111,12 @@ export function questionNamesSomethingOnThisDesk(
     .map(capabilityQuerySpec)
     .some(
       (spec) =>
-        collectionNames(spec).some((name) => inside(name, named) || inside(named, name)) ||
-        namesInsideCollection(spec).some((name) => inside(name, named) && inside(named, name)),
+        collectionNames(spec).some(
+          (name) => wordsSitInside(name, named) || wordsSitAtAnEdge(named, name),
+        ) ||
+        namesInsideCollection(spec).some(
+          (name) => wordsSitInside(name, named) && wordsSitAtAnEdge(named, name),
+        ),
     );
 }
 
@@ -132,8 +135,15 @@ export interface QuestionNoHomeDeps {
   readonly signal: AbortSignal;
   /** That same held catalog, which is what makes the checks above cost nothing. */
   readonly catalog: ActiveRegistryCatalog;
+}
+
+/** What this one question is, beside the collaborators above — the split its two siblings keep. */
+export interface QuestionNoHomeInput {
+  /** What the user asked, in their own words. */
+  readonly question: string;
   /** What was standing in their window while they asked, which is the second home weighed
-   * here: a question whose words name no thing of their own asked about that. */
+   * here: a question whose words name no thing of their own asked about that.
+   * Required rather than optional: a dropped window turns a no-gap into the unnamed sentence. */
   readonly openCapability: string | null;
 }
 
@@ -157,8 +167,9 @@ async function namedSubject(object: Promise<unknown>, signal: AbortSignal): Prom
  */
 export async function runQuestionNoHome(
   deps: QuestionNoHomeDeps,
-  question: string,
+  input: QuestionNoHomeInput,
 ): Promise<string | null> {
+  const { question } = input;
   const provider = abortableProvider(deps.provider, deps.signal);
   const generated = provider.generate(buildQuestionNoHomePrompt(question), questionNoHomeSchema);
   const named = await namedSubject(generated.object, deps.signal);
@@ -168,7 +179,7 @@ export async function runQuestionNoHome(
   // *how many did I add this month*, which is about the collection standing there and they
   // plainly have that one; asked in front of nothing, the unnamed sentence is all it can be.
   if (narrowed === null) {
-    return windowIsStanding(deps.catalog, deps.openCapability)
+    return windowIsStanding(deps.catalog, input.openCapability)
       ? null
       : questionNoHomeSentence(null);
   }

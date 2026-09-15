@@ -13,6 +13,7 @@
 // comes to be missed.
 
 import type { Context } from "hono";
+import { errorDetail } from "../../../platform/errors.ts";
 import {
   capabilityCreateErrorId,
   capabilityDeleteErrorId,
@@ -239,10 +240,7 @@ export function recordNotFoundFailure(
  * warm and jargon-free in the response (never a stack trace or internals).
  */
 export function internalFailure(c: Context, id: string, action: string, error: unknown): Response {
-  console.error(
-    `Capability ${id}/${action} failed:`,
-    error instanceof Error ? error.message : error,
-  );
+  console.error(`Capability ${id}/${action} failed:`, errorDetail(error));
   if (isMutationAction(action)) {
     retargetMutationError(c, id, action);
     return c.html(MUTATION_FAILURE_FRAGMENT, 500);

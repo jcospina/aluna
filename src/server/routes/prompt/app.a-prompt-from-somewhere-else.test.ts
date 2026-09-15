@@ -10,6 +10,7 @@
 // route that actually spends the tokens never had one.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { BUILD_JOB_ID_ATTRIBUTE } from "#shell/shell-dom.js";
 import { createBuildJobQueue } from "../../../pipeline/jobs/build-jobs.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { GenerateResult, Provider } from "../../../platform/provider/index.ts";
@@ -90,7 +91,7 @@ describe("a prompt from somewhere other than this desk", () => {
 
     for (const site of ["same-origin", "none", undefined]) {
       const body = await responseText(await app.request("/prompt", submit(site)));
-      expect({ site, subscriber: body.includes("data-build-job-id") }).toEqual({
+      expect({ site, subscriber: body.includes(BUILD_JOB_ID_ATTRIBUTE) }).toEqual({
         site,
         subscriber: true,
       });

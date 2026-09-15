@@ -11,6 +11,7 @@
 // View through `fragment` with no desk sidecar. The restoration is re-resolved rather than
 // remembered, because after a stale refusal the registry is precisely the thing that moved.
 
+import { errorDetail } from "../../../platform/errors.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { CapabilityRow } from "../../../registry/index.ts";
 import { renderCachedCapabilityCommitSwap } from "../../../server/http/index.ts";
@@ -110,10 +111,7 @@ async function presentBuilt(
   } catch (error) {
     // Activation is already durable. A View that could not be prepared is an
     // observational loss, so say so warmly rather than implying a failed build.
-    console.error(
-      "Aluna activated presentation could not be prepared:",
-      error instanceof Error ? error.message : error,
-    );
+    console.error("Aluna activated presentation could not be prepared:", errorDetail(error));
     await deliverActivatedRecoveryPresentation(context.send, context.timeoutMs);
   }
   return "terminal-sent";

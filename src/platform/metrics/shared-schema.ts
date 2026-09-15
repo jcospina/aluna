@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 
-import { GATE_RUNG_ORDER, GATE_RUNG_STATUSES } from "../../builder/gate/gate-rungs.ts";
+import { GATE_RUNG_ORDER, GATE_RUNG_STATUSES } from "../gate-rungs.ts";
 
 export const FAILURE_STAGES = [
   "spec_gen",

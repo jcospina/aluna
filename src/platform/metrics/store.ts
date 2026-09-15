@@ -10,8 +10,8 @@
 
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
-import type { GateRungName } from "../../builder/index.ts";
 import { intentTypeSchema } from "../../pipeline/intent/index.ts";
+import type { GateRungName } from "../gate-rungs.ts";
 import { db, dbReadonly } from "../persistence/db.ts";
 import { GENERATION_METRICS_TABLE } from "../persistence/table-names.ts";
 import type { TokenUsage } from "../provider/index.ts";

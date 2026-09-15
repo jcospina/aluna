@@ -11,6 +11,7 @@
 // A failure never reaches the caller: the capability is already activated, usable and
 // placeholdered, so the attempt returns the row to `absent`, or to `abandoned` after the third.
 
+import { errorDetail } from "../../../platform/errors.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import {
   type CapabilityRow,
@@ -181,7 +182,7 @@ async function attemptUnderReadToken(
     if (!(error instanceof LogoGenerationError && error.reason === "cancelled")) {
       console.error(
         `omni-crud logo attempt ${claim.attempts} for ${claim.capabilityId}/${claim.incarnationId} failed:`,
-        error instanceof Error ? error.message : error,
+        errorDetail(error),
       );
     }
     return null;
