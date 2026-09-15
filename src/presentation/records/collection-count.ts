@@ -13,6 +13,7 @@ import {
 } from "#shell/shell-dom.js";
 import { escapeHtml } from "../../server/http/html.ts";
 import type { RenderableCapability } from "../fields/field-renderer.ts";
+import { pluralNoun } from "./plural-noun.ts";
 
 // The sidecar's wire format, declared in the module that parses it. A prefix changed on one side
 // only parks the comment in the DOM and freezes the count at a stale number without erroring.
@@ -47,7 +48,9 @@ export function filteredCollectionCountSentence(
 ): string {
   if (total <= 0) return "";
   // The two numbers are read one after the other, not in one transaction, so a delete between
-  // them can hand this more matched than there are. A pair that cannot both be true says nothing.
+  // them can hand this more matched than there are. A pair that cannot both be true says nothing,
+  // and neither does a number that is not a whole one — `NaN` fails both comparisons below.
+  if (!Number.isInteger(matched) || !Number.isInteger(total)) return "";
   if (matched < 0 || matched > total) return "";
   return withNoun(`${written(matched)} of ${written(total)}`, total, noun);
 }
@@ -65,71 +68,6 @@ function withNoun(lead: string, governing: number, noun: string): string {
   const plural = pluralNoun(noun);
   if (plural === undefined) return lead;
   return governing === 1 ? `${lead} ${noun}` : `${lead} ${plural}`;
-}
-
-/**
- * Nouns English does not count. The generation contract asks for a singular common noun, but a
- * model reaches for one of these now and then, and "7 datas" is the platform speaking badly.
- */
-const UNCOUNTABLE = new Set([
-  "advice",
-  "baggage",
-  "data",
-  "equipment",
-  "evidence",
-  "feedback",
-  "furniture",
-  "homework",
-  "information",
-  "luggage",
-  "news",
-  "research",
-  "software",
-]);
-
-/** English plurals with one answer. Anything with two is declined below. */
-const IRREGULAR_PLURALS = new Map([
-  ["child", "children"],
-  ["foot", "feet"],
-  ["goose", "geese"],
-  ["man", "men"],
-  ["mouse", "mice"],
-  ["person", "people"],
-  ["tooth", "teeth"],
-  ["woman", "women"],
-]);
-
-/**
- * The plural of a capability's noun, or `undefined` when the platform will not guess: a noun in
- * `f`/`fe`/`o`/`s`, or anything outside plain Latin letters, rather than an `s` glued onto 메모.
- */
-function pluralNoun(noun: string): string | undefined {
-  // Latin letters are not necessarily English letters: a German "Aufgabe" is pluralized as
-  // English, which is the one wrong answer left and the one "add your first Aufgabe" already is.
-  if (!/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(noun)) return undefined;
-  const words = noun.split(" ");
-  const last = words.at(-1) ?? "";
-  const plural = pluralWord(last.toLowerCase());
-  if (plural === undefined) return undefined;
-  // Keep the capability's own casing on every word but the one that changed.
-  return [...words.slice(0, -1), matchCase(last, plural)].join(" ");
-}
-
-function pluralWord(word: string): string | undefined {
-  const irregular = IRREGULAR_PLURALS.get(word);
-  if (irregular !== undefined) return irregular;
-  if (UNCOUNTABLE.has(word)) return undefined;
-  if (/(?:ss|sh|ch|x|z)$/.test(word)) return `${word}es`;
-  if (/(?:s|f|o)$/.test(word) || word.endsWith("fe")) return undefined;
-  if (/[^aeiou]y$/.test(word)) return `${word.slice(0, -1)}ies`;
-  return `${word}s`;
-}
-
-/** A noun the model capitalized keeps its capital when it changes to the plural. */
-function matchCase(original: string, plural: string): string {
-  const first = original.at(0);
-  if (first === undefined || first !== first.toUpperCase()) return plural;
-  return plural.charAt(0).toUpperCase() + plural.slice(1);
 }
 
 /** The empty label the collection chrome carries. The count arrives into it. */

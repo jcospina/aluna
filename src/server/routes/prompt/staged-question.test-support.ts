@@ -12,13 +12,14 @@ import {
   INTENT_RESOLVER_PROMPT_PREFIX,
   type IntentClassification,
 } from "../../../pipeline/intent/index.ts";
-import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";
+import type { GenerateResult, Provider } from "../../../platform/provider/index.ts";
 import {
   QUESTION_ANSWER_PROMPT_PREFIX,
   QUESTION_NO_HOME_PROMPT_PREFIX,
   QUESTION_TURN_PROMPT_PREFIX,
   READ_ONLY_QUERY_TOOL,
 } from "../../../runtime/query/index.ts";
+import { stagedGeneration } from "../../../runtime/query/question.test-support.ts";
 
 /** One statement a fake model asks for, in the shape a turn's decision carries it. */
 export interface StagedQuestionRead {
@@ -46,23 +47,6 @@ export interface StagedQuestionInput {
   readonly gap?: string;
   /** Start the run of statements over instead of answering, so a question spends its ten reads. */
   readonly neverStops?: boolean;
-}
-
-/** One staged answer, in the three shapes `Provider.generate` hands back. */
-function stagedGeneration<T>(answer: unknown, schema: ZodType<T>): GenerateResult<T> {
-  const object = (async () => schema.parse(answer))();
-  object.catch(() => {});
-  return {
-    partialStream: (async function* () {
-      yield answer as DeepPartial<T>;
-    })(),
-    object,
-    usage: Promise.resolve({
-      inputTokens: undefined,
-      outputTokens: undefined,
-      totalTokens: undefined,
-    }),
-  };
 }
 
 /**

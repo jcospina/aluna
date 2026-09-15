@@ -28,7 +28,8 @@ import {
 } from "./question-answer.ts";
 import { QUESTION_STEP_BUDGET, type QuestionLoopResult, runQuestionLoop } from "./question-loop.ts";
 import { QUESTION_NO_HOME_PROMPT_PREFIX } from "./question-no-home.ts";
-import { NO_PLAN } from "./question-nothing-found.ts";
+import type { QuestionStep } from "./question-step.ts";
+import { NO_PLAN } from "./question-step.ts";
 import {
   QUESTION_STEP_FALLBACK_LABEL,
   type QuestionDecision,
@@ -36,14 +37,9 @@ import {
   type QuestionToolCall,
   READ_ONLY_QUERY_TOOL,
 } from "./question-tool.ts";
-import {
-  buildQuestionTurnPrompt,
-  type QuestionStep,
-  type QuestionTurnDeps,
-  type QuestionTurnInput,
-  runQuestionTurn,
-  UNREADABLE_DECISION,
-} from "./question-turn.ts";
+import type { QuestionTurnInput } from "./question-turn.ts";
+import { type QuestionTurnDeps, runQuestionTurn, UNREADABLE_DECISION } from "./question-turn.ts";
+import { buildQuestionTurnPrompt } from "./question-turn-prompt.ts";
 import { gatesFor, readerCounts, type ScratchPlatforms } from "./read-scope.test-support.ts";
 import { capabilityQuerySpec } from "./whole-catalog-query-scope.ts";
 import {
@@ -276,6 +272,27 @@ export const NO_USAGE = Object.freeze({
   totalTokens: undefined,
 });
 
+/**
+ * One staged generation, in the three shapes `Provider.generate` hands back. The object is parsed
+ * through the schema, so a fixture that does not match the contract fails where it was written.
+ */
+export function stagedGeneration<T>(
+  value: unknown,
+  schema: { parse(value: unknown): T },
+): GenerateResult<T> {
+  const object = (async () => schema.parse(value))();
+  // A rejected object with nothing awaiting it yet is an unhandled rejection, and the turn
+  // awaits it one microtask later.
+  object.catch(() => {});
+  return {
+    partialStream: (async function* () {
+      yield value as DeepPartial<T>;
+    })(),
+    object,
+    usage: Promise.resolve(NO_USAGE),
+  };
+}
+
 /** A generation that resolves to exactly this value, without validating it against the schema. */
 function resolving<T>(value: unknown): GenerateResult<T> {
   return {
@@ -374,17 +391,7 @@ function scriptedProviderSpeaking(
     generate<T>(prompt: string, schema: Parameters<Provider["generate"]>[1]): GenerateResult<T> {
       const { kept, scripted } = staged(prompt);
       kept.push(prompt);
-      const object = (async () => (schema as { parse(value: unknown): T }).parse(scripted))();
-      // A rejected object with nothing awaiting it yet is an unhandled rejection, and the
-      // turn awaits it one microtask later.
-      object.catch(() => {});
-      return {
-        partialStream: (async function* () {
-          yield scripted as DeepPartial<T>;
-        })(),
-        object,
-        usage: Promise.resolve(NO_USAGE),
-      };
+      return stagedGeneration<T>(scripted, schema as { parse(value: unknown): T });
     },
   };
 }

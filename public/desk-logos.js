@@ -5,6 +5,8 @@
  * take it down when the stream ends (`renderProvisionalLogo`, `src/server/http/fragments.ts`).
  */
 
+import { BUILD_JOB_ID_ATTRIBUTE } from "./shell-dom.js";
+
 /**
  * The attribute a provisional tile is keyed by. A reload may forget the tile: it is
  * presentation only, and registry rehydration says what stands on the desk.
@@ -18,7 +20,7 @@ export const PROVISIONAL_LOGO_ATTRIBUTE = "data-provisional-logo";
 export const BUILD_NARRATION_REGION_ID = "spec-build-output";
 
 /** One build's subscriber, the node every lifecycle event for that build comes from. */
-const BUILD_SUBSCRIBER_SELECTOR = "[data-build-job-id]";
+const BUILD_SUBSCRIBER_SELECTOR = `[${BUILD_JOB_ID_ATTRIBUTE}]`;
 
 /**
  * The DOM facts this module needs and no more. Structural on purpose, so a test double
@@ -66,7 +68,7 @@ export function removeProvisionalLogo(root, buildId) {
  */
 export function revealBuildNarration(root, buildId) {
   const subscriber = [...root.querySelectorAll(BUILD_SUBSCRIBER_SELECTOR)].find(
-    (node) => node.getAttribute("data-build-job-id") === buildId,
+    (node) => node.getAttribute(BUILD_JOB_ID_ATTRIBUTE) === buildId,
   );
   const target = subscriber ?? root.getElementById?.(BUILD_NARRATION_REGION_ID) ?? null;
   if (target === null) return;
@@ -89,7 +91,7 @@ export function buildIdFromEvent(eventTarget) {
       eventTarget
     );
   if (typeof node?.closest !== "function") return undefined;
-  return node.closest(BUILD_SUBSCRIBER_SELECTOR)?.getAttribute("data-build-job-id") ?? undefined;
+  return node.closest(BUILD_SUBSCRIBER_SELECTOR)?.getAttribute(BUILD_JOB_ID_ATTRIBUTE) ?? undefined;
 }
 
 /**

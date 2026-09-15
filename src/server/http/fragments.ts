@@ -12,8 +12,12 @@ import {
   capabilityLogoUrl,
   capabilityUrl,
 } from "#shell/routes.js";
-import { WINDOW_CONTENT_ID as WINDOW_CONTENT_ELEMENT_ID } from "#shell/shell-dom.js";
-import { busyLabelAttribute } from "../../presentation/controls/busy-label.ts";
+import {
+  BUILD_JOB_ID_ATTRIBUTE,
+  PROMPT_NOTICE_ID,
+  WINDOW_CONTENT_ID as WINDOW_CONTENT_ELEMENT_ID,
+} from "#shell/shell-dom.js";
+import { busyLabelAttribute } from "../../presentation/index.ts";
 import {
   type CapabilityRow,
   canonicalCapabilityLabel,
@@ -83,7 +87,9 @@ const SHELL_LOGO_PLACEHOLDER = "          <!-- Capability logos render here. -->
 
 // The prompt bar's one live slot (public/index.html), matched by id and open-tag-first: an exact
 // tag copy makes one added attribute an outage on every page (`METRICS_SEED_TARGET` says why).
-const SHELL_PROMPT_NOTICE_SLOT = /(<div\b[^>]*\bid="prompt-notice"[^>]*>)<\/div>/;
+const SHELL_PROMPT_NOTICE_SLOT = new RegExp(
+  `(<div\\b[^>]*\\bid="${PROMPT_NOTICE_ID}"[^>]*>)</div>`,
+);
 
 /**
  * Which of the developer panel's eight stages each preview event belongs to. A stage name, not
@@ -105,7 +111,7 @@ const PREVIEW_STAGES = [
  * What an accepted prompt clears out of band. Only the notice: the shell clears the panel's
  * stages itself, since a window that is not open has no elements for an OOB swap to find.
  */
-const CLEAR_ON_ACCEPT_TARGETS = [["div", "prompt-notice"]] as const;
+const CLEAR_ON_ACCEPT_TARGETS = [["div", PROMPT_NOTICE_ID]] as const;
 
 /**
  * The line a blank submission is answered with; `public/prompt-bar.js` restates it and a test
@@ -148,7 +154,7 @@ export function renderPromptNotice(notice: string, tone: PromptNoticeTone = "ans
     tone === "refusal"
       ? `<span ${PROMPT_REFUSAL_ATTRIBUTE}>${escapeHtml(notice)}</span>`
       : escapeHtml(notice);
-  return `<div id="prompt-notice" hx-swap-oob="innerHTML">${sentence}</div>`;
+  return `<div id="${PROMPT_NOTICE_ID}" hx-swap-oob="innerHTML">${sentence}</div>`;
 }
 
 /**
@@ -226,7 +232,7 @@ export function renderBuildSubscriber(jobId: string): string {
   const streamPath = buildStreamUrl(jobId);
   const cancelPath = buildCancelUrl(jobId);
   return [
-    `<section class="build-stream" data-build-job-id="${escapeHtml(jobId)}" hx-ext="sse" sse-connect="${escapeHtml(streamPath)}" sse-close="done">`,
+    `<section class="build-stream" ${BUILD_JOB_ID_ATTRIBUTE}="${escapeHtml(jobId)}" hx-ext="sse" sse-connect="${escapeHtml(streamPath)}" sse-close="done">`,
     '  <div class="build-stream__narration" aria-live="polite" sse-swap="narration" hx-swap="beforeend"></div>',
     '  <div class="build-stream__fragment" sse-swap="fragment" hx-swap="beforeend"></div>',
     '  <div class="build-stream__commit" aria-live="polite" sse-swap="commit" hx-swap="innerHTML"></div>',
@@ -253,11 +259,21 @@ export function renderBuildSubscriber(jobId: string): string {
  */
 export const BUILD_WINDOW_TITLE_ATTRIBUTE = "data-build-window-title";
 
+/**
+ * One marked `<div>` the desk reads and then drops: the mark names what it is, the body is what
+ * it says, and both are escaped here so a fifth one of these cannot be written without escaping.
+ * A hostile record closing the tag would otherwise be read by the glue as a second frame.
+ */
+function markedDiv(mark: string, value: string | null, body: string): string {
+  const attribute = value === null ? mark : `${mark}="${escapeHtml(value)}"`;
+  return `<div ${attribute}>${escapeHtml(body)}</div>`;
+}
+
 /** What a window is called while something new is being made in it. */
 export const BUILDING_WINDOW_TITLE = "Building…";
 
 export function renderBuildWindowTitle(title: string): string {
-  return `<div ${BUILD_WINDOW_TITLE_ATTRIBUTE}="${escapeHtml(title)}"></div>`;
+  return markedDiv(BUILD_WINDOW_TITLE_ATTRIBUTE, title, "");
 }
 
 /**
@@ -288,8 +304,7 @@ export function answerWindowTitle(question: string): string {
 }
 
 export function renderAnswerWindowOpening(question: string): string {
-  const attribute = `${ANSWER_WINDOW_ATTRIBUTE}="${escapeHtml(answerWindowTitle(question))}"`;
-  return `<div ${attribute}>${escapeHtml(ANSWER_WINDOW_OPENING)}</div>`;
+  return markedDiv(ANSWER_WINDOW_ATTRIBUTE, answerWindowTitle(question), ANSWER_WINDOW_OPENING);
 }
 
 /**
@@ -308,13 +323,12 @@ export const REFUSED_PROMPT_ATTRIBUTE = "data-refused-prompt";
 
 /** The warm line for a sentence Aluna will not build from, under the words that earned it. */
 export function renderRefusedPrompt(refused: string, saying: string): string {
-  const attribute = `${REFUSED_PROMPT_ATTRIBUTE}="${escapeHtml(answerWindowTitle(refused))}"`;
-  return `<div ${attribute}>${escapeHtml(saying)}</div>`;
+  return markedDiv(REFUSED_PROMPT_ATTRIBUTE, answerWindowTitle(refused), saying);
 }
 
 /** One thing Aluna says while she reads, and then the answer, into the window she is in. */
 export function renderAnswerWindowSaying(saying: string): string {
-  return `<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}>${escapeHtml(saying)}</div>`;
+  return markedDiv(ANSWER_WINDOW_SAYING_ATTRIBUTE, null, saying);
 }
 
 /**

@@ -1,8 +1,8 @@
 // The Gate's rung vocabulary, alone in a module that imports nothing.
 //
 // The metrics schema needs these as runtime values to build its enums, and metrics sits below the
-// builder. Importing them from `gate.ts` would close a cycle through the builder barrel, so the
-// two names both sides need live here instead of being restated on each side of the boundary.
+// builder. So the shared name lives in the lower layer, the way `errors.ts` and `table-names.ts`
+// do: `gate.ts` re-exports it, and nothing under `src/platform/` reaches up for a value.
 
 /** The rungs, in the order the Gate runs and reports them. Publication verifies this sequence. */
 export const GATE_RUNG_ORDER = ["structural", "smoke", "behavioral", "design-lint"] as const;

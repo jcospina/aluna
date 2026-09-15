@@ -15,6 +15,7 @@
  */
 
 import { drawAlso, redrawInk, startInk } from "../design/scripts/ink.js";
+import { onDeskReady } from "./desk-window-frame.js";
 
 /**
  * The Module 1–4 shell's own boundaries. Each declares a `border` its stylesheet still
@@ -41,11 +42,7 @@ const SHELL_INK = [
 
 drawAlso(SHELL_INK);
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => startInk(), { once: true });
-} else {
-  startInk();
-}
+onDeskReady(() => startInk());
 
 /*
  * The two faces load `font-display: swap`, and the swap resizes a text-driven box without

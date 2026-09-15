@@ -11,6 +11,7 @@
 // `artifact-reconciliation.ts` tolerates the temp's name instead, since it runs where an attempt
 // may be mid-write; here `claims.ts` proves nothing runs, under the incarnation's read token.
 
+import { errorDetail } from "../../../platform/errors.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import {
   abandonMissingCapabilityLogo,
@@ -127,7 +128,7 @@ async function recoverOneRowQuietly(
     if (admission.aborted) return "deferred";
     console.error(
       `omni-crud could not recover the logo lifecycle for ${row.id}/${row.incarnation_id}:`,
-      error instanceof Error ? error.message : error,
+      errorDetail(error),
     );
     return null;
   }

@@ -230,6 +230,24 @@ describe("the counter's words", () => {
     expect(characterCountSentence(180, 200)).toBe("20 over the limit");
   });
 
+  test("and the design bench draws the same words, which it restates rather than imports", () => {
+    // `design/scripts/` is the contract page's own code and imports nothing of the product's, so
+    // the counter is written out there a second time. This is what keeps the two from drifting:
+    // a wording change that reached only one of them used to rewrite the counter mid-keystroke.
+    const bench = readFileSync(resolve("design/scripts/controls-main.js"), "utf8");
+
+    // Read off the leaf rather than retyped, so a reworded counter fails here rather than
+    // drifting: the bench interpolates the figure and the plural, so the words either side of
+    // them are what both sides have in common.
+    const over = characterCountSentence(1, 2);
+    const singular = characterCountSentence(2, 1);
+
+    expect(bench).toContain(over.slice(over.indexOf(" ") + 1));
+    for (const word of singular.split(" ").slice(1)) {
+      expect(bench, `the bench does not draw "${word}"`).toContain(word);
+    }
+  });
+
   test("it counts UTF-16 code units, the way the native attribute and the server both do", () => {
     // One astral character is one grapheme, two code units — and `maxlength` stops at two.
     expect(characterCountSentence(64, "😀".length)).toBe("62 characters left");

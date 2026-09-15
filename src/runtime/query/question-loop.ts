@@ -16,12 +16,13 @@
 // A question that matched no rows costs none: nothing-found is the platform's own sentence. So is
 // the gap, bar the one call that names what there is nowhere for, in this person's own words.
 
+import { assertNever } from "../../platform/errors.ts";
 import { runQuestionAnswer } from "./question-answer.ts";
 import { QUESTION_NOTHING_WORKED, questionNothingFoundSentence } from "./question-narration.ts";
 import { runQuestionNoHome } from "./question-no-home.ts";
 import { questionFoundNothing, questionReadSomething } from "./question-nothing-found.ts";
-import type { QuestionStep, QuestionTurn, QuestionTurnDeps } from "./question-turn.ts";
-import { runQuestionTurn } from "./question-turn.ts";
+import type { QuestionStep, QuestionTurn } from "./question-step.ts";
+import { type QuestionTurnDeps, runQuestionTurn } from "./question-turn.ts";
 
 /**
  * How many steps one question gets (decision 8). Not injectable: a budget a caller could
@@ -46,7 +47,7 @@ export type QuestionLoopResult =
       /** The endings that speak. Nothing-found is not found-nothing, and neither is a question
        * whose every statement failed: she never searched, so she may not report a search. Nor is
        * either of them the gap, which is about the desk rather than about one search of it. */
-      readonly ending: "answered" | "nothing_found" | "nothing_worked" | "no_home";
+      readonly ending: Exclude<QuestionEnding, "budget_spent">;
       readonly steps: readonly QuestionStep[];
       /** What she says she found, written from those steps and from nothing else (decision 4). */
       readonly answer: string;
@@ -125,13 +126,8 @@ export async function runQuestionLoop(
   const named = async (): Promise<QuestionLoopResult> => {
     if (questionFoundNothing(steps)) return await spoken();
     const said = await runQuestionNoHome(
-      {
-        provider: deps.provider,
-        signal: deps.scope.signal,
-        catalog: deps.scope.catalog,
-        openCapability: input.openCapability,
-      },
-      input.question,
+      { provider: deps.provider, signal: deps.scope.signal, catalog: deps.scope.catalog },
+      { question: input.question, openCapability: input.openCapability },
     );
     return said === null ? await spoken() : { ending: "no_home", steps, answer: said };
   };
@@ -148,10 +144,8 @@ export async function runQuestionLoop(
         return await named();
       case "spent":
         return { ending: "budget_spent", stepsTaken: steps.length };
-      default: {
-        const unreachable: never = ending;
-        throw new Error(`no ending is written for ${String(unreachable)}`);
-      }
+      default:
+        return assertNever(ending, "question turn ending");
     }
   };
 

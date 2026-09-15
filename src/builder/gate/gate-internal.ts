@@ -12,12 +12,12 @@ import { randomUUID } from "node:crypto";
 import ts from "typescript";
 import { errorMessage } from "../../platform/errors.ts";
 import { sqlIdentifier } from "../../platform/persistence/sql-identifier.ts";
-import { renderableFromSpec } from "../../presentation/fields/renderable-capability.ts";
 import {
   createPresentationAdapter,
   type ItemRenderer,
   type PresentationAdapter,
   type RenderableCapability,
+  renderableFromSpec,
 } from "../../presentation/index.ts";
 import {
   type CapabilityRow,

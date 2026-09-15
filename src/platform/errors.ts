@@ -7,6 +7,16 @@ export function errorMessage(error: unknown): string {
 }
 
 /**
+ * What a `console.error` is handed beside its own sentence. An `Error` becomes its message, and
+ * anything else crosses whole, so a thrown object still prints as itself rather than as the
+ * `[object Object]` {@link errorMessage} would make of it. The sixteen copies of this line differed
+ * on nothing.
+ */
+export function errorDetail(error: unknown): unknown {
+  return error instanceof Error ? error.message : error;
+}
+
+/**
  * Compile-time exhaustiveness guard: reached only if a union case is unhandled. `subject` names
  * the union in the message, which is all the four copies of this ever differed on.
  */

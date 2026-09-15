@@ -37,7 +37,8 @@ import {
   questionStatementRefusal,
   renderQuestionRows,
 } from "./question-payload.ts";
-import { type QuestionStep, questionPayloadSpent, questionStepBytes } from "./question-turn.ts";
+import type { QuestionStep } from "./question-step.ts";
+import { questionPayloadSpent, questionStepBytes } from "./question-turn-prompt.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
 
 let platforms: ScratchPlatforms;

@@ -43,7 +43,7 @@ import {
   QUESTION_ANSWER_RULES,
   questionAnswerSchema,
 } from "./question-answer.ts";
-import { QUESTION_NAMING_RULES } from "./question-turn.ts";
+import { QUESTION_NAMING_RULES } from "./question-turn-prompt.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
 
 let platforms: ScratchPlatforms;

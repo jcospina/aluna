@@ -966,8 +966,9 @@ Handler's business; canonical state always crosses the mutation interface.
 ### Reads — free
 
 Reads use a distinct parameterized SQL interface backed by a physically read-only
-SQLite connection (`SQLITE_OPEN_READONLY` plus an authorizer), so mutation through
-that supplied query adapter fails at the SQLite seam. Every persistent generated
+SQLite connection (`SQLITE_OPEN_READONLY` plus `PRAGMA query_only = ON`; there is no
+authorizer — `bun:sqlite` exposes none, and ADR-0008 records what closes the gap that
+leaves), so mutation through that supplied query adapter fails at the SQLite seam. Every persistent generated
 Action may query its own table plus the exact capability incarnations declared for
 that Action in committed `read_dependencies`, and `read` and `search` necessarily
 do. The declaration exists for lifecycle integrity, not mutation safety: SQL and

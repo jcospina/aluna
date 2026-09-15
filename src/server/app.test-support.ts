@@ -8,6 +8,7 @@
 // here — a test must not bill the BYO key on every run.
 
 import type { ZodType } from "zod";
+import { BUILD_JOB_ID_ATTRIBUTE } from "#shell/shell-dom.js";
 import {
   behavioralResponseFor,
   type FullBehavioralTestSuite,
@@ -33,6 +34,7 @@ import {
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
 import { createApp } from "./app.ts";
+import { unescapeHtml } from "./http/html.ts";
 
 export interface SseEvent {
   readonly id: string;
@@ -128,15 +130,6 @@ export function eventData(events: SseEvent[], name: string): string {
     .join("\n");
 }
 
-/** What `escapeHtml` did, undone, so a test reads back the sentence Aluna actually said. */
-const unescapeHtml = (value: string): string =>
-  value
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#39;", "'")
-    .replaceAll("&amp;", "&");
-
 /**
  * Every sentence a stream put on the prompt bar, in order. Aluna working out what the typed
  * sentence is rides here too (`renderResolvingNotice`), so a test asking what a *run* said reads
@@ -157,18 +150,19 @@ export function lastEventData(events: SseEvent[], name: string): string {
   return events.filter((event) => event.event === name).at(-1)?.data ?? "";
 }
 
-export function promptPost(prompt: string): RequestInit {
+export function promptPost(prompt: string, alsoSent: Record<string, string> = {}): RequestInit {
   return {
     method: "POST",
-    body: new URLSearchParams({ prompt }),
+    body: new URLSearchParams({ prompt, ...alsoSent }),
   };
 }
 
 export async function postPrompt(
   app: ReturnType<typeof createApp>,
   prompt: string,
+  alsoSent: Record<string, string> = {},
 ): Promise<Response> {
-  return app.request("/prompt", promptPost(prompt));
+  return app.request("/prompt", promptPost(prompt, alsoSent));
 }
 
 export async function responseText(res: Response): Promise<string> {
@@ -176,7 +170,7 @@ export async function responseText(res: Response): Promise<string> {
 }
 
 export function buildJobIdFromSubscriber(fragment: string): string {
-  const match = fragment.match(/data-build-job-id="([^"]+)"/);
+  const match = fragment.match(new RegExp(`${BUILD_JOB_ID_ATTRIBUTE}="([^"]+)"`));
   if (!match) throw new Error(`missing build job id in fragment: ${fragment}`);
   return match[1] ?? "";
 }

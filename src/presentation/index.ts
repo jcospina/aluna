@@ -8,6 +8,13 @@
 // one source of truth rather than re-listing it.
 
 export {
+  ADDING_LABEL,
+  BUSY_LABEL_ATTRIBUTE,
+  busyLabelAttribute,
+  DELETING_RECORD_LABEL,
+  SAVING_RECORD_LABEL,
+} from "./controls/busy-label.ts";
+export {
   capabilityCreateErrorId,
   capabilityDeleteErrorId,
   capabilityEditErrorId,
@@ -17,6 +24,7 @@ export {
   renderCreateForm,
   renderEditForm,
 } from "./fields/field-renderer.ts";
+export { renderableFromRow, renderableFromSpec } from "./fields/renderable-capability.ts";
 export {
   createPlatformPresentationAdapter,
   createPresentationAdapter,

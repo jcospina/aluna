@@ -7,6 +7,7 @@
 // Nothing on this path writes to the desk. The scope creates nothing (`data-query.ts`), and the
 // one row a question leaves behind is the resolver measurement every non-build prompt leaves.
 
+import { errorDetail } from "../../platform/errors.ts";
 import {
   type IntentResolutionMetrics,
   type IntentResolutionOutcome,
@@ -27,7 +28,7 @@ import { renderAnswerWindowOpening, renderAnswerWindowSaying } from "../../serve
 import type { Send } from "../../server/sse/index.ts";
 import type { PromptResolutionMemory } from "../build/admission/resolved-request.ts";
 import type { BuildPipelineCompletion } from "../jobs/build-jobs.ts";
-import { questionCost, type RecordMetrics, writeResolverOnlyMetrics } from "../metrics-recorder.ts";
+import { questionCost, type RecordMetrics, rememberResolverRow } from "../metrics-recorder.ts";
 import {
   deliverRestoredPresentation,
   runBoundedTerminalPresentation,
@@ -118,16 +119,9 @@ function rememberTheResolver(input: QuestionPipelineInput, steps: QuestionSoFar)
   // throwing out of the `finally` this can be called from, over an answer already delivered.
   const cost = steps.asked ? questionCost(input.askedAt, steps.taken) : undefined;
   const outcome = input.isAborted() ? "cancelled" : "completed";
-  void input.mutationCoordinator
-    .withPlatformWrite(() =>
-      writeResolverOnlyMetrics(input.recordMetrics, theResolverRow(input, outcome, cost)),
-    )
-    .catch((error) => {
-      console.error(
-        "Aluna resolver metrics write did not complete:",
-        error instanceof Error ? error.message : error,
-      );
-    });
+  rememberResolverRow(input.mutationCoordinator, input.recordMetrics, () =>
+    theResolverRow(input, outcome, cost),
+  );
 }
 
 /**
@@ -149,10 +143,7 @@ function answerWindowVoice(input: QuestionPipelineInput) {
         // Not a cancelled question's: the frame failed because the person took the stream away,
         // which is the desk working rather than a fault to explain.
         if (input.isAborted()) return;
-        console.error(
-          "Aluna could not say that in the answer window:",
-          error instanceof Error ? error.message : error,
-        );
+        console.error("Aluna could not say that in the answer window:", errorDetail(error));
       });
   };
   return { say, settled: () => said };
@@ -171,10 +162,7 @@ async function openTheAnswerWindow(
     await input.send("fragment", renderAnswerWindowOpening(input.question));
     return true;
   } catch (error) {
-    console.error(
-      "Aluna could not open the answer window:",
-      error instanceof Error ? error.message : error,
-    );
+    console.error("Aluna could not open the answer window:", errorDetail(error));
     return false;
   }
 }
@@ -216,7 +204,7 @@ async function runToAnEnding(
     // A question the person gave up on is not one of those causes: the loop rejects because that
     // is what a cancel does to it, so the log stays quiet (6.5/04: cancelling is not an error).
     if (!input.isAborted()) {
-      console.error(COULD_NOT_FINISH_LOG, error instanceof Error ? error.message : error);
+      console.error(COULD_NOT_FINISH_LOG, errorDetail(error));
     }
     return QUESTION_COULD_NOT_FINISH;
   }

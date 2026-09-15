@@ -5,13 +5,16 @@
  * capability (design D5). Callers say what happened; this module places it (ARCH §6.1).
  */
 
+import { PROMPT_FIELD_ID, PROMPT_NOTICE_ID } from "./shell-dom.js";
+
 /**
  * The bar, and the slot it speaks in: the `aria-live` region `public/index.html` already ships,
  * so the desk gains no notice surface of its own.
  */
 const PROMPT_FORM_ID = "spec-build-form";
-export const PROMPT_NOTICE_ID = "prompt-notice";
-const PROMPT_FIELD_ID = "spec-build-prompt";
+
+// Re-exported from its leaf under the name its callers already use.
+export { PROMPT_NOTICE_ID };
 
 /**
  * The marker a refused sentence wears, and the design's `is-refused` cue with it

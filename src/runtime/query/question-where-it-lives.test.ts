@@ -40,7 +40,7 @@ import {
   QUESTION_COLLECTIONS_HEADING,
   QUESTION_WHERE_IT_LIVES_HEADING,
   QUESTION_WHERE_IT_LIVES_RULES,
-} from "./question-turn.ts";
+} from "./question-turn-prompt.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
 
 /** What this person calls what they spent it on. None of them is a collection, which is the case

@@ -31,8 +31,9 @@ import {
   scriptedProvider,
   UNREADABLE_STEP,
 } from "./question.test-support.ts";
+import type { QuestionStep } from "./question-step.ts";
 import { QUESTION_TOOLS, type QuestionToolCall, READ_ONLY_QUERY_TOOL } from "./question-tool.ts";
-import { QUESTION_TURN_PROMPT_PREFIX, type QuestionStep } from "./question-turn.ts";
+import { QUESTION_TURN_PROMPT_PREFIX } from "./question-turn-prompt.ts";
 import {
   createScratchPlatforms,
   gatesFor,

@@ -8,9 +8,9 @@
 // describe work that actually happened — are the snapshot's contract rather than steps in
 // assembling one, and reading them together is the only way to see that contract whole.
 
+import { GATE_RUNG_ORDER } from "../../../platform/gate-rungs.ts";
 import { sameOrderedStrings } from "../../../registry/index.ts";
 import type { CapabilityGateResult } from "../../gate/gate.ts";
-import { GATE_RUNG_ORDER } from "../../gate/gate-rungs.ts";
 import type { GeneratedUnit } from "../../units/generation/units.ts";
 import { DERIVED_UNIT_FILES } from "../inventory/artifact-provenance.ts";
 import { SnapshotVerificationError } from "../inventory/snapshot-error.ts";

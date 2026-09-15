@@ -9,6 +9,7 @@
 // in `gate-internal.ts`.
 
 import type { Database } from "bun:sqlite";
+import type { GateRungName, GateRungStatus } from "../../platform/gate-rungs.ts";
 import type { Provider, TokenUsage } from "../../platform/provider/index.ts";
 import { addTokenUsage, ZERO_TOKEN_USAGE } from "../../platform/provider/usage.ts";
 import type { CapabilitySpec, CapabilityTool } from "../../registry/index.ts";
@@ -19,7 +20,6 @@ import {
   type CapabilityGateFailureMeasurement,
 } from "./capability-gate-error.ts";
 import { rerunPassedGateRung, runGateRung, skipGateRung } from "./gate-rung-runner.ts";
-import type { GateRungName, GateRungStatus } from "./gate-rungs.ts";
 import type {
   BehavioralExecutionImpact,
   BehavioralExecutionPlan,
@@ -48,7 +48,7 @@ export {
   GATE_RUNG_STATUSES,
   type GateRungName,
   type GateRungStatus,
-} from "./gate-rungs.ts";
+} from "../../platform/gate-rungs.ts";
 
 export interface GateRungOutcome {
   readonly rung: GateRungName;

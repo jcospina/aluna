@@ -41,7 +41,6 @@ import {
   QUESTION_NOTHING_FOUND_ANYWHERE,
   questionEndingNarration,
   questionNoHomeSentence,
-  questionSubjectInTheirWords,
 } from "./question-narration.ts";
 import {
   buildQuestionNoHomePrompt,
@@ -51,7 +50,9 @@ import {
   questionNoHomeSchema,
   runQuestionNoHome,
 } from "./question-no-home.ts";
-import { LOOK_BEFORE_NO_HOME, QUESTION_NO_HOME_RULES } from "./question-turn.ts";
+import { questionSubjectInTheirWords } from "./question-their-words.ts";
+import { LOOK_BEFORE_NO_HOME } from "./question-turn.ts";
+import { QUESTION_NO_HOME_RULES } from "./question-turn-prompt.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
 
 let platforms: ScratchPlatforms;
@@ -176,6 +177,21 @@ describe("the subject, narrowed to what this person wrote", () => {
     }
   });
 
+  test("reads past the quotation marks they put round the thing they asked about", () => {
+    // A quote closed the word rather than sat inside it, so *tickets’* and *tickets* are one
+    // word — and what comes back is still the run they typed, without the quotes round it.
+    expect(
+      questionSubjectInTheirWords("how many 'hiking trips' did I take?", SCRIPTED_SUBJECT),
+    ).toBe("hiking trips");
+  });
+
+  test("and matches a subject composed either way against a question composed the other", () => {
+    // A paste from macOS arrives decomposed and a model answers composed. The two are the same
+    // word, and what comes back is the one they typed rather than the one we normalized.
+    const decomposed = "do I track cafe\u0301 visits?";
+    expect(questionSubjectInTheirWords(decomposed, "caf\u00e9 visits")).toBe("cafe\u0301 visits");
+  });
+
   test("and names nothing at all in a script that puts no spaces between words", () => {
     // Thai runs its words together, so a whole clause reads as one word and no subject inside it
     // can be told apart from it. She says the sentence without naming the thing, which is true.
@@ -232,6 +248,19 @@ describe("a subject naming something they already have", () => {
       expect({ named, held: questionNamesSomethingOnThisDesk(catalog, named) }).toEqual({
         named,
         held: true,
+      });
+    }
+  });
+
+  test("but a collection's own noun in the middle of a subject is a coincidence too", () => {
+    // The same asymmetry the column check makes, made for a one-word noun: English hangs a
+    // subject on its first word or its last, so *a grocery note list* is about a list and this
+    // desk holds nowhere for one. Suppressing it would answer about Notes instead.
+    const catalog = catalogued();
+    for (const named of ["grocery note list", "the expense report format"]) {
+      expect({ named, held: questionNamesSomethingOnThisDesk(catalog, named) }).toEqual({
+        named,
+        held: false,
       });
     }
   });
@@ -304,8 +333,8 @@ describe("the call that names it", () => {
     ];
     for (const provider of providers) {
       const said = await runQuestionNoHome(
-        { provider, signal: new AbortController().signal, catalog, openCapability: null },
-        A_QUESTION_WITH_NO_HOME,
+        { provider, signal: new AbortController().signal, catalog },
+        { question: A_QUESTION_WITH_NO_HOME, openCapability: null },
       );
       expect(said).toBe(QUESTION_NO_HOME_FOR_THAT);
     }
@@ -316,18 +345,19 @@ describe("the call that names it", () => {
     // came back unreadable says nothing about where the subject lives, so the unnamed sentence
     // stands even with a window open; words that were merely not theirs give way to that window.
     const catalog = catalogued();
-    const standing = { openCapability: NOTES_CAPABILITY.id, signal: new AbortController().signal };
+    const standing = { question: A_QUESTION_WITH_NO_HOME, openCapability: NOTES_CAPABILITY.id };
+    const signal = new AbortController().signal;
 
     expect(
       await runQuestionNoHome(
-        { ...standing, catalog, provider: namingProvider({ nothing: true }) },
-        A_QUESTION_WITH_NO_HOME,
+        { signal, catalog, provider: namingProvider({ nothing: true }) },
+        standing,
       ),
     ).toBe(QUESTION_NO_HOME_FOR_THAT);
     expect(
       await runQuestionNoHome(
-        { ...standing, catalog, provider: namingProvider({ subject: "outdoor activities" }) },
-        A_QUESTION_WITH_NO_HOME,
+        { signal, catalog, provider: namingProvider({ subject: "outdoor activities" }) },
+        standing,
       ),
     ).toBeNull();
   });
@@ -340,9 +370,8 @@ describe("the call that names it", () => {
         provider: namingProviderFaulting(new Error("cancelled")),
         signal: cancelled.signal,
         catalog: catalogued(),
-        openCapability: null,
       },
-      A_QUESTION_WITH_NO_HOME,
+      { question: A_QUESTION_WITH_NO_HOME, openCapability: null },
     );
     await expect(run).rejects.toThrow();
   });
@@ -353,9 +382,8 @@ describe("the call that names it", () => {
         provider: namingProvider({ subject: "expenses" }),
         signal: new AbortController().signal,
         catalog: catalogued(),
-        openCapability: null,
       },
-      "do I have anywhere for expenses?",
+      { question: "do I have anywhere for expenses?", openCapability: null },
     );
     expect(said).toBeNull();
   });

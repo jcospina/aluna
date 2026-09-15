@@ -16,7 +16,12 @@ import {
   renderCollectionCountLabel,
   renderCollectionCountSidecar,
 } from "./collection-count.ts";
-import { countRenderedItems, renderCollection, renderItemWrapper } from "./list-container.ts";
+import {
+  countRenderedItems,
+  ITEM_TRIGGER_CLASS,
+  renderCollection,
+  renderItemWrapper,
+} from "./list-container.ts";
 
 // The collection's count is platform chrome (PLAN decision 32) and rides the same read the
 // records arrive in. These pin what the server writes and what the shell reads back off it.
@@ -138,16 +143,18 @@ describe("the matched number is read off the answer, never re-derived", () => {
 
   test("a Handler's own element wearing the class is not a record", () => {
     // The wrapper writes the class and the payload together, so both are asked for. A capability
-    // laying out its own `<div class="capability-item stack">` adds no records, and no count.
-    expect(countRenderedItems('<div class="capability-item stack">not a record</div>')).toBe(0);
-    expect(countRenderedItems('<div class="capability-item">not a record</div>')).toBe(0);
+    // laying out its own trigger class with no payload adds no records, and no count.
+    expect(countRenderedItems(`<div class="${ITEM_TRIGGER_CLASS} stack">not a record</div>`)).toBe(
+      0,
+    );
+    expect(countRenderedItems(`<div class="${ITEM_TRIGGER_CLASS}">not a record</div>`)).toBe(0);
   });
 
   test("a record whose own text spells the class name is not a record", () => {
     // Why this is parsed rather than scanned: the wrapper writes its class in two
     // attribute orders already, and record data is a string a person typed.
     const hostile = renderItemWrapper(
-      '<p>class="capability-item"</p>',
+      `<p>class="${ITEM_TRIGGER_CLASS}"</p>`,
       { id: "a" },
       {
         templateId: "record-tasks-a",

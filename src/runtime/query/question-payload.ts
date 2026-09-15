@@ -26,6 +26,13 @@ export const QUESTION_STEP_RESULT_CAP_BYTES = 16 * 1024;
 export const QUESTION_RESULT_PAYLOAD_BUDGET_BYTES = 64 * 1024;
 
 /**
+ * What closes the fence around a person's own saved data, in both prompts that carry one. Here
+ * rather than beside either fence's opening line, which differ on purpose: hardening one close
+ * and not the other would leave the weaker of the two around the words a person reads.
+ */
+export const DATA_FENCE_CLOSE = "  end of data";
+
+/**
  * The bytes a piece of prompt text costs, or `Infinity` when it is too large to produce.
  * `JSON.stringify` throws `RangeError: Out of memory` on precisely the result the cap exists for.
  */

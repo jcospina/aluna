@@ -8,6 +8,7 @@
 import { PROMPT_BAR_MESSAGE_EVENT } from "./prompt-bar.js";
 import { releaseRegionContent } from "./region-scope.js";
 import { buildCancelUrl } from "./routes.js";
+import { BUILD_JOB_ID_ATTRIBUTE, PROMPT_FIELD_ID } from "./shell-dom.js";
 
 /**
  * What the desk says when a confirmed leave could not be carried out: a run whose story cannot be
@@ -32,7 +33,7 @@ function tellThePromptBar(sentence) {
  * window back. A question stands in the window while it is classified and then gives the frame
  * up rather than filling it, and a leave that costs nothing may not be asked about.
  */
-export const RUN_IN_THE_WINDOW_SELECTOR = "[data-build-job-id]:not([data-preserve-active-view])";
+export const RUN_IN_THE_WINDOW_SELECTOR = `[${BUILD_JOB_ID_ATTRIBUTE}]:not([data-preserve-active-view])`;
 const BUILD_SUBSCRIBER_SELECTOR = RUN_IN_THE_WINDOW_SELECTOR;
 
 /**
@@ -44,7 +45,7 @@ const BUILD_SUBSCRIBER_SELECTOR = RUN_IN_THE_WINDOW_SELECTOR;
 export const QUESTION_RUN_ATTRIBUTE = "data-question-run";
 
 /** What a run's id is written on, and what a run is found by at all. */
-export const RUN_ID_ATTRIBUTE = "data-build-job-id";
+export const RUN_ID_ATTRIBUTE = BUILD_JOB_ID_ATTRIBUTE;
 export const QUESTION_IN_THE_WINDOW_SELECTOR = `[${RUN_ID_ATTRIBUTE}][${QUESTION_RUN_ATTRIBUTE}]`;
 
 /**
@@ -77,7 +78,7 @@ export const LEAVING_GO_SELECTOR = "[data-run-leaving-go]";
  * Where focus goes when a confirmed navigation left it on nothing. The same landing the
  * dismissal of an ending uses (`public/app.js`), restated here for the same reason.
  */
-export const PROMPT_FIELD_ID = "spec-build-prompt";
+export { PROMPT_FIELD_ID };
 
 /**
  * The DOM facts these rules need, and no more, so a plain object satisfies them as well as a
@@ -165,10 +166,20 @@ export { buildCancelUrl };
  * `keepalive`, because the node that would have carried an htmx request is about to be
  * detached and the page may be on its way out behind it.
  *
+ * Never waited on: the window comes down at the press, and holding it open for a round trip
+ * would make giving up feel like work. A cancel that did not land leaves a run going with
+ * nothing on screen to stop it again, so it is written down rather than swallowed.
+ *
  * @param {string} url
  */
 function postCancel(url) {
-  void fetch(url, { method: "POST", keepalive: true }).catch(() => undefined);
+  void fetch(url, { method: "POST", keepalive: true })
+    .then((response) => {
+      if (!response.ok) console.error("Aluna could not stop that run:", response.status);
+    })
+    .catch((error) => {
+      console.error("Aluna could not stop that run:", error);
+    });
 }
 
 /**

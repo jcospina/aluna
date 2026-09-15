@@ -22,6 +22,8 @@ import {
 
 const SHELL = read("public/index.html");
 const MODULE = read("public/desk-window.js");
+/** The frame the desk's three windows share, and where what they share is read. */
+const FRAME = read("public/desk-window-frame.js");
 
 describe("the shell ships a window layer and no content area", () => {
   test("the layer is in the page and the window is not", () => {
@@ -209,7 +211,7 @@ describe("two lamps, and there is no minimise", () => {
   test("the leaf lamp reports whether it is pressed", () => {
     // Maximise is a toggle. Without this the only way to know a window is maximised is
     // to look at it, which is not a way a screen reader has.
-    expect(MODULE).toContain('lamp?.setAttribute("aria-pressed"');
+    expect(FRAME).toContain('setAttribute("aria-pressed"');
   });
 
   test("the clay lamp dismisses, and a dismissed window is not remembered", () => {
@@ -252,9 +254,11 @@ describe("the frame is drawn, and drawn once", () => {
     // 5.4/01 left this module written and unwired, for the window to be its first
     // consumer. The floor it reads is the prompt bar's, and every clamp goes through it.
     expect(MODULE).toContain('from "../design/scripts/desk-geometry.js"');
-    for (const helper of ["fillDesk", "fitToDesk", "placeWindow", "PROMPT_CLEARANCE"]) {
+    for (const helper of ["fillDesk", "fitToDesk", "placeWindow"]) {
       expect(MODULE, `the window does not use ${helper}`).toContain(helper);
     }
+    // The floor arrives through the frame the three windows share, which reads the token.
+    expect(FRAME).toContain("PROMPT_CLEARANCE");
     // The clamps reach it through the shared gestures rather than a second copy.
     expect(code("design/scripts/window-gestures.js")).toContain(
       'import { clampPosition, clampSize, placeWindow } from "./desk-geometry.js"',

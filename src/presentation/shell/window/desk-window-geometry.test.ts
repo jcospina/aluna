@@ -599,7 +599,7 @@ describe("the floor is the token's, not this module's", () => {
   test("the window module states no length and no breakpoint of its own", () => {
     // 5.4/01 put every length in `tokens.css` and `desk-geometry.js` reads them back, so the logo
     // grid and every window stop on the same floor. A number restated here is that coming apart.
-    expect(MODULE).toContain("PROMPT_CLEARANCE");
+    expect(code("public/desk-window-frame.js")).toContain("PROMPT_CLEARANCE");
     expect(MODULE).toContain("PHONE");
     for (const restated of ["78", "4.875", "720", "620"]) {
       expect(MODULE, `\`${restated}\` is restated here`).not.toMatch(

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { PROMPT_FORM_ID } from "#shell/desk-window.js";
+import { PROMPT_FIELD_ID, PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
 
 import { INVALID_CHOICE_ERROR_CODE } from "../../../registry/index.ts";
 import { NOT_FOUND_FRAGMENT } from "../../../runtime/router/wire/failure-responses.ts";
@@ -591,18 +593,23 @@ describe("the strings the desk restates", () => {
 
   test("the bar's own ids agree wherever they are restated", () => {
     const deskWindow = readFileSync(resolve("public/desk-window.js"), "utf8");
+    const shellDom = readFileSync(resolve("public/shell-dom.js"), "utf8");
 
-    for (const source of [promptBar, shellGlue]) {
-      expect(source).toContain('const PROMPT_FORM_ID = "spec-build-form";');
-      expect(source).toContain('const PROMPT_FIELD_ID = "spec-build-prompt";');
-      expect(source).toContain('const PROMPT_NOTICE_ID = "prompt-notice";');
+    // Two of the three now have one home, so the only copy left to keep honest is the glue's —
+    // a classic script that can import nothing. Its copies are pinned against the real names.
+    expect(shellDom).toContain(`export const PROMPT_FIELD_ID = "${PROMPT_FIELD_ID}";`);
+    expect(shellDom).toContain(`export const PROMPT_NOTICE_ID = "${PROMPT_NOTICE_ID}";`);
+    for (const source of [
+      promptBar,
+      readFileSync(resolve("public/capability-deletion.js"), "utf8"),
+    ]) {
+      expect(source).toContain('from "./shell-dom.js"');
+      expect(source).not.toContain(`const PROMPT_FIELD_ID = "${PROMPT_FIELD_ID}";`);
     }
-    // The deletion module hands the keyboard back to the same field every way out of a
-    // deletion, so it restates that id too.
-    expect(readFileSync(resolve("public/capability-deletion.js"), "utf8")).toContain(
-      'const PROMPT_FIELD_ID = "spec-build-prompt";',
-    );
-    expect(deskWindow).toContain('export const PROMPT_FORM_ID = "spec-build-form";');
+    expect(shellGlue).toContain(`const PROMPT_FORM_ID = "${PROMPT_FORM_ID}";`);
+    expect(shellGlue).toContain(`const PROMPT_FIELD_ID = "${PROMPT_FIELD_ID}";`);
+    expect(shellGlue).toContain(`const PROMPT_NOTICE_ID = "${PROMPT_NOTICE_ID}";`);
+    expect(deskWindow).toContain(`export const PROMPT_FORM_ID = "${PROMPT_FORM_ID}";`);
   });
 
   test("what the desk says to the bar, and what it asks of it", () => {

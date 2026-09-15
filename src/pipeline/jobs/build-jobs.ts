@@ -1,3 +1,4 @@
+import { errorDetail } from "../../platform/errors.ts";
 import { renderBuildEnding } from "../../server/http/fragments.ts";
 import type { PromptResolutionMemory } from "../build/admission/resolved-request.ts";
 import { FAILED_BUILD_ENDING } from "../streaming/terminal-presentation.ts";
@@ -154,7 +155,7 @@ export class BuildJobQueue {
         await send("done", "ok");
       }
     } catch (err) {
-      console.error("Aluna build job failed:", err instanceof Error ? err.message : err);
+      console.error("Aluna build job failed:", errorDetail(err));
       if (!isAborted()) {
         // The last resort: a pipeline that threw without presenting its own terminal. Nothing here
         // knows what the run displaced, so it ends the narration and holds instead of dismissing.

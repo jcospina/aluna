@@ -10,7 +10,7 @@
 // that stays true right up until somebody adds one as a convenience.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { warpClocks } from "./clock-warp.test-support.ts";
@@ -32,8 +32,9 @@ import {
   QUESTION_NOTHING_WORKED,
   questionEndingNarration,
 } from "./question-narration.ts";
+import type { QuestionStep } from "./question-step.ts";
 import { READ_ONLY_QUERY_TOOL } from "./question-tool.ts";
-import { type QuestionStep, UNREADABLE_DECISION } from "./question-turn.ts";
+import { UNREADABLE_DECISION } from "./question-turn.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
 
 let platforms: ScratchPlatforms;
@@ -50,6 +51,11 @@ beforeEach(() => {
 afterEach(() => {
   platforms.disposeAll();
 });
+
+/** Every module of the read path, off the directory: a new one is swept the day it arrives. */
+const QUERY_SOURCE = readdirSync(import.meta.dir).filter(
+  (name) => name.endsWith(".ts") && !name.includes(".test"),
+);
 
 describe("the loop runs the model's chosen steps in sequence", () => {
   test("feeds each result back and keeps going until the model answers", async () => {
@@ -240,19 +246,11 @@ describe("no timeout exists on a step or on the loop", () => {
   test("and no source on the path holds a construct a deadline is built from", () => {
     // The pins prove nothing fired for these fixtures; the sweep proves there is no code to fire
     // for any other. The worker's thread is swept too: its globals are out of the spies' reach.
-    const source = [
-      "question-loop.ts",
-      "question-answer.ts",
-      "question-no-home.ts",
-      "question-turn.ts",
-      "question-tool.ts",
-      "question-payload.ts",
-      "whole-catalog-query-scope.ts",
-      "whole-catalog-read-scope.ts",
-      "query-worker.ts",
-      "query-worker-thread.ts",
-      "../../pipeline/query/data-query.ts",
-    ];
+    //
+    // Read off the directory rather than typed out, so a module added to this path is swept the
+    // day it arrives. `.test` drops both the suites and their support, which warp clocks on
+    // purpose. `question-pipeline.ts` is deliberately outside: it arms the presenter's own bound.
+    const source = [...QUERY_SOURCE, "../../pipeline/query/data-query.ts"];
 
     for (const file of source) {
       const text = readFileSync(join(import.meta.dir, file), "utf8");
@@ -278,10 +276,13 @@ describe("no timeout exists on a step or on the loop", () => {
     }
   });
 
-  test("the sweep is looking at files that exist", () => {
-    // A sweep over a mistyped path passes by reading nothing. `readFileSync` throws on a
-    // missing file, so this only has to prove the list is not empty and the paths resolve.
-    for (const file of ["question-loop.ts", "query-worker-thread.ts"]) {
+  test("the sweep is looking at every file on the path, and they exist", () => {
+    // A sweep over a mistyped path passes by reading nothing, and one over an empty listing
+    // passes by reading nothing at all. Both ends are pinned here.
+    expect(QUERY_SOURCE).toContain("question-loop.ts");
+    expect(QUERY_SOURCE).toContain("query-worker-thread.ts");
+    expect(QUERY_SOURCE.length).toBeGreaterThan(10);
+    for (const file of [...QUERY_SOURCE, "../../pipeline/query/data-query.ts"]) {
       expect(readFileSync(join(import.meta.dir, file), "utf8").length).toBeGreaterThan(0);
     }
   });

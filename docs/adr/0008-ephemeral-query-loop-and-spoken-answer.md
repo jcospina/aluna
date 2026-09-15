@@ -21,9 +21,20 @@ anticipated question and then grows a retry branch for malformed SQL, an unknown
 or an empty result, and a retry branch is a loop that is embarrassed about itself.
 
 **The tool is the physically read-only adapter, and that is the whole safety story.**
-Every step runs against `SQLITE_OPEN_READONLY` plus the authorizer. A mutating statement
-fails at the SQLite seam regardless of how many turns the loop takes or how badly it
-reasons. An agent loop is normally dangerous because an agent can act; this one can only
+Every step runs against `SQLITE_OPEN_READONLY` plus `PRAGMA query_only = ON`. A mutating
+statement fails at the SQLite seam regardless of how many turns the loop takes or how badly
+it reasons.
+
+*Amended 2026-09-14 — what the seam actually is.* This paragraph said "plus the authorizer"
+until the seam was built. `bun:sqlite` exposes no `sqlite3_set_authorizer`, so there is no
+authorizer anywhere in this product and there never was. What shipped instead, measured
+against a read-only connection on Bun 1.3.12: `SQLITE_OPEN_READONLY` alone still let
+`VACUUM INTO` write a complete readable copy of the catalog and `CREATE TEMP TABLE` spill to
+disk, and `PRAGMA query_only = ON` closes both — it is load-bearing, not a belt. `ATTACH`
+is closed by neither and is refused by name in `query-worker-thread.ts`, which is therefore
+also load-bearing. `PRAGMA temp_store = MEMORY` bounds by RAM what `query_only` already
+refuses. The table bound (`assertWholeCatalogQuery`) enumerates what an `EXPLAIN` opens and
+is not the seam, as below. An agent loop is normally dangerous because an agent can act; this one can only
 look, so its blast radius is zero by construction. The cheap reject/route classifier is
 a courtesy, never the seam — as ARCH §7 already insists.
 
@@ -227,7 +238,8 @@ contract, the closed field vocabulary, ARCH §9.7's flat prohibition — and the
 `data_query` was to render a grid with column headers taken from SQL aliases. Removing it
 is not a formatting preference; it is the feature finally agreeing with the rest of the
 product. The cost is real and was accepted deliberately: the table was also the user's
-only way to audit an answer, and the restatement rule above is what replaces it.
+only way to audit an answer, and nothing replaces it — the restatement rule that once did
+was withdrawn on 2026-09-11, as the amendment above records.
 
 The loop earns its place on a case the naive design cannot reach at all. A user asks what
 they spent on groceries; their expenses are categorised food, cheese and vegetables.
@@ -281,12 +293,14 @@ solve a problem that this product's scale does not have.
 
 ## Hazards this contract carries forward
 
-**The model now stands between the user and their data.** With no table, a fluent and
-confidently wrong answer is invisible. The restatement rule and the zero-row rule are the
-whole defence, and they are defences by *disclosure* rather than by proof: they make a
-wrong answer catchable by a reader who is paying attention, not impossible. Anything that
-weakens the restatement — shortening it, making it optional, letting the model decide when
-to include it — removes the only audit the user has.
+**The model now stands between the user and their data.** With no table and no restatement,
+a fluent and confidently wrong answer is invisible. What is left is the zero-row rule, which
+is a defence by *proof* over one narrow claim — she may not report a figure for a search that
+matched nothing — and, short of that, the collections a statement opened and the values it
+bound, which still cross into the answer's prompt so a mis-scoped sentence *can* show in the
+words. Nothing makes it show. The owner has this trade and chose it twice (see the 2026-09-11
+amendment); it is recorded here so a later reader does not mistake the absence for an
+oversight, and so anything that weakens the zero-row rule is read as removing the last one.
 
 **Nothing bounds an answer in time.** With no timeout, the only limits are ten steps and
 cancellation. A pathological query now costs the asker's patience instead of the whole

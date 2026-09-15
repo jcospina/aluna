@@ -13,15 +13,16 @@
 // step with no label to read.
 //
 // The gap is the one sentence with a word of the model's inside it, and the word is narrowed
-// here to a run this person wrote. `question-no-home.ts` runs the call that offers one.
+// to a run this person wrote by `question-their-words.ts`. `question-no-home.ts` runs the call.
 
+import { assertNever } from "../../platform/errors.ts";
 import type { QuestionEnding, QuestionLoopResult } from "./question-loop.ts";
+import type { QuestionStep } from "./question-step.ts";
 import {
   QUESTION_STEP_FALLBACK_LABEL,
   type QuestionStepLabel,
   type QuestionToolCall,
 } from "./question-tool.ts";
-import type { QuestionStep } from "./question-turn.ts";
 
 /**
  * One sentence per kind of step: each stands alone, carries no number, and claims nothing about
@@ -41,10 +42,8 @@ export function questionLabelNarration(label: QuestionStepLabel): string {
       return "I'm checking when things happened.";
     case "other":
       return "I'm having a look at what you've saved.";
-    default: {
-      const unreachable: never = label;
-      throw new Error(`no sentence is written for ${String(unreachable)}`);
-    }
+    default:
+      return assertNever(label, "question step label");
   }
 }
 
@@ -130,45 +129,6 @@ export function questionNoHomeSentence(named: string | null): string {
   return named === null ? QUESTION_NO_HOME_FOR_THAT : noHomeSentence(named);
 }
 
-/** A word as a person writes one. Its marks stay on it, so *café* is one word in either normal
- * form rather than four, and the apostrophes inside *don't* keep that whole too. */
-const WORD = /[\p{L}\p{N}][\p{L}\p{N}\p{M}'’]*/gu;
-
-/** How many of their words a subject may be. Decision 20's own runs to two, and past a handful
- * the model has handed back the question rather than the thing it is about. */
-const MOST_SUBJECT_WORDS = 6;
-
-interface WordWritten {
-  readonly written: string;
-  readonly word: string;
-}
-
-function wordsOf(text: string): readonly WordWritten[] {
-  return [...text.matchAll(WORD)].map((match) => ({
-    written: match[0],
-    word: match[0].toLowerCase(),
-  }));
-}
-
-/**
- * The subject as this person wrote it, or `null` when they did not write it. One unbroken run of
- * their own words, so a phrase assembled out of words they used apart is not one of theirs. Their
- * words, though, and not the stretch of question between them: what stands between two of their
- * words is whatever they typed there, and this sentence carries their characters and ours alone.
- */
-export function questionSubjectInTheirWords(question: string, subject: string): string | null {
-  const asked = wordsOf(question);
-  const named = wordsOf(subject);
-  if (named.length === 0 || named.length > MOST_SUBJECT_WORDS) return null;
-  for (let from = 0; from + named.length <= asked.length; from += 1) {
-    const run = asked.slice(from, from + named.length);
-    if (named.every((word, index) => run[index]?.word === word.word)) {
-      return run.map((written) => written.written).join(" ");
-    }
-  }
-  return null;
-}
-
 /**
  * The one sentence a finished question ends on, whichever ending it reached. A spent budget has
  * no answer to carry — deliberately, so nothing downstream can render half a computation as a
@@ -179,8 +139,10 @@ export function questionResultSentence(result: QuestionLoopResult): string {
 }
 
 /**
- * What the platform says about an ending. `answered` is `null` on purpose: the words for what
- * she *found* are the answer's, in `question-answer.ts`, written from the steps.
+ * What the platform says about an ending. `answered` is `null` on purpose: the words for what she
+ * *found* are the answer's, in `question-answer.ts`, written from the steps. Nothing in production
+ * calls this — {@link questionResultSentence} is what a run ends on — and it is kept because it is
+ * where decision 15 is checkable: one authored sentence per ending, and a sixth is a type error.
  */
 export function questionEndingNarration(ending: QuestionEnding): string | null {
   switch (ending) {
@@ -194,9 +156,7 @@ export function questionEndingNarration(ending: QuestionEnding): string | null {
       return null;
     case "budget_spent":
       return QUESTION_BUDGET_SPENT_SENTENCE;
-    default: {
-      const unreachable: never = ending;
-      throw new Error(`no sentence is written for ${String(unreachable)}`);
-    }
+    default:
+      return assertNever(ending, "question ending");
   }
 }

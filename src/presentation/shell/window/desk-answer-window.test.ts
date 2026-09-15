@@ -34,7 +34,12 @@ import {
 } from "#shell/desk-window.js";
 import { REJECT_DEFLECTION } from "../../../pipeline/build/admission/deflection.ts";
 import { questionLabelNarration } from "../../../runtime/query/index.ts";
-import { ANSWER_WINDOW_OPENING, REFUSED_PROMPT_ATTRIBUTE } from "../../../server/http/index.ts";
+import {
+  ANSWER_WINDOW_ATTRIBUTE,
+  ANSWER_WINDOW_OPENING,
+  ANSWER_WINDOW_SAYING_ATTRIBUTE,
+  REFUSED_PROMPT_ATTRIBUTE,
+} from "../../../server/http/index.ts";
 import {
   codeOf as code,
   flat,
@@ -332,7 +337,9 @@ describe("it obeys the desk", () => {
   });
 
   test("the clearance is read from the token layer rather than restated", () => {
-    expect(ANSWER).toContain("bounds.height - PROMPT_CLEARANCE");
+    // Through `centredBox`, which is where the three windows' shared frame reads the token.
+    expect(ANSWER).toContain("centredBox(");
+    expect(code("public/desk-window-frame.js")).toContain("bounds.height - PROMPT_CLEARANCE");
     expect(ANSWER).not.toMatch(/4\.875rem|78px/);
   });
 
@@ -391,7 +398,10 @@ describe("the seam a classic script reaches the answer window across", () => {
   test("both ends agree on the event, and on what rides it", () => {
     expect(OPEN_THE_ANSWER_WINDOW_EVENT).toBe("aluna:open-the-answer-window");
     expect(GLUE).toContain(`OPEN_THE_ANSWER_WINDOW_EVENT = "${OPEN_THE_ANSWER_WINDOW_EVENT}"`);
-    expect(GLUE).toContain('ANSWER_WINDOW_ATTRIBUTE = "data-answer-window"');
+    expect(GLUE).toContain(`ANSWER_WINDOW_ATTRIBUTE = "${ANSWER_WINDOW_ATTRIBUTE}"`);
+    expect(FRAGMENTS).toContain(
+      `export const ANSWER_WINDOW_ATTRIBUTE = "${ANSWER_WINDOW_ATTRIBUTE}";`,
+    );
     // It lands nowhere, like the window's name: the desk owns its windows (ARCH §6.1).
     expect(GLUE).toMatch(/openTheAnswerWindowFrom\(listener, message\.data\) \|\|/);
   });
@@ -399,9 +409,9 @@ describe("the seam a classic script reaches the answer window across", () => {
   test("both ends agree on the mark a later sentence rides, and on where it lands", () => {
     expect(SAY_IN_THE_ANSWER_WINDOW_EVENT).toBe("aluna:say-in-the-answer-window");
     expect(GLUE).toContain(`SAY_IN_THE_ANSWER_WINDOW_EVENT = "${SAY_IN_THE_ANSWER_WINDOW_EVENT}"`);
-    expect(GLUE).toContain('ANSWER_WINDOW_SAYING_ATTRIBUTE = "data-answer-saying"');
+    expect(GLUE).toContain(`ANSWER_WINDOW_SAYING_ATTRIBUTE = "${ANSWER_WINDOW_SAYING_ATTRIBUTE}"`);
     expect(FRAGMENTS).toContain(
-      'export const ANSWER_WINDOW_SAYING_ATTRIBUTE = "data-answer-saying";',
+      `export const ANSWER_WINDOW_SAYING_ATTRIBUTE = "${ANSWER_WINDOW_SAYING_ATTRIBUTE}";`,
     );
     // It lands nowhere either, and it is asked before the parked restoration is.
     expect(GLUE).toMatch(/sayInTheAnswerWindowFrom\(listener, message\.data\) \|\|/);
@@ -429,7 +439,7 @@ describe("the seam a classic script reaches the answer window across", () => {
   test("a sentence for a window nobody is holding open goes nowhere at all", () => {
     // Dismissing destroys the answer, and a question still running says the rest of what it had
     // to say into a desk that is no longer listening. Nothing reopens (ADR-0008).
-    expect(sayInAnswerWindow("I'm counting how many you have.")).toBe(false);
+    expect(sayInAnswerWindow(questionLabelNarration("counting"))).toBe(false);
     const say = wiring({})?.get(SAY_IN_THE_ANSWER_WINDOW_EVENT)?.[0];
     expect(say).toBeDefined();
     for (const detail of [undefined, null, {}, { saying: 7 }, { question: "how many?" }]) {
@@ -516,7 +526,9 @@ describe("the seam a classic script reaches the answer window across", () => {
 
   test("the page loads it, and it starts itself the way every other shell module does", () => {
     expect(SHELL).toContain('<script type="module" src="/static/desk-answer-window.js"></script>');
-    expect(ANSWER).toContain('if (typeof document !== "undefined")');
-    expect(ANSWER).toContain("startDeskAnswerWindow(document)");
+    // Through `onDeskReady`, which is the guard every shell module now boots behind: it is where
+    // the `typeof document` check lives, so Bun can import this file for what it exports.
+    expect(ANSWER).toContain("onDeskReady(() => startDeskAnswerWindow(document))");
+    expect(code("public/desk-window-frame.js")).toContain('typeof document === "undefined"');
   });
 });

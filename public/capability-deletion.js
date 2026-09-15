@@ -11,7 +11,7 @@ import {
   PROMPT_REFUSAL_SELECTOR,
 } from "./prompt-bar.js";
 import { RELEASE_REGION_EVENT, registerRegionRelease } from "./region-scope.js";
-import { ACTIVE_CAPABILITY_ATTRIBUTE, WINDOW_CONTENT_ID } from "./shell-dom.js";
+import { ACTIVE_CAPABILITY_ATTRIBUTE, PROMPT_FIELD_ID, WINDOW_CONTENT_ID } from "./shell-dom.js";
 
 /**
  * What marks a preflight as a recheck rather than an ordinary press. Restated from
@@ -265,7 +265,6 @@ export function recoverSeveredCapabilityDeletion(event, root = globalThis.docume
  * The prompt bar's field, restated the way this module restates every constant it cannot
  * import; a platform test pins the copies against each other.
  */
-const PROMPT_FIELD_ID = "spec-build-prompt";
 
 /**
  * The ending's own marks, and the one the three presses that end a deletion share: backing out,

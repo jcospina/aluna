@@ -6,7 +6,7 @@
  */
 
 import { isCapabilityNameLabel, isMarkupShapedName } from "./capability-name.js";
-import { BUSY_LABEL_ATTRIBUTE, IDLE_LABEL_ATTRIBUTE } from "./shell-dom.js";
+import { BUSY_LABEL_ATTRIBUTE, IDLE_LABEL_ATTRIBUTE, PROMPT_NOTICE_ID } from "./shell-dom.js";
 
 /**
  * The slot one capability occupies on the desk: the logo, its menu and its editor. The doorway is
@@ -59,7 +59,6 @@ const PROMPT_FORM_ID = "spec-build-form";
  * The slot the bar speaks in. It stands above the rail and is as tall as the sentence it holds,
  * so the floor moves up when the desk has something to say. Restated and pinned by a test.
  */
-const PROMPT_NOTICE_ID = "prompt-notice";
 
 /* What the editor says when the name will not do. It stays in the editor: a client-side reading
    is not a refusal the desk has made. */

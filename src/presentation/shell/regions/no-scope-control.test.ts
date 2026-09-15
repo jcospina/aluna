@@ -14,6 +14,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  ANSWER_WINDOW_ATTRIBUTE,
   ANSWER_WINDOW_OPENING,
   renderAnswerWindowOpening,
   renderAnswerWindowSaying,
@@ -111,7 +112,7 @@ describe("no scope control is on the answer window", () => {
     const opening = renderAnswerWindowOpening("how many did I add this month?");
 
     expect(opening).toBe(
-      `<div data-answer-window="how many did I add this month?">${ANSWER_WINDOW_OPENING}</div>`,
+      `<div ${ANSWER_WINDOW_ATTRIBUTE}="how many did I add this month?">${ANSWER_WINDOW_OPENING}</div>`,
     );
     expect(opening.toLowerCase()).not.toContain("notes");
   });

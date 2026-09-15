@@ -59,13 +59,14 @@ import {
   questionPayloadBytes,
   questionRenderedBytes,
 } from "./question-payload.ts";
+import type { QuestionStep } from "./question-step.ts";
 import {
   QUESTION_STEP_LABEL_HINTS,
   QUESTION_STEP_LABELS,
   type QuestionStepLabel,
   READ_ONLY_QUERY_TOOL,
 } from "./question-tool.ts";
-import { QUESTION_COMPUTATION_RULES, type QuestionStep } from "./question-turn.ts";
+import { QUESTION_COMPUTATION_RULES } from "./question-turn-prompt.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
 
 let platforms: ScratchPlatforms;

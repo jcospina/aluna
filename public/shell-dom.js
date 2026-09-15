@@ -12,6 +12,19 @@
 /** The window's content area: the one region a capability's surface is swapped into. */
 export const WINDOW_CONTENT_ID = "spec-build-output";
 
+/**
+ * The attribute a run's narration carries its job id on. The desk finds a running build by it,
+ * `leaving-a-run.js` cancels through it, and the question path's own two triggers reach the read
+ * scope the same way — so a rename in the server's markup alone silently ends all three.
+ */
+export const BUILD_JOB_ID_ATTRIBUTE = "data-build-job-id";
+
+/** The field a sentence is typed into, which the bar guards and the desk gives focus back to. */
+export const PROMPT_FIELD_ID = "spec-build-prompt";
+
+/** Where the prompt bar says what happened to the sentence that was typed into it. */
+export const PROMPT_NOTICE_ID = "prompt-notice";
+
 /** Marks the capability currently standing in the window, on a direct child of that region. */
 export const ACTIVE_CAPABILITY_ATTRIBUTE = "data-active-capability-id";
 

@@ -7,11 +7,11 @@
 // a place a Handler could otherwise carry on working for a lifetime that has ended.
 
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
-import { renderableFromRow } from "../../../presentation/fields/renderable-capability.ts";
 import {
   createPresentationAdapter,
   type PresentationAdapter,
   type RenderableCapability,
+  renderableFromRow,
 } from "../../../presentation/index.ts";
 import {
   type CapabilityRow,

@@ -45,15 +45,9 @@ export interface ResolvedExistingCapabilityRequest extends ResolvedBuildRequestB
 
 export type ResolvedBuildRequest = ResolvedNewCapabilityRequest | ResolvedExistingCapabilityRequest;
 
-export type PromptResolutionOutcome = "build" | "non_build";
-
-export interface PromptResolutionMemory {
-  readonly intent: IntentClassification;
-  readonly outcome: PromptResolutionOutcome;
-  readonly catalogFingerprint: string;
-  readonly resolver: CarriedResolverMeasurement;
-  readonly buildRequest?: ResolvedBuildRequest;
-}
+// Kept reachable under its old name: what a prompt's resolution is remembered as lives above the
+// build tree now, because three of its four readers build nothing.
+export type { PromptResolutionMemory, PromptResolutionOutcome } from "../../resolution.ts";
 
 export function resolvedNewCapabilityRequest(input: {
   readonly prompt: string;

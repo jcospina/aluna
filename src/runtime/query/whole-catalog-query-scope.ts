@@ -4,7 +4,9 @@
 // `whole-catalog-read-scope.ts` owns the read tokens for the length of a question; this bounds
 // the tables one statement may read, by enumerating what an `EXPLAIN` says it opens rather than
 // by matching strings. It is a table bound, never the safety seam: a mutation passes straight
-// through and fails at `SQLITE_OPEN_READONLY`, so removing this module costs only the table bound.
+// through and fails at `SQLITE_OPEN_READONLY`. Three other things do rest on it, though —
+// the `?` arity check, the collection names the answer's prompt carries, and the plan 6.4/04's
+// zero-rows ending is read from — so removing it costs those, not only the table bound.
 //
 // What is reused is `assertScopedQuery`, not `CapabilityQueryPort.all()`, which executes on the
 // main-thread `Database` epic 6.2 moved away from. So the worker's connection has no
@@ -29,12 +31,8 @@ import {
   type CapabilityQueryScope,
   deriveCapabilityTableDdl,
 } from "../data/index.ts";
-import {
-  NO_PLAN,
-  type PlannedOpcode,
-  type QuestionStepPlan,
-  readQuestionPlan,
-} from "./question-nothing-found.ts";
+import { isPlannedOpcode, readQuestionPlan } from "./question-nothing-found.ts";
+import { NO_PLAN, type QuestionStepPlan } from "./question-step.ts";
 
 /** A question asked of a desk that holds nothing to read. */
 export class EmptyCatalogQueryError extends Error {
@@ -52,8 +50,10 @@ export class WholeCatalogQueryStatementError extends Error {
 /**
  * SQLite's result codes for *the statement*, as opposed to the connection carrying it. Everything
  * absent is the connection's fault, and *rewrite your SQL* about one burns a loop's whole budget.
+ * Mirrored in `query-worker-thread.ts` for the reason the regex below is, and pinned against it
+ * by `query-worker.test.ts` rather than left to agree by hand.
  */
-const STATEMENT_RESULT_CODES: ReadonlySet<number> = new Set([
+export const STATEMENT_RESULT_CODES: ReadonlySet<number> = new Set([
   1, // SQLITE_ERROR
   8, // SQLITE_READONLY
   18, // SQLITE_TOOBIG
@@ -65,7 +65,7 @@ const STATEMENT_RESULT_CODES: ReadonlySet<number> = new Set([
 ]);
 
 /** Whether this SQLite failure is about the statement the model wrote. */
-export function isStatementFault(errno: unknown): boolean {
+function isStatementFault(errno: unknown): boolean {
   return typeof errno === "number" && STATEMENT_RESULT_CODES.has(errno);
 }
 
@@ -79,7 +79,7 @@ const REACHES_THE_SQLITE_SEAM = /^\s*(?:INSERT|UPDATE|DELETE|REPLACE)\b/i;
  * Quoted literals and comments, so a keyword inside one is never mistaken for SQL. Mirrored from
  * `query-worker-thread.ts`, whose import would pull its body here; used only for the pass-through.
  */
-const SQL_LITERALS_AND_COMMENTS =
+export const SQL_LITERALS_AND_COMMENTS =
   /'(?:[^']|'')*'|"(?:[^"]|"")*"|`(?:[^`]|``)*`|--[^\n]*|\/\*[\s\S]*?\*\//g;
 
 /**
@@ -108,7 +108,7 @@ export function scopedCapabilitySpecs(
 }
 
 /** The whole-catalog `CapabilityQueryScope`, or `undefined` when the granted set is empty. */
-export function wholeCatalogQueryScope(
+function wholeCatalogQueryScope(
   specs: readonly CapabilitySpec[],
 ): CapabilityQueryScope | undefined {
   const [target, ...dependencies] = specs;
@@ -183,12 +183,12 @@ function assertStatementIsWellFormed(
   parameters: readonly CapabilityQueryParameter[],
 ): QuestionStepPlan {
   let expected = 0;
-  let planned: readonly PlannedOpcode[] = [];
+  let planned: readonly unknown[] = [];
   try {
-    const statement = database.prepare(`EXPLAIN ${sql}`);
+    const statement = database.prepare<unknown, CapabilityQueryParameter[]>(`EXPLAIN ${sql}`);
     try {
-      expected = (statement as unknown as { paramsCount: number }).paramsCount;
-      if (expected === parameters.length) planned = statement.all(...parameters) as PlannedOpcode[];
+      expected = statement.paramsCount;
+      if (expected === parameters.length) planned = statement.all(...parameters);
     } finally {
       statement.finalize();
     }
@@ -200,7 +200,9 @@ function assertStatementIsWellFormed(
       `The statement has ${expected} ? placeholder${expected === 1 ? "" : "s"} but ${parameters.length} parameter${parameters.length === 1 ? "" : "s"} were given.`,
     );
   }
-  return readQuestionPlan(planned);
+  // A shape this cannot read promises nothing, which is the side decision 17 protects: `NO_PLAN`
+  // makes the step unreadable, where an empty list would claim it hands back a row per match.
+  return planned.every(isPlannedOpcode) ? readQuestionPlan(planned) : NO_PLAN;
 }
 
 /**

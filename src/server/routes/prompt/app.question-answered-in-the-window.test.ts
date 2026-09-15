@@ -11,6 +11,7 @@
 // answer that counted something says the number it counted.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { BUILD_JOB_ID_ATTRIBUTE } from "#shell/shell-dom.js";
 import {
   deflectionNarration,
   NotDeflectableError,
@@ -173,7 +174,7 @@ describe("a question is narrated and answered in the answer window", () => {
     const build = await postPrompt(askingApp(quiet()), "track my books");
     expect(question.status).toBe(build.status);
     for (const body of [await responseText(question), await responseText(build)]) {
-      expect(body).toContain("data-build-job-id");
+      expect(body).toContain(BUILD_JOB_ID_ATTRIBUTE);
     }
   });
 

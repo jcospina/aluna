@@ -140,11 +140,18 @@ export function createQueryWorker(path: string = DB_PATH): QueryWorker {
   }
 
   worker.onmessage = (event: MessageEvent) => {
-    const response = event.data as QueryWorkerResponse;
+    const response = event.data as Partial<QueryWorkerResponse> | null;
+    // A reply nothing can be matched to would leave its read waiting for ever, and no clock on
+    // this path ever comes for it (decision 9). The same stance `settle` takes on a wrong kind.
+    if (typeof response?.id !== "number") {
+      end(new QueryWorkerClosedError("The query worker answered without a request id."));
+      return;
+    }
     const waiting = pending.get(response.id);
+    // A late reply to a read that already settled is ordinary: `close()` clears them all.
     if (!waiting) return;
     pending.delete(response.id);
-    settle(waiting, response);
+    settle(waiting, response as QueryWorkerResponse);
   };
 
   // A throw at the thread's module scope arrives here and nowhere else. Without this

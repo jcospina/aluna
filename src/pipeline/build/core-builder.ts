@@ -16,6 +16,7 @@ import {
   createCapabilityIncarnationId,
   reconcileCapabilityArtifacts,
 } from "../../builder/index.ts";
+import { errorDetail } from "../../platform/errors.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import { abortableProvider, type Provider } from "../../platform/provider/index.ts";
 import {
@@ -409,10 +410,7 @@ async function runOpenNewCapability(
     if (input.presenter.canPresent()) {
       return input.presenter.present({ kind: "cancelled", incarnationId });
     }
-    console.error(
-      "Aluna initial build presentation did not complete:",
-      error instanceof Error ? error.message : error,
-    );
+    console.error("Aluna initial build presentation did not complete:", errorDetail(error));
     return undefined;
   }
 

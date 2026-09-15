@@ -20,7 +20,7 @@ import {
   SnapshotVerificationError,
   UnitGenerationError,
 } from "../builder/index.ts";
-import { errorMessage } from "../platform/errors.ts";
+import { errorDetail, errorMessage } from "../platform/errors.ts";
 import type {
   CarriedResolverMeasurement,
   GenerationBuildMeasurement,
@@ -51,6 +51,7 @@ import {
 import type { TokenUsage } from "../platform/provider/index.ts";
 import { resolveModel } from "../platform/provider/index.ts";
 import { addTokenUsage, sumTokenUsages } from "../platform/provider/usage.ts";
+import type { MutationCoordinator } from "../runtime/concurrency/mutation-coordinator.ts";
 import type { IntentClassification } from "./intent/index.ts";
 
 /**
@@ -412,11 +413,27 @@ export function writeResolverOnlyMetrics(
   try {
     recordMetrics.resolve(metrics);
   } catch (metricsError) {
-    console.error(
-      "Aluna build job: metrics write failed:",
-      metricsError instanceof Error ? metricsError.message : metricsError,
-    );
+    console.error("Aluna build job: metrics write failed:", errorDetail(metricsError));
   }
+}
+
+/**
+ * Queue that row behind the platform's write lease and never wait for it. Both non-build prompt
+ * paths leave the same one, so the fire-and-forget shape and the sentence it logs live here.
+ * `row` is called *inside* the write, so a shape the schema refuses is lost as quietly as a write
+ * that failed — and nothing is awaited, because a question calls this from a `finally` over an
+ * answer already delivered and a throw there would take the delivery down with it.
+ */
+export function rememberResolverRow(
+  mutationCoordinator: MutationCoordinator,
+  recordMetrics: RecordMetrics,
+  row: () => IntentResolutionMetrics,
+): void {
+  void mutationCoordinator
+    .withPlatformWrite(() => writeResolverOnlyMetrics(recordMetrics, row()))
+    .catch((error) => {
+      console.error("Aluna resolver metrics write did not complete:", errorDetail(error));
+    });
 }
 
 function specGenerationIncomplete(acc: DemoBuildAccumulator): boolean {

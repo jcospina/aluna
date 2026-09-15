@@ -125,7 +125,9 @@ describe("the clearance is one number", () => {
     // The shell's content area used to reserve the strip as a block at the end of itself.
     expect(rules("design/styles/components/desk.css")).toContain("var(--prompt-clearance)");
     expect(rules("public/css/prompt.css")).toContain("var(--prompt-clearance)");
-    expect(read("public/desk-window.js")).toContain("PROMPT_CLEARANCE");
+    // The frame the three windows share is where the token is read back, and the window module
+    // reaches the floor through it rather than restating the number beside it.
+    expect(read("public/desk-window-frame.js")).toContain("PROMPT_CLEARANCE");
     expect(read("public/css/shell.css")).not.toContain(".content::after");
   });
 

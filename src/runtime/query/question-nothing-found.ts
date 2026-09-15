@@ -4,18 +4,20 @@
 //
 // A returned value cannot be read on its own: `0` is what an empty `count` answers and also what
 // `coalesce(sum(x), 0)` and `? AS category` hand back out of thin air. So the plan is read first,
-// and only a plan whose result columns arrive from an aggregate or a column through plain moves
-// is one the platform will read a result off. Anything that can put a value where a null belongs
-// — a null test, a literal, a bound value, arithmetic — makes it unreadable, and an unreadable
-// plan promises nothing: its step matched nothing, which is the side decision 17 protects.
+// and only one whose result columns arrive from an aggregate or a column through plain moves is
+// read a result off. Anything that can put a value where a null belongs — a null test, a literal,
+// a bound value, arithmetic, a reshaping whose answer over nothing this cannot work out, a second
+// arm of a compound — makes it unreadable, and an unreadable plan promises nothing: its step
+// matched nothing, the side decision 17 protects. Two shapes need no value read at all: one that
+// carries a scanned column out, and one that groups, since a group exists only because a row was
+// scanned. Every aggregate answers `NULL` over no rows bar the four below.
+
 //
-// Every aggregate then answers `NULL` over no rows, except the four below. So the empty row is
-// nulls plus those answers, and a value beyond them is one a row was scanned into.
-//
-// A leaf: type imports only. `whole-catalog-query-scope.ts` reads the plan through it.
+// A leaf but for the plan shape it reads into, which is part of what a step is and lives with
+// the rest of one. `whole-catalog-query-scope.ts` reads the plan through this module.
 
 import type { QueryWorkerRow, QueryWorkerValue } from "./query-worker.ts";
-import type { QuestionStep } from "./question-turn.ts";
+import { NO_PLAN, type QuestionStep, type QuestionStepPlan } from "./question-step.ts";
 
 /** What an aggregate answers when there is nothing to aggregate, where that is not `NULL`. */
 const EMPTY_ANSWERS: Readonly<Record<string, string | number>> = Object.freeze({
@@ -29,7 +31,8 @@ const EMPTY_ANSWERS: Readonly<Record<string, string | number>> = Object.freeze({
  * What may stand between an aggregate and the result row. Moves carry a value, comparisons only
  * jump, and a function propagates the null it is handed. Everything else — `NotNull` for a
  * `coalesce`, `String8` for a literal, `Variable` for a bound value, `Add` for arithmetic — can
- * answer where SQLite would have answered nothing, and the plan stops being readable.
+ * answer where SQLite would have answered nothing, and the plan stops being readable. `Cast` and
+ * `Function` are here on the condition {@link answersSurviveTheTail} then checks.
  */
 const READABLE = new Set([
   "AggFinal",
@@ -65,20 +68,19 @@ export interface PlannedOpcode {
   readonly p4: unknown;
 }
 
-/** What a statement's plan says it would hand back having matched nothing at all. */
-export type QuestionStepPlan =
-  /** It aggregates nothing, so it hands back a row only for a row it matched. */
-  | { readonly empty: "no rows" }
-  /** It aggregates, and these are the answers of its figures that are not `NULL` over nothing. */
-  | { readonly empty: "one row"; readonly answers: readonly (string | number)[] }
-  /** Nothing the platform can read a result against, so it makes no promise about a zero. */
-  | { readonly empty: "unreadable" };
+/**
+ * Whether this row is a line of an `EXPLAIN`. Checked rather than asserted: the two fields read
+ * below drive every branch here, and a shape that stopped matching would read as a plan holding
+ * no result row — the one reading that lets a zero be spoken as a fact about this person.
+ */
+export function isPlannedOpcode(row: unknown): row is PlannedOpcode {
+  const line = row as Partial<PlannedOpcode> | null;
+  return typeof line?.opcode === "string" && typeof line.addr === "number";
+}
 
-/** The plan of a statement that never reached one, and of a read the bound refused outright. */
-export const NO_PLAN: QuestionStepPlan = Object.freeze({ empty: "unreadable" });
-
-/** The aggregate this `p4` names, which SQLite renders as `name(arity)`. */
-function aggregateName(p4: unknown): string | undefined {
+/** The function this `p4` names, which SQLite renders as `name(arity)`. An aggregate's and a
+ * scalar's are written the same way. */
+function namedFunction(p4: unknown): string | undefined {
   if (typeof p4 !== "string") return undefined;
   return /^([A-Za-z_][A-Za-z0-9_]*)\(/.exec(p4)?.[1]?.toLowerCase();
 }
@@ -87,14 +89,14 @@ function aggregateName(p4: unknown): string | undefined {
 function finalizedAggregate(op: PlannedOpcode): { register: number; name: string } | undefined {
   if (op.opcode === "Count") return { register: op.p2, name: "count" };
   if (op.opcode !== "AggFinal") return undefined;
-  const name = aggregateName(op.p4);
+  const name = namedFunction(op.p4);
   return name === undefined ? undefined : { register: op.p1, name };
 }
 
 /**
  * Which registers this opcode writes, and where each takes its value from — `undefined` for a
- * write out of something the trace does not follow. A function's output is one of those: it
- * answers for itself, and what it answers over a null is its own business.
+ * write out of something the trace does not follow. A function's output is one of those: what it
+ * answers over a null is its own business, which {@link answersSurviveTheTail} is what weighs.
  */
 function writesRegisters(
   op: PlannedOpcode,
@@ -127,6 +129,88 @@ function traceOpcode(op: PlannedOpcode, held: Map<number, string>): void {
   for (let index = 0; index <= span; index += 1) {
     put(to + index, from === undefined ? undefined : held.get(from + index));
   }
+}
+
+/**
+ * The opcodes that reshape a finalized aggregate on its way out, whose answer over nothing the
+ * trace cannot compute. `Function` is here as well as in `READABLE` because it is readable only
+ * when what it is handed is a null and it answers one.
+ */
+const SHAPES_A_VALUE = new Set(["Cast", "Function"]);
+
+/**
+ * The scalar functions that answer `NULL` when an argument is one, measured against SQLite rather
+ * than assumed: `printf`, `format`, `quote`, `typeof`, `char`, `concat`, `iif`, `hex`, `json_quote`,
+ * `json_array` and `json_object` each answer something over a null, and a figure where SQLite would
+ * have answered nothing is the whole of what this file exists to refuse.
+ */
+const ANSWERS_NULL_OVER_NULL: ReadonlySet<string> = new Set([
+  "abs",
+  "ceil",
+  "ceiling",
+  "date",
+  "datetime",
+  "exp",
+  "floor",
+  "instr",
+  "julianday",
+  "length",
+  "ln",
+  "log",
+  "log10",
+  "log2",
+  "lower",
+  "ltrim",
+  "max",
+  "min",
+  "mod",
+  "nullif",
+  "pow",
+  "power",
+  "replace",
+  "round",
+  "rtrim",
+  "sign",
+  "sqrt",
+  "strftime",
+  "substr",
+  "time",
+  "trim",
+  "unicode",
+  "unixepoch",
+  "upper",
+]);
+
+/**
+ * Whether the empty answers survive what stands between the aggregates and the result row. A
+ * reshaping over an aggregate that answers something other than `NULL` puts a figure there the
+ * platform cannot work out — `round(total(x), 2)` is `0.0` over nothing — and so does a function
+ * that answers over a null. Either way the plan stops being readable rather than promising a zero.
+ */
+function answersSurviveTheTail(
+  finalized: readonly PlannedOpcode[],
+  between: readonly PlannedOpcode[],
+): boolean {
+  const shaped = between.filter((op) => SHAPES_A_VALUE.has(op.opcode));
+  if (shaped.length === 0) return true;
+  if (finalized.some((op) => EMPTY_ANSWERS[finalizedAggregate(op)?.name ?? ""] !== undefined)) {
+    return false;
+  }
+  return shaped.every(
+    (op) => op.opcode === "Cast" || ANSWERS_NULL_OVER_NULL.has(namedFunction(op.p4) ?? ""),
+  );
+}
+
+/**
+ * Whether this plan sorts its rows into groups. SQLite compiles a `GROUP BY` it cannot satisfy
+ * from an index into a sorter plus a comparison at each group boundary, and a capability's table
+ * carries no index but its key. A plain `ORDER BY` has the sorter and no comparison.
+ */
+function groupsItsRows(opcodes: readonly PlannedOpcode[]): boolean {
+  return (
+    opcodes.some((op) => op.opcode === "SorterData") &&
+    opcodes.some((op) => op.opcode === "Compare")
+  );
 }
 
 /** What each register holds by the time the result row is read. */
@@ -175,8 +259,17 @@ export function readQuestionPlan(opcodes: readonly PlannedOpcode[]): QuestionSte
   if (last === undefined) {
     return rowsComeFromRows(opcodes, resultRow, holds) ? { empty: "no rows" } : NO_PLAN;
   }
+  // More than one place a row is handed back is more than one arm of a compound select, and the
+  // answers below describe one arm. Both arms' empty rows arrive and only one set is ever spent.
+  // Weighed before the grouping below, since one arm of a compound may group and the other not.
+  if (opcodes.filter((op) => op.opcode === "ResultRow").length > 1) return NO_PLAN;
+  // A group exists only because a row was scanned, so a grouped plan hands back nothing at all
+  // over nothing — whatever the ordering and limiting between the aggregate and the result row
+  // does, which the register trace below cannot follow through a sorter.
+  if (groupsItsRows(opcodes)) return { empty: "no rows" };
   const between = opcodes.filter((op) => op.addr > last.addr && op.addr < resultRow.addr);
   if (between.some((op) => !READABLE.has(op.opcode))) return NO_PLAN;
+  if (!answersSurviveTheTail(finalized, between)) return NO_PLAN;
   const answers = holds
     .map((name) => (name === undefined ? undefined : EMPTY_ANSWERS[name]))
     .filter((answer): answer is string | number => answer !== undefined);
@@ -184,9 +277,25 @@ export function readQuestionPlan(opcodes: readonly PlannedOpcode[]): QuestionSte
 }
 
 /**
+ * Whether one value is one the plan's own figures could have answered over nothing — a null, or
+ * an answer not yet spent, which this spends. A value of any other type is one a row was scanned
+ * into: no aggregate of the four answers a boolean or a blob.
+ */
+function answeredOverNothing(value: QueryWorkerValue, unspent: (string | number)[]): boolean {
+  if (value === null) return true;
+  if (typeof value !== "string" && typeof value !== "number") return false;
+  const spend = unspent.indexOf(value);
+  if (spend < 0) return false;
+  unspent.splice(spend, 1);
+  return true;
+}
+
+/**
  * Whether these rows are the row an aggregating plan hands back over nothing: nulls, and no value
  * its figures could not have answered. Each answer is spent once, so a second zero against one
- * count is a row that was scanned.
+ * count is a row that was scanned. What this cannot settle, recorded rather than hidden: rows
+ * that *did* match can return the row an empty one does — `min(x)` over two rows with no `x` —
+ * and are read as nothing found, which is weaker than the truth and never a figure about a person.
  */
 function isTheEmptyRow(
   rows: readonly QueryWorkerRow[],
@@ -194,11 +303,8 @@ function isTheEmptyRow(
 ): boolean {
   const unspent = [...answers];
   for (const row of rows) {
-    for (const value of Object.values(row) as QueryWorkerValue[]) {
-      if (value === null) continue;
-      const spend = unspent.indexOf(value as string | number);
-      if (spend < 0) return false;
-      unspent.splice(spend, 1);
+    for (const value of Object.values(row)) {
+      if (!answeredOverNothing(value, unspent)) return false;
     }
   }
   return true;

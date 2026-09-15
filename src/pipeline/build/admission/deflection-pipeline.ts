@@ -5,7 +5,7 @@ import { renderRefusedPrompt } from "../../../server/http/fragments.ts";
 import type { Send } from "../../../server/sse/index.ts";
 import type { BuildPipelineCompletion } from "../../jobs/build-jobs.ts";
 import { type RestorationDescriptor, renderRestorationFragment } from "../../jobs/restoration.ts";
-import { type RecordMetrics, writeResolverOnlyMetrics } from "../../metrics-recorder.ts";
+import { type RecordMetrics, rememberResolverRow } from "../../metrics-recorder.ts";
 import { deliverRestoredPresentation } from "../../streaming/terminal-presentation.ts";
 import { deflectionNarration } from "./deflection.ts";
 import type { PromptResolutionMemory } from "./resolved-request.ts";
@@ -52,14 +52,7 @@ export async function streamDeflection({
     outcome: resolutionOutcome,
     resolver: resolution.resolver,
   });
-  void mutationCoordinator
-    .withPlatformWrite(() => writeResolverOnlyMetrics(recordMetrics, metrics))
-    .catch((error) => {
-      console.error(
-        "Aluna resolver metrics write did not complete:",
-        error instanceof Error ? error.message : error,
-      );
-    });
+  rememberResolverRow(mutationCoordinator, recordMetrics, () => metrics);
   if (!canPresent()) return;
 
   await send("metrics-preview", JSON.stringify(metrics));

@@ -646,7 +646,8 @@ Numbered in build order.
   untouched. It answers the module's most common question before it is asked, and it
   depends on nothing else here. (PLAN decision 32)
 - **6.2 — Ephemeral whole-catalog read, in a worker.** Reuse M4's physically read-only
-  connection/authorizer and expose a bounded whole-active-catalog adapter to this request
+  connection (`SQLITE_OPEN_READONLY` plus `PRAGMA query_only`; no authorizer exists — see
+  ADR-0008) and expose a bounded whole-active-catalog adapter to this request
   only. Acquire the complete per-incarnation read-token set atomically for the catalog
   snapshot so capability deletion cannot race the query; ownership stays on the main
   thread. Execution moves into a worker with its own read-only connection, which is what

@@ -48,12 +48,15 @@ export type QueryWorkerResponse =
     };
 
 /**
- * Statement forms that leave this connection's own file behind. Mirrors the tail of
+ * Statement forms that leave this connection's own file behind. Mirrors and extends the tail of
  * `RAW_MUTATION_SQL_PATTERN` rather than importing it — that module pulls in the TS compiler.
+ * `ANALYZE` is added, because it writes `sqlite_stat1`; `TRUNCATE` is left out, having no
+ * statement form in SQLite.
  */
 const NOT_A_READ = /^\s*(?:ATTACH|DETACH|PRAGMA|VACUUM|REINDEX|ANALYZE)\b/i;
 
-/** Quoted literals and comments, so a `;` or a keyword inside one is never mistaken for SQL. */
+/** Quoted literals and comments, so a `;` or a keyword inside one is never mistaken for SQL.
+ * Mirrored in `whole-catalog-query-scope.ts` for the reason above, and pinned against it. */
 const SQL_LITERALS_AND_COMMENTS =
   /'(?:[^']|'')*'|"(?:[^"]|"")*"|`(?:[^`]|``)*`|--[^\n]*|\/\*[\s\S]*?\*\//g;
 
@@ -102,7 +105,9 @@ function handle(request: QueryWorkerRequest): QueryWorkerResponse {
 
 /**
  * SQLite's result codes for the statement rather than the connection. `SQLITE_READONLY` is among
- * them, since decision 6's own refusal of a write is something the model should see.
+ * them, since decision 6's own refusal of a write is something the model should see. Mirrored
+ * from `whole-catalog-query-scope.ts`, which names each one, and pinned against it there: this
+ * file is copied beside the bundle and run directly, so it may import nothing.
  */
 const STATEMENT_RESULT_CODES: ReadonlySet<number> = new Set([1, 8, 18, 19, 20, 21, 23, 25]);
 

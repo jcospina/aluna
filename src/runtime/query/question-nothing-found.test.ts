@@ -40,12 +40,9 @@ import {
   QUESTION_NOTHING_WORKED,
   questionNothingFoundSentence,
 } from "./question-narration.ts";
-import {
-  type QuestionStepPlan,
-  questionFoundNothing,
-  questionStepMatchedRows,
-} from "./question-nothing-found.ts";
-import { QUESTION_COMPUTATION_RULES, type QuestionStep } from "./question-turn.ts";
+import { questionFoundNothing, questionStepMatchedRows } from "./question-nothing-found.ts";
+import type { QuestionStep, QuestionStepPlan } from "./question-step.ts";
+import { QUESTION_COMPUTATION_RULES } from "./question-turn-prompt.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
 import { assertWholeCatalogQuery } from "./whole-catalog-query-scope.ts";
 
@@ -97,6 +94,20 @@ function planOf(desk: QuestionDesk, sql: string, parameters: readonly string[] =
   return assertWholeCatalogQuery(database, registeredSpecs(database), sql, [...parameters]).plan;
 }
 
+/** The rows one statement really hands back, so a plan is weighed against SQLite's own answer. */
+function readRows(
+  desk: QuestionDesk,
+  sql: string,
+  parameters: readonly string[] = [],
+): readonly QueryWorkerRow[] {
+  const statement = desk.database.readonly.prepare<QueryWorkerRow, string[]>(sql);
+  try {
+    return statement.all(...parameters);
+  } finally {
+    statement.finalize();
+  }
+}
+
 /** A step built by hand, for the sentence and for results SQLite would need contriving to make. */
 function stepOf(
   rows: readonly QueryWorkerRow[],
@@ -138,14 +149,21 @@ describe("the platform reads the plan, so no step's classification is the model'
   });
 
   test("a count the result never reads is not one of its answers", () => {
-    // Read off the registers the result row is built from, so a count in a subquery or a HAVING
-    // cannot inflate what the empty row is allowed to hold and silence a real zero.
+    // Read off the registers the result row is built from, so a count in a subquery cannot
+    // inflate what the empty row is allowed to hold and silence a real zero.
     const desk = refundDesk();
     const inner = `${TOTAL_UNDER} AND (SELECT count(*) FROM ${EXPENSES_TABLE}) > 0`;
-    const having = `SELECT sum(amount) AS total FROM ${EXPENSES_TABLE} GROUP BY text HAVING count(*) > 0`;
 
     expect(planOf(desk, inner, [UNSPENT])).toEqual({ empty: "one row", answers: [] });
-    expect(planOf(desk, having)).toEqual({ empty: "one row", answers: [] });
+  });
+
+  test("and a grouped statement promises no empty row at all, whatever its HAVING counts", () => {
+    // The stronger form of the same guarantee: a group exists only because a row was scanned, so
+    // over nothing this hands back nothing and there is no figure to be read out as a fact.
+    const desk = refundDesk();
+    const having = `SELECT sum(amount) AS total FROM ${EXPENSES_TABLE} GROUP BY text HAVING count(*) > 0`;
+
+    expect(planOf(desk, having)).toEqual({ empty: "no rows" });
   });
 });
 
@@ -291,12 +309,61 @@ describe("the model cannot override the classification", () => {
       [`SELECT EXISTS(SELECT 1 FROM ${EXPENSES_TABLE} WHERE text = ?) AS any_at_all`, [UNSPENT]],
       [`SELECT json_group_array(text) AS items FROM ${EXPENSES_TABLE} WHERE text = ?`, [UNSPENT]],
       [`SELECT total(amount) AS total FROM ${EXPENSES_TABLE} WHERE text = ?`, [UNSPENT]],
+      // A figure reshaped on its way out: `round(total(x), 2)` is `0.0` over nothing and
+      // `printf` answers `"0.00"` even over a null, so neither may be read back as a result.
+      [`SELECT round(total(amount), 2) AS total FROM ${EXPENSES_TABLE} WHERE text = ?`, [UNSPENT]],
+      [
+        `SELECT printf('%.2f', sum(amount)) AS total FROM ${EXPENSES_TABLE} WHERE text = ?`,
+        [UNSPENT],
+      ],
+      [`SELECT abs(count(*)) AS how_many FROM ${EXPENSES_TABLE} WHERE text = ?`, [UNSPENT]],
+      [
+        `SELECT cast(count(*) AS TEXT) AS how_many FROM ${EXPENSES_TABLE} WHERE text = ?`,
+        [UNSPENT],
+      ],
+      // Two arms, two empty rows, and answers that describe one of them.
+      [
+        `SELECT count(*) AS how_many FROM ${EXPENSES_TABLE} WHERE text = ? UNION ALL SELECT count(*) FROM ${NOTES_TABLE}`,
+        [UNSPENT],
+      ],
     ] as const;
 
     for (const [sql, parameters] of forged) {
       const run = await askUnder(desk, sql, parameters);
       expect([sql, run.result.ending]).toEqual([sql, "nothing_found"]);
       expect([sql, run.answerPrompts]).toEqual([sql, []]);
+    }
+  });
+
+  test("while the shapes the turn asks for still read as a finding when rows matched", () => {
+    // The refunded rows are there, so a rounded average, a cast one and a ranked group have to
+    // read as findings. Unreadable is the safe answer to a plan this cannot follow, never the
+    // easy one: reached for too widely it turns every real answer into *I found nothing*.
+    const desk = refundDesk();
+    const found: readonly (readonly [string, readonly string[]])[] = [
+      [`SELECT round(avg(amount), 2) AS average FROM ${EXPENSES_TABLE} WHERE text = ?`, [REFUNDED]],
+      [
+        `SELECT cast(avg(amount) AS TEXT) AS average FROM ${EXPENSES_TABLE} WHERE text = ?`,
+        [REFUNDED],
+      ],
+      [`SELECT text AS category, count(*) AS how_many FROM ${EXPENSES_TABLE} GROUP BY text`, []],
+      [
+        `SELECT text AS category, count(*) AS how_many FROM ${EXPENSES_TABLE} GROUP BY text ORDER BY how_many DESC LIMIT 1`,
+        [],
+      ],
+    ];
+
+    for (const [sql, parameters] of found) {
+      const step = stepOf(
+        readRows(desk, sql, parameters),
+        assertWholeCatalogQuery(
+          desk.database.readonly,
+          registeredSpecs(desk.database.readonly),
+          sql,
+          [...parameters],
+        ).plan,
+      );
+      expect([sql, questionStepMatchedRows(step)]).toEqual([sql, true]);
     }
   });
 

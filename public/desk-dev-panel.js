@@ -27,6 +27,7 @@ import {
   savePresentation,
   windowLayer,
 } from "./desk-window.js";
+import { onDeskReady, syncMaximiseLamp, syncWindowForm, WALL_SHADOW } from "./desk-window-frame.js";
 
 /**
  * The tile on the desk that opens the panel. Not a capability logo, and never one: the panel sits
@@ -53,9 +54,6 @@ export const DEV_WINDOW_TITLE = "Developer";
 export const STAGE_PAYLOAD_EVENT = "aluna:stage-payload";
 /** A new build has been accepted: the panel starts empty rather than half-full. */
 export const STAGES_CLEARED_EVENT = "aluna:stages-cleared";
-
-/** Over a wallpaper, a window carries its shadow at 40% rather than 24%. */
-const WALL_SHADOW = 0.4;
 
 /**
  * How much of the desk the panel takes when nothing is remembered: a tall, narrow column against
@@ -226,12 +224,6 @@ function addLamps(entry) {
 }
 
 /** @param {DevWindow} entry */
-function syncMaximiseLamp(entry) {
-  const lamp = entry.el.querySelector('.lamp[data-action="maximise"]');
-  lamp?.setAttribute("aria-pressed", entry.maximised ? "true" : "false");
-}
-
-/** @param {DevWindow} entry */
 function toggleMaximise(entry) {
   if (phone) return;
   entry.maximised = !entry.maximised;
@@ -249,9 +241,8 @@ function toggleMaximise(entry) {
  * @param {boolean} isPhone
  */
 export function syncDevForm(entry, isPhone) {
-  entry.el.querySelector('.lamp[data-action="maximise"]')?.toggleAttribute("hidden", isPhone);
+  syncWindowForm(entry, isPhone);
   if (!isPhone) bindGestures(entry);
-  entry.win.bar.classList.toggle("window__bar--draggable", !isPhone);
 }
 
 /** @param {DevWindow} entry */
@@ -415,14 +406,4 @@ export function startDeskDevPanel(root = document) {
   }
 }
 
-/* Guarded the way every other browser module here is: Bun has no `document`, so the
- * module can be imported by a test for what it exports without starting a desk. */
-if (typeof document !== "undefined") {
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => startDeskDevPanel(document), {
-      once: true,
-    });
-  } else {
-    startDeskDevPanel(document);
-  }
-}
+onDeskReady(() => startDeskDevPanel(document));

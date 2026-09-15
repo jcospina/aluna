@@ -17,7 +17,10 @@ import {
   nextPrompt,
   registeredSpecs,
 } from "./question.test-support.ts";
-import { QUESTION_OPEN_WINDOW_HEADING, QUESTION_OPEN_WINDOW_RULES } from "./question-turn.ts";
+import {
+  QUESTION_OPEN_WINDOW_HEADING,
+  QUESTION_OPEN_WINDOW_RULES,
+} from "./question-turn-prompt.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
 
 let platforms: ScratchPlatforms;

@@ -16,13 +16,13 @@ import {
   type TokenUsage,
 } from "../../../../platform/provider/index.ts";
 import { sumTokenUsages, TokenUsageAccumulator } from "../../../../platform/provider/usage.ts";
-import { renderableFromSpec } from "../../../../presentation/fields/renderable-capability.ts";
 import {
   createPlatformPresentationAdapter,
   enforceItemMarkup,
   PALETTE_COLOR_TOKENS,
   type PresentableRecord,
   type RenderableCapability,
+  renderableFromSpec,
   renderCollection,
   SPACING_TOKENS,
   TYPE_SIZE_TOKENS,
