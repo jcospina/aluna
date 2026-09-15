@@ -29,6 +29,7 @@ export {
   type QuestionEnding,
   type QuestionLoopInput,
   type QuestionLoopResult,
+  questionStepsTaken,
   runQuestionLoop,
 } from "./question-loop.ts";
 export {

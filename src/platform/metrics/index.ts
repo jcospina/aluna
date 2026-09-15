@@ -15,6 +15,8 @@ export {
   intentResolutionMetricsSchema,
   intentResolutionOutcomeSchema,
   listIntentResolutionMetrics,
+  type QuestionCost,
+  questionCostSchema,
   type StoredIntentResolutionMetrics,
   storedIntentResolutionMetricsSchema,
   writeIntentResolutionMetrics,
