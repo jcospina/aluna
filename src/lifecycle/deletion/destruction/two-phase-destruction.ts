@@ -300,8 +300,8 @@ export function createArtifactCleanupAdapter(
 }
 
 /**
- * The adapter name the object store will answer to when Module 6 installs it; nothing registers it
- * yet. An unknown adapter fails hard, so no real M6 obligation is ever discharged by accident.
+ * The adapter name the object store will answer to when Module 7 installs it; nothing registers it
+ * yet. An unknown adapter fails hard, so no real M7 obligation is ever discharged by accident.
  */
 export const OWNED_RESOURCE_ADAPTER = "owned_files";
 

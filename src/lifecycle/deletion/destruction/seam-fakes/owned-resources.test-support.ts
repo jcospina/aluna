@@ -1,4 +1,4 @@
-// The Module 6 acceptance fake for the owned-resource cleanup seam (PLAN decision 35, ADR-0006,
+// The Module 7 acceptance fake for the owned-resource cleanup seam (PLAN decision 35, ADR-0006,
 // ARCH §6.3 Object Store).
 //
 // It must never join the live cleanup adapter inventory: a manifest entry is durable and names the
@@ -7,7 +7,7 @@
 // it out of the server's module graph.
 //
 // M4 owns the seam: collect a deduplicated, incarnation-bound manifest while the capability's table
-// still exists, then discharge it idempotently after the point of no return. M6 will own the real
+// still exists, then discharge it idempotently after the point of no return. M7 will own the real
 // object store; this fake models every state the manifest must absorb before the drop, including
 // `cleanup_enqueued`, which deletion must absorb or the store's queue outlives the capability.
 
@@ -25,7 +25,7 @@ import {
   type OwnedResourceCleanupAdapter,
 } from "../two-phase-destruction.ts";
 
-/** The fake claims the name M6 will install for real, so the manifest shape matches. */
+/** The fake claims the name M7 will install for real, so the manifest shape matches. */
 export const FAKE_OWNED_RESOURCE_ADAPTER = OWNED_RESOURCE_ADAPTER;
 
 /**
@@ -34,7 +34,7 @@ export const FAKE_OWNED_RESOURCE_ADAPTER = OWNED_RESOURCE_ADAPTER;
  */
 export type OwnedResourceOwnershipState = "cleanup_enqueued" | "committed" | "pending";
 
-/** The two file-shaped field types M6 will add to the spec vocabulary. */
+/** The two file-shaped field types M7 will add to the spec vocabulary. */
 export type FileFieldShape = "file" | "file[]";
 
 export interface StagedOwnedResource {
@@ -82,7 +82,7 @@ function tablePresent(database: Database, name: string): boolean {
 }
 
 /**
- * An in-memory stand-in for M6's object store. References (what points at bytes) and objects (the
+ * An in-memory stand-in for M7's object store. References (what points at bytes) and objects (the
  * bytes themselves) are tracked separately, so cleaning a key twice is observably a success.
  */
 export class FakeOwnedResourceStore {

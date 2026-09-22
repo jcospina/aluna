@@ -147,6 +147,7 @@ export {
 } from "./store/deletion-tombstones.ts";
 export {
   abandonMissingCapabilityLogo,
+  CapabilityIdActiveError,
   type CapabilityRegistryExpectation,
   type CapabilityRegistryWriteInput,
   claimLogoGeneration,
@@ -154,6 +155,7 @@ export {
   getCapability,
   getCapabilityLogoState,
   insertCapability,
+  isCapabilityIdAvailable,
   isRegistryInitialized,
   type LogoGenerationClaim,
   listActiveIncarnations,

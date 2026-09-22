@@ -22,7 +22,7 @@ import { abortableProvider, type Provider } from "../../platform/provider/index.
 import {
   type CapabilityRow,
   getCapability,
-  isCapabilityIdReservedByDeletion,
+  isCapabilityIdAvailable,
   listCapabilityDeletionTombstones,
   readActiveRegistryCatalog,
 } from "../../registry/index.ts";
@@ -188,17 +188,6 @@ export type ResolvedRequestRevalidation =
   | { readonly kind: "new_capability" }
   | { readonly kind: "existing_capability"; readonly active: CapabilityRow };
 
-function proposedCapabilityIdIsUnavailable(
-  proposed: string,
-  database: PlatformDatabase["readonly"],
-  catalog: ReturnType<typeof readActiveRegistryCatalog>,
-): boolean {
-  return (
-    catalog.capabilities.some((row) => row.id === proposed) ||
-    isCapabilityIdReservedByDeletion(proposed, database)
-  );
-}
-
 /**
  * Revalidates a resolved request against the registry, stable only once the lease is held. Order
  * picks only the recorded reason, and the target expectation goes first because it is precise.
@@ -225,10 +214,10 @@ export function revalidateResolvedRequest(
   });
 
   if (request.kind === "new_capability") {
-    // Expected-absence over a resolver-proposed semantic id. When the resolver named no
-    // id, absence is the activation CAS's to prove and there is nothing to check here.
+    // Expected-absence over a resolver-proposed semantic id. An id the Builder authors is not known
+    // yet: the Builder checks it once the spec names it, and the activation CAS after that.
     const proposed = request.expectedAbsentCapabilityId;
-    if (proposed !== null && proposedCapabilityIdIsUnavailable(proposed, database, catalog)) {
+    if (proposed !== null && !isCapabilityIdAvailable(proposed, database)) {
       return refusal("expected_absent_collision");
     }
     if (catalog.fingerprint !== request.catalogFingerprint) return refusal("catalog_revision");

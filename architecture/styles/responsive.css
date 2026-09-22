@@ -1,0 +1,99 @@
+/*
+ * Every width rule in one place. A phone reads a flow down the page, so the rails turn
+ * into columns and their arrows turn to point down.
+ */
+
+/* ── Responsive ─────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+  .menubar {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    row-gap: var(--space-1);
+  }
+
+  .menubar nav {
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .matrix,
+  .lanes,
+  .effects {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chapter {
+    padding-block: var(--space-6) 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .bench {
+    padding: var(--space-6) var(--space-3) var(--space-3);
+  }
+
+  /* A phone reads a flow down the page. Sideways is a scroll nobody finds, and a
+                                                                     rail that merely wraps leaves every arrow pointing off the edge. */
+  .rail {
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 0;
+  }
+
+  .rail .arrow {
+    align-self: center;
+  }
+
+  .rail .arrow:not(.arrow--down, .arrow--back) svg {
+    rotate: 90deg;
+  }
+
+  .rail .arrow--back:not(.arrow--down) svg {
+    rotate: 270deg;
+  }
+
+  /* Stacked, the columns sit under one another, so a caption lifted out of the flow would
+     land on the column above it. */
+  .rail--fan {
+    width: auto;
+  }
+
+  .node--wide {
+    min-width: 0;
+  }
+
+  .rail--capped {
+    margin-top: 0;
+  }
+
+  .rail--capped > .rail--down > .caps {
+    position: static;
+    padding-bottom: 0;
+  }
+
+  .rail__apart {
+    padding-left: 0;
+    padding-top: var(--space-3);
+    border-left: 0;
+    border-top: var(--line) solid var(--ink);
+  }
+
+  .lifetimes {
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .rung {
+    grid-template-columns: 2rem minmax(0, 1fr);
+  }
+
+  .rung [data-rung-state] {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .fields__row dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

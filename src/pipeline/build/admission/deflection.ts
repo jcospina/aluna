@@ -1,11 +1,8 @@
-// Deflection and duplicate detection — what the pipeline does with a prompt it
-// recognizes but will not build.
+// What the pipeline says to a prompt it will not build.
 //
-// Two related concerns: the warm, product-voice line shown when an intent is
-// understood but not yet actionable (extend, ui_change, reject), and the
-// lightweight token-overlap heuristic that catches a `new_capability` prompt that
-// really restates one the user already has — deflecting it as an `extend_capability`
-// rather than building a colliding duplicate.
+// A refusal gets one warm, product-voice line. A prompt whose words name a capability the person
+// already has is caught before the resolver runs: an exact match of its words against each
+// capability's names turns it into an `extend_capability` deflection, and nothing is built.
 
 import { type CapabilityRow, canonicalCapabilityLabel } from "../../../registry/index.ts";
 import type { IntentClassification } from "../../intent/index.ts";
@@ -20,25 +17,12 @@ export class NotDeflectableError extends Error {
 }
 
 /**
- * The product-voice narration for a deflected intent. A `new_capability` reuses its own
- * `user_facing_label`, because it is being built rather than deflected.
+ * The product-voice narration for a deflected intent. Only a refusal reaches here without a line of
+ * its own: a question is answered in the answer window (6.5/03) and every other intent builds.
  */
 export function deflectionNarration(intent: IntentClassification): string {
-  switch (intent.type) {
-    case "extend_capability":
-      return "I can tell this belongs with something you've already started here. I can't change that place yet, but I'll be able to soon.";
-    case "ui_change":
-      return "I hear how you'd like this to feel. I can't reshape the space yet, but I'll be able to soon.";
-    // A question is run and answered in the answer window now (6.5/03), so it never deflects.
-    case "data_query":
-      throw new NotDeflectableError(
-        "A question is answered in the answer window, never deflected.",
-      );
-    case "reject":
-      return REJECT_DEFLECTION;
-    case "new_capability":
-      return intent.user_facing_label;
-  }
+  if (intent.type === "reject") return REJECT_DEFLECTION;
+  throw new NotDeflectableError(`A ${intent.type} intent is acted on, never deflected.`);
 }
 
 const DUPLICATE_PROMPT_STOP_WORDS = new Set([
@@ -150,19 +134,4 @@ export function existingCapabilityNarration(
   const target = capabilities.find((capability) => capability.id === intent.target_capability);
   const label = target ? canonicalCapabilityLabel(target) : "this place";
   return `You already have ${label}, so I didn't create another one.`;
-}
-
-/**
- * Re-routes a model-classified `new_capability` to an `extend_capability` deflection when the
- * prompt overlaps — the net under a resolver proposing a build that collides with what exists.
- */
-export function deflectDuplicateNewCapability(
-  intent: IntentClassification,
-  prompt: string,
-  capabilities: readonly CapabilityRow[],
-): IntentClassification {
-  if (intent.type !== "new_capability") return intent;
-
-  const duplicate = duplicateIntentForPrompt(prompt, capabilities);
-  return duplicate ? { ...duplicate, confidence: Math.max(intent.confidence, 0.99) } : intent;
 }

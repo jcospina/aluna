@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { notesCapabilityRow } from "../../../server/app.test-support.ts";
-import { duplicateIntentForPrompt } from "./deflection.ts";
+import { notesCapabilityRow, REJECT_INTENT } from "../../../server/app.test-support.ts";
+import { INTENT_TYPES } from "../../intent/index.ts";
+import {
+  deflectionNarration,
+  duplicateIntentForPrompt,
+  NotDeflectableError,
+  REJECT_DEFLECTION,
+} from "./deflection.ts";
 
 const contacts = notesCapabilityRow({
   id: "contacts",
@@ -50,5 +56,14 @@ describe("deterministic exact-identity collision guard", () => {
       prompt_context: "Stores personal contacts.",
     });
     expect(duplicateIntentForPrompt("contacts", [contacts, duplicateLabel])).toBeUndefined();
+  });
+});
+
+describe("the line a deflection speaks", () => {
+  test("only a refusal has one; every intent that is acted on throws instead of speaking", () => {
+    expect(deflectionNarration(REJECT_INTENT)).toBe(REJECT_DEFLECTION);
+    for (const type of INTENT_TYPES.filter((type) => type !== "reject")) {
+      expect(() => deflectionNarration({ ...REJECT_INTENT, type })).toThrow(NotDeflectableError);
+    }
   });
 });

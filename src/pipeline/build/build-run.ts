@@ -33,10 +33,12 @@ import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import type { GenerateResult, Provider, TokenUsage } from "../../platform/provider/index.ts";
 import { sumTokenUsages } from "../../platform/provider/usage.ts";
 import {
+  CapabilityIdActiveError,
   CapabilityIdReservedError,
   type CapabilityRegistryExpectation,
   type CapabilitySpec,
-  isCapabilityIdReservedByDeletion,
+  getCapability,
+  isCapabilityIdAvailable,
   listCapabilities,
 } from "../../registry/index.ts";
 import { deriveCapabilityTableDdl } from "../../runtime/data/index.ts";
@@ -151,10 +153,23 @@ async function authorInitialSpec(input: {
         spec: generated.spec,
       });
     }
+    refuseUnavailableAuthoredId(generated.spec.id, input.database.readonly);
   } finally {
     await flushPreviews();
   }
   return generated;
+}
+
+/**
+ * The lease-head check tests only an id the resolver named, and "build me a notes app" names none,
+ * so without this a taken or reserved id would surface at the activation CAS after the units and
+ * the Gate. This runs before `onCapabilityIdentified`, so the failure is filed at `spec_gen` with no
+ * capability id and never lands in the history of the capability that holds the id.
+ */
+function refuseUnavailableAuthoredId(id: string, database: PlatformDatabase["readonly"]): void {
+  if (isCapabilityIdAvailable(id, database)) return;
+  const active = getCapability(id, database);
+  throw active ? new CapabilityIdActiveError(active) : new CapabilityIdReservedError(id);
 }
 
 /**
@@ -190,11 +205,6 @@ export async function runSpecBuildStages(
   // Admission assigns the incarnation before Builder provider work. Once the
   // validated authored spec supplies the semantic id, enrich the same durable row.
   onCapabilityIdentified(spec.id);
-  // The lease-head check tests only an id the resolver named, which "build me a notes app" is not,
-  // so a tombstone used to surface at the activation CAS with the whole build already paid for.
-  if (isCapabilityIdReservedByDeletion(spec.id, buildDatabases.readonly)) {
-    throw new CapabilityIdReservedError(spec.id);
-  }
   if (isAborted()) return;
   // The first point at which a name exists for the blank tile on the desk. Sent as `fragment` to
   // ride the tile's own guarded listener, and it addresses the label span: the tile is mid-crawl.

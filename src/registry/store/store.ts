@@ -12,6 +12,7 @@
 import type { Database } from "bun:sqlite";
 import { db, dbReadonly } from "../../platform/persistence/db.ts";
 import { REGISTRY_TABLE } from "../../platform/persistence/table-names.ts";
+import { canonicalCapabilityLabel } from "../labels.ts";
 import {
   type CapabilityLogoState,
   capabilityLogoStateSchema,
@@ -52,6 +53,18 @@ export type CapabilityRegistryExpectation =
 
 export class StaleCapabilityRegistryError extends Error {
   override readonly name = "StaleCapabilityRegistryError";
+}
+
+/** A new build authored an id an active capability already holds. */
+export class CapabilityIdActiveError extends Error {
+  override readonly name = "CapabilityIdActiveError";
+  /** The name the desk shows for the capability holding the id. */
+  readonly label: string;
+
+  constructor(active: CapabilityRow) {
+    super(`Capability id "${active.id}" is already held by an active capability.`);
+    this.label = canonicalCapabilityLabel(active);
+  }
 }
 
 // The row as SQLite stores it: the structured parts (`schema`, `ui_intent`,
@@ -126,8 +139,8 @@ function parseStoredRow(stored: StoredRow): CapabilityRow {
 }
 
 /**
- * Insert one capability row through the read-write connection. An invalid row throws and writes
- * nothing; a duplicate id throws, because deflecting duplicates is the resolver's job (decision 6).
+ * Insert one capability row through the read-write connection. An invalid row or a duplicate id
+ * throws and writes nothing.
  */
 export function insertCapability(
   row: CapabilityRegistryWriteInput,
@@ -355,6 +368,14 @@ export function getCapability(id: string, database: Database = dbReadonly): Capa
     .get(id) as StoredRow | null;
 
   return stored ? parseStoredRow(stored) : null;
+}
+
+/**
+ * Whether a new capability may take this id. The activation insert conflicts with any row holding
+ * it, so an active capability and a deletion tombstone both make it unavailable.
+ */
+export function isCapabilityIdAvailable(id: string, database: Database = dbReadonly): boolean {
+  return database.query(`SELECT 1 FROM ${REGISTRY_TABLE} WHERE id = ?`).get(id) === null;
 }
 
 /**

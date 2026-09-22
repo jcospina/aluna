@@ -1,3 +1,5 @@
+import { type CapabilityRow, canonicalCapabilityLabel } from "../../registry/index.ts";
+import { escapeHtml } from "../../server/http/html.ts";
 import { renderCapabilityLogo } from "../../server/http/index.ts";
 import type { CapabilityRenameOutcome } from "./front-half.ts";
 
@@ -7,18 +9,31 @@ import type { CapabilityRenameOutcome } from "./front-half.ts";
  */
 export const CAPABILITY_RENAME_ERROR_CODE = "rename_refused";
 
+/** The notice speaks on the prompt bar, away from the logo, so it names what changed. */
+export function staleRenameSentence(label: string): string {
+  return `${label} changed after you opened this page, so I didn't rename it. Refresh and try again?`;
+}
+
+/** No active row is left to name, and after a refresh there is nothing to try again on. */
+export const DELETED_RENAME_SENTENCE =
+  "That was deleted after you opened this page, so I didn't rename it.";
+
 /**
  * Why a rename did not happen, in the product's voice and naming no internal. A bad name is worth
- * retyping; one that is no longer the capability the menu opened on is not, so it asks for a look.
+ * retyping. A stale one needs a refresh: the refusal swaps nothing, the editor still carries what
+ * it opened on, and nothing pushes a change made elsewhere to this page.
  */
 export function renderCapabilityRenameRefusal(
   outcome: Extract<CapabilityRenameOutcome, { status: "refused" | "stale" }>,
+  current: CapabilityRow | null = null,
 ): string {
   const sentence =
     outcome.status === "refused"
-      ? "That name won’t work here — something short, in a few words?"
-      : "That changed while I was getting to it, so I stopped rather than guess. Have a look and tell me again?";
-  return `<p class="notice" data-role="error" data-error-code="${CAPABILITY_RENAME_ERROR_CODE}">${sentence}</p>`;
+      ? "That name won't work here — something short, in a few words?"
+      : current === null
+        ? DELETED_RENAME_SENTENCE
+        : staleRenameSentence(canonicalCapabilityLabel(current));
+  return `<p class="notice" data-role="error" data-error-code="${CAPABILITY_RENAME_ERROR_CODE}">${escapeHtml(sentence)}</p>`;
 }
 
 /**

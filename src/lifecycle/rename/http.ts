@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { Context } from "hono";
+import { getCapability } from "../../registry/index.ts";
 import {
   MutationAdmissionError,
   type MutationCoordinator,
@@ -44,10 +45,18 @@ export async function handleCapabilityRename(
   }
   // Swapped nowhere: a refusal is read on the prompt bar (PLAN decision 26). The request targets
   // the logo's whole slot, so a body reaching it would put a sentence where a capability was.
-  return c.html(renderCapabilityRenameRefusal(outcome), outcome.status === "refused" ? 422 : 409, {
-    "cache-control": "no-store",
-    "HX-Reswap": "none",
-  });
+  const current =
+    outcome.status === "stale"
+      ? getCapability(expectation.capabilityId, deps.registryReadonly)
+      : null;
+  return c.html(
+    renderCapabilityRenameRefusal(outcome, current),
+    outcome.status === "refused" ? 422 : 409,
+    {
+      "cache-control": "no-store",
+      "HX-Reswap": "none",
+    },
+  );
 }
 
 /**

@@ -76,7 +76,7 @@ what it happened to have. The user-visible form of this arrives with 6.5.
   endings are **different shapes** — `answered` carries its steps, `budget_spent` carries
   only how many there were — so the thing 6.4 writes an answer from arrives without the
   material when the question never finished. `questionEndingNarration` switches on the closed
-  ending set the way `deflectionNarration` does, and returns `null` for `answered` because
+  ending set, and returns `null` for `answered` because
   the words for what she *found* are 6.4's.
 - `QUESTION_BUDGET_SPENT_SENTENCE` — the one sentence this issue authors. It makes a claim
   about her own looking rather than about the user's data, which is decision 17's rule held

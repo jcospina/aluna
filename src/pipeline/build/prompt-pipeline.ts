@@ -16,7 +16,9 @@ import { abortableProvider, type Provider } from "../../platform/provider/index.
 import { NO_TOKEN_USAGE } from "../../platform/provider/usage.ts";
 import {
   type ActiveRegistryCatalog,
+  CapabilityIdReservedError,
   canonicalCapabilityLabel,
+  isCapabilityIdReservedByDeletion,
   readActiveRegistryCatalog,
 } from "../../registry/index.ts";
 import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
@@ -40,11 +42,7 @@ import {
   deliverFailedPresentation,
   deliverRestoredPresentation,
 } from "../streaming/terminal-presentation.ts";
-import {
-  deflectDuplicateNewCapability,
-  duplicateIntentForPrompt,
-  existingCapabilityNarration,
-} from "./admission/deflection.ts";
+import { duplicateIntentForPrompt, existingCapabilityNarration } from "./admission/deflection.ts";
 import { streamDeflection } from "./admission/deflection-pipeline.ts";
 import { validateProposedOverlapIdentity } from "./admission/overlap-identity.ts";
 import {
@@ -291,12 +289,7 @@ async function runPromptJob(
     activeCapabilityId: standingCapabilityId(job.restoration),
     send,
   });
-  const intent = deflectDuplicateNewCapability(
-    classification.intent,
-    job.prompt,
-    catalog.capabilities,
-  );
-  const { usage, durationMs: resolverDurationMs } = classification;
+  const { intent, usage, durationMs: resolverDurationMs } = classification;
   const resolver = carriedResolverMeasurement(
     intent,
     usage,
@@ -332,6 +325,13 @@ async function runPromptJob(
       targetCapabilityId: intent.target_capability ?? "",
       capabilities: catalog.capabilities,
     });
+    // The catalog holds only active rows, so a tombstone reserving the id passes the check above
+    // and would reach the lease head as a stale refusal claiming the desk changed after the ask.
+    if (
+      isCapabilityIdReservedByDeletion(intent.proposed_identity.id, deps.buildDatabases.readonly)
+    ) {
+      throw new CapabilityIdReservedError(intent.proposed_identity.id);
+    }
   }
   return runNewCapabilityIntent(
     context,

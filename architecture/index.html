@@ -1,0 +1,2545 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="How Aluna works on one desk: the first capability a model builds there, the changes and other capabilities that follow, a question and a deletion."
+    >
+    <title>How Aluna works</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="../design/styles/index.css">
+    <link rel="stylesheet" href="./styles/page.css">
+    <link rel="stylesheet" href="./styles/diagrams.css">
+    <link rel="stylesheet" href="./styles/responsive.css">
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to the chapters</a>
+
+    <svg width="0" height="0" aria-hidden="true" style="position:absolute">
+      <symbol id="arrow-right" viewBox="0 0 24 12">
+        <path d="M0 6h19M15 1.5 20.5 6 15 10.5" fill="none" stroke="currentColor"></path>
+      </symbol>
+      <symbol id="arrow-down" viewBox="0 0 12 24">
+        <path d="M6 0v19M1.5 15 6 20.5l4.5-5.5" fill="none" stroke="currentColor"></path>
+      </symbol>
+    </svg>
+
+    <div class="menubar">
+      <span class="menubar__mark">How Aluna works</span>
+      <nav aria-label="Chapters">
+        <a href="#desk">Empty desk</a>
+        <a href="#spec">Spec</a>
+        <a href="#gate">Gate</a>
+        <a href="#live">Going live</a>
+        <a href="#using">First book</a>
+        <a href="#changing">Changing</a>
+        <a href="#versions">Versions</a>
+        <a href="#choosing">Choosing</a>
+        <a href="#devices">Devices</a>
+        <a href="#asking">Asking</a>
+        <a href="#deleting">Deleting</a>
+        <a href="#model">Model</a>
+        <a href="#trace">Your turn</a>
+        <a href="../design/index.html">Design →</a>
+      </nav>
+    </div>
+
+    <main class="page" id="main" tabindex="-1">
+      <div class="page-column">
+        <section class="window--section" id="desk" data-window data-title="One · An empty desk">
+          <h1>How Aluna works</h1>
+          <p class="lede">
+            A new Aluna desk holds a wallpaper, a developer utility and a prompt bar that asks
+            <em>What would you like to keep track of?</em>
+            The Developer utility opens a read-only panel for watching what Aluna does. Aluna ships
+            with no table, form or screen for books, recipes or any other kind of record.
+          </p>
+          <p>
+            You type <em>track the books I read</em> and press Make it. While the build runs, Aluna
+            narrates what she is doing in a window on the desk. When the build finishes, a Books
+            tile sits on the desk, and the window shows the Books collection, empty, with a button
+            for adding a book. The build made the table behind that collection and the code that
+            saves a book and draws its card. That code came from the model, which is the language
+            model Aluna is set up with. Code that ships with Aluna checked it and installed it.
+            Aluna calls what the build made a <strong>capability</strong>.
+          </p>
+
+          <h3 id="bench-first-build">The first build, step by step</h3>
+          <div data-seq="trip">
+            <div class="scroller" tabindex="0" role="group" aria-labelledby="bench-first-build">
+              <div class="rail rail--even">
+                <button class="node" type="button" data-stage="0" aria-current="true">
+                  <span class="node__name">Your sentence</span>
+                  <span class="node__sub">Prompt bar</span>
+                </button>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <button class="node is-idle" type="button" data-stage="1">
+                  <span class="node__name">The catalog</span>
+                  <span class="node__sub">Intent resolver</span>
+                </button>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <button class="node is-idle" type="button" data-stage="2">
+                  <span class="node__name">The classification</span>
+                  <span class="node__sub">Intent resolver</span>
+                </button>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <button class="node is-idle" type="button" data-stage="3">
+                  <span class="node__name">The spec</span>
+                  <span class="node__sub">Written by the model</span>
+                </button>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <button class="node is-idle" type="button" data-stage="4">
+                  <span class="node__name">Tests and units</span>
+                  <span class="node__sub">Written by the model</span>
+                </button>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <button class="node is-idle" type="button" data-stage="5">
+                  <span class="node__name">The checks</span>
+                  <span class="node__sub">The Gate</span>
+                </button>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <button class="node is-idle" type="button" data-stage="6">
+                  <span class="node__name">Live</span>
+                  <span class="node__sub">One transaction</span>
+                </button>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <button class="node is-idle" type="button" data-stage="7">
+                  <span class="node__name">The window</span>
+                  <span class="node__sub">An empty collection</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="readout" aria-live="polite" aria-atomic="true">
+              <p class="readout__title" data-slot="title">The prompt bar sends your sentence.</p>
+              <p class="readout__body" data-slot="body">
+                You press Make it, and the sentence goes to the server. Nothing else goes with it,
+                because no capability is open in the window.
+              </p>
+              <p class="readout__rule" data-slot="rule">POST /prompt</p>
+            </div>
+
+            <div class="row">
+              <button class="btn btn--outline btn--sm" type="button" data-seq-step>
+                Next step
+              </button>
+              <button class="btn btn--outline btn--sm" type="button" data-seq-reset>Reset</button>
+              <span class="counter"><b data-seq-count>1</b> of <span data-seq-total>8</span></span>
+            </div>
+          </div>
+
+          <h3>What the steps did not show</h3>
+          <p>
+            The intent resolver is the model call that works out what a sentence asks for. A
+            provisional tile appeared on the desk as soon as it classified yours, and the Books tile
+            replaced that placeholder once the collection was showing. Books' logo is drawn after
+            the build.
+          </p>
+          <p>
+            Two kinds of code took part. Platform code ships with Aluna and is the same for every
+            capability. The intent resolver's prompt is platform code: it asks the model to classify
+            your sentence against the catalog, the list of capabilities on the desk. So is the
+            builder, which asks the model for Books' spec, then its tests, then its code. So is the
+            Gate, which checks what the model wrote before any of it goes live. Platform code also
+            draws every collection and form. Generated code was written by the model during this
+            build and belongs to Books alone. It is six units, each a single file: the item
+            renderer, which draws one book's card, and a handler for each of the five Actions, which
+            are create, read, update, delete and search.
+          </p>
+          <div class="legend">
+            <span><i class="is-platform"></i> Platform code</span>
+            <span><i class="is-generated"></i> Written by the model</span>
+          </div>
+          <p>
+            The build also left a metrics row: how long each stage took, which model ran, how many
+            tokens it used and how the build ended. Aluna is an experiment in what a model can
+            build, and each build's metrics row is one of its measurements.
+          </p>
+
+          <div class="system-state" role="group" aria-label="System state">
+            <p class="caps system-state__label">System state</p>
+            <dl class="system-state__rows">
+              <dt>Registry</dt>
+              <dd><span>Books → v1</span></dd>
+              <dt>Disk</dt>
+              <dd><span>books/v1 (spec · 6 units · tests)</span></dd>
+              <dt>Database</dt>
+              <dd><span>cap_books · 0 rows</span></dd>
+            </dl>
+          </div>
+        </section>
+
+        <section class="window--section" id="spec" data-window data-title="Two · The spec">
+          <p class="lede">
+            Before any unit of Books existed, the model wrote its spec: one structured description
+            of Books, with its fields, the word for one record, how a book's card should look and
+            how Books should behave. Every later step of the build worked from it.
+          </p>
+
+          <p class="fields__title">The spec for Books, trimmed</p>
+          <div class="fields">
+            <div class="fields__row">
+              <dl>
+                <dt><code>id</code></dt>
+                <dd>books</dd>
+              </dl>
+            </div>
+            <div class="fields__row">
+              <dl>
+                <dt><code>label</code>, <code>noun</code></dt>
+                <dd>Books, book</dd>
+              </dl>
+            </div>
+            <div class="fields__row">
+              <dl>
+                <dt><code>schema.fields</code></dt>
+                <dd>
+                  title: string, required, at most 300 characters · author: string, required ·
+                  pages: number · publisher: string · tags: string[]
+                </dd>
+              </dl>
+            </div>
+            <div class="fields__row">
+              <dl>
+                <dt><code>ui_intent</code></dt>
+                <dd>
+                  Tags are typed as a comma-separated list. Books are laid out as a feed. Each card
+                  shows the title, the author and the tags, following the direction "a reading entry
+                  that leads with its title".
+                </dd>
+              </dl>
+            </div>
+            <div class="fields__row">
+              <dl>
+                <dt><code>behavior</code></dt>
+                <dd>"Title and author are required. Tags are saved in lowercase."</dd>
+              </dl>
+            </div>
+            <div class="fields__row">
+              <dl>
+                <dt><code>behavioral_errors</code></dt>
+                <dd>create and update: missing_required_fields, for title and author</dd>
+              </dl>
+            </div>
+            <div class="fields__row">
+              <dl>
+                <dt><code>prompt_context</code></dt>
+                <dd>"Books read, with their author, page count, publisher and tags."</dd>
+              </dl>
+            </div>
+            <div class="fields__row">
+              <dl>
+                <dt><code>subject</code>, <code>ground</code>, <code>companion</code></dt>
+                <dd>"a stack of books", teal_green, golden_yellow</dd>
+              </dl>
+            </div>
+          </div>
+          <p class="xs" style="margin-top: var(--space-3)">
+            The keys are the spec's own. The values are illustrative: a model chose every one, and
+            another build of the same sentence could choose differently.
+          </p>
+          <p>Before reading on, decide which of the six units needs to see <code>pages</code>.</p>
+
+          <h3>What each part is for</h3>
+          <p>
+            The platform reads the schema. Each field becomes a control on the form and a column in
+            <code>cap_books</code>, Books' table. The platform adds columns of its own, such as
+            <code>created_at</code>, the time a record was created. A field has one of seven types:
+            <code>string</code>, <code>number</code>, <code>boolean</code>,
+            <code>date</code>, <code>datetime</code>, <code>choice</code> or <code>string[]</code>,
+            a list of strings. The model never writes the SQL that creates or alters a table: the
+            platform writes it, down to how each table and column name is quoted.
+          </p>
+          <p>
+            <code>ui_intent</code>
+            tells the platform how to present the form and the collection, and tells the item
+            renderer how the card should look and which fields it shows.
+            <code>noun</code>
+            gives the platform its word for one book in the empty state, the record count and the
+            prompts Aluna uses when you ask about your books.
+          </p>
+          <p>
+            Each unit's prompt holds only the part of the spec that unit depends on. Create and
+            update see every field. Search sees the fields it can search as text, which are strings,
+            choices and lists. Read and delete see no fields. Every handler also sees
+            <code>behavior</code>
+            and the errors declared for it. The item renderer sees the layout, the card's direction,
+            the fields the card shows and the design tokens it may use (named colours, sizes and
+            spacings), with worked examples. <code>pages</code> is a number the card does not show,
+            so only create and update see it.
+          </p>
+          <p>
+            <code>prompt_context</code>
+            is written for the intent resolver, which reads it to learn what Books holds each time
+            it classifies a later sentence. <code>subject</code>,
+            <code>ground</code>
+            and <code>companion</code> describe the logo: something to draw and two hue families,
+            which are named groups of colours.
+          </p>
+
+          <h3>Checked before anything is built</h3>
+          <p>
+            The spec must match a strict format, and the platform refuses one that does not before
+            any table or code exists. Among what it refuses: a card that shows something other than
+            one of the fields or <code>created_at</code>; required fields with no declared error for
+            create and update; a ground and companion that name the same hue family. The platform
+            then creates the table in a throwaway in-memory database. A schema that SQLite would
+            refuse fails there, before the real database gets a table.
+          </p>
+
+          <h3>One unit at a time</h3>
+          <p>
+            The model writes each unit as a whole file: the item renderer first, then the handlers
+            for create, read, update, delete and search. The platform checks each unit against its
+            contract: one exported function (async for a handler, synchronous for the item
+            renderer), no imports and nothing ambient such as <code>process</code>. A handler may
+            not touch raw HTTP or run SQL that changes data. It may query only Books' table and,
+            when the spec says that handler's Action reads another capability, that capability's
+            table. The item renderer may read only the fields the card shows. Then the platform
+            type-checks the unit by itself. If either check fails, the model writes that unit once
+            more with the errors in front of it, two attempts in all. The retry touches no other
+            unit.
+          </p>
+
+          <div class="note note--sky">
+            <h4>Tests come from the spec</h4>
+            <p class="sm">
+              The behavioral tests the Gate runs are written from the spec. No step reads the
+              generated code to learn what Books is meant to do.
+            </p>
+          </div>
+
+          <div class="system-state" role="group" aria-label="System state">
+            <p class="caps system-state__label">System state</p>
+            <dl class="system-state__rows">
+              <dt>Registry</dt>
+              <dd><span>Nothing yet</span></dd>
+              <dt>Disk</dt>
+              <dd><span>Nothing committed yet</span></dd>
+              <dt>Database</dt>
+              <dd><span>Nothing yet. The table was proven in a throwaway database</span></dd>
+            </dl>
+          </div>
+        </section>
+
+        <section class="window--section" id="gate" data-window data-title="Three · The Gate">
+          <p class="lede">
+            The model has written six units for Books, and nothing has run them yet. The
+            <strong>Gate</strong>
+            stands between those units and the desk: four rungs of checks, run in order.
+          </p>
+
+          <div data-gate>
+            <h3 id="bench-the-four-rungs">The four rungs</h3>
+            <div class="ladder" data-gate-ladder>
+              <div class="rung" data-rung="structural">
+                <span class="rung__number">1</span>
+                <div>
+                  <h4>Structural</h4>
+                  <p class="xs">
+                    Checks the spec again and confirms that all six units are there with the one
+                    function the platform calls in each. It re-runs the contract check and the
+                    type-check each unit passed when it was written.
+                  </p>
+                </div>
+                <span class="pill" data-rung-state aria-live="polite">Waiting</span>
+              </div>
+              <div class="rung" data-rung="smoke">
+                <span class="rung__number">2</span>
+                <div>
+                  <h4>Smoke</h4>
+                  <p class="xs">
+                    Drives create, read, update, delete and search with the platform's own sample
+                    values against a throwaway database, and checks that a record is created, shown,
+                    updated, found and removed. It does not read the spec's rules.
+                  </p>
+                </div>
+                <span class="pill" data-rung-state aria-live="polite">Waiting</span>
+              </div>
+              <div class="rung" data-rung="design">
+                <span class="rung__number">3</span>
+                <div>
+                  <h4>Design lint</h4>
+                  <p class="xs">
+                    Renders the card with synthetic and hostile values, and fails a card that uses a
+                    style, class or markup the platform does not allow, or leaves out a field the
+                    card should show.
+                  </p>
+                </div>
+                <span class="pill" data-rung-state aria-live="polite">Waiting</span>
+              </div>
+              <div class="rung" data-rung="behavioral">
+                <span class="rung__number">4</span>
+                <div>
+                  <h4>Behavioral</h4>
+                  <p class="xs">
+                    Runs the tests written from the spec. It is the one rung that can be switched
+                    off: it adds real time to a build, and the experiment compares builds with it
+                    and without it.
+                  </p>
+                </div>
+                <span class="pill" data-rung-state aria-live="polite">Waiting</span>
+              </div>
+            </div>
+
+            <div class="readout" aria-live="polite" aria-atomic="true" data-gate-readout>
+              <p class="readout__title" data-slot="title">All four rungs will run.</p>
+              <p class="readout__body" data-slot="body">
+                The behavioral rung is switched on. The bug to plant sits in the update handler: it
+                keeps the capital letters you typed in tags, although the spec says tags are saved
+                in lowercase. Which rung will catch it? Plant it and run the Gate, then run it again
+                with the behavioral rung switched off.
+              </p>
+              <p class="readout__rule" data-slot="rule"></p>
+            </div>
+
+            <div class="row">
+              <div class="segmented" role="group" aria-label="Gate settings">
+                <button type="button" data-gate-toggle="tier" aria-pressed="true">
+                  Behavioral rung
+                </button>
+                <button type="button" data-gate-toggle="bug" aria-pressed="false">
+                  Plant a bug
+                </button>
+              </div>
+              <button class="btn btn--primary btn--sm" type="button" data-gate-run>
+                Run the Gate
+              </button>
+              <button class="btn btn--outline btn--sm" type="button" data-gate-reset>Reset</button>
+            </div>
+          </div>
+
+          <h3>Tests written from the spec</h3>
+          <p>
+            A test written by reading the handler it checks will agree with whatever that handler
+            does, mistakes included. The model that writes the behavioral tests never sees handler
+            code. It writes them from the behavior prose, the errors each Action declares, the part
+            of the schema that Action works with and any capabilities that Action reads. It also
+            sees every field, but only so that it can fill in whole sample books for its tests.
+            Books' tests were written before any handler existed and frozen then, so no handler
+            could shape them.
+          </p>
+          <p>
+            When a test fails, each handler it traces to goes back to the model for one repair, and
+            the same tests run again. If a repaired handler still fails, the build fails and nothing
+            is published.
+          </p>
+          <details class="aside">
+            <summary>How a failure is traced to a handler</summary>
+            <p class="sm">
+              When a test fails on the HTML a handler returned and the item renderer is new too, as
+              it is on every first build, the fault could lie in the renderer as easily as in the
+              handler. Aluna does not try to narrow it down: every handler goes back. The model
+              repairs only handlers, so a fault in the renderer itself is still there when the tests
+              run again, and the build fails. A test that fails before its handler runs sends no
+              handler back, and the build fails. Smoke and design lint have repair rounds of their
+              own; a structural failure has none.
+            </p>
+          </details>
+
+          <h3>Throwaway data</h3>
+          <p>
+            Smoke gets a fresh in-memory SQLite database for each attempt, and each behavioral test
+            case gets its own. Each is built from the spec's schema and holds no real record for a
+            handler to reach. Generated code runs in the same process as the platform, and in the
+            Gate it can query and write only through what the platform hands it, built over its
+            throwaway database. On a first build, smoke and the behavioral tests also compare every
+            capability table in the real database before and after they run, and the Gate fails if
+            any of them changed.
+          </p>
+
+          <h3>The design contract</h3>
+          <p>
+            The item renderer decides how a book's card looks. Design lint holds it to Aluna's
+            design contract.
+          </p>
+          <div class="cols">
+            <article class="note note--sky">
+              <h4>Chosen from design tokens</h4>
+              <p>
+                Colour, size and spacing. The model picks among named values that ship with Aluna,
+                and each capability can still have a look of its own.
+              </p>
+            </article>
+            <article class="note note--clay">
+              <h4>Never declared</h4>
+              <p>
+                Font family, border, corner radius and shadow. The platform sets the typeface and
+                draws every border itself. There is no radius token, and nothing inside a window
+                casts a shadow.
+              </p>
+            </article>
+          </div>
+          <p>
+            The prompt also rules out outlines and text shadows, which would draw a border or a
+            shadow another way. It rules out transforms too, because the platform decides where a
+            record sits. A renderer may not invent a class or nest an interactive element inside a
+            record. It may not emit a script or an event attribute, and it may not put a field's
+            value into a style attribute.
+          </p>
+          <p>
+            At runtime an enforcer drops invented classes, event attributes and any off-contract
+            style, unwraps interactive elements and removes scripts. Design lint runs the same
+            enforcer over synthetic and hostile values. A renderer that fails design lint is written
+            once more, and the build fails if the rewrite is still off the contract.
+          </p>
+
+          <div class="note note--clay">
+            <h4>What these checks cannot stop</h4>
+            <p class="sm">
+              The throwaway databases and the static checks are there to catch what a model gets
+              wrong. They cannot contain code written to do harm: generated code runs in the same
+              process as the platform, and Aluna has no process sandbox.
+            </p>
+          </div>
+
+          <div class="system-state" role="group" aria-label="System state">
+            <p class="caps system-state__label">System state</p>
+            <dl class="system-state__rows">
+              <dt>Registry</dt>
+              <dd><span>Nothing yet</span></dd>
+              <dt>Disk</dt>
+              <dd><span>Nothing committed yet</span></dd>
+              <dt>Database</dt>
+              <dd><span>Nothing yet. The Gate's checks ran on throwaway databases</span></dd>
+            </dl>
+          </div>
+        </section>
+
+        <section class="window--section" id="live" data-window data-title="Four · Going live">
+          <p class="lede">
+            Books passed the Gate. Its spec, six units and tests will become Books' first version,
+            v1: one directory on disk. Neither that directory nor Books' table in the real database
+            exists yet. Files and database rows cannot change together atomically, so Aluna puts
+            them in order: every file of the new version is written and verified first, and one
+            SQLite transaction then makes Books live.
+          </p>
+
+          <h3 id="bench-staging-to-live">Publishing a version</h3>
+          <div class="scroller" tabindex="0" role="group" aria-labelledby="bench-staging-to-live">
+            <div class="rail">
+              <div class="node node--platform">
+                <span class="node__name">Stage it</span>
+                <span class="node__sub">A private staging directory</span>
+              </div>
+              <span class="arrow"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node node--platform">
+                <span class="node__name">Verify it</span>
+                <span class="node__sub">Every file present and unaltered</span>
+              </div>
+              <span class="arrow"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node node--platform">
+                <span class="node__name">Rename it into place</span>
+                <span class="node__sub">Atomic; replaces nothing</span>
+              </div>
+              <span class="arrow"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node is-done">
+                <span class="node__name">One transaction</span>
+                <span class="node__sub">Schema, registry, metrics &mdash; together</span>
+              </div>
+              <span class="arrow is-live"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node node--platform">
+                <span class="node__name">Swap the window</span>
+                <span class="node__sub">After the commit</span>
+              </div>
+            </div>
+          </div>
+          <div class="legend" style="margin-top: var(--space-3)">
+            <span><i class="is-live"></i> The commit</span>
+            <span><i class="is-platform"></i> Platform code</span>
+          </div>
+
+          <p>
+            The transaction does three things, all or none. It creates <code>cap_books</code>. It
+            adds Books to the <strong>registry</strong>, the table with one row per capability, in a
+            row that names v1 as the live version. It marks the build's metrics row as a success.
+            After the commit, that row cannot turn into a failure: Books is live, and only showing
+            it is left.
+          </p>
+          <details class="aside">
+            <summary>A failure or a disconnect around the commit</summary>
+            <p class="sm">
+              A failure before the commit rolls the database back, and nothing goes live. A version
+              directory already renamed into place sits unused until Aluna proves it never went live
+              and removes it. A browser that disconnects before the commit cancels the build. A
+              disconnect after the commit changes nothing: the build is not retried or relabelled,
+              and a reload finds Books on the desk, because the registry lists it.
+            </p>
+          </details>
+
+          <h3>The logo, drawn later</h3>
+          <p>
+            Books is committed with no logo. Its tile asks the server for a logo attempt as soon as
+            it lands on the desk, and the attempt waits for the build to end. One short database
+            write claims the attempt, a separate image service draws the logo and a second write
+            settles the result.
+          </p>
+          <p>
+            In the spec, the logo's subject is a stack of books, and its hue families are teal green
+            for the ground behind the books and golden yellow for the companion colour they are
+            drawn in. The platform assigns every capability a seed, a random number that picks one
+            of four shades in each family, independently. The image service gets the subject, the
+            two shades and the seed, which it uses in place of a random number of its own. The
+            shades are worked out again from the seed on every read and never stored.
+          </p>
+          <p>
+            A failed attempt puts the logo back to waiting, and the next desk load tries again.
+            After three claimed attempts, Aluna stops trying.
+          </p>
+          <details class="aside">
+            <summary>Why the seed picks the shade</summary>
+            <p class="sm">
+              The model used to pick each colour from a different list of eight named colours, sky
+              among them. It gave the same kind of prompt the same colour, and the name "sky" read
+              as a backdrop: three of the first four live logos stood on sky blue. The family is
+              still the model's pick and can repeat. Because of the seed, capabilities that name the
+              same family usually come out in different shades.
+            </p>
+            <div class="hues" style="margin-top: var(--space-3)">
+              <div class="hue">
+                <p class="caps">grass green</p>
+                <p class="hue__name">grass, emerald, lime, clover</p>
+              </div>
+              <div class="hue">
+                <p class="caps">forest green</p>
+                <p class="hue__name">forest, pine, fern, juniper</p>
+              </div>
+              <div class="hue">
+                <p class="caps">teal green</p>
+                <p class="hue__name">teal, turquoise, viridian, jade</p>
+              </div>
+              <div class="hue">
+                <p class="caps">cyan blue</p>
+                <p class="hue__name">cyan, azure, aqua, cerulean</p>
+              </div>
+              <div class="hue">
+                <p class="caps">golden yellow</p>
+                <p class="hue__name">golden, amber, marigold, lemon</p>
+              </div>
+              <div class="hue">
+                <p class="caps">mustard ochre</p>
+                <p class="hue__name">mustard, ochre, turmeric, cinnamon</p>
+              </div>
+              <div class="hue">
+                <p class="caps">coral orange</p>
+                <p class="hue__name">coral, tangerine, persimmon, apricot</p>
+              </div>
+              <div class="hue">
+                <p class="caps">amethyst violet</p>
+                <p class="hue__name">amethyst, iris, orchid, plum</p>
+              </div>
+            </div>
+            <p class="sm" style="margin-top: var(--space-3)">
+              None of the eight families is signal red, which on screen means an alert or a
+              destructive confirmation.
+            </p>
+          </details>
+
+          <h3>Endings</h3>
+          <p>
+            Activation is the ending that puts a version live. Every other ending leaves the desk
+            without Books. A first build can fail at a stage before the commit. It is cancelled when
+            you cancel, when you leave while it builds or when the browser disconnects. Only one
+            build runs at a time, so a build can wait for another to finish before it starts. A
+            build is refused as stale when the catalog changed after the resolver read it, for
+            example because the build ahead of it made or changed a capability. A running build is
+            interrupted when the process dies; a build still waiting has no metrics row yet, so
+            nothing is left to mark.
+          </p>
+
+          <details class="aside">
+            <summary>The events the window acts on</summary>
+            <p class="sm">
+              The server streams a build's events to the window over one server-sent events
+              connection. The same stream carries the Developer panel's previews of what each stage
+              produced, such as the spec, the units and the Gate's verdict.
+            </p>
+            <div class="fields" style="margin-top: var(--space-3)">
+              <div class="fields__row">
+                <dl>
+                  <dt><code>narration</code></dt>
+                  <dd>
+                    A line in Aluna's voice, added to what she has already said, and at an ending,
+                    its Continue button
+                  </dd>
+                </dl>
+              </div>
+              <div class="fields__row">
+                <dl>
+                  <dt><code>fragment</code></dt>
+                  <dd>
+                    HTML placed by its marker or out of band: a window title, the provisional tile
+                    and its name, a notice in the prompt bar or the screen the build displaced
+                  </dd>
+                </dl>
+              </div>
+              <div class="fields__row">
+                <dl>
+                  <dt><code>commit</code></dt>
+                  <dd>
+                    The live version's collection and its tile, replacing the window's contents,
+                    sent only for an activation
+                  </dd>
+                </dl>
+              </div>
+              <div class="fields__row">
+                <dl>
+                  <dt><code>done</code></dt>
+                  <dd>
+                    The end of the build: the server ends the stream and the client closes its side
+                  </dd>
+                </dl>
+              </div>
+              <div class="fields__row">
+                <dl>
+                  <dt><code>heartbeat</code></dt>
+                  <dd>A keep-alive with no id, meaning nothing to the product</dd>
+                </dl>
+              </div>
+            </div>
+            <p class="sm" style="margin-top: var(--space-3)">
+              A browser's
+              <code>EventSource</code>
+              reconnects by itself when a server closes the stream, so the client declares
+              <code>sse-close="done"</code>
+              and closes the connection itself at the last event. Without that, the build never ends
+              in the browser: the provisional tile stays on the desk, the prompt bar stays locked
+              and the browser keeps reconnecting to a build that no longer exists and gets another
+              <code>done</code>
+              each time.
+            </p>
+          </details>
+
+          <div class="system-state" role="group" aria-label="System state">
+            <p class="caps system-state__label">System state</p>
+            <dl class="system-state__rows">
+              <dt>Registry</dt>
+              <dd><span>Books → v1</span></dd>
+              <dt>Disk</dt>
+              <dd><span>books/v1 (spec · 6 units · tests)</span></dd>
+              <dt>Database</dt>
+              <dd><span>cap_books · 0 rows</span></dd>
+            </dl>
+          </div>
+        </section>
+
+        <section class="window--section" id="using" data-window data-title="Five · A first book">
+          <p class="lede">
+            You press the button for a new book, enter <em>The Left Hand of Darkness</em> by Ursula
+            K. Le Guin, published by Ace, and save. The save is a request to create, one of Books'
+            five Actions. Editing and deleting a book later go through Books' handlers too. What
+            must the update and delete handlers never be handed, so that neither can change a book
+            you did not name?
+          </p>
+
+          <h3 id="bench-saving-a-book">Saving a book</h3>
+          <div class="scroller" tabindex="0" role="group" aria-labelledby="bench-saving-a-book">
+            <div class="rail">
+              <div class="node node--platform">
+                <span class="node__name">/capability/:id/:action</span>
+                <span class="node__sub">The route every Action uses</span>
+              </div>
+              <span class="arrow"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node node--platform">
+                <span class="node__name">The router checks</span>
+                <span class="node__sub">Method, Action, form fields, target</span>
+              </div>
+              <span class="arrow"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node node--generated">
+                <span class="node__name">The handler runs</span>
+                <span class="node__sub">Given interfaces to query, present and write</span>
+              </div>
+              <span class="arrow"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node node--platform">
+                <span class="node__name">The platform scrubs</span
+                ><span class="node__sub">No scripts, no event attributes</span>
+              </div>
+              <span class="arrow"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node node--platform">
+                <span class="node__name">The window updates</span>
+                <span class="node__sub"
+                  >A declared error goes into the form; a saved book appears through a fresh read</span
+                >
+              </div>
+            </div>
+          </div>
+          <div class="legend" style="margin-top: var(--space-3)">
+            <span><i class="is-platform"></i> Platform code</span>
+            <span><i class="is-generated"></i> Written by the model</span>
+          </div>
+
+          <h3>The route</h3>
+          <p>
+            Your save is a POST to <code>/capability/books/create</code>. <code>read</code> and
+            <code>search</code>
+            are GET, and <code>create</code>, <code>update</code> and
+            <code>delete</code>
+            are POST. Any other pairing gets a 404 before any generated code is loaded.
+          </p>
+          <p>
+            The router's own form fields, such as the one listing which fields the form sent, start
+            with
+            <code>__aluna_</code>. It takes them out of the form before the handler sees it, and
+            refuses any other key with that prefix. A spec cannot name a field with that prefix.
+          </p>
+
+          <h3>How generated code writes and reads</h3>
+          <p>
+            Generated code can damage your data only by writing to it, for example by dropping a
+            table or corrupting a row. A read cannot lose data. Generated code gets no SQL that
+            changes data and no table name to write to, only a write interface the platform hands
+            it. For reads it composes its own SQL, one statement at a time. Books declares no read
+            of another capability, so that SQL reads only Books' table.
+          </p>
+
+          <h3>What the handler is given</h3>
+          <p>
+            The create handler receives the parsed form and three interfaces: one to query, one to
+            present records as cards and one to write. It never sees the raw request. Its write
+            interface is bound to Books, with no table name and no way to pick another capability.
+            In the Gate, each handler gets the interfaces a live request would give it, built over a
+            throwaway database.
+          </p>
+          <p>
+            For update and delete, the router checks that the request names exactly one record, and
+            binds the write interface to that record before generated code runs. The handler is
+            never handed the record's id:
+            <code>update</code>
+            takes only the values to write, and <code>delete</code> takes nothing. No handler can
+            change a book the request did not name.
+          </p>
+          <div class="lanes">
+            <div class="lane lane--write">
+              <h4>What a handler may write</h4>
+              <p class="sm">
+                Through a write interface bound to Books, and for update and delete bound to the one
+                record the request named.
+              </p>
+              <ul>
+                <li>
+                  The platform normalises values, enforces required fields and validates the
+                  finished row
+                </li>
+                <li>
+                  Update merges into the stored row: fields the form did not send survive an edit,
+                  and so do the platform's <code>id</code> and <code>created_at</code> columns
+                </li>
+                <li>
+                  An optional field can be cleared with a null or an empty value; a required field
+                  cannot be cleared
+                </li>
+                <li>A handler that returns one of its declared errors has its write rolled back</li>
+              </ul>
+            </div>
+            <div class="lane lane--read">
+              <h4>What a handler may read</h4>
+              <p class="sm">
+                SQL the handler composes itself, on a read-only SQLite connection the platform
+                opened, with values bound as parameters where the handler supplies them.
+              </p>
+              <ul>
+                <li>
+                  Every query declares the columns it expects, and the platform discards any other
+                  column in the result
+                </li>
+                <li>
+                  A query that asks for records returns their ids in order, and the platform loads
+                  the real rows in the same read transaction, so every card belongs to a stored row
+                </li>
+              </ul>
+            </div>
+          </div>
+          <p>
+            A save with no title never reaches <code>cap_books</code>. The browser stops an empty
+            title first, with the platform's line <em>I still need this one.</em> A title of only
+            spaces gets past the browser, and then the create handler has to catch it. It checks for
+            missing required fields before it writes, and when one is missing it returns its
+            declared <code>missing_required_fields</code> error, in words the model chose. If a
+            blank value slips past the handler, the write interface refuses it in the platform's
+            words. On update, the write interface's check of the merged row finds the missing field,
+            and the handler turns that failure into the same declared error.
+          </p>
+
+          <h3>What the platform draws</h3>
+          <p>
+            Platform code draws the collection with its search box and its button for a new record,
+            the empty state, the wrapper that makes a record pressable, the record view, every field
+            control and the delete confirmation. Besides the spec's words, such as field labels, the
+            model writes two things that reach Books' screens. The item renderer turns one record
+            into the markup inside its card. The HTML a handler returns puts those cards together
+            and adds small pieces of its own, such as echoing a search. The enforcer from chapter
+            three limits a record's markup, and the platform strips scripts and event attributes
+            from all the HTML a handler returns.
+          </p>
+
+          <div class="system-state" role="group" aria-label="System state">
+            <p class="caps system-state__label">System state</p>
+            <dl class="system-state__rows">
+              <dt>Registry</dt>
+              <dd><span>Books → v1</span></dd>
+              <dt>Disk</dt>
+              <dd><span>books/v1</span></dd>
+              <dt>Database</dt>
+              <dd><span>cap_books · 1 row</span></dd>
+            </dl>
+          </div>
+        </section>
+
+        <section
+          class="window--section"
+          id="changing"
+          data-window
+          data-title="Six · Changing Books"
+        >
+          <p class="lede">
+            A few weeks later you want to note when you finished each book. With Books open in the
+            window, you type <em>add the date I finished</em>.
+          </p>
+
+          <h3>The resolver's view of Books</h3>
+          <p>
+            This time the catalog has an entry. The resolver's prompt lists Books in an entry built
+            from its registry row. Nothing in the entry holds a book:
+          </p>
+          <pre class="payload"><code>- id: books
+  label: Books
+  version: 1
+  prompt_context: Books read, with their author, page count, publisher and tags.
+  content_free_field_catalog:
+    - title: string, lifecycle active
+    - author: string, lifecycle active
+    - pages: number, lifecycle active
+    - publisher: string, lifecycle active
+    - tags: string[], lifecycle active, list_input comma_separated</code></pre>
+          <p>
+            The catalog lists each field with a name, a type and a lifecycle, and lists an active
+            list field's input style too. <code>active</code> means the field is on the form. A
+            later change can take a field off the form and keep its values, which Aluna calls hiding
+            it, and a hidden field is listed as <code>lifecycle inactive</code>.
+          </p>
+          <p>
+            Books appears a second time in the prompt, as the capability open in the window, and the
+            prompt tells the model that the open capability is strong context for a change that
+            names nothing. Your sentence names no capability, so the resolver targets Books and
+            classifies the sentence as <code>extend_capability</code>. A change to a capability that
+            already exists is an <strong>evolution</strong>.
+          </p>
+          <p>
+            Had you typed <em>show the page count on each card</em>, the resolver would have
+            classified it as <code>ui_change</code>: a change to how Books looks or what it calls
+            things, limited to the closed list below. The builder runs the same steps for both, and
+            fails a <code>ui_change</code> whose new spec changes anything outside that list, such
+            as adding or hiding a field or reordering the form. A request about how something looks
+            that falls outside that list, such as moving it 2px or making it blue, is classified as
+            <code>reject</code>, because Aluna chooses colour, size, spacing and position herself. A
+            request for a new look for the card can be a <code>ui_change</code>, because the card's
+            design direction is on the list; the model then picks the design tokens.
+          </p>
+          <details class="aside">
+            <summary>Everything a ui_change may change</summary>
+            <p class="sm">
+              The capability's name, the word for one record, field labels, a list field's input
+              style, a text field's multi-line box, the hint under a field, the layout and the card:
+              its design direction and the fields it shows.
+            </p>
+          </details>
+
+          <h3>A whole new spec</h3>
+          <p>
+            The builder asks the model for a complete candidate spec: Books as it should be once the
+            change is made, every field included. The platform validates it before any schema change
+            or code. Then the <strong>Diff Engine</strong> compares the candidate with the committed
+            spec, and each difference becomes a typed <strong>change fact</strong>. Here there is
+            one: a new field, <code>finished</code>, of type <code>date</code>.
+          </p>
+
+          <h3 id="bench-evolution-path">The evolution path</h3>
+          <div class="scroller" tabindex="0" role="group" aria-labelledby="bench-evolution-path">
+            <div class="rail">
+              <div class="node node--generated">
+                <span class="node__name">Candidate spec</span>
+                <span class="node__sub">All of Books, as it should be</span>
+              </div>
+              <span class="arrow"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node node--platform">
+                <span class="node__name">Validate</span>
+                <span class="node__sub">Before any schema change or code</span>
+              </div>
+              <span class="arrow"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node node--platform">
+                <span class="node__name">Diff Engine</span>
+                <span class="node__sub">Differences become change facts</span>
+              </div>
+              <span class="arrow"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node node--platform">
+                <span class="node__name">Work plan</span>
+                <span class="node__sub">Platform work, units, tests</span>
+              </div>
+              <span class="arrow"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node node--generated">
+                <span class="node__name">Generate or copy</span>
+                <span class="node__sub">Each of the six units</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="note note--sky">
+            <h4>A complete candidate</h4>
+            <p class="sm">
+              A patch would list only what the model thinks changed, and everything it left out
+              would be trusted to be unaffected. With a complete candidate, deterministic code
+              decides what changed.
+            </p>
+          </div>
+
+          <h3 id="bench-the-matrix">The matrix</h3>
+          <p>
+            The Diff Engine looks each change fact up in the <strong>matrix</strong>, a table with
+            one row for each kind of change the engine can name. The fact's row adds work to the
+            plan: platform work, units the model writes again and test suites. A suite is one
+            Action's behavioral tests. Each unit the plan does not select is copied into the new
+            version byte for byte, the same file that passed the Gate for the previous version. The
+            buttons below are changes you could make to Books, and your picks combine. Before you
+            click a change, guess which of the six units it sends back to the model.
+          </p>
+          <div class="matrix">
+            <div class="facts" data-matrix-facts role="group" aria-label="What changed about Books">
+              <button class="node" type="button" data-fact="newField" aria-pressed="false">
+                <span class="node__name">A date field was added</span>
+                <span class="node__sub">The date you finished each book</span>
+              </button>
+              <button class="node" type="button" data-fact="hideField" aria-pressed="false">
+                <span class="node__name">A text field was hidden</span>
+                <span class="node__sub">Publisher leaves the form; its values stay</span>
+              </button>
+              <button class="node" type="button" data-fact="behavior" aria-pressed="false">
+                <span class="node__name">The behavior prose changed</span>
+                <span class="node__sub">Titles are now saved without a leading "The"</span>
+              </button>
+              <button class="node" type="button" data-fact="errors" aria-pressed="false">
+                <span class="node__name">Update's declared errors changed</span>
+                <span class="node__sub">Update now refuses a duplicate title</span>
+              </button>
+              <button class="node" type="button" data-fact="item" aria-pressed="false">
+                <span class="node__name">The card's design direction changed</span>
+                <span class="node__sub">A new look for every book's card</span>
+              </button>
+              <button class="node" type="button" data-fact="cardFields" aria-pressed="false">
+                <span class="node__name">The fields the card shows changed</span>
+                <span class="node__sub">Pages now appear on the card</span>
+              </button>
+              <button class="node" type="button" data-fact="noun" aria-pressed="false">
+                <span class="node__name">The word for one record changed</span>
+                <span class="node__sub">"book" became "novel"</span>
+              </button>
+              <button class="node" type="button" data-fact="maxLength" aria-pressed="false">
+                <span class="node__name">A length limit was lowered</span>
+                <span class="node__sub">Titles now stop at 200 characters</span>
+              </button>
+            </div>
+
+            <div class="effects" data-matrix-effects aria-live="polite">
+              <div class="effect" data-effect="platform">
+                <p class="effect__name">Schema and platform work</p>
+                <div class="effect__value" data-slot="platform">None.</div>
+              </div>
+              <div class="effect" data-effect="units">
+                <p class="effect__name">Written again by the model</p>
+                <p class="effect__value" data-slot="units">None.</p>
+              </div>
+              <div class="effect" data-effect="copied">
+                <p class="effect__name">Copied byte for byte</p>
+                <p class="effect__value" data-slot="copied">
+                  None: no new version is published, so all six units stay where they are.
+                </p>
+              </div>
+              <div class="effect" data-effect="gate">
+                <p class="effect__name">What the Gate runs</p>
+                <div class="effect__value" data-slot="gate">Nothing runs.</div>
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <button class="btn btn--outline btn--sm" type="button" data-matrix-clear>
+              Change nothing
+            </button>
+            <span class="xs" data-matrix-note>No change picked.</span>
+          </div>
+          <p class="xs" style="margin-top: var(--space-3)">
+            The work shown above assumes Books v1 was built with the behavioral rung on, as it is by
+            default. After a version built with the rung off, an evolution with the rung on writes
+            all five suites fresh and runs them.
+          </p>
+
+          <h3>When the candidate changes nothing</h3>
+          <p>
+            If the candidate means exactly what is already committed, the evolution ends without a
+            new version, and Books stays at v1. The build's metrics row shows a success with the
+            outcome <code>no_change</code>, and the model call that produced the candidate is still
+            measured. The window holds Aluna's line until you press Continue:
+            <em>That's already exactly how this works — nothing to change.</em>
+          </p>
+
+          <h3>Rules the matrix keeps</h3>
+          <p>
+            A fact can add work to the plan and never remove any, so a combination of facts never
+            does less work than one of them needed alone. A unit is copied only after every
+            difference has been accounted for and none of them selected it.
+          </p>
+          <p>
+            When the engine meets a difference the matrix has no row for, the build stops before
+            anything is published, and its metrics row shows a failure. A new kind of change to the
+            spec cannot skip the work it needs: the engine will not go on until someone has written
+            that work into the matrix.
+          </p>
+          <p>
+            The plan is fixed before any unit is written, and only a Gate repair can later rewrite a
+            unit the plan did not select.
+          </p>
+
+          <h3>The old code in the prompt</h3>
+          <p>
+            A selected unit is written with its old source in its prompt, as context the model may
+            use, and a copied unit never enters a prompt. Before the old source goes in,
+            deterministic checks confirm that it still meets the unit's contract and names no hidden
+            field and no table outside its scope, not even in a comment. A name left in the old
+            source would bring that field or table back into the prompt. When the checks fail, the
+            unit is written again without its old source.
+          </p>
+          <p>
+            A copied unit keeps working beside a new column. Every query declares the columns it
+            expects and the platform discards the rest, so <code>SELECT *</code> cannot leak a new
+            field into code written before the field existed.
+          </p>
+
+          <h3>Which tests run</h3>
+          <p>
+            A suite's inputs are the parts of the spec its tests were written from: the behavior
+            prose, plus the part of the schema its Action works with, the errors that Action
+            declares and any capabilities that Action reads. A suite whose inputs changed is written
+            again, and a suite written again always runs. A suite whose inputs did not change can be
+            carried into the new version byte for byte. A carried suite runs when its handler was
+            written again or repaired, and is skipped when its handler was copied.
+          </p>
+          <details class="aside">
+            <summary>When a suite is carried, and when every suite runs</summary>
+            <p class="sm">
+              A suite is carried when the committed version had the behavioral rung on, its inputs
+              are unchanged and none of its cases names a field that is now hidden. The field list
+              used to fill in sample books is not one of the inputs. Every suite runs when the
+              behavior prose changed, since prose cannot be tied to one Action. They also all run
+              when the item renderer changed along with a handler, when design lint repaired the
+              renderer or when the fields the card may show changed.
+            </p>
+          </details>
+
+          <p>
+            For <em>add the date I finished</em>, the candidate leaves the card as it was. The plan
+            adds a nullable column and puts the field on the form and the record view. It sends
+            create and update back to the model, and copies read, delete, search and the item
+            renderer. The Gate passes, and Books v2 goes live.
+          </p>
+
+          <div class="system-state" role="group" aria-label="System state">
+            <p class="caps system-state__label">System state</p>
+            <dl class="system-state__rows">
+              <dt>Registry</dt>
+              <dd><span>Books → v2</span></dd>
+              <dt>Disk</dt>
+              <dd><span>books/v1, v2</span></dd>
+              <dt>Database</dt>
+              <dd><span>cap_books · 1 row</span></dd>
+            </dl>
+          </div>
+        </section>
+
+        <section class="window--section" id="versions" data-window data-title="Seven · Versions">
+          <p class="lede">
+            Books v2 is live. Its new <code>finished</code> field became a nullable column, empty
+            for <em>The Left Hand of Darkness</em>, the one book saved under v1.
+          </p>
+          <p>
+            An evolution never removes a field: a field can be added or hidden, and no schema change
+            Aluna derives drops a column or rewrites one. Suppose you hide Publisher, edit the
+            book's title, then make Publisher active again. What publisher does the book show?
+          </p>
+
+          <h3 id="bench-field-lifecycle">A field's lifecycle</h3>
+          <div class="scroller" tabindex="0" role="group" aria-labelledby="bench-field-lifecycle">
+            <div class="rail rail--wrap">
+              <div class="node node--generated">
+                <span class="node__name">New</span>
+                <span class="node__sub">Always born active</span>
+              </div>
+              <span class="arrow"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node is-done">
+                <span class="node__name">Active</span>
+                <span class="node__sub">On the form, in the data</span>
+              </div>
+              <span class="arrow"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node node--platform">
+                <span class="node__name">Hidden</span>
+                <span class="node__sub">Off the form, still in the data</span>
+              </div>
+              <span class="arrow"
+                ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+              >
+              <div class="node is-done">
+                <span class="node__name">Active again</span>
+                <span class="node__sub">The old values come back</span>
+              </div>
+            </div>
+          </div>
+          <p>
+            A hidden field leaves the form and the card, and keeps its column and its values. Books'
+            handlers can no longer read it, and its values survive an edit, because update merges
+            into the stored row. Made active again, Publisher shows Ace.
+          </p>
+
+          <div class="note note--clay">
+            <h4>What an evolution cannot change</h4>
+            <p class="sm">
+              The platform refuses these changes before any code is written. An evolution cannot
+              drop a field or change a field's name or type, because copied code was written against
+              them. It cannot remove a committed choice option or change the value the option
+              stores, because stored records hold that value. A choice field can sort its options
+              under headed groups, and an evolution can reword a heading but cannot change a group's
+              id. An evolution cannot change the capability's id, because Books' address and table
+              are named after it. It cannot change the subject or hue families the logo was drawn
+              from, because Books keeps the logo it was first drawn with. A hidden field stays
+              exactly as it was until it is made active again, and an active field's label can
+              change.
+            </p>
+          </div>
+
+          <h3>Inside a version</h3>
+          <p>
+            Each build that changes the spec makes a new <strong>version</strong>, and each version
+            is a complete, immutable directory on disk. It holds the exact spec, all five handlers,
+            the item renderer, the frozen tests when the behavioral rung was on and a manifest with
+            a digest for every other file. A version can be verified before it goes live. An old
+            version holds a whole capability by itself.
+          </p>
+          <p>
+            The registry points at the one live version, which supplies the old source and the
+            carried tests for the next evolution. Nothing serves an older version, and the older
+            ones stay on disk as committed history. A committed version that goes missing is treated
+            as corruption.
+          </p>
+          <p>
+            Outside a deletion, the only version directories Aluna removes are ones whose metrics
+            rows prove they never went live. She removes them at start-up, when a later new
+            capability's build starts or when a later evolution is about to publish. Removing a
+            version that did go live would first need a durable log of every activation, which Aluna
+            does not keep yet.
+          </p>
+
+          <div class="system-state" role="group" aria-label="System state">
+            <p class="caps system-state__label">System state</p>
+            <dl class="system-state__rows">
+              <dt>Registry</dt>
+              <dd><span>Books → v2</span></dd>
+              <dt>Disk</dt>
+              <dd><span>books/v1, v2</span></dd>
+              <dt>Database</dt>
+              <dd><span>cap_books · 1 row</span></dd>
+            </dl>
+          </div>
+        </section>
+
+        <section
+          class="window--section"
+          id="choosing"
+          data-window
+          data-title="Eight · Choosing between capabilities"
+        >
+          <p class="lede">
+            By spring Books holds 23 books, and you type <em>track the films I watch</em>. The
+            resolver reads a catalog with Books in it and classifies the sentence as
+            <code>new_capability</code>. Every step of the first build runs again for Films, and the
+            window opens on the new Films collection. Then you open Books again. Now a sentence can
+            mean Books, Films or something new.
+          </p>
+
+          <h3>The catalog with two entries</h3>
+          <p>The resolver's prompt now lists both capabilities:</p>
+          <pre class="payload"><code>- id: books
+  label: Books
+  version: 2
+  prompt_context: Books read, with their author, page count, publisher and tags.
+  content_free_field_catalog:
+    - title: string, lifecycle active
+    - author: string, lifecycle active
+    - pages: number, lifecycle active
+    - publisher: string, lifecycle active
+    - tags: string[], lifecycle active, list_input comma_separated
+    - finished: date, lifecycle active
+- id: films
+  label: Films
+  version: 1
+  prompt_context: Films watched, with their director, year and the date watched.
+  content_free_field_catalog:
+    - title: string, lifecycle active
+    - director: string, lifecycle active
+    - year: number, lifecycle active
+    - watched_on: date, lifecycle active</code></pre>
+
+          <h3 id="bench-eight-sentences">Eight sentences to classify</h3>
+          <p>
+            The resolver has five classifications: <code>new_capability</code>,
+            <code>extend_capability</code>, <code>ui_change</code>, <code>reject</code> and
+            <code>data_query</code>, for a question about your data. The platform can also answer a
+            sentence before the resolver is called at all. Guess where each sentence lands, then
+            pick it.
+          </p>
+          <div class="scroller" tabindex="0" role="group" aria-labelledby="bench-eight-sentences">
+            <div
+              class="rail rail--wrap"
+              data-picker="intent"
+              data-picker-start="none"
+              role="group"
+              aria-label="Example sentences"
+            >
+              <button class="node" type="button" data-pick="0" aria-current="false">
+                <span class="node__name">"track the board games I own"</span>
+              </button>
+              <button class="node" type="button" data-pick="1" aria-current="false">
+                <span class="node__name">"add a rating to my films"</span>
+              </button>
+              <button class="node" type="button" data-pick="2" aria-current="false">
+                <span class="node__name">"lay my books out as a grid"</span>
+              </button>
+              <button class="node" type="button" data-pick="3" aria-current="false">
+                <span class="node__name">"how many Le Guin books did I finish this year?"</span>
+              </button>
+              <button class="node" type="button" data-pick="4" aria-current="false">
+                <span class="node__name">"keep the books I want to read separate"</span>
+              </button>
+              <button class="node" type="button" data-pick="5" aria-current="false">
+                <span class="node__name">"mark each book I've also watched as a film"</span>
+              </button>
+              <button class="node" type="button" data-pick="6" aria-current="false">
+                <span class="node__name">"move that button 2px right"</span>
+              </button>
+              <button class="node" type="button" data-pick="7" aria-current="false">
+                <span class="node__name">"track my films"</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="readout" aria-live="polite" aria-atomic="true" data-picker-readout="intent">
+            <p class="readout__title" data-slot="title">Pick a sentence.</p>
+            <p class="readout__body" data-slot="body">
+              Suppose you typed it on this desk, with Books open in the window. None of these
+              sentences is sent.
+            </p>
+            <p class="readout__rule" data-slot="rule"></p>
+          </div>
+
+          <p class="xs" style="margin-top: var(--space-3)">
+            Illustrative. The real classification comes from a model call against your own catalog,
+            and the same sentence can land differently on a different desk.
+          </p>
+
+          <h3>Overlaps</h3>
+          <p>
+            Before it classifies a sentence, the resolver reads every capability's
+            <code>prompt_context</code>. When a new request overlaps something that already exists,
+            the model settles it: evolve the existing capability, or start a separate one. For a
+            separate capability, the platform refuses a name already on the desk and a numbered copy
+            of one, such as <code>books_2</code> or <em>Books 2</em>.
+          </p>
+          <p>Aluna accepts an occasional wrong resolution so that she never stops to ask you.</p>
+
+          <h3>Capabilities that read each other</h3>
+          <p>
+            Each capability has an isolated table, with no foreign keys, and two capabilities never
+            share a field. A capability that needs another one's data declares, for each Action,
+            which capabilities it reads. That Action's SQL joins the tables when it runs, and the
+            platform checks every query against the declaration.
+          </p>
+          <p>
+            In the Gate, the throwaway database gets an empty table for each capability the spec
+            reads. When the capabilities an Action reads change, the model writes that Action's
+            handler and test suite again and the platform updates its declared reads. Nothing else
+            changes. If a capability hides a field that another one reads, the column stays. The
+            capability that reads the field keeps working and none of its units is written again.
+            Code generated from then on is never shown the field.
+          </p>
+
+          <details class="aside">
+            <summary>What a classification carries</summary>
+            <div class="fields">
+              <div class="fields__row">
+                <dl>
+                  <dt><code>type</code></dt>
+                  <dd>
+                    <code>new_capability</code>, <code>extend_capability</code>,
+                    <code>ui_change</code>, <code>data_query</code> or <code>reject</code>
+                  </dd>
+                </dl>
+              </div>
+              <div class="fields__row">
+                <dl>
+                  <dt><code>target_capability</code></dt>
+                  <dd>
+                    The existing capability a change targets or an overlap touches. For a question,
+                    the open capability when the question leans on it for a vague word, and
+                    <code>null</code>
+                    when it names its own subject.
+                  </dd>
+                </dl>
+              </div>
+              <div class="fields__row">
+                <dl>
+                  <dt><code>proposed_identity</code></dt>
+                  <dd>
+                    The id and label of a separate capability, when the classification settles an
+                    overlap
+                  </dd>
+                </dl>
+              </div>
+              <div class="fields__row">
+                <dl>
+                  <dt><code>resolution</code></dt>
+                  <dd>
+                    <code>extend</code>, <code>namespace</code> (a separate capability),
+                    <code>new</code>
+                    or <code>none</code>
+                  </dd>
+                </dl>
+              </div>
+              <div class="fields__row">
+                <dl>
+                  <dt><code>confidence</code></dt>
+                  <dd>
+                    How sure the model is, from 0 to 1. This and the resolution are logged for the
+                    experiment.
+                  </dd>
+                </dl>
+              </div>
+              <div class="fields__row">
+                <dl>
+                  <dt><code>proposed_action</code></dt>
+                  <dd>A short statement of what to do, which the builder reads</dd>
+                </dl>
+              </div>
+              <div class="fields__row">
+                <dl>
+                  <dt><code>user_facing_label</code></dt>
+                  <dd>
+                    A line in Aluna's voice, such as "I'll make a place for the films you watch",
+                    which opens the narration when the classification leads to a build
+                  </dd>
+                </dl>
+              </div>
+              <div class="fields__row">
+                <dl>
+                  <dt><code>requires_confirmation</code></dt>
+                  <dd>Always false</dd>
+                </dl>
+              </div>
+              <div class="fields__row">
+                <dl>
+                  <dt>Catalog fingerprint</dt>
+                  <dd>
+                    Added by the platform: a hash of the catalog the classification was made against
+                  </dd>
+                </dl>
+              </div>
+            </div>
+          </details>
+
+          <div class="system-state" role="group" aria-label="System state">
+            <p class="caps system-state__label">System state</p>
+            <dl class="system-state__rows">
+              <dt>Registry</dt>
+              <dd><span>Books → v2</span><span>Films → v1</span></dd>
+              <dt>Disk</dt>
+              <dd><span>books/v1, v2</span><span>films/v1</span></dd>
+              <dt>Database</dt>
+              <dd><span>cap_books · 23 rows</span><span>cap_films · 0 rows</span></dd>
+            </dl>
+          </div>
+        </section>
+
+        <section
+          class="window--section"
+          id="devices"
+          data-window
+          data-title="Nine · Two devices at once"
+        >
+          <p class="lede">
+            Until now every request came from one browser tab. While a build is using the window,
+            the prompt bar in that tab is disabled, and a submission that gets through anyway is
+            refused with
+            <em
+              >I'm still making the last thing you asked for. Let me finish, then tell me the next
+              one.</em
+            >
+            Another tab or another device knows nothing of that build. On your laptop, with Books
+            open, you type <em>add a rating to my books</em>. A moment later, on your phone, with
+            Books open there too, you type <em>show the page count on each card</em>.
+          </p>
+          <p>
+            Both builds need to write, and Aluna has one read-write connection. Every build so far
+            took the <strong>lease</strong> on that connection before the builder did any model
+            work, and kept it until the build ended; with one tab, the lease was free or freed
+            within moments. A build keeps the lease that long because its checks assume nothing else
+            writes meanwhile: it works from the catalog it was classified against, and a first
+            build's Gate fails if any capability table changes while its smoke checks or behavioral
+            tests run. The
+            <strong>mutation coordinator</strong>
+            hands out the lease one holder at a time. Once the server is up, it admits every write:
+            builds, record writes such as a save, capability deletions and the platform's own
+            writes, such as a logo attempt or a metrics row.
+          </p>
+
+          <h3 id="bench-two-builds-and-a-save">Two builds and a save</h3>
+          <div data-seq="queue">
+            <div
+              class="scroller"
+              tabindex="0"
+              role="group"
+              aria-labelledby="bench-two-builds-and-a-save"
+            >
+              <div class="rail rail--capped">
+                <div class="rail rail--down" style="gap: var(--space-2)">
+                  <span class="caps">Queued: builds and platform writes</span>
+                  <div class="node is-done" data-stage="0">
+                    <span class="node__name">Build &mdash; rating</span>
+                    <span class="node__sub">Left the queue</span>
+                  </div>
+                  <div class="node is-idle" data-stage="1">
+                    <span class="node__name">Build &mdash; page count</span>
+                    <span class="node__sub">Phone, waiting</span>
+                  </div>
+                </div>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <div class="rail rail--down" style="gap: var(--space-2)">
+                  <span class="caps">Holding the lease</span>
+                  <div class="node is-on" data-stage="3" style="min-height: 4rem">
+                    <span class="node__name">Build &mdash; rating</span>
+                    <span class="node__sub">Laptop</span>
+                  </div>
+                </div>
+                <span class="arrow arrow--back"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <div class="rail rail--down" style="gap: var(--space-2)">
+                  <span class="caps">Never queued: record writes and deletions</span>
+                  <div class="node is-idle" data-stage="2">
+                    <span class="node__name">Save a book</span>
+                    <span class="node__sub">Phone, refused if anything holds or waits</span>
+                  </div>
+                </div>
+                <div class="rail rail--down rail__apart" style="gap: var(--space-2)">
+                  <span class="caps">Reads</span>
+                  <div class="node is-done" data-stage="4">
+                    <span class="node__name">No queue</span>
+                    <span class="node__sub">Read-only connection</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="readout" aria-live="polite" aria-atomic="true">
+              <p class="readout__title" data-slot="title">The laptop's build takes the lease.</p>
+              <p class="readout__body" data-slot="body">
+                Both builds were classified against Books v2. The laptop's build reaches the queue
+                first, finds nothing ahead of it and takes the lease at once. The phone's,
+                classified a moment later, waits behind it and does no work of its own: no further
+                model call, no files. Reads sit apart on the right: they use a separate read-only
+                SQLite connection and never wait for the lease.
+              </p>
+              <p class="readout__rule" data-slot="rule"></p>
+            </div>
+
+            <div class="row">
+              <button class="btn btn--outline btn--sm" type="button" data-seq-step>
+                Next step
+              </button>
+              <button class="btn btn--outline btn--sm" type="button" data-seq-reset>Reset</button>
+              <span class="counter"><b data-seq-count>1</b> of <span data-seq-total>7</span></span>
+            </div>
+          </div>
+
+          <h3>Waiting, then the recheck</h3>
+          <p>
+            Builds and platform writes wait for the lease in a first-in, first-out queue. A waiting
+            build has no time limit. It leaves the queue when it gets the lease, when you cancel or
+            when the browser disconnects. Once it has the lease, a build holds it for up to four
+            hours. When that expires, the coordinator tells the build to stop, and the build keeps
+            the lease until it has stopped.
+          </p>
+          <p>
+            At the front, before any model work, a build rechecks what it was classified against. An
+            evolution checks that its capability still exists as the same capability at the same
+            version. It then checks the catalog fingerprint, a hash of the catalog that the platform
+            stamped on its classification. The fingerprint covers every capability row apart from
+            its logo: logos arrive whenever an attempt finishes, and counting them would make a
+            build stale over a drawing. A change to anything else in any row moves the fingerprint,
+            and a queued build is refused even when the change that landed was about another
+            capability.
+          </p>
+          <p>
+            A build that fails the recheck is refused as <strong>stale</strong>. Aluna does not
+            reclassify it: against a different catalog, the resolver may read the same sentence as a
+            different request. A stale build never starts: it makes no model call of its own and
+            touches no file.
+          </p>
+          <details class="aside">
+            <summary>How a new capability rechecks</summary>
+            <p class="sm">
+              A new capability checks only the fingerprint. A separate capability proposed to settle
+              an overlap first checks that its id is still free, then the fingerprint.
+            </p>
+          </details>
+
+          <h3>When a save is refused</h3>
+          <p>
+            A save needs the lease too: a record write runs its whole handler inside one transaction
+            on it, and a declared error rolls the write back before the lease is let go. A save that
+            joined the queue could wait for hours, behind every build ahead of it. A record write
+            never joins it: while any writer holds the lease or waits for it, the write is refused
+            at once, and you save again later.
+          </p>
+
+          <details class="aside">
+            <summary>Every way a build can end</summary>
+            <div
+              class="scroller"
+              tabindex="0"
+              role="group"
+              aria-label="How a build ends"
+              style="margin-top: var(--space-2)"
+            >
+              <div
+                class="rail rail--wrap"
+                data-picker="ending"
+                role="group"
+                aria-label="How a build ends"
+              >
+                <button class="node" type="button" data-pick="0" aria-current="true">
+                  <span class="node__name">Activated</span>
+                  <span class="node__sub">The pointer moved</span>
+                </button>
+                <button class="node" type="button" data-pick="1" aria-current="false">
+                  <span class="node__name">No change</span>
+                  <span class="node__sub">Nothing to publish</span>
+                </button>
+                <button class="node" type="button" data-pick="2" aria-current="false">
+                  <span class="node__name">Stale</span>
+                  <span class="node__sub">The catalog moved first</span>
+                </button>
+                <button class="node" type="button" data-pick="3" aria-current="false">
+                  <span class="node__name">Failed</span>
+                  <span class="node__sub">A stage failed it</span>
+                </button>
+                <button class="node" type="button" data-pick="4" aria-current="false">
+                  <span class="node__name">Cancelled</span
+                  ><span class="node__sub">Stopped before the commit</span>
+                </button>
+                <button class="node" type="button" data-pick="5" aria-current="false">
+                  <span class="node__name">Interrupted</span>
+                  <span class="node__sub">The process died mid-build</span>
+                </button>
+              </div>
+            </div>
+            <div class="readout" aria-live="polite" aria-atomic="true" data-picker-readout="ending">
+              <p class="readout__title" data-slot="title">The new version is live.</p>
+              <p class="readout__body" data-slot="body">
+                The collection replaces the narration in the window. For a new capability, its tile
+                replaces the provisional one on the desk.
+              </p>
+              <p class="readout__rule" data-slot="rule">success · activated</p>
+            </div>
+            <p class="sm" style="margin-top: var(--space-3)">
+              No change, stale and failed hold their line over the earlier screen until you press
+              Continue. A cancellation gives the screen back at once, if you are still connected to
+              see it. An evolution whose lease expired during a model call is marked cancelled too,
+              but it shows <em>Hmm, that didn't work. Mind trying again?</em> and waits for
+              Continue. If showing a live capability fails while the connection holds, the window
+              says the capability is ready but could not be shown, and asks for a refresh.
+            </p>
+          </details>
+
+          <p>
+            The laptop's build made Books v3, with a rating field. The phone's build had been
+            classified against v2, so it was refused as stale. Aluna also refused the finished date
+            you tried to save on the phone while the laptop's build held the lease. On the phone you
+            type <em>show the page count on each card</em> again. It is now classified against v3,
+            the build runs and Books reaches v4 with pages on its card. Then you open
+            <em>The Left Hand of Darkness</em>
+            again and save March as its finished date, and this time the save goes through.
+          </p>
+
+          <div class="system-state" role="group" aria-label="System state">
+            <p class="caps system-state__label">System state</p>
+            <dl class="system-state__rows">
+              <dt>Registry</dt>
+              <dd><span>Books → v4</span><span>Films → v1</span></dd>
+              <dt>Disk</dt>
+              <dd><span>books/v1–v4</span><span>films/v1</span></dd>
+              <dt>Database</dt>
+              <dd><span>cap_books · 23 rows</span><span>cap_films · 0 rows</span></dd>
+            </dl>
+          </div>
+        </section>
+
+        <section
+          class="window--section"
+          id="asking"
+          data-window
+          data-title="Ten · Asking a question"
+        >
+          <p class="lede">
+            You type <em>how many Le Guin books did I finish this year?</em> Like
+            <em>add the date I finished</em>, it is about Books, but it asks about your data and
+            changes nothing. The resolver classifies it as
+            <code>data_query</code>. The request leaves the build path, and an answer window opens
+            beside Books.
+          </p>
+
+          <h3 id="bench-a-questions-path">A question's path</h3>
+          <p>
+            Your books spell the author three ways: Ursula K. Le Guin, Ursula Le Guin and LeGuin. A
+            query that searched for "Le Guin" would miss the third. Before you step through, work
+            out how a query could find all three.
+          </p>
+          <div data-seq="question">
+            <div
+              class="scroller"
+              tabindex="0"
+              role="group"
+              aria-labelledby="bench-a-questions-path"
+            >
+              <div class="rail">
+                <div class="node is-idle" data-stage="0">
+                  <span class="node__name">The question</span>
+                  <span class="node__sub">Classified by the resolver</span>
+                </div>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <div class="node is-idle" data-stage="1">
+                  <span class="node__name">Where it lives</span>
+                  <span class="node__sub">Books, from the catalog</span>
+                </div>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <div class="node is-idle" data-stage="2">
+                  <span class="node__name">Read the names</span>
+                  <span class="node__sub">How is Le Guin written?</span>
+                </div>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <div class="node is-idle" data-stage="3">
+                  <span class="node__name">Count in SQL</span>
+                  <span class="node__sub">The query does the arithmetic</span>
+                </div>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <div class="node is-idle" data-stage="4">
+                  <span class="node__name">The answer</span>
+                  <span class="node__sub">In words</span>
+                </div>
+              </div>
+            </div>
+            <div class="readout" aria-live="polite" aria-atomic="true">
+              <p class="readout__title" data-slot="title">No build runs for a question.</p>
+              <p class="readout__body" data-slot="body">
+                No spec, generated code or version is made. A loop of at most ten read-only steps
+                works out the answer.
+              </p>
+              <p class="readout__rule" data-slot="rule">data_query</p>
+            </div>
+            <div class="row">
+              <button class="btn btn--outline btn--sm" type="button" data-seq-step>
+                Next step
+              </button>
+              <button class="btn btn--outline btn--sm" type="button" data-seq-reset>Reset</button>
+              <span class="counter"><b data-seq-count>1</b> of <span data-seq-total>5</span></span>
+            </div>
+          </div>
+
+          <h3>The open capability</h3>
+          <p>
+            An open capability reaches the loop only when the resolver reads a question as leaning
+            on it, as <em>how many did I add today?</em> does. The resolver then names the open
+            capability as the question's target. The target tells the loop what vague words point at
+            and never limits what the loop may read. Your Le Guin question names what it is about,
+            so the resolver sets no target and the loop is not told that Books is open.
+          </p>
+
+          <h3>Why a loop</h3>
+          <p>
+            The model gets one tool, a parameterised read-only query, and decides for itself what to
+            run next, up to ten times. A fixed pipeline was rejected: it would need a branch for
+            each case the loop already handles, such as a malformed query, an unknown column or an
+            empty result. The model is told to report only figures a query returned or values it
+            searched on, because a model counting rows will eventually miscount one.
+          </p>
+
+          <h3>When little or nothing matched</h3>
+          <p>
+            You started Books this year. Ask how many books you finished last year, and the only
+            read returns a count of zero. A model phrasing that zero could say
+            <em>You didn't finish any books last year</em>, a claim about your life when the only
+            fact is an empty result. When the only figures a step returns are what SQL gives back
+            for no rows at all, such as a count of zero, Aluna treats the step as matching nothing.
+            A value alone cannot say where it came from, so she reads the statement's query plan
+            first: a statement that could produce a figure over no rows by itself, through a
+            literal, a bound value or arithmetic, counts as matching nothing whatever it returned.
+          </p>
+          <p class="fields__title">Who writes the answer</p>
+          <div class="fields">
+            <div class="fields__row">
+              <dl>
+                <dt>No step matched anything</dt>
+                <dd>
+                  The platform writes the line itself. When a step read one of your collections, the
+                  line names that collection:
+                  <em>Looking at your Books, I couldn't find anything matching that.</em>
+                </dd>
+              </dl>
+            </div>
+            <div class="fields__row">
+              <dl>
+                <dt>At least one step matched</dt>
+                <dd>
+                  The model writes the answer in a separate call, from every step that did not fail.
+                  A step that matched nothing, such as a lone count of zero, reaches that call's
+                  prompt as <em>(none)</em>, and the prompt says to report that nothing matched,
+                  never that you have none.
+                </dd>
+              </dl>
+            </div>
+            <div class="fields__row">
+              <dl>
+                <dt>Every step failed and the model stopped reading</dt>
+                <dd>
+                  The platform writes the line:
+                  <em
+                    >I couldn't get anywhere with that one. Want to try asking a different way?</em
+                  >
+                </dd>
+              </dl>
+            </div>
+            <div class="fields__row">
+              <dl>
+                <dt>The model still wants to read after ten steps</dt>
+                <dd>
+                  The platform writes the line:
+                  <em>I couldn't work this one out. Want to try asking a different way?</em>
+                </dd>
+              </dl>
+            </div>
+            <div class="fields__row">
+              <dl>
+                <dt>The model finds nowhere on the desk for the subject</dt>
+                <dd>
+                  Ask how many board games you own. The model can say that nothing on the desk could
+                  hold them, but only after it has read one of your collections. If none of its
+                  reads matched, Aluna says the first row's line instead. Otherwise a separate model
+                  call picks the words in your question that name the subject. When they match
+                  nothing on the desk, the platform writes:
+                  <em>You don't have anywhere for board games yet — you can ask me to make one.</em>
+                  When those words match something already on the desk, such as a collection or one
+                  of its fields, Aluna has somewhere for them, and the model writes the answer
+                  instead.
+                </dd>
+              </dl>
+            </div>
+          </div>
+
+          <h3>Narration and the answer</h3>
+          <p>
+            While the loop runs, Aluna narrates in lines the platform wrote. Each step carries one
+            of six labels (<code>naming</code>, <code>counting</code>, <code>totalling</code>,
+            <code>listing</code>, <code>dates</code> or <code>other</code>), and each label has one
+            fixed line. The model can neither narrate in words of its own nor put SQL on the screen.
+            The answer itself arrives as prose, with bullets only where a line would have been a
+            list.
+          </p>
+
+          <details class="aside">
+            <summary>Values that mean the same thing</summary>
+            <p class="sm">
+              The model works out which stored values mean the same thing by reading the data. A
+              choice field's options are in the prompt, and a naming step reads the distinct values
+              of any other field, whole lists for a list field. Embeddings were declined. They would
+              add a fourth derived artefact beside the handlers, the item renderer and the tests,
+              with its own version key, its own recovery and a model call every time a record is
+              written.
+            </p>
+          </details>
+
+          <details class="aside">
+            <summary>How a question is kept small and read-only</summary>
+            <p class="sm">
+              A question reads only active fields. A step's result may be at most 16 KiB, and a
+              statement whose text and bound values already exceed 16 KiB is refused before it runs.
+              A read that would take the question past 64 KiB is refused too, well under what ten
+              full steps would add up to. Anything over a limit is refused and never truncated, and
+              the refusal goes back to the model as a failed step, which uses up one of its ten.
+            </p>
+            <p class="sm" style="margin-top: var(--space-2)">
+              SQLite calls on the server's main thread are synchronous: one slow query there would
+              stall every request until it finished. The loop's queries run in a worker with its own
+              read-only connection instead, which keeps the server answering. Terminating that
+              worker hands control back at once, but the statement keeps running until SQLite
+              finishes it. Stopping the statement itself would need <code>sqlite3_interrupt</code>
+              through FFI, and Aluna does not call it.
+            </p>
+            <p class="sm" style="margin-top: var(--space-2)">
+              A question is cancelled when you send anything else from the prompt bar, when you
+              dismiss the answer or when the browser disconnects. Each model call in the loop has a
+              five-minute limit.
+            </p>
+            <div class="seam" style="margin-top: var(--space-3)">
+              <div class="seam__layer is-weak">
+                <div>
+                  <h4>Opening the connection read-only</h4>
+                  <p class="seam__what">
+                    Necessary, and not enough on its own. A read-only connection can still write a
+                    copy of the database elsewhere with <code>VACUUM INTO</code>, attach other files
+                    and spill temporary tables to disk.
+                  </p>
+                </div>
+                <span class="pill">Not sufficient</span>
+              </div>
+              <div class="seam__layer">
+                <div>
+                  <h4>One statement, checked first</h4>
+                  <p class="seam__what">
+                    On the main thread, the check requires a single statement starting with
+                    <code>SELECT</code>
+                    or <code>WITH</code>, with nothing after a semicolon, that reads only this
+                    question's capabilities. The check looks only at what a statement reads, so a
+                    <code>WITH</code>
+                    that writes gets through when it reads nothing outside them. A statement
+                    starting with <code>INSERT</code>,
+                    <code>UPDATE</code>, <code>DELETE</code> or <code>REPLACE</code> skips the check
+                    by name. Both are left on purpose to the worker's read-only connection, which
+                    refuses them.
+                  </p>
+                </div>
+                <span class="pill pill--wait">Bounds reads</span>
+              </div>
+              <div class="seam__layer is-load">
+                <div>
+                  <h4><code>PRAGMA query_only = ON</code></h4>
+                  <p class="seam__what">Refuses <code>VACUUM INTO</code> and temporary tables.</p>
+                </div>
+                <span class="pill pill--ok">Load-bearing</span>
+              </div>
+              <div class="seam__layer is-load">
+                <div>
+                  <h4>Six statement forms refused by name</h4>
+                  <p class="seam__what">
+                    Inside the worker, <code>ATTACH</code>, <code>DETACH</code>,
+                    <code>PRAGMA</code>, <code>VACUUM</code>, <code>REINDEX</code> and
+                    <code>ANALYZE</code>
+                    are refused before they run, and so is any second statement in the same string.
+                    Of the checks inside the worker, only this one stops
+                    <code>ATTACH</code>.
+                  </p>
+                </div>
+                <span class="pill pill--ok">Load-bearing</span>
+              </div>
+              <div class="seam__layer">
+                <div>
+                  <h4>Temporary storage kept in memory</h4>
+                  <p class="seam__what">
+                    Moves SQLite's temporary storage off the disk. It sets no size limit, and it
+                    guards what <code>query_only</code> already refuses.
+                  </p>
+                </div>
+                <span class="pill pill--wait">A second guard</span>
+              </div>
+            </div>
+            <p class="sm" style="margin-top: var(--space-3)">
+              Bun's SQLite binding exposes no authorizer callback: nothing inspects a statement as
+              SQLite compiles it. The read-only connection, <code>query_only</code> and the name
+              check are the whole defence against a question writing.
+            </p>
+          </details>
+
+          <h3>After a question</h3>
+          <p>
+            A question leaves no registry row, logo, version, cached result or declared read. It
+            leaves one row in a separate metrics table. The row holds no records and is written when
+            the loop ends, as a queued, best-effort write that a process dying first would lose. A
+            request classified as <code>reject</code> leaves a row in the same table, queued
+            straight away, with no step count or waiting time.
+          </p>
+          <p>
+            The answer window has no tile and no address to come back to. You dismiss it, and a
+            reload starts without it.
+          </p>
+
+          <div class="system-state" role="group" aria-label="System state">
+            <p class="caps system-state__label">System state</p>
+            <dl class="system-state__rows">
+              <dt>Registry</dt>
+              <dd><span>Books → v4</span><span>Films → v1</span></dd>
+              <dt>Disk</dt>
+              <dd><span>books/v1–v4</span><span>films/v1</span></dd>
+              <dt>Database</dt>
+              <dd><span>cap_books · 23 rows</span><span>cap_films · 0 rows</span></dd>
+            </dl>
+          </div>
+        </section>
+
+        <section
+          class="window--section"
+          id="deleting"
+          data-window
+          data-title="Eleven · Deleting Films"
+        >
+          <p class="lede">
+            You never added a film, so you delete Films. Once you confirm, the deletion drops Films'
+            empty table and removes every version and the logo.
+          </p>
+
+          <h3 id="bench-deleting-films">Deleting Films</h3>
+          <div data-seq="deletion">
+            <div class="scroller" tabindex="0" role="group" aria-labelledby="bench-deleting-films">
+              <div class="rail">
+                <div class="node is-idle" data-stage="0">
+                  <span class="node__name">Confirm</span>
+                  <span class="node__sub">In the window, in plain words</span>
+                </div>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <div class="node is-idle" data-stage="1">
+                  <span class="node__name">Take the lease</span>
+                  <span class="node__sub">Only if nothing holds or waits</span>
+                </div>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <div class="node is-idle" data-stage="2">
+                  <span class="node__name">Check who reads it</span>
+                  <span class="node__sub">A dependant blocks the deletion</span>
+                </div>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <div class="node is-idle" data-stage="3">
+                  <span class="node__name">Stop reads</span>
+                  <span class="node__sub">New ones refused, running ones stopped</span>
+                </div>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <div class="node is-idle" data-stage="4">
+                  <span class="node__name">Tombstone</span>
+                  <span class="node__sub">A row that reserves the id</span>
+                </div>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <div class="node is-idle" data-stage="5">
+                  <span class="node__name">Clean up</span>
+                  <span class="node__sub">Files removed after the commit</span>
+                </div>
+                <span class="arrow"
+                  ><svg aria-hidden="true"><use href="#arrow-right"></use></svg></span
+                >
+                <div class="node is-idle" data-stage="6">
+                  <span class="node__name">Id free</span>
+                  <span class="node__sub">The tombstone goes</span>
+                </div>
+              </div>
+            </div>
+            <div class="readout" aria-live="polite" aria-atomic="true">
+              <p class="readout__title" data-slot="title">
+                It starts at the tile, with a confirmation.
+              </p>
+              <p class="readout__body" data-slot="body">
+                Delete sits in the Films tile's menu and nowhere on the window. The confirmation
+                fills the window and says what will happen: every record goes, and it cannot be
+                undone. No model is called anywhere on this path.
+              </p>
+              <p class="readout__rule" data-slot="rule"></p>
+            </div>
+            <div class="row">
+              <button class="btn btn--outline btn--sm" type="button" data-seq-step>
+                Next step
+              </button>
+              <button class="btn btn--outline btn--sm" type="button" data-seq-reset>Reset</button>
+              <span class="counter"><b data-seq-count>1</b> of <span data-seq-total>7</span></span>
+            </div>
+          </div>
+
+          <details class="aside">
+            <summary>Refusals, timing and retries</summary>
+            <p class="sm">
+              A deletion is refused when another write holds or waits for the lease, when a
+              capability declares a read of this one, when the reads still running do not stop
+              within fifteen seconds or when the deletion is stale: the capability was deleted and
+              built again while the confirmation stood open. A deletion that fails before the commit
+              ends the same way. The refusal replaces the confirmation with a line and a Continue
+              button, and by then reads of the capability are allowed again. Continue takes the same
+              route as the confirmation's <em>Keep it</em> button. A capability that is already gone
+              gets one line and no Continue.
+            </p>
+            <p class="sm" style="margin-top: var(--space-2)">
+              After a successful commit nothing waits for Continue: the tile is gone, the prompt bar
+              says the capability was deleted permanently and the window either puts itself away or
+              gives back whatever the confirmation covered. A clean-up that fails retries up to
+              three times over roughly the next forty seconds. After that, every start-up runs it
+              and every desk load schedules it, until it finishes.
+            </p>
+          </details>
+          <details class="aside">
+            <summary>The tile's menu and Rename</summary>
+            <p class="sm">
+              The menu opens with a right-click, a press-and-hold, the keyboard's menu key or
+              Shift+F10. It also holds Rename, which writes a platform-owned display name. The desk,
+              the window, the resolver and a question's answer use that name in place of the label.
+              The builder's prompts keep the label the model wrote, and the spec, the id, the
+              address, the version and the logo stay as they were.
+            </p>
+          </details>
+          <div class="note note--sun">
+            <h4>The confirmation's words</h4>
+            <p class="sm">
+              It never says <em>archive</em>, <em>hide</em> or <em>deactivate</em>, which are words
+              for something that can be undone.
+            </p>
+          </div>
+
+          <h3>Building Films again</h3>
+          <p>
+            Suppose you typed <em>track the films I watch</em> while the clean-up still had work
+            left. A rebuild whose spec names the id <code>films</code> stops once the spec is
+            written, with
+            <em
+              >I'm still tidying up after the last one of those. Give me a moment, then ask me
+              again.</em
+            >
+            Typed once the clean-up has finished, the same sentence builds Films again. If the model
+            writes the id <code>films</code>, the rebuilt Films gets the same address and table
+            name, and its versions start again from v1.
+          </p>
+          <p>
+            Aluna calls each lifetime of the id <code>films</code> an <strong>incarnation</strong>.
+            The rebuilt Films is the second, with a history of versions of its own. Browsers cache a
+            logo for a year under its URL. Could a browser still show the old logo on the new tile?
+          </p>
+          <details class="aside">
+            <summary>The answer</summary>
+            <p class="sm">
+              No. The logo's URL names the incarnation as well as the id, so the rebuilt Films' logo
+              has a URL no browser has cached. Had the URL named only the id <code>films</code>, a
+              browser could show the old logo on the new tile for up to a year. The path of every
+              version on disk names the incarnation too.
+            </p>
+          </details>
+
+          <h3 id="bench-versions-incarnations-and-one-live-pointer">
+            Versions, incarnations and the live pointer
+          </h3>
+          <div data-lifetimes>
+            <div
+              class="scroller"
+              tabindex="0"
+              role="group"
+              aria-labelledby="bench-versions-incarnations-and-one-live-pointer"
+            >
+              <div class="lifetimes" data-lifetimes-stage>
+                <div class="lifetime is-gone">
+                  <p class="caps">Incarnation 1</p>
+                  <p class="xs">Deleted: its table, versions and logo</p>
+                  <div class="version"><span>v1</span><span class="xs">gone</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="readout" aria-live="polite" aria-atomic="true" data-lifetimes-readout>
+              <p class="readout__title" data-slot="title">Films after the deletion.</p>
+              <p class="readout__body" data-slot="body">
+                Incarnation 1 is gone. Build Films again to start a second incarnation at v1, then
+                evolve it to add versions to that incarnation.
+              </p>
+              <p class="readout__rule" data-slot="rule"></p>
+            </div>
+            <div class="row">
+              <button class="btn btn--feature btn--sm" type="button" data-lifetimes-rebuild>
+                Build it again
+              </button>
+              <button class="btn btn--primary btn--sm" type="button" data-lifetimes-evolve>
+                Evolve it
+              </button>
+              <button class="btn btn--outline btn--sm" type="button" data-lifetimes-reset>
+                Reset
+              </button>
+            </div>
+          </div>
+          <details class="aside">
+            <summary>What else carries an incarnation</summary>
+            <p class="sm">
+              A build's metrics row is keyed by build and incarnation, so two incarnations' metrics
+              never mix. The deletion confirmation carries the incarnation it was opened for, and
+              the rename form carries the incarnation, the version and the rename it opened on,
+              empty if there was none. A confirmation or rename form left open from before cannot
+              act on a new incarnation.
+            </p>
+          </details>
+
+          <h3>What a deletion leaves</h3>
+          <p>
+            Aluna keeps a desk's capabilities, records, versions and measurements in five stores.
+            Deleting Films removed it from three of them. The two metrics tables kept every row,
+            because they are the experiment's measurements.
+          </p>
+          <div data-stores>
+            <div class="cols cols--thirds" data-stores-grid aria-live="polite">
+              <article class="note" data-store="registry">
+                <h4>Capability registry</h4>
+                <p data-slot="body">
+                  One row per capability: its spec, which version is live, the incarnation and seed
+                  the platform assigned and any display name a rename wrote. The resolver reads a
+                  summary of every row each time it classifies a sentence.
+                </p>
+              </article>
+              <article class="note" data-store="tables">
+                <h4>Data tables</h4>
+                <p data-slot="body">
+                  Your records, one isolated table per capability, with no foreign keys between
+                  tables.
+                </p>
+              </article>
+              <article class="note" data-store="snapshots">
+                <h4>Version directories</h4>
+                <p data-slot="body">
+                  On disk, outside the database: one immutable directory per version, with the logo
+                  beside the versions.
+                </p>
+              </article>
+              <article class="note" data-store="metrics">
+                <h4>Build metrics</h4>
+                <p data-slot="body">
+                  One row per build that reaches the front of the queue: how long each stage took,
+                  which model ran, how many tokens it used, the resolution, the outcome and, for a
+                  failed build, the stage it stopped at and its message.
+                </p>
+              </article>
+              <article class="note" data-store="questions">
+                <h4>Question metrics</h4>
+                <p data-slot="body">
+                  One row per question, rejected request or sentence caught as a duplicate: the
+                  outcome and the classification, plus the resolver's model, time and tokens. A
+                  duplicate never reaches the resolver, so the platform writes extend_capability as
+                  its classification, with a time of zero and no tokens. A question's row also
+                  counts the loop's steps and how long you waited.
+                </p>
+              </article>
+            </div>
+            <div class="row">
+              <div class="segmented" role="group" aria-label="Store view">
+                <button type="button" data-stores-view="normal" aria-pressed="true">
+                  Before a deletion
+                </button>
+                <button type="button" data-stores-view="deleted" aria-pressed="false">
+                  After a deletion
+                </button>
+              </div>
+            </div>
+          </div>
+          <p>
+            None of the metrics rows holds your records, although a failure message can quote the
+            spec, such as a field's name. Two build steps read stored records: a first build's Gate,
+            which checks that no table changed, and the scan that runs before a length limit is
+            added or lowered, which reports lengths and never values.
+          </p>
+
+          <div class="system-state" role="group" aria-label="System state">
+            <p class="caps system-state__label">System state</p>
+            <dl class="system-state__rows">
+              <dt>Registry</dt>
+              <dd><span>Books → v4</span><span>Films: row removed</span></dd>
+              <dt>Disk</dt>
+              <dd><span>books/v1–v4</span><span>films: every version removed</span></dd>
+              <dt>Database</dt>
+              <dd><span>cap_books · 23 rows</span><span>cap_films: dropped</span></dd>
+            </dl>
+          </div>
+        </section>
+
+        <section
+          class="window--section"
+          id="model"
+          data-window
+          data-title="Twelve · The model's part"
+        >
+          <p class="lede">
+            You want to know whether another model would build Books better. The one way to find out
+            is to run a second Aluna, set up with the other model, and type the same sentences in
+            the same order on her empty desk.
+          </p>
+
+          <h3>One model per run</h3>
+          <p>
+            A run is one Aluna server, and a base URL and a model name pick one text model for every
+            generation in it. Nothing routes a task to a different model: with two models in one
+            run, nobody could say which did what. Logos are the exception, drawn by a separate image
+            service.
+          </p>
+          <div class="scroller" tabindex="0" role="group" aria-label="How a model call is made">
+            <div class="rail rail--down rail--fan" style="gap: var(--space-3)">
+              <div class="node node--platform node--wide">
+                <span class="node__name">Every model call asks for one thing</span
+                ><span class="node__sub"
+                  >generate(prompt, schema); the calling code never touches an SDK</span
+                >
+              </div>
+              <span class="arrow arrow--down"
+                ><svg aria-hidden="true"><use href="#arrow-down"></use></svg></span
+              >
+              <div class="rail rail--wrap">
+                <div class="node">
+                  <span class="node__name">The OpenAI wire</span>
+                  <span class="node__sub"
+                    >Native structured output and a setting for how much the model reasons</span
+                  >
+                </div>
+                <div class="node">
+                  <span class="node__name">The compatible wire</span>
+                  <span class="node__sub">Any other provider speaking OpenAI's chat format</span>
+                </div>
+                <div class="node">
+                  <span class="node__name">The Anthropic wire</span>
+                  <span class="node__sub">Claude</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="xs" style="margin-top: var(--space-3)">
+            A wire is the protocol a provider speaks.
+          </p>
+
+          <h3>Where the two desks can differ</h3>
+          <p>
+            Which parts of the second desk come from the model? Those can differ from yours. Guess
+            before you read the two lists.
+          </p>
+          <div class="lanes">
+            <div class="lane">
+              <h4>From the model</h4>
+              <ul>
+                <li>The capability's id, its label and the word for one record</li>
+                <li>
+                  The fields: names, types, labels, choice options, length limits, which are
+                  required and, in an evolution, which are hidden
+                </li>
+                <li>The <code>prompt_context</code> summary the resolver reads</li>
+                <li>
+                  The control for a list, a choice or a long text field, the hint under a field that
+                  needs one and whether the collection is a feed or a grid
+                </li>
+                <li>The card's design direction and which fields it shows</li>
+                <li>The behavior in prose, and the errors each Action declares</li>
+                <li>Which capabilities each Action reads</li>
+                <li>The logo's subject and its two hue families</li>
+                <li>The six units and the behavioral tests</li>
+                <li>
+                  The resolver's opening line, a question's answer unless the platform supplies one
+                  of its fixed lines, the words of an error a handler declares and which words of
+                  your question Aluna quotes when nothing on the desk holds what you asked about
+                </li>
+              </ul>
+            </div>
+            <div class="lane">
+              <h4>Owned by the platform</h4>
+              <ul>
+                <li>
+                  The incarnation, the seed, the version number and where the version lives on disk
+                </li>
+                <li>Every schema change, down to how each table and column name is quoted</li>
+                <li>Routing, request validation and record targeting</li>
+                <li>The collection, the form, the record view and every field control</li>
+                <li>The display name a rename writes</li>
+                <li>
+                  The rest of the narration, the endings, a question's fixed lines and the
+                  platform's refusal lines
+                </li>
+              </ul>
+            </div>
+          </div>
+          <p>
+            Platform code is the same on both desks, and everything the model writes can differ. The
+            platform picks the incarnation and seed at random, so they differ too, and so does each
+            version's path on disk, which names the incarnation. Version numbers can also drift
+            apart, because only a build that goes live moves the version number. When a sentence
+            moves it on one desk but fails, changes nothing or is refused on the other, the two
+            desks fall out of step. The metrics rows on the two desks then show how each model's
+            builds went.
+          </p>
+
+          <div class="system-state" role="group" aria-label="System state">
+            <p class="caps system-state__label">System state</p>
+            <dl class="system-state__rows">
+              <dt>Registry</dt>
+              <dd><span>Books → v4</span></dd>
+              <dt>Disk</dt>
+              <dd><span>books/v1–v4</span></dd>
+              <dt>Database</dt>
+              <dd><span>cap_books · 23 rows</span></dd>
+            </dl>
+          </div>
+        </section>
+
+        <section class="window--section" id="trace" data-window data-title="Thirteen · Your turn">
+          <p class="lede">
+            Your desk holds Books at v4, with 23 books, and nothing else. The requests below follow
+            one another. Work out what happens before you open each trace.
+          </p>
+
+          <h3>With Books open, you type <em>note who I lent each book to</em></h3>
+          <p>
+            How is it classified? Which units does the model write again, and what do your 23 books
+            hold in the new field?
+          </p>
+          <details class="aside">
+            <summary>The trace</summary>
+            <p class="sm">
+              The resolver targets Books: the sentence is about books. Adding a field is outside
+              what a <code>ui_change</code> allows, so the sentence is classified as
+              <code>extend_capability</code>. The Diff Engine finds one change fact: a new string
+              field, <code>lent_to</code>. The platform adds a nullable column and puts the field on
+              the form and the record view. The model writes create, update and search again, with
+              their suites: create and update see every field, and search reads strings as text.
+              Read, delete and the item renderer are copied if the candidate leaves the card as it
+              was. Your 23 books have no value for <code>lent_to</code>, and Books becomes v5.
+            </p>
+          </details>
+
+          <h3>
+            Then you ask <em>how many books have I finished, and how many have I lent out?</em>
+          </h3>
+          <p>
+            No book has a <code>lent_to</code> value yet. Who writes the answer, and what can it say
+            about the books you lent?
+          </p>
+          <details class="aside">
+            <summary>The trace</summary>
+            <p class="sm">
+              The resolver classifies it as <code>data_query</code>, and nothing is built. Suppose
+              the model counts each in its own step. The count of finished books matches, so the
+              model writes the answer. The count of lent books is zero, which matches nothing, and
+              it reaches the model's prompt as <em>(none)</em>, with the instruction to report that
+              nothing matched, never that you have none. The question leaves only its metrics row.
+            </p>
+          </details>
+
+          <h3>A board games build, then a change from your phone</h3>
+          <p>
+            On your laptop you type <em>track the board games I own</em>. While it builds, you open
+            Books on your phone and send <em>hide the tags</em>. Board Games goes live first. What
+            happens to the Books build, and what does it change once it runs?
+          </p>
+          <details class="aside">
+            <summary>The trace</summary>
+            <p class="sm">
+              It waits in the queue while the board games build holds the lease. At the front it
+              rechecks. Books is still the same capability at v5, but the new Board Games row
+              changed the catalog fingerprint, so the build is refused as stale. You send
+              <em>hide the tags</em>
+              again. This time the sentence is classified against the new catalog, and the build
+              runs. Hiding tags sends create, update and search back to the model, search because it
+              reads lists as text. A hidden field leaves the card, and the card showed tags, so the
+              candidate takes them off it: the item renderer is written again too, and every suite
+              runs because the fields the card may show changed. Read and delete are copied. The
+              column keeps every tag, and Books becomes v6.
+            </p>
+          </details>
+
+          <h3>While that build runs, you delete Board Games</h3>
+          <p>
+            You decide you don't need Board Games after all. On your laptop, you confirm its
+            deletion while the Books build from your phone still holds the lease. What happens?
+          </p>
+          <details class="aside">
+            <summary>The trace</summary>
+            <p class="sm">
+              A deletion never joins the queue, and the build holds the lease, so the deletion is
+              refused at once. The confirmation gives way to a Continue button and the line
+              <em
+                >I'm making another change right now, so I didn't delete Board Games. Try again when
+                I'm finished.</em
+              >
+              Board Games stays exactly as it was.
+            </p>
+          </details>
+
+          <div class="system-state" role="group" aria-label="System state">
+            <p class="caps system-state__label">System state</p>
+            <dl class="system-state__rows">
+              <dt>Registry</dt>
+              <dd><span>Books → v6</span><span>Board Games → v1</span></dd>
+              <dt>Disk</dt>
+              <dd><span>books/v1–v6</span><span>board_games/v1</span></dd>
+              <dt>Database</dt>
+              <dd><span>cap_books · 23 rows</span><span>cap_board_games · 0 rows</span></dd>
+            </dl>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script type="module" src="./scripts/main.js"></script>
+  </body>
+</html>

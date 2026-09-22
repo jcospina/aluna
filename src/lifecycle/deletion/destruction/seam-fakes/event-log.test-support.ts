@@ -1,5 +1,5 @@
-// The Module 7 acceptance fake for the Event Log half of the cleanup seam (PLAN decision 35,
-// ADR-0006, ARCH §6.3 Event Log). Two properties have to hold before M7 can extend M4's deletion
+// The Module 8 acceptance fake for the Event Log half of the cleanup seam (PLAN decision 35,
+// ADR-0006, ARCH §6.3 Event Log). Two properties have to hold before M8 can extend M4's deletion
 // without guessing from free text, and both are provable now.
 //
 // Ownership provenance is server-derived: an event's incarnation set comes from the admitted
@@ -8,8 +8,8 @@
 // assertion rather than a comment. Ingestion is atomic and current-only, so a batch derived before
 // a deletion and presented after it is rejected whole and cannot resurrect purged content.
 //
-// The store shape is the fixed one `../installed-payloads.ts` purges. M7 installs it by platform
-// migration; the tests install it on demand, which makes the core purge exercisable before M7.
+// The store shape is the fixed one `../installed-payloads.ts` purges. M8 installs it by platform
+// migration; the tests install it on demand, which makes the core purge exercisable before M8.
 
 import type { Database } from "bun:sqlite";
 import { getCapability } from "../../../../registry/index.ts";
@@ -24,7 +24,7 @@ import {
   isInstalledEventLogPresent,
 } from "../../installed-payloads.ts";
 
-/** Install the fixed Event Log store M7 will own. Idempotent. */
+/** Install the fixed Event Log store M8 will own. Idempotent. */
 export function installFakeEventLogStore(database: Database): void {
   database.exec(
     `CREATE TABLE IF NOT EXISTS ${EVENT_LOG_TABLE} (

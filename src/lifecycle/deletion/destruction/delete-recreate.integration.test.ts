@@ -5,6 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
+import { RESERVED_ID_BUILD_ENDING } from "../../../pipeline/streaming/terminal-presentation.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { getCapability, insertCapabilityDeletionTombstone } from "../../../registry/index.ts";
 import {
@@ -25,6 +26,7 @@ import {
   type ScratchDbEnv,
   teardownScratchDbEnv,
 } from "../../../server/app.test-support.ts";
+import { renderBuildEnding } from "../../../server/http/index.ts";
 
 setDefaultTimeout(30_000);
 
@@ -141,17 +143,26 @@ describe("permanent capability deletion followed by same-id recreation", () => {
     );
 
     const fake = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC, BEHAVIORAL_SUITE);
+    const metrics = makeMetricsRecorder();
     const build = await runPromptBuild(
-      makeScratchApp(env, fake.provider, makeMetricsRecorder().recordMetrics),
+      makeScratchApp(env, fake.provider, metrics.recordMetrics),
       "Track my notes",
     );
 
     expect(build.events.at(-1)).toMatchObject({ event: "done", data: "error" });
     // The ending says what is true rather than inviting a retry that cannot succeed.
-    expect(build.events.map((event) => event.data).join("\n")).toContain("still tidying up");
+    expect(build.events.map((event) => event.data).join("\n")).toContain(
+      renderBuildEnding(build.jobId, RESERVED_ID_BUILD_ENDING),
+    );
     // Two provider calls: classify the request, author the spec. Nothing after that — no
     // behavioral freeze, no units, no Gate.
     expect(fake.prompts).toHaveLength(2);
     expect(getCapability("notes", conns.readonly)).toBeNull();
+    // Stopped at the spec stage, and never filed under the id the deleted lifetime still holds.
+    expect(metrics.lifecycles.at(-1)).toMatchObject({
+      outcome: "spec_generation_failed",
+      capabilityId: null,
+      measurement: { failure: { stage: "spec_gen" } },
+    });
   });
 });

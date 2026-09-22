@@ -533,6 +533,17 @@ export function createApp(deps: AppDeps = {}): Hono {
     }),
   );
 
+  // The architecture tour ships the same way, from its own top-level folder: its scripts
+  // reach design/styles and design/scripts by relative path, so neither can drift.
+  app.get("/architecture", (c) => c.redirect("/architecture/", 301));
+  app.use(
+    "/architecture/*",
+    serveStatic({
+      root: "./architecture",
+      rewriteRequestPath: (path) => path.replace(/^\/architecture/, ""),
+    }),
+  );
+
   return app;
 }
 

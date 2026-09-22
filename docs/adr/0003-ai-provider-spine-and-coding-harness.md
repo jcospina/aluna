@@ -7,10 +7,9 @@ Status: accepted
 The AI provider contract (ARCH §4 "Model strategy", modules.md epic 1.5) is built
 on the Vercel AI SDK as a thin, in-process provider spine — not a hand-rolled
 streaming client, and not an autonomous coding-agent harness. The SDK supplies
-the three primitives the `generate(prompt, schema)` contract needs: structured
-generation (`generateObject`/`streamObject` with Zod, type-validated), streamed
-text (`streamText` → Hono SSE, for build narration), and a bounded tool-loop
-(`ToolLoopAgent` + `stopWhen`) for the code-writing step. We do not build our own
+the one primitive the `generate(prompt, schema)` contract needs: structured
+generation (`streamObject` with Zod, type-validated). The code-writing step calls
+that same contract. We do not build our own
 streaming SDK, retry/routing, structured-output validation, or multi-provider
 abstraction; those are solved problems the SDK owns. We do keep building the
 harness *discipline* — the pipeline, Diff Engine, layered gate, migration
@@ -30,11 +29,13 @@ runner — because that discipline *is* the thesis, and no SDK ships it.
   coding models — Qwen3-Coder, GLM (Zhipu/Z.ai), Kimi (Moonshot), MiniMax,
   DeepSeek — all of which expose an Anthropic-compatible endpoint. "Compare models
   = run the demo twice" stays a one-line swap.
-- **The harness is agentic *within a unit*, deterministic *across units*.** The
-  code-writing muscle is a bounded loop scoped to a single build unit: write
-  `create.ts`, type-check, feed the error back, fix, and stop on gate-pass or a
-  step cap. It never roams the filesystem or decides its own scope. This is the
-  "coding-run-fix loop" the models are trained for, dropped *inside* a Capability
+- **The harness retries *within a unit* and stays deterministic *across units*.**
+  Each attempt at a unit is one structured generation of the whole file, such as
+  `create.ts`. The platform checks the file against the unit's source contract and
+  type-checks it, and a failed check goes back into the prompt for a fresh whole-file
+  attempt. A unit that fails its second attempt fails the build
+  (`DEFAULT_UNIT_FIX_ATTEMPTS`). The model calls no tools, never touches the
+  filesystem and never decides its own scope. The retry sits *inside* a Capability
   Builder step (ARCH §6.2) without surrendering the cross-unit guarantees:
   spec → derived caches, regenerate only affected units, fail-closed gate, atomic
   pointer flip (ARCH §9.1, §9.5).
@@ -69,15 +70,15 @@ runner — because that discipline *is* the thesis, and no SDK ships it.
   one-line swap; *which* one ships as the global default is an empirical call for
   the experiment (ARCH §6.3), not an architecture decision. Vendor head-to-head
   quality claims are unverified marketing until measured on Aluna's own task.
-- **The bounded-loop's exact shape** — step cap, which tools the loop gets
-  (filesystem write + type-check at minimum), retry budget on a failing
-  behavioral assertion — is **Capability Builder** work (modules.md §2.5, §4.7),
-  not 1.5. Epic 1.5 only stands up the provider contract + streamed structured
-  round-trip; the loop arrives with the first real build.
+- **The retry's exact shape** — attempt budget, what each attempt is checked
+  against, retry budget on a failing behavioral assertion — was left to
+  **Capability Builder** work (modules.md §2.5, §4.7), not 1.5. The harness bullet
+  above records the shape it took.
 - **Whether to layer Mastra** (deterministic Workflows + Agents, *built on the AI
   SDK*) over the raw spine for orchestration ergonomics. Its Workflow/Agent split
-  maps cleanly onto "deterministic pipeline, bounded agent inside each step," but
-  it adds surface area a speed-first PoC may not want. Deferred to whichever
+  fits a deterministic pipeline with a bounded agent inside each step, which is not
+  the shape the Builder took (see the harness bullet above), and it adds surface
+  area a speed-first PoC may not want. Deferred to whichever
   module finds the raw SDK orchestration too thin.
 
 ## Context / why
@@ -93,9 +94,9 @@ One reframe drove the decision. Aluna's pipeline is deliberately *constrained*
 version-keyed derived caches; only affected units regenerate; a fail-closed gate
 precedes an atomic pointer flip. A roaming autonomous agent is in direct tension
 with every one of those. So "a coding agent that writes files" is the right
-*capability* but the wrong *shape* if unbounded — the fit is a loop bounded to one
-unit, which preserves the determinism while still buying the self-correcting code
-muscle.
+*capability* but the wrong *shape* if unbounded — the fit is a whole-file retry
+bounded to one unit, which preserves the determinism while still feeding each
+failed check back to the model.
 
 Provider-agnosticism turned out to be nearly free. The Anthropic Messages API is
 now the common wire format for coding models, and the major open Chinese models
@@ -105,7 +106,7 @@ without an abstraction layer we maintain — which is exactly the "thin, pluggab
 provider interface" ARCH §4 already asked for, made concrete.
 
 The SDK takes the streaming client, retries and provider routing,
-structured-output validation (`generateObject` + Zod is type-validated), and the
+structured-output validation (`streamObject` + Zod is type-validated), and the
 multi-provider switch off our plate. What it pointedly does not give us stays our
 job: the orchestrator pipeline, the Diff Engine, the layered behavioral gate, and
 the migration runner. No turnkey "self-building-CRUD harness" exists; that absence

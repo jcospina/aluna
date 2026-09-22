@@ -85,7 +85,7 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // 0004 records what the system did to build itself (ARCH §6.3, distinct from M7's event log of
+  // 0004 records what the system did to build itself (ARCH §6.3, distinct from M8's event log of
   // what the user did). Past model, every column is nullable: absence is NULL, never a fake zero.
   {
     id: "0004_generation_metrics",

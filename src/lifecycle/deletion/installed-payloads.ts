@@ -5,8 +5,8 @@
 // registry row becomes a tombstone and the data table goes. Core-owned SQL over a fixed store, not
 // an adapter callback, which would run generated code inside the point-of-no-return transaction.
 //
-// Module 7 installs the store for real; until then a platform without one purges nothing and
-// reports zeroes, while the M7 seam fake installs this fixed shape so the purge is proven now.
+// Module 8 installs the store for real; until then a platform without one purges nothing and
+// reports zeroes, while the M8 seam fake installs this fixed shape so the purge is proven now.
 //
 // Purging redacts rather than deletes. ARCH §6.3 keeps a content-free deletion fact: the event
 // row survives with its identity and timestamp, its payload is irreversibly replaced, and its
@@ -18,7 +18,7 @@ import {
   EVENT_LOG_TABLE,
 } from "../../platform/persistence/table-names.ts";
 
-/** The fixed installed Event Log store M7 will own; the M4 seam fake installs the same shape. */
+/** The fixed installed Event Log store M8 will own; the M4 seam fake installs the same shape. */
 export {
   EVENT_LOG_OWNERSHIP_TABLE,
   EVENT_LOG_TABLE,

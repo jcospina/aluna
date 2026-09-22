@@ -1,5 +1,5 @@
 import { errorDetail } from "../../platform/errors.ts";
-import { CapabilityIdReservedError } from "../../registry/index.ts";
+import { CapabilityIdActiveError, CapabilityIdReservedError } from "../../registry/index.ts";
 import { renderBuildEnding } from "../../server/http/fragments.ts";
 import type { Send } from "../../server/sse/index.ts";
 import { buildDemoErrorPreview } from "./previews.ts";
@@ -16,8 +16,18 @@ export const FAILED_BUILD_ENDING = "Hmm, that didn't work. Mind trying again?";
 export const RESERVED_ID_BUILD_ENDING =
   "I'm still tidying up after the last one of those. Give me a moment, then ask me again.";
 
-/** Which ending a failure gets. Everything but the reserved id shares the generic one. */
+/**
+ * Spec generation never sees the ids already taken, so a clash can be two different subjects that
+ * got one name. The ending names the capability holding the id and asks for the whole request
+ * again, because the resolver reads only the sentence it is given, never the one that clashed.
+ */
+export function takenIdBuildEnding(label: string): string {
+  return `You already have ${label}. If this is something else, ask again and say what sets it apart, and I'll give it its own place.`;
+}
+
+/** Which ending a failure gets. Everything but a taken or reserved id shares the generic one. */
 export function buildEndingFor(error: unknown): string {
+  if (error instanceof CapabilityIdActiveError) return takenIdBuildEnding(error.label);
   return error instanceof CapabilityIdReservedError
     ? RESERVED_ID_BUILD_ENDING
     : FAILED_BUILD_ENDING;
@@ -196,7 +206,7 @@ export async function deliverCandidateNoChangePresentation(
  * the world moved while Aluna was queued and their words were about the older one.
  */
 export const STALE_BUILD_ENDING =
-  "That changed while I was getting to it, so I stopped rather than guess. Have a look and tell me again?";
+  "Something on your desk changed after you asked, so I didn't go ahead. If you still want it, ask me again.";
 
 /**
  * Delivers a refused admission: the `failed/stale` row's preview, the ending line, the current

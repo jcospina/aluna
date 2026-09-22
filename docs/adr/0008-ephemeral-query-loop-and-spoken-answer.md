@@ -46,20 +46,28 @@ served, no stream advancing — while returning a single row, which no result-si
 can catch. Measured on Bun 1.3.12 against `data/omni-crud.db`: a read-only connection
 opens inside a Worker; a `CREATE TABLE` through it still fails with *attempt to write a
 readonly database*; the main thread ticked 39 times against an expected 40 during two
-seconds of a runaway recursive query; and `terminate()` killed that synchronously-running
-query in roughly 300ms.
+seconds of a runaway recursive query. `terminate()` does not stop that query: a later
+measurement, recorded in `src/runtime/query/query-worker.ts`, found the thread still burning
+2.98s of CPU in the 3s after `terminate()` returned. What closing the worker ends at once is
+the wait, because every pending read rejects.
 
 **Ownership stays on the main thread.** The complete per-incarnation read-token set is
 acquired atomically against one catalog snapshot or not at all, and released in
 `finally`, exactly as ADR-0006 and ARCH §8 require. The worker is only where SQL
 executes. It never receives a token and never learns which incarnations it is reading.
 
-**Cancellation is `terminate()`, and it has three triggers**: the user asks something
-new, the user dismisses the answer, or a capability the query holds a token for begins
-closing for deletion. The third is the one that matters architecturally. An in-process
-synchronous query cannot observe cancellation at all, so before this ADR the read gate's
-drain could only wait and time out against a long query. In a worker the gate's signal
-becomes a real kill, and the drain becomes a mechanism rather than a hope.
+**Cancellation aborts the question and closes its worker if one has started, and it has
+four triggers**: the
+user asks something new, the user dismisses the answer, the browser disconnects from the
+answer's stream, or a capability the question holds a token for begins closing for
+deletion. A question holds a token for every capability that was active when its read
+scope opened, so deleting any of them
+cancels it, whether or not the question was about that capability. The fourth is the one
+that matters architecturally. An in-process synchronous query cannot observe cancellation
+at all, so before this ADR the read gate's drain could only wait and time out against a
+long query. In a worker the gate's signal ends the question at once and its tokens
+release, so the drain becomes a mechanism rather than a hope, even though the statement
+runs on to its end in the terminated thread.
 
 **There is no timeout.** Slow is permitted; freezing is not, and the worker addresses
 freezing structurally instead of trading one against the other. This replaces the
@@ -192,7 +200,7 @@ learns no window took it. The typed prompt and the keyboard survive either way, 
 sentence clears when the words change.
 
 **A query does not lock the prompt bar**; asking something else is always possible and
-cancels the running query.
+cancels the running question.
 
 **Nothing here depends on the pet.** An earlier draft of this contract anchored the
 answer to the prompt bar so the pet could later inhabit it; the window removes that
@@ -263,7 +271,8 @@ number, and freezes the entire desk while doing it. It is not an adversarial cas
 architecture is explicit that in-process execution guards against clumsy model output
 rather than hostile code — but clumsy is exactly what it protects against. The
 measurements above were taken rather than assumed, including the one that was genuinely
-in doubt: whether a thread blocked inside SQLite's C code can be terminated at all.
+in doubt: whether a thread blocked inside SQLite's C code can be terminated at all. It
+cannot: the statement survives `terminate()` and runs to its end.
 
 Declining embeddings is a scope judgment, not a technical one. Nothing about them is
 hard; everything about them is *lifecycle*. They would cross the module's own boundary,
@@ -303,9 +312,9 @@ amendment); it is recorded here so a later reader does not mistake the absence f
 oversight, and so anything that weakens the zero-row rule is read as removing the last one.
 
 **Nothing bounds an answer in time.** With no timeout, the only limits are ten steps and
-cancellation. A pathological query now costs the asker's patience instead of the whole
-desk, which is the intended trade, but a query that runs long while a deletion waits will
-be killed by that deletion rather than delaying it. That is the correct precedence — the
+cancellation. A pathological query now costs the asker's patience and, until it ends, a
+CPU core, instead of the whole desk, which is the intended trade. A question that runs
+long while a deletion waits will be cancelled by that deletion rather than delaying it. That is the correct precedence — the
 deletion was confirmed, the question can be asked again — and it is recorded here so it
 reads as a decision rather than a surprise.
 

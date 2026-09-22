@@ -12,11 +12,6 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { BUILD_JOB_ID_ATTRIBUTE } from "#shell/shell-dom.js";
-import {
-  deflectionNarration,
-  NotDeflectableError,
-  REJECT_DEFLECTION,
-} from "../../../pipeline/build/admission/deflection.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { Provider } from "../../../platform/provider/index.ts";
 import { listCapabilities } from "../../../registry/index.ts";
@@ -41,7 +36,6 @@ import {
   makeScratchApp,
   NEW_CAPABILITY_INTENT,
   postPrompt,
-  REJECT_INTENT,
   responseText,
   teardownScratchDbEnv,
 } from "../../app.test-support.ts";
@@ -315,17 +309,6 @@ describe("the two things Aluna says are said in different windows", () => {
     for (const said of spoken) {
       expect(built.fragments).not.toContain(said);
     }
-  });
-});
-
-describe("the deflection that used to answer a question", () => {
-  test("its line is gone, and the refusal's is untouched", async () => {
-    expect(() => deflectionNarration(DATA_QUERY_INTENT)).toThrow(NotDeflectableError);
-    // The refusal's line is the one 6.6/03 will use, and nothing here touched it.
-    expect(deflectionNarration(REJECT_INTENT)).toBe(REJECT_DEFLECTION);
-    expect(deflectionNarration(NEW_CAPABILITY_INTENT)).toBe(
-      NEW_CAPABILITY_INTENT.user_facing_label,
-    );
   });
 });
 

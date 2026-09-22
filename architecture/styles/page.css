@@ -1,0 +1,92 @@
+/*
+ * The page's own chrome: the menu bar, the chapter rhythm, and the bench every
+ * diagram stands on. Structure comes from design/styles; this adds only what a study
+ * page needs and the product has no use for.
+ */
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* The one travel `--travel` cannot reach: it is neither a length nor a duration. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+body {
+  overflow-x: hidden;
+}
+
+.skip {
+  position: fixed;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 100;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
+  color: var(--ink);
+  font-weight: 600;
+  translate: 0 -200%;
+}
+
+.skip:focus-visible {
+  translate: 0 0;
+}
+
+.menubar {
+  gap: var(--space-5);
+}
+
+.menubar__mark {
+  flex-shrink: 0;
+}
+
+.menubar nav {
+  gap: var(--space-2);
+}
+
+.menubar__progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: var(--line);
+  background: var(--shade);
+  width: 0;
+  transition: width var(--dur-fast) linear;
+}
+
+.menubar a[aria-current="true"] {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* ── Chapter rhythm ─────────────────────────────────────────────────── */
+
+/* A window's title is its h2, so a chapter's own headings start at h3 and keep h4's size. */
+.window--section h3 {
+  font-size: var(--type-md);
+  letter-spacing: normal;
+  margin-bottom: var(--space-1);
+}
+
+/* ── Benches ────────────────────────────────────────────────────────── */
+
+/*
+ * A document stage: `.stage` keeps its padding, which is where `.stage__tag` sits, but
+ * lays its contents out in normal flow instead of centring one specimen in a tall box.
+ */
+.stage--doc {
+  display: block;
+  min-height: 0;
+  padding: var(--space-6) var(--space-4) var(--space-4);
+}
+
+/* A diagram wider than the window scrolls inside it; the page never scrolls sideways. */
+.scroller {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-block: var(--space-1);
+}

@@ -101,7 +101,8 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — admission and 
     expect(fragment).not.toContain("data-preview-target");
     expect(fragment).toContain('id="prompt-notice" hx-swap-oob="innerHTML"');
     // Proven in Epic 2.6a: htmx-ext-sse wraps a native EventSource that auto-reconnects on a
-    // server-closed stream, so the subscriber must close on `done` or the build re-runs.
+    // server-closed stream, so the subscriber must close on `done` or keep reconnecting to a
+    // deleted job that answers each reconnect with a lone `done: missing`.
     expect(fragment).toContain('sse-close="done"');
     expect(providerCalls).toBe(0);
   });

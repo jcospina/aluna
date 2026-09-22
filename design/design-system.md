@@ -29,11 +29,16 @@ items — and `--ink` draws every line and sets every piece of type. `--ink` is
 never a background and never a fill. Type at lower strengths takes `--ink-2` and
 `--ink-3`, which never draw a line.
 
-Eight tint anchors carry role and identity: `--leaf`, `--shade`, `--teal`,
-`--sky`, `--sun`, `--ochre`, `--clay`, `--violet`. A capability's ground colour is
-one of the eight, named by the model. `--signal` is not among them. It is
-reserved for alerts and destructive confirmation, so a red on screen always means
-one thing.
+Eight tint anchors are the palette's named colours: `--leaf`, `--shade`, `--teal`,
+`--sky`, `--sun`, `--ochre`, `--clay`, `--violet`. Most carry a platform role, and a
+generated screen may name any of them (see *What a generated screen may declare*).
+`--signal` is not among them. It is reserved for
+alerts and destructive confirmation, so a red on screen always means one thing.
+
+A capability's logo ground is not picked from the anchors: the model names one of
+eight hue families, and the incarnation seed picks which of that family's four
+shades it wears (`design/logo.html`). Seven families list an anchor's value as
+their first shade; the violet family does not.
 
 There is no dark theme. This palette is daylight and does not invert, and the
 viewer's OS preference is ignored in both directions. A dark theme was decided

@@ -1,12 +1,12 @@
-// Unit generation (ARCH §6.2 step 3; ADR-0003 bounded tool-loop; ADR-0004 generated artifact
+// Unit generation (ARCH §6.2 step 3; ADR-0003 whole-file retry; ADR-0004 generated artifact
 // contract as amended by ADR-0005 §2).
 //
 // Module 4.4 extends Module 3's one item renderer plus Handler model to the complete fixed Action
 // inventory. The item renderer turns one record into capability-specific inner markup, generated
 // knowing the chosen `collection.layout`; the Handlers call the injected presentation adapter
 // instead of emitting row markup, so create and read render identically by construction.
-// Generation is agentic only inside one unit at a time — write, check, feed back, fix — and
-// across units the order and scope are fixed.
+// Generation retries only inside one unit at a time — generate the whole file, check, feed the
+// failure back, regenerate — and across units the order and scope are fixed.
 //
 // This file owns the public contract and the orchestration; the per-unit prompts live in
 // `unit-prompts.ts` and the static checks in `unit-checks.ts`.

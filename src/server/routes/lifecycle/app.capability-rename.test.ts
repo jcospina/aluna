@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { renameCapabilityLabel } from "../../../lifecycle/rename/index.ts";
+import {
+  DELETED_RENAME_SENTENCE,
+  staleRenameSentence,
+} from "../../../lifecycle/rename/presentation.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import {
   FIRST_INCARNATION_ID,
@@ -26,6 +30,7 @@ import {
 } from "../../../runtime/router/dispatch/router.test-support.ts";
 import { createApp } from "../../app.ts";
 import { renderCapabilityLogo } from "../../http/fragments.ts";
+import { unescapeHtml } from "../../http/html.ts";
 
 const NOTES_INCARNATION = FIRST_INCARNATION_ID;
 
@@ -140,7 +145,10 @@ describe("renaming a capability from its logo", () => {
       const response = await app().request("/capability-rename/notes", renameNotes(refused));
 
       expect(response.status).toBe(422);
-      expect(await response.text()).toContain('data-error-code="rename_refused"');
+      const html = unescapeHtml(await response.text());
+      expect(html).toContain('data-error-code="rename_refused"');
+      // A bad name is worth retyping, so it never gets the stale sentence's refresh.
+      expect(html).not.toContain("Refresh");
       expect(row()?.display_label_override).toBeNull();
     }
   });
@@ -151,7 +159,12 @@ describe("renaming a capability from its logo", () => {
       renameNotes("Journal", { incarnation_id: UNKNOWN_INCARNATION_ID }),
     );
     expect(wrongIncarnation.status).toBe(409);
-    expect(await wrongIncarnation.text()).toContain('data-error-code="rename_refused"');
+    const staleHtml = await wrongIncarnation.text();
+    expect(staleHtml).toContain('data-error-code="rename_refused"');
+    // Spoken on the bar, away from the logo, so it names the capability that moved.
+    expect(unescapeHtml(staleHtml)).toContain(
+      staleRenameSentence(canonicalCapabilityLabel(row() as CapabilityRow)),
+    );
 
     const wrongVersion = await app().request(
       "/capability-rename/notes",
@@ -174,6 +187,7 @@ describe("renaming a capability from its logo", () => {
     const response = await app().request("/capability-rename/absent", renameNotes("Journal"));
 
     expect(response.status).toBe(409);
+    expect(unescapeHtml(await response.text())).toContain(DELETED_RENAME_SENTENCE);
     expect(listCapabilities(conns.readonly).map((each) => each.id)).toEqual(["notes"]);
   });
 

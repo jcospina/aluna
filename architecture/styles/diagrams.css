@@ -1,0 +1,647 @@
+/*
+ * The diagram vocabulary: one drawn node, the rails and arrows that order them, and
+ * the handful of shapes built from those — the matrix, the ladder, the seam stack, the
+ * version lifetimes. Anything with a boundary declares a real border and asks for ink.
+ */
+
+/* ── The node: one drawn box, used by every diagram ─────────────────── */
+
+.node {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-1);
+  min-width: 8.5rem;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-2);
+  border: var(--line) solid var(--ink);
+  text-align: left;
+}
+
+.node__name {
+  font-size: var(--type-sm);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.node__sub {
+  font-size: var(--type-xs);
+  color: var(--ink-2);
+  line-height: 1.3;
+}
+
+button.node {
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--ink);
+  transition: translate var(--dur-travel) ease;
+}
+
+button.node:hover {
+  background: var(--surface);
+}
+
+button.node:active {
+  translate: var(--travel-press) var(--travel-press);
+}
+
+/*
+ * `--leaf` is a dark colour: filled with it, a box carries dark type on a dark ground at
+ * 4.54 — passing, and the hardest thing on the page to read. A row wide enough to hold a
+ * paragraph takes `--pane-3` instead, but only where a pill says which state it is. The
+ * pane tints are a hue palette, all one lightness: `--pane-3` on `--pane-5` measures 1.03,
+ * so a swatch or a node that has nothing but its fill keeps `--leaf`.
+ */
+.node[aria-current="true"],
+.node[aria-pressed="true"],
+.node.is-on {
+  background: var(--sun);
+}
+
+.node.is-done {
+  background: var(--leaf);
+}
+
+.node.is-idle {
+  background: var(--surface);
+  color: var(--ink-3);
+}
+
+.node.is-idle .node__sub {
+  color: var(--ink-3);
+}
+
+.node--platform {
+  background: var(--pane-5);
+}
+
+/* Wide enough to read as the one contract the wires below it implement. */
+.node--wide {
+  min-width: 22rem;
+}
+
+.node--generated {
+  background: var(--pane-1);
+}
+
+.node--refuse {
+  background: var(--pane-2);
+}
+
+/* ── Rails and arrows ───────────────────────────────────────────────── */
+
+.rail {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  min-width: max-content;
+}
+
+.rail--wrap {
+  flex-wrap: wrap;
+  row-gap: var(--space-3);
+  min-width: 0;
+}
+
+/* Seven stations across one window: equal shares, wrapping their own text. */
+.rail--even {
+  min-width: 0;
+}
+
+.rail--even .node {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.rail--down {
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+/*
+ * One source above, several destinations below. The column hugs its own content so the
+ * arrow centres over the group it points into — centred in a full-width column, it lands
+ * in the margin beside the diagram, pointing at nothing.
+ */
+.rail--fan {
+  width: fit-content;
+  max-width: 100%;
+  align-items: center;
+}
+
+.arrow {
+  align-self: center;
+  flex-shrink: 0;
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+}
+
+.arrow svg {
+  display: block;
+  width: 1.5rem;
+  height: 0.75rem;
+}
+
+.arrow svg path {
+  stroke-width: var(--line);
+}
+
+.arrow--down svg {
+  width: 0.75rem;
+  height: 1.5rem;
+}
+
+.arrow--back:not(.arrow--down) svg {
+  rotate: 180deg;
+}
+
+/*
+ * Column captions sit above the rail rather than inside it. A caption in the column is
+ * height the column has to carry, and an arrow centred on that column then points at the
+ * space the caption left rather than at a node.
+ */
+.rail--capped {
+  margin-top: 3rem;
+}
+
+.rail--capped > .rail--down {
+  position: relative;
+  justify-content: center;
+}
+
+.rail--capped > .rail--down > .caps {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  padding-bottom: var(--space-1);
+}
+
+/* A drawn rule, because no arrow reaches here: reads run on their own connection, admitted
+ * by their own coordinator. */
+.rail__apart {
+  padding-left: var(--space-4);
+  border-left: var(--line) solid var(--ink);
+}
+
+.rail--capped > .rail__apart > .caps {
+  left: var(--space-4);
+}
+
+.arrow.is-live {
+  color: var(--shade);
+}
+
+/* ── Captions that change under a diagram ───────────────────────────── */
+
+/*
+ * Not a box. It is the sentence under the diagram, and the diagram is already drawn —
+ * a second frame around the caption would be a border explaining a border.
+ */
+.readout {
+  margin-top: var(--space-5);
+}
+
+/* A lead-in, not a heading: it must sit below the h3 that names the bench. */
+.readout__title {
+  font-size: var(--type-base);
+  font-weight: 600;
+  line-height: 1.3;
+  margin-bottom: var(--space-1);
+}
+
+.readout__body {
+  font-size: var(--type-base);
+  color: var(--ink-2);
+  margin-bottom: var(--space-2);
+}
+
+.readout__rule {
+  font-size: var(--type-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* ── Legends ────────────────────────────────────────────────────────── */
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--type-xs);
+  color: var(--ink-2);
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.legend i {
+  width: 0.75rem;
+  height: 0.75rem;
+  border: var(--line-plate) solid var(--ink);
+  flex-shrink: 0;
+}
+
+.legend i.is-platform {
+  background: var(--pane-5);
+}
+.legend i.is-generated {
+  background: var(--pane-1);
+}
+.legend i.is-refuse {
+  background: var(--pane-2);
+}
+.legend i.is-live {
+  background: var(--leaf);
+}
+.legend i.is-now {
+  background: var(--sun);
+}
+
+/* ── The counter used by the animated sequences ─────────────────────── */
+
+.counter {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-size: var(--type-sm);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.counter b {
+  font-size: var(--type-lg);
+  font-family: var(--font-display);
+  color: var(--ink);
+}
+
+/* ── The Diff matrix ────────────────────────────────────────────────── */
+
+.matrix {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(15rem, 0.9fr) minmax(0, 1.1fr);
+  align-items: start;
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.effects {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.effect {
+  padding: var(--space-3);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
+}
+
+.effect__name {
+  font-size: var(--caps-size);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--caps-tracking);
+  color: var(--ink-2);
+  margin-bottom: var(--space-1);
+}
+
+.effect__value {
+  font-size: var(--type-sm);
+  line-height: 1.35;
+}
+
+.effect__value ul {
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.effect__value li + li {
+  margin-top: var(--space-1);
+}
+
+.effect.is-hot {
+  background: var(--sun);
+}
+
+.effect.is-cold .effect__value {
+  color: var(--ink-3);
+}
+
+/* ── The Gate ladder ────────────────────────────────────────────────── */
+
+/* Rung 1 at the top, in DOM order. A reversed DOM plus `column-reverse` cancelled out
+                                                           to an ordinary list and left only a reading order that ran backwards. */
+.ladder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rung {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: var(--line) solid var(--ink);
+}
+
+.rung__number {
+  font-family: var(--font-display);
+  font-size: var(--type-lg);
+  text-align: center;
+}
+
+.rung.is-skipped {
+  background: var(--surface);
+  color: var(--ink-3);
+}
+
+.rung.is-pass {
+  background: var(--pane-3);
+}
+.rung.is-fail {
+  background: var(--pane-2);
+}
+.rung.is-running {
+  background: var(--sun);
+}
+
+/* ── Two-lane splits ────────────────────────────────────────────────── */
+
+.lanes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.lane {
+  padding: var(--space-4);
+  border: var(--line) solid var(--ink);
+}
+
+.lane--read {
+  background: var(--pane-5);
+}
+.lane--write {
+  background: var(--pane-1);
+}
+
+.lane h3 {
+  margin-bottom: var(--space-2);
+}
+
+.lane ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  font-size: var(--type-sm);
+  color: var(--ink-2);
+}
+
+.lane li + li {
+  margin-top: var(--space-1);
+}
+
+/* ── The seam stack ─────────────────────────────────────────────────── */
+
+.seam {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.seam__layer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: var(--line) solid var(--ink);
+}
+
+.seam__layer.is-weak {
+  background: var(--pane-2);
+}
+
+.seam__layer.is-load {
+  background: var(--pane-3);
+}
+
+.seam__what {
+  font-size: var(--type-sm);
+  color: var(--ink-2);
+}
+
+/* ── The version ladder ─────────────────────────────────────────────── */
+
+.lifetimes {
+  display: flex;
+  gap: var(--space-5);
+  align-items: flex-start;
+  min-width: max-content;
+}
+
+.lifetime {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--surface-2);
+  border: var(--line) solid var(--ink);
+  min-width: 12rem;
+}
+
+.lifetime.is-gone {
+  background: var(--surface);
+  color: var(--ink-3);
+}
+
+.version {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
+  font-size: var(--type-sm);
+}
+
+.version.is-live {
+  background: var(--leaf);
+  color: var(--ink);
+}
+
+/* ── Shades ─────────────────────────────────────────────────────────── */
+
+.hues {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.hue {
+  border: var(--line) solid var(--ink);
+  background: var(--surface);
+  padding: var(--space-2);
+}
+
+.hue__name {
+  font-size: var(--type-xs);
+  color: var(--ink-2);
+}
+
+/*
+ * Ink, not ink-2, on `--sun`, where it measures 3.43. The pane tints need no such fix:
+ * `--ink-2` clears 4.5:1 down to `--pane-2`, so a filled state keeps the same secondary
+ * colour the unfilled ones use. `.pill--ok` and `.pill--wait` carry this in controls.css.
+ */
+.node.is-done .node__sub,
+.node.is-on .node__sub,
+.node[aria-pressed="true"] .node__sub,
+.node[aria-current="true"] .node__sub,
+.rung.is-running .xs,
+.effect.is-hot .effect__name,
+.version.is-live .xs {
+  color: var(--ink);
+}
+
+/* ── Field lists ────────────────────────────────────────────────────── */
+
+/*
+ * A name and what it means is a description list, not a table. `.spec` rules a heavy ink
+ * line under its header row, and a row-header column asks for that line once per row — the
+ * last of them landing on the frame as a second stroke. Drawn rows have no header row to
+ * rule, so the shape cannot come apart that way.
+ *
+ * The row is a plain element the ink can draw on, with the `dl` inside it: an `svg` is not
+ * something a `dl` may contain, and the ink puts two into everything it draws.
+ */
+.fields__title {
+  font-size: var(--caps-size);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--caps-tracking);
+  color: var(--ink-2);
+  margin-bottom: var(--space-2);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.fields__row {
+  padding: var(--space-3);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
+}
+
+.fields__row dl {
+  display: grid;
+  grid-template-columns: minmax(0, 12rem) minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  align-items: baseline;
+  margin: 0;
+}
+
+.fields__row dt {
+  font-size: var(--type-sm);
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.fields__row dd {
+  margin: 0;
+  font-size: var(--type-sm);
+  line-height: 1.35;
+  color: var(--ink-2);
+}
+
+/* ── The running example ────────────────────────────────────────────── */
+
+/* Where the story's changes live once a chapter ends: the registry row, the disk, the tables. */
+.system-state {
+  margin-top: var(--space-5);
+}
+
+.system-state__label {
+  margin-bottom: var(--space-2);
+}
+
+.system-state__rows {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-4);
+  margin: 0;
+  font-size: var(--type-sm);
+}
+
+.system-state__rows dt {
+  font-weight: 600;
+}
+
+.system-state__rows dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-4);
+  margin: 0;
+  font-family: var(--font-mono);
+  color: var(--ink-2);
+}
+
+/*
+ * A prompt quoted as the model receives it. The developer panel's well, for the reason the
+ * panel has one: a raw payload reads worse in a proportional face.
+ */
+.payload {
+  margin: var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
+  overflow-x: auto;
+  background: var(--ink);
+  color: var(--surface);
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+  line-height: 1.5;
+  white-space: pre;
+}
+
+.payload code {
+  padding: 0;
+  background: none;
+  font-family: inherit;
+  font-weight: 400;
+  letter-spacing: normal;
+}
+
+/* Reference detail a first reading can skip, closed until asked for. */
+.aside {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-2);
+  border: var(--line) solid var(--ink);
+}
+
+.aside > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.aside[open] > summary {
+  margin-bottom: var(--space-3);
+}
