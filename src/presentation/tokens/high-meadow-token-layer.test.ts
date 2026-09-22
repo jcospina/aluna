@@ -83,7 +83,7 @@ describe("High Meadow token-layer cutover", () => {
     expect(read("public/css/shell.css")).toContain(
       'url("/design/assets/wallpaper/high-meadow.webp")',
     );
-    expect(read("docs/aluna-architecture.html")).toContain('href="../design/styles/index.css"');
+    expect(read("architecture/index.html")).toContain('href="../design/styles/index.css"');
     expect(
       read("modules/04-explicit-loop-ii-full-crud-and-evolution/TECHNICAL-GUIDE.html"),
     ).toContain('href="../../design/styles/index.css"');

@@ -5,8 +5,9 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/pages.yml"
-      - "docs/aluna-architecture.html"
+      - "architecture/**"
       - "design/styles/**"
+      - "design/scripts/**"
       - "design/assets/**"
   workflow_dispatch:
 
@@ -30,9 +31,15 @@ jobs:
       - name: Prepare architecture site
         run: |
           mkdir -p _site/design
-          sed 's#../design/#design/#g' docs/aluna-architecture.html > _site/index.html
+          sed 's#../design/#design/#g' architecture/index.html > _site/index.html
+          cp -R architecture/styles _site/styles
+          cp -R architecture/scripts _site/scripts
+          # Served, the page sits at /architecture/ and its scripts reach design/ two levels
+          # up. Flattened onto the site root they are one level away, at any base path.
+          sed -i 's#\.\./\.\./design/#../design/#g' _site/scripts/main.js
           cp -R design/styles _site/design/styles
           cp -R design/assets _site/design/assets
+          cp -R design/scripts _site/design/scripts
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v4

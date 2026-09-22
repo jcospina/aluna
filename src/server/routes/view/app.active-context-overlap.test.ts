@@ -19,8 +19,17 @@ import {
   INTENT_RESOLVER_PROMPT_PREFIX,
   type IntentClassification,
 } from "../../../pipeline/intent/index.ts";
-import { type CapabilitySpec, getCapability } from "../../../registry/index.ts";
+import {
+  RESERVED_ID_BUILD_ENDING,
+  STALE_BUILD_ENDING,
+} from "../../../pipeline/streaming/terminal-presentation.ts";
+import {
+  type CapabilitySpec,
+  getCapability,
+  insertCapabilityDeletionTombstone,
+} from "../../../registry/index.ts";
 import { applyCapabilityTableDdl, deriveCapabilityTableDdl } from "../../../runtime/data/index.ts";
+import { install, notesRow } from "../../../runtime/router/dispatch/router.test-support.ts";
 import {
   buildJobIdFromSubscriber,
   collectSseEvents,
@@ -34,6 +43,7 @@ import {
   type ScratchDbEnv,
   teardownScratchDbEnv,
 } from "../../app.test-support.ts";
+import { renderBuildEnding } from "../../http/index.ts";
 import { pinBehavioralTierOff } from "../evolution/app.evolution.test-support.ts";
 
 const CONTACTS_INCARNATION = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -384,5 +394,45 @@ describe("homepage namespace source admission", () => {
     expect(events.map((event) => event.event)).not.toContain("commit");
     expect(metrics.lifecycles).toEqual([]);
     expect(getCapability("work_contacts", env.conns.readonly)).toBeNull();
+  });
+
+  test("an overlap id a pending deletion still holds is refused as reserved, never as stale", async () => {
+    const notes = notesRow();
+    install(env.conns, notes);
+    env.conns.readwrite.transaction(() => {
+      insertCapabilityDeletionTombstone(
+        { capabilityId: notes.id, incarnationId: notes.incarnation_id, manifest: [] },
+        env.conns.readwrite,
+      );
+    })();
+    const intent: IntentClassification = {
+      type: "new_capability",
+      confidence: 0.99,
+      target_capability: "contacts",
+      resolution: "namespace",
+      proposed_identity: { id: notes.id, label: "Meeting notes" },
+      proposed_action: "Create a separate capability for meeting notes.",
+      user_facing_label: "I'll keep your meeting notes in their own place.",
+      requires_confirmation: false,
+    };
+    const { provider, prompts } = makeSequenceProvider([intent]);
+    const metrics = makeMetricsRecorder();
+    const app = makeScratchApp(env, provider, metrics.recordMetrics);
+
+    const fragment = await responseText(
+      await app.request("/prompt", {
+        method: "POST",
+        body: activePromptBody("keep my meeting notes apart from my contacts"),
+      }),
+    );
+    const jobId = buildJobIdFromSubscriber(fragment);
+    const events = collectSseEvents(await readSse(await app.request(`/build/${jobId}/stream`)));
+
+    expect(prompts).toHaveLength(1);
+    expect(eventData(events, "narration")).toContain(
+      renderBuildEnding(jobId, RESERVED_ID_BUILD_ENDING),
+    );
+    expect(eventData(events, "narration")).not.toContain(STALE_BUILD_ENDING);
+    expect(metrics.lifecycles.some((lifecycle) => lifecycle.outcome === "stale")).toBe(false);
   });
 });

@@ -53,7 +53,7 @@ function acquire(
 }
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: one scratch-database lifecycle keeps the provenance and late-batch evidence coherent.
-describe("the Module 7 Event Log acceptance fake", () => {
+describe("the Module 8 Event Log acceptance fake", () => {
   let dir: string;
   let conns: PlatformDatabase;
 

@@ -64,8 +64,8 @@ test("a new-capability request over a resolver-proposed id carries that id as it
     },
   });
 
-  // The expected absence is asserted over a *named* id, so the lease head can prove it
-  // rather than deferring to the activation CAS.
+  // The expected absence is asserted over a *named* id, so the lease head can prove it before
+  // any Builder work rather than waiting for the spec to author one.
   expect(request.expectedAbsentCapabilityId).toBe("work-notes");
   expect(request.targetExpectation).toEqual({ state: "absent" });
 });

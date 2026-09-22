@@ -122,7 +122,7 @@ function stageAll(store: FakeOwnedResourceStore, references: readonly StagedOwne
 }
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: one scratch-database lifecycle keeps the absorption and cleanup evidence coherent.
-describe("the Module 6 owned-resource acceptance fake", () => {
+describe("the Module 7 owned-resource acceptance fake", () => {
   let dir: string;
   let conns: PlatformDatabase;
 

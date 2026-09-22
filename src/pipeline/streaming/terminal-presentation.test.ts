@@ -134,7 +134,7 @@ describe("deliverFailedPresentation", () => {
       errorName: "Error",
       message: failure.message,
     });
-    expect(events[1]?.data).toMatch(/mind trying again/i);
+    expect(events[1]?.data).toBe(renderBuildEnding("build-1", FAILED_BUILD_ENDING));
     expect(events[1]?.data).toContain("data-build-ending");
     expect(events[1]?.data).not.toMatch(/behavioral|gate|internal/i);
     // The window holds on the ending, so the line is not also left on the desk as a notice: the

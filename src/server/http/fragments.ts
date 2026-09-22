@@ -226,7 +226,8 @@ function renderLeavingWarning(jobId: string): string {
 
 /**
  * The per-build SSE subscriber an accepted `/prompt` returns. Without `sse-close="done"` the
- * extension's EventSource reconnects when the server closes the stream, and re-runs the build.
+ * extension's EventSource reconnects when the server closes the stream. The finished job is already
+ * deleted, so each reconnect gets a lone `done: missing`.
  */
 export function renderBuildSubscriber(jobId: string): string {
   const streamPath = buildStreamUrl(jobId);

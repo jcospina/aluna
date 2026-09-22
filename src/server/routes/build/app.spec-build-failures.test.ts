@@ -1,12 +1,12 @@
 // POST /prompt → GET /build/:id/stream (builder stages, fake provider) — the failure
 // slices *after admission*: a provider that dies mid-build, a behavioral gate failure, a
-// commit-stage rollback, a behavioral test-generation provider error, and a
-// validation-marker mismatch. (A provider that is unavailable before classification
-// never reaches the Builder; that slice lives in app.resolver-pipeline.test.ts.) Each
-// proves failure is data (a recorded metrics row and a developer-only diagnostic)
-// and that nothing internal leaks into product-voice narration. Split from the
-// happy-path app.spec-build.test.ts so each describe stays under the line budget;
-// shared setup and fixtures live in app.test-support.ts.
+// commit-stage rollback, a spec named after a capability already on the desk, a behavioral
+// test-generation provider error, and a validation-marker mismatch. (A provider that is
+// unavailable before classification never reaches the Builder; that slice lives in
+// app.resolver-pipeline.test.ts.) Each proves failure is data (a recorded metrics row and
+// a developer-only diagnostic) and that nothing internal leaks into product-voice
+// narration. Split from the happy-path app.spec-build.test.ts so each describe stays under
+// the line budget; shared setup and fixtures live in app.test-support.ts.
 
 import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync } from "node:fs";
@@ -14,13 +14,19 @@ import { resolve } from "node:path";
 import type { ZodType } from "zod";
 import { createMetricsRecorder, type RecordMetrics } from "../../../pipeline/index.ts";
 import type { IntentClassification } from "../../../pipeline/intent/index.ts";
+import {
+  FAILED_BUILD_ENDING,
+  takenIdBuildEnding,
+} from "../../../pipeline/streaming/terminal-presentation.ts";
 import { listGenerationLifecycles } from "../../../platform/metrics/index.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../../platform/provider/index.ts";
 import {
+  canonicalCapabilityLabel,
   getCapability,
   insertCapability,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  renameCapability,
 } from "../../../registry/index.ts";
 import {
   BEHAVIORAL_SUITE,
@@ -42,6 +48,7 @@ import {
   teardownScratchDbEnv,
   UPDATE_HANDLER,
 } from "../../app.test-support.ts";
+import { renderBuildEnding } from "../../http/index.ts";
 
 setDefaultTimeout(15_000);
 
@@ -156,10 +163,10 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
       recordMetrics,
     );
 
-    const { payload, events } = await runPromptBuild(app, "track notes");
+    const { jobId, payload, events } = await runPromptBuild(app, "track notes");
     const dataFor = (name: string) => eventData(events, name);
 
-    expect(dataFor("narration")).toMatch(/mind trying again/i);
+    expect(dataFor("narration")).toContain(renderBuildEnding(jobId, FAILED_BUILD_ENDING));
     expect(dataFor("done")).toBe("error");
     expect(dataFor("build-error-preview")).toContain("Missing OMNI_API_KEY");
     expect(dataFor("build-error-preview")).toContain("Error");
@@ -195,14 +202,14 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
     const { lifecycles, rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);
 
-    const { events } = await runPromptBuild(app, "track notes");
+    const { jobId, events } = await runPromptBuild(app, "track notes");
     const dataFor = (name: string) => eventData(events, name);
     const preview = JSON.parse(dataFor("build-error-preview")) as {
       errorName: string;
       message: string;
     };
 
-    expect(dataFor("narration")).toMatch(/mind trying again/i);
+    expect(dataFor("narration")).toContain(renderBuildEnding(jobId, FAILED_BUILD_ENDING));
     expect(dataFor("narration")).not.toMatch(/response_format|schema|expectedError/i);
     expect(dataFor("done")).toBe("error");
     // Generation now happens before the Gate exists, so it carries its own typed
@@ -257,7 +264,7 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
     const { lifecycles, rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);
 
-    const { events } = await runPromptBuild(app, "track notes");
+    const { jobId, events } = await runPromptBuild(app, "track notes");
     const dataFor = (name: string) => eventData(events, name);
     const preview = JSON.parse(dataFor("build-error-preview")) as {
       errorName: string;
@@ -269,7 +276,7 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
       };
     };
 
-    expect(dataFor("narration")).toMatch(/mind trying again/i);
+    expect(dataFor("narration")).toContain(renderBuildEnding(jobId, FAILED_BUILD_ENDING));
     expect(dataFor("narration")).not.toMatch(/handler|behavioral|gate|scratch/i);
     expect(dataFor("done")).toBe("error");
     expect(preview.errorName).toBe("CapabilityGateError");
@@ -330,15 +337,23 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
     teardownScratchDbEnv({ dir, conns, artifactsRoot });
   });
 
-  test("a commit-stage failure rolls back and records it, leaving the prior capability intact", async () => {
-    // A capability is already registered at this id, so commit's registry insert collides: the
-    // gate passes and the build fails at commit. The prompt shares no token with the Notes row.
-    insertCapability(notesCapabilityRow(), conns.readwrite);
-    const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC);
+  test("a commit-stage failure rolls back and records it, leaving the capability that took the id intact", async () => {
+    // Written past the process-local mutation coordinator, the row stands in for another process on
+    // this database: the id is free when the spec names it and taken by the next call, so only the
+    // activation CAS catches it.
+    const built = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC).provider;
+    let calls = 0;
+    const provider: Provider = {
+      generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T> {
+        calls += 1;
+        if (calls === 3) insertCapability(notesCapabilityRow(), conns.readwrite);
+        return built.generate(prompt, schema);
+      },
+    };
     const recordMetrics = createMetricsRecorder(conns.readwrite);
     const app = committingApp(provider, recordMetrics);
 
-    const { events } = await runPromptBuild(app, "log the books I finish");
+    const { jobId, events } = await runPromptBuild(app, "log the books I finish");
     const eventNames = events.map((event) => event.event);
     const dataFor = (name: string) => eventData(events, name);
 
@@ -348,7 +363,11 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
     expect(eventNames).not.toContain("commit-preview");
     expect(dataFor("fragment")).toContain('data-build-restoration="neutral"');
     expect(eventNames).not.toContain("commit");
-    expect(dataFor("narration")).toMatch(/mind trying again/i);
+    expect(dataFor("narration")).toContain(renderBuildEnding(jobId, FAILED_BUILD_ENDING));
+    expect(dataFor("narration")).not.toMatch(/registry|CAS|capability id/i);
+    expect(JSON.parse(dataFor("build-error-preview"))).toMatchObject({
+      errorName: "StaleCapabilityRegistryError",
+    });
     expect(dataFor("done")).toBe("error");
 
     // Failure is data: recorded as a commit-stage failure, carrying the full
@@ -372,11 +391,68 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
       state: "executed",
     });
 
-    // The transaction rolled back: the prior capability is untouched (still its
+    // The transaction rolled back: the capability that took the id is untouched (still its
     // original pointer), and the build committed nothing new.
     expect(getCapability("notes", conns.readonly)?.artifacts_path).toBe(
       `capabilities/notes/${NOTES_INCARNATION_ID}/v1/`,
     );
+  });
+});
+
+describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider) — an authored id already taken", () => {
+  beforeEach(() => {
+    ({ dir, conns, artifactsRoot } = createScratchDbEnv("omni-crud-spec-build-"));
+  });
+
+  afterEach(() => {
+    teardownScratchDbEnv({ dir, conns, artifactsRoot });
+  });
+
+  test("a spec naming a capability you already have ends before any unit is generated", async () => {
+    const notes = insertCapability(notesCapabilityRow(), conns.readwrite);
+    // Renamed, so the ending has to name the capability the way the desk shows it.
+    const before = renameCapability(
+      {
+        capabilityId: notes.id,
+        incarnationId: notes.incarnation_id,
+        version: notes.version,
+        previousOverride: null,
+      },
+      "Journal",
+      conns.readwrite,
+    );
+    if (!before) throw new Error("the Notes row did not take its new name");
+    const { provider, prompts } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC);
+    const recordMetrics = createMetricsRecorder(conns.readwrite);
+
+    const { jobId, events } = await runPromptBuild(
+      committingApp(provider, recordMetrics),
+      "keep my notes somewhere",
+    );
+
+    // Classify and author the spec, then nothing: no behavioral freeze, no units, no Gate.
+    expect(prompts).toHaveLength(2);
+    expect(events.map((event) => event.event)).not.toContain("units-preview");
+    expect(canonicalCapabilityLabel(before)).not.toBe(before.label);
+    expect(eventData(events, "narration")).toContain(
+      renderBuildEnding(jobId, takenIdBuildEnding(canonicalCapabilityLabel(before))),
+    );
+    expect(eventData(events, "narration")).not.toMatch(/capability id|active capability|spec/i);
+    expect(JSON.parse(eventData(events, "build-error-preview"))).toMatchObject({
+      errorName: "CapabilityIdActiveError",
+    });
+    expect(events.at(-1)).toMatchObject({ event: "done", data: "error" });
+    // Filed at the stage it stopped in, and never under the id it collided with: that is Notes'.
+    expect(listGenerationLifecycles(conns.readonly)).toMatchObject([
+      {
+        lifecycleStatus: "failed",
+        outcome: "spec_generation_failed",
+        capabilityId: null,
+        measurement: { failure: { stage: "spec_gen" } },
+      },
+    ]);
+    expect(getCapability("notes", conns.readonly)).toEqual(before);
+    expect(existsSync(resolve(artifactsRoot, "notes"))).toBe(false);
   });
 });
 
@@ -399,7 +475,7 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
     const { rows, recordMetrics } = makeMetricsRecorder();
     const app = committingApp(provider, recordMetrics);
 
-    const { events } = await runPromptBuild(app, "track notes");
+    const { jobId, events } = await runPromptBuild(app, "track notes");
     const dataFor = (name: string) => eventData(events, name);
     const preview = JSON.parse(dataFor("build-error-preview")) as {
       errorName: string;
@@ -411,7 +487,7 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
       };
     };
 
-    expect(dataFor("narration")).toMatch(/mind trying again/i);
+    expect(dataFor("narration")).toContain(renderBuildEnding(jobId, FAILED_BUILD_ENDING));
     expect(dataFor("narration")).not.toMatch(/handler|behavioral|gate|scratch/i);
     expect(dataFor("done")).toBe("error");
     expect(preview.errorName).toBe("CapabilityGateError");

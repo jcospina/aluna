@@ -11,6 +11,7 @@ import { resolve } from "node:path";
 import { REJECT_DEFLECTION } from "../../../pipeline/build/admission/deflection.ts";
 import type { RecordMetrics } from "../../../pipeline/index.ts";
 import type { IntentClassification } from "../../../pipeline/intent/index.ts";
+import { FAILED_BUILD_ENDING } from "../../../pipeline/streaming/terminal-presentation.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { Provider } from "../../../platform/provider/index.ts";
 import { getCapability, insertCapability, listCapabilities } from "../../../registry/index.ts";
@@ -42,6 +43,7 @@ import {
   ANSWER_WINDOW_OPENING,
   ANSWER_WINDOW_SAYING_ATTRIBUTE,
   REFUSED_PROMPT_ATTRIBUTE,
+  renderBuildEnding,
 } from "../../http/index.ts";
 import { makeQuestionProvider } from "./staged-question.test-support.ts";
 
@@ -235,7 +237,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       expect.objectContaining({ data: "error" }),
     ]);
     const narration = events.filter((event) => event.event === "narration").at(-1)?.data ?? "";
-    expect(narration).toMatch(/mind trying again/i);
+    expect(narration).toBe(renderBuildEnding(jobId, FAILED_BUILD_ENDING));
     expect(narration).not.toMatch(/Zod|spec|schema|provider|handler|gate/i);
     expect(rows[0]?.outcome).toBe("failure");
     expect(mutationCoordinator.snapshot()).toEqual({ queuedTickets: [], activeLease: null });
@@ -307,7 +309,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     const events = collectSseEvents(await readSse(streamRes));
 
     const narration = events.filter((event) => event.event === "narration").at(-1)?.data ?? "";
-    expect(narration).toMatch(/mind trying again/i);
+    expect(narration).toBe(renderBuildEnding(jobId, FAILED_BUILD_ENDING));
     // No internals leak into the UI copy — asserted over every event the page shows, not just the
     // terminal line. The raw message stays on `build-error-preview`, which is not product copy.
     const productCopy = events

@@ -16,8 +16,9 @@ deletion of the throwaway demo that established it.
   - `narration` — a product-voice token/chunk to append (the "watch it build"
     text, ARCH §6.2).
   - `fragment` — a chunk of HTML to place into the content area.
-  - `done` — terminal signal; the server closes the stream so the browser
-    `EventSource` treats the end as final and does not auto-reconnect.
+  - `done` — terminal signal; the server closes the stream after it, and the
+    client closes its `EventSource` on it so the browser does not auto-reconnect
+    (see the `sse-close` finding below).
 - **Monotonic `id`** on each app-level message.
 - **Transport heartbeat.** Long-running SSE routes send id-less `heartbeat`
   events at an interval below the server idle timeout. Clients ignore them; they
@@ -58,8 +59,9 @@ event name alone. That keeps targeted non-terminal fragments available where the
 are useful while allowing M4 to finish evolution with one complete terminal
 `commit` View swap.
 
-The server closes the stream on `done`, which avoids `EventSource`'s default
-auto-reconnect and gives each stream a clean end with no console error.
+The server closes the stream on `done` and the client closes its source, which
+avoids `EventSource`'s default auto-reconnect and gives each stream a clean end
+with no console error.
 
 The heartbeat is transport, not product state. A build stage may be silent for
 longer than the server's idle timeout while a provider generates a large unit or
@@ -149,13 +151,15 @@ names above, `commit` being the single addition this epic.
 `htmx-ext-sse` wraps a native `EventSource`, which auto-reconnects with backoff
 whenever the server closes the stream (`onerror` → `ensureEventSource`). So a
 server-closed `done` is not enough under htmx: without intervention the browser
-reconnects and the per-build stream re-runs. The extension's
+reconnects. Nothing re-runs, because the job queue deletes a job when its run ends
+(`src/pipeline/jobs/build-jobs.ts`), so each reconnect is a fresh request that
+gets back a lone `done` carrying `missing`. The extension's
 `sse-close="<event>"` attribute closes the source on a named event, so wiring
-`sse-close="done"` on the subscriber is the htmx analogue of the raw-EventSource
-path's `source.close()` on `done`. `renderBuildSubscriber` (`src/app/app.ts`) now
-sets it. This sharpens rather than contradicts the original "server-closed
-`done` avoids auto-reconnect" note above, which silently assumed a raw-EventSource
-client that closes its own source; the htmx client must be told to.
+`sse-close="done"` on the subscriber is the htmx analogue of the `source.close()`
+on `done` that the demo's raw-EventSource client made. `renderBuildSubscriber`
+(`src/server/http/fragments.ts`) sets it. The server's close alone never stopped a
+reconnect: the demo's raw client closed its own source on `done`, and the htmx
+client must be told to.
 
 ### Consequences of this update
 

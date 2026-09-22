@@ -92,11 +92,9 @@ export function listCapabilityDeletionTombstones(
  */
 export class CapabilityIdReservedError extends Error {
   override readonly name = "CapabilityIdReservedError";
-  readonly capabilityId: string;
 
   constructor(capabilityId: string) {
     super(`Capability id "${capabilityId}" is reserved by a deletion whose cleanup is owed.`);
-    this.capabilityId = capabilityId;
   }
 }
 

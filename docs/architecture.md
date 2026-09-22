@@ -591,13 +591,16 @@ Module 2's historical `html-gen` is the first presentation-gen shape; from Modul
 on, item renderer generation is recorded under the semantic stage name. Module 9
 need not assume every version writes `.html` or behavioral tests.
 
-`reject` and `data_query` create no generation row. Their classification, timing,
-and outcome — and, for a `data_query`, the steps it spent and the wall-clock the
-person waited — plus cancellation or expiry before an active lease, may be written
-best-effort to a separate content-free `intent_resolution_metrics` row through a
-queued short platform write. Neither the query nor the user-visible completion waits
-for that write, so a crash may lose an unwritten non-admitted row. Durable lifecycle
-begins with a direct stale admission row or a `running` generation row.
+`reject`, `data_query`, and a prompt deflected before classification because it
+repeats an existing capability create no generation row. Their classification (for
+a duplicate, the platform's own `extend_capability` at zero cost), timing, and outcome (`completed` or `cancelled`) — and, for a `data_query`, the steps it
+spent and the wall-clock the person waited — may be written best-effort to a
+separate content-free `intent_resolution_metrics` row through a queued short
+platform write. Neither the query nor the user-visible completion waits for that
+write, so a crash may lose an unwritten non-admitted row. The table's schema also
+admits an `expired` outcome, but nothing writes one. A build cancelled or expired
+before it holds the lease writes no metrics row at all. Durable lifecycle begins
+with a direct stale admission row or a `running` generation row.
 
 #### Diff Engine
 
@@ -647,7 +650,9 @@ while non-activation restores through `fragment` rather than pretending a commit
 
 Four domain stores in `bun:sqlite`, plus small platform lifecycle metadata
 (mutation ownership/deletion tombstones), generated code files, and an object
-store on disk.
+store on disk. Two of these do not exist yet: no migration creates the Event Log,
+which Module 8 builds, and no code implements the object store, which Module 7
+builds, so `storage/` holds only a README.
 
 #### Capability Registry — the source of truth
 
@@ -874,14 +879,17 @@ incarnation is nullable only for a new-capability refusal before assignment, fro
 catalog mismatch or an expected-absent collision. Recovery closes interrupted rows.
 
 This store is why the PoC exists: conclusions come from data, not guesses. It
-survives capability deletion only because it holds measurements and identifiers,
-never prompts, records, specs, generated source, or Event Log payloads.
+survives capability deletion. No field holds the person's prompt or any of their
+records, but the store is not free of content: a failed Gate rung's `error` and a
+failure's `message` keep the raw error text. That text can quote strings from the
+spec, type-check diagnostics over generated source, clips of a generated renderer's
+markup beside the synthetic values it was rendered from, and the repair
+instructions sent back to the model.
 
-Resolver-only `reject` and `data_query` outcomes live in the same metrics domain
-but in a separate content-free `intent_resolution_metrics` table keyed by prompt
-job. They, and cancellation or expiry before an active lease, are best-effort:
-never mislabeled as generations, and lost if the process exits before their short
-write. Admitted build rows embed their own resolver measurement rather than
+Resolver-only `reject` and `data_query` outcomes, and duplicate-prompt deflections,
+live in the same metrics domain but in a separate content-free
+`intent_resolution_metrics` table keyed by prompt job. They are best-effort: never
+mislabeled as generations, and lost if the process exits before their short write. Admitted build rows embed their own resolver measurement rather than
 duplicating that row. A `data_query` row carries two numbers more: `steps_taken`,
 how much of the question's ten-step budget it used, and `elapsed_ms`, the wall-clock
 the person waited through — a cancelled question included, up to where they stopped
@@ -1174,11 +1182,12 @@ build lease, revalidates its stale target plus resolver-catalog fingerprint, the
 freezes the separate dependency-generation catalog and starts Builder work. A
 mismatch is stale rather than a silent reclassification.
 
-Record create, update, and delete take short ownership, but are refused once a
-build is queued; short platform writes such as Event Log ingestion or non-build
-resolver metrics wait behind it. Capability deletion atomically try-acquires only
-when there is no owner and no queued build, and it never queues. Direct and demo
-paths use the same interface. Tickets and ownership tokens expire and cancel
+Record create, update, and delete take short ownership, but are refused while any
+lease is held or anything is queued, a platform write included. Short platform
+writes such as logo claims, renames, deletion cleanup or non-build resolver metrics
+queue behind existing work. Capability deletion atomically try-acquires under the
+same rule as a record write, and it never queues. Direct and demo paths use the
+same interface. Tickets and ownership tokens expire and cancel
 separately, and leases release through an ownership-validated `finally`, never an
 `isBusy` observation. That stops a request from accidentally joining another
 open transaction.
@@ -1257,8 +1266,9 @@ External cleanup retries cannot resurrect the deleted surface.
    A durable tombstone drives idempotent cross-store cleanup and reserves identity
    until that finishes, and declared dependents block rather than break. The
    confirmation wording states the effect plainly; it never says archive, hide, or
-   deactivate. Generation metrics survive only because they are content-free and
-   incarnation-keyed.
+   deactivate. Generation metrics survive, keyed by incarnation, and they are not
+   content-free: their stored error text can still quote the deleted spec and its
+   generated markup (§6.3).
 
 4. **Merge conflicts are resolved silently, never surfaced.** The Intent Resolver
    decides extend-versus-namespace automatically and proceeds. Getting it wrong

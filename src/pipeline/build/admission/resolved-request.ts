@@ -30,7 +30,7 @@ export interface ResolvedNewCapabilityRequest extends ResolvedBuildRequestBase {
   readonly targetExpectation: Extract<CapabilityRegistryExpectation, { readonly state: "absent" }>;
   /**
    * The semantic id the expected-absence is asserted over, when a `namespace` overlap named one.
-   * Null when the Builder still authors it, where absence is only provable at the activation CAS.
+   * Null when the Builder still authors the id; the Builder checks it once the spec names it.
    */
   readonly expectedAbsentCapabilityId: string | null;
 }
