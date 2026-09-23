@@ -267,7 +267,7 @@ restore the canonical View/read state via `fragment` without a logo-layer sideca
 clear search, close modal/edit/delete-confirm state, and send `done`; `commit`
 remains activation-only. Terminal presenter work is bounded and active ownership
 releases in `finally`. A failed post-activation delivery is recovered by normal
-desk/logo registry rehydration and leaves `success/activated` intact. Module 9
+desk/logo registry rehydration and leaves `success/activated` intact. Module 10
 may reuse the same Builder with a different confirmed-proposal presenter without
 reclassification.
 
@@ -357,10 +357,11 @@ truthful without turning additive evolution into cascading rebuilds.
 - Capability deletion is zero-AI, may be blocked by declared dependents, and never
   cascades or rewrites surviving generated code.
 - Module 7 extends the owned-resource seam with the full file lifecycle, and
-  Module 9 extends it with capability-owned Event Log cleanup and chooses
-  proposal/presenter UX. *Amended 2026-09-22: this line named M6 and M7 before the
-  desk took Module 5 and file content understanding took Module 8. Files are
-  Module 7 (ADR-0009), and the Event Log is Module 9.*
+  Module 10 extends it with capability-owned Event Log cleanup and chooses
+  proposal/presenter UX. *Amended 2026-09-22 and 2026-09-23: this line named M6 and
+  M7 before the desk took Module 5, file content understanding took Module 8, and
+  composition then took Module 8 ahead of it. Files are Module 7 (ADR-0009), and the
+  Event Log is Module 10.*
 - The detailed change-fact matrix, tier transitions, fault model, and ordered epic
   boundaries in the Module 4 PLAN were normative for Module 4's issue conversion.
   The implemented contract is this ADR's *Frozen tests and immutable snapshots*

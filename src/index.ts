@@ -1,8 +1,8 @@
 // Platform entrypoint: boot the Hono server on Bun.
 //
 // Starts Bun's built-in HTTP server with the Hono app (src/server/app.ts) and logs the
-// URL it is listening on. The port is configurable via the PORT environment
-// variable, defaulting to 3030. Started by `bun run dev` (bun --watch).
+// URL it is listening on. The port and the body cap come from the environment
+// (src/server/serve-options.ts). Started by `bun run dev` (bun --watch).
 //
 // On boot it first brings the platform-owned schema up to date by running the
 // migrations runner against the read-write connection — synchronously,
@@ -22,6 +22,7 @@ import {
   platformMutationCoordinator,
   platformReadGates,
 } from "./server/app.ts";
+import { resolveServeOptions } from "./server/serve-options.ts";
 
 // Generated Handlers execute in this process (ADR-0004: no process sandbox) and the static
 // isolation checks cannot see a property access, so `process.env` is reachable in principle.
@@ -90,31 +91,9 @@ try {
   console.error("omni-crud could not reconcile capability logos at boot:", errorDetail(error));
 }
 
-const DEFAULT_PORT = 3030;
+// A malformed `OMNI_MAX_FILE_BYTES` never gets this far: importing the app resolves it and throws.
+const server = Bun.serve({ ...resolveServeOptions(), fetch: app.fetch });
 
-// PORT must be a non-negative integer; anything else falls back to the default. An explicit
-// "0" is honored — it asks the OS for an ephemeral port.
-const rawPort = process.env.PORT;
-const requestedPort = rawPort ? Number(rawPort) : Number.NaN;
-const port = Number.isInteger(requestedPort) && requestedPort >= 0 ? requestedPort : DEFAULT_PORT;
-
-// Bun severs an idle connection after `idleTimeout` seconds (default 10) and an SSE stream falls
-// silent for whole seconds while the provider generates; a stream ends on its own `done` event.
-const STREAM_IDLE_TIMEOUT_SECONDS = 120;
-
-/**
- * Bun's default is 128MB and every entry point here materializes the whole body before
- * validating it. 1MB clears the largest honest body: every field at its 10,000-char ceiling.
- */
-const MAX_REQUEST_BODY_BYTES = 1024 * 1024;
-
-const server = Bun.serve({
-  port,
-  idleTimeout: STREAM_IDLE_TIMEOUT_SECONDS,
-  maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
-  fetch: app.fetch,
-});
-
-// Log the actual bound port (server.port), which differs from `port` when an
-// ephemeral port (0) was requested.
+// Log the actual bound port (server.port), which differs from the requested one when an
+// ephemeral port (0) was asked for.
 console.log(`omni-crud listening on http://localhost:${server.port}`);

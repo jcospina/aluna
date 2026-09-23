@@ -38,7 +38,7 @@ not. Module 6 settled where a query answer appears **without the pet**: the answ
 in a window of its own, a third beside the capability window and the developer panel,
 built on machinery that already existed. The prompt bar's notice slot is untouched and
 still carries what it carried. The pet is a delight feature that may never be built, and
-no plan should be written that waits on it — Module 9 should settle its proposal surface
+no plan should be written that waits on it — Module 10 should settle its proposal surface
 the same way rather than inherit this deferral.
 
 *Retired.* "A dark theme stays a purely additive future override" no longer
