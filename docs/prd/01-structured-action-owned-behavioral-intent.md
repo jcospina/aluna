@@ -309,7 +309,7 @@ AI, or required a model fallback.
 - Model routing across different providers per Action. The existing global
   provider contract remains authoritative.
 - Parallel Handler generation, Gate-rung redesign, mutation semantics, search
-  normalization, permanent deletion, or Module 8 experiment analysis.
+  normalization, permanent deletion, or Module 10 experiment analysis.
 - Rewriting, deleting, or silently upgrading historical snapshot files.
 
 ## Further notes

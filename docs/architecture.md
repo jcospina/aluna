@@ -108,7 +108,7 @@ pointer manifest.
 
 An explicit platform artifact-contract upgrade mechanism may eventually re-derive
 caches without pretending user intent changed, but its registry/serving marker and
-preservation machinery are deferred until after M9. M9 may add a metrics-only
+preservation machinery are deferred until after M10. M10 may add a metrics-only
 artifact-shape dimension for historical comparisons; that is not a serving marker.
 
 ### What is deliberately *not* locked in
@@ -122,7 +122,7 @@ built:
   templates, libraries, colors, copy — none of it is specified here. Pinning it
   down now would be guesswork the build is free to overrule.
 - **The implicit-loop UX.** §8 defines the backstage of the implicit loop; where
-  and how the proposal reaches the user is Module 8's call.
+  and how the proposal reaches the user is Module 9's call.
 
 Software is not specified front-to-back in advance: constraints surface, tools
 change, and better ideas arrive mid-build. What is locked here is the skeleton
@@ -141,7 +141,7 @@ It shows up on every axis:
 | **Data access** | Capability-bound mutation interface (no raw mutation SQL) | Parameterized read-only SQL (`SELECT` + joins); persistent cross-capability dependencies declared |
 | **Structure** | Isolated table per capability, no foreign keys | Relationships materialize at query time via joins |
 | **Schema lifecycle** | Platform-derived evolution DDL is additive-only; explicit confirmed capability deletion purges that capability's structure | — |
-| **Records** | User deletes own records through platform-owned confirmation (recorded once M8's Event Log exists) | — |
+| **Records** | User deletes own records through platform-owned confirmation (recorded once M9's Event Log exists) | — |
 | **Orchestration** | One mutation coordinator atomically admits every shared-connection write — builds, record/platform writes, and deletion | Prompt resolution/reads stay outside; deletion briefly closes the target incarnation to new reads |
 
 Every danger of unconstrained access — corruption, drop-table, integrity drift,
@@ -203,7 +203,7 @@ SHELL (fixed)
        │                       │
        │                       └─resolved build request─▶ explicit presenter ─┐
        │                                                                      │
-  Event Tracker ─batch─▶ M8 gate + resolver ─confirmed resolved request─▶ chosen presenter
+  Event Tracker ─batch─▶ M9 gate + resolver ─confirmed resolved request─▶ chosen presenter
                                                                               │
   Logo layer                                                                  │
        │ open                                                                 │
@@ -418,8 +418,8 @@ into a structured object:
 ```
 
 Typed explicit intents proceed directly and therefore carry
-`requires_confirmation: false`; only an M8 behavior-derived proposal sets it true,
-and confirmation belongs to M8's proposal surface before Builder hand-off.
+`requires_confirmation: false`; only an M9 behavior-derived proposal sets it true,
+and confirmation belongs to M9's proposal surface before Builder hand-off.
 
 Two responsibilities live here rather than in separate modules:
 
@@ -539,7 +539,7 @@ and a verified `v>N` path that never activated are candidates for recovery.
 Failure rolls back product state, finalizes failure metrics separately, and leaves
 candidate paths for guarded reconciliation. Startup marks interrupted metrics and
 reconciles only paths proven never committed. The prior version stays live
-throughout failure. Restore/changelog work in M9 must add a durable activation
+throughout failure. Restore/changelog work in M10 must add a durable activation
 ledger before anything may reclaim committed history.
 
 After the activation transaction commits, rendering, SSE delivery, client
@@ -588,7 +588,7 @@ create no generation row. Each admitted record write keeps the generated Handler
 its mutation call, and presentation completion inside one SQLite transaction, and
 any non-success response rolls the write back before the short lease releases.
 Module 2's historical `html-gen` is the first presentation-gen shape; from Module 3
-on, item renderer generation is recorded under the semantic stage name. Module 9
+on, item renderer generation is recorded under the semantic stage name. Module 10
 need not assume every version writes `.html` or behavioral tests.
 
 `reject`, `data_query`, and a prompt deflected before classification because it
@@ -651,7 +651,7 @@ while non-activation restores through `fragment` rather than pretending a commit
 Four domain stores in `bun:sqlite`, plus small platform lifecycle metadata
 (mutation ownership/deletion tombstones), generated code files, and an object
 store on disk. Two of these do not exist yet: no migration creates the Event Log,
-which Module 8 builds, and no code implements the object store, which Module 7
+which Module 9 builds, and no code implements the object store, which Module 7
 builds, so `storage/` holds only a README.
 
 #### Capability Registry — the source of truth
@@ -660,9 +660,9 @@ One active row per capability. The structured authored spec is canonical; the
 platform-owned incarnation/version and pointer to one complete immutable snapshot
 live alongside it. A row may temporarily become a non-routable deletion tombstone
 carrying cleanup work; resolvers, routes, and the ground see only active rows.
-Through M9 there is no registry/serving artifact-contract upgrade marker:
+Through M10 there is no registry/serving artifact-contract upgrade marker:
 greenfield shape changes use reset + rebuild (ADR-0005 §7). Snapshot publication
-metadata is per-version completeness evidence, and an optional M9 metrics-only
+metadata is per-version completeness evidence, and an optional M10 metrics-only
 shape label is analytical, not preservation machinery.
 
 ```json
@@ -807,8 +807,8 @@ inventories and tests stay in snapshot files. Each persistent read dependency is
 strict `{ capability_id, incarnation_id }` pair resolving to an active row; arrays
 are unique and canonically ordered, and the target capability is implicit. Naming
 exact live incarnations lets permanent deletion find reverse dependencies without
-inspecting generated code. Through M9 there is no registry/serving
-artifact-contract upgrade marker (ADR-0005 §7); an M9 metrics-only shape label may
+inspecting generated code. Through M10 there is no registry/serving
+artifact-contract upgrade marker (ADR-0005 §7); an M10 metrics-only shape label may
 classify historical rows. Keeping the active registry set lean matters because the
 Intent Resolver scans every row on every classification, reading `prompt_context`
 to understand the capabilities that already exist.
@@ -823,7 +823,8 @@ responses are `no-store`, and a `present` row whose accepted file disappears is
 reconciled to `abandoned` rather than generating a second artwork.
 
 Field types include `file` and `file[]`. A file field stores only a reference in
-the data table — storage key, mime, size, original name — never the bytes (see
+the data table — storage key, kind, verified mime, size, original name — never the
+bytes, and `file[]` is a file type rather than a list type (see
 §6.3 Object Store and §7 Files). A `photos` capability is therefore an ordinary
 capability whose schema has a `file`-typed field.
 
@@ -851,7 +852,7 @@ production; it does not trust client- or model-supplied incarnation labels.
 Ingestion uses a short coordinator write and atomically validates and appends the
 derived set only while every pair is still active and current, so a late
 pre-deletion batch is rejected after closing or tombstoning and cannot resurrect
-purged content. That lets M8 extend M4's cleanup seam without guessing from free
+purged content. That lets M9 extend M4's cleanup seam without guessing from free
 text.
 
 #### Data Tables — additive-only, generated DDL
@@ -901,17 +902,21 @@ rule, and both are absent on every row no read loop ran for.
 A platform-provided file store, never something the AI builds. The default local
 adapter uses `Bun.file` / `Bun.write`, addressed by opaque key under
 `storage/<key>`; an S3-shaped interface (`put` / `get` / `delete` / `url`) keeps
-deployment swappable. Bytes live here; the reference lives in a capability table.
-Keys have explicit capability-incarnation and record ownership, exclusive in the
-PoC rather than silently shareable, and mutations use durable pending and cleanup
-work so a failed create/update, a replacement, a record deletion, a soft-hidden
-file field, or a whole-capability deletion cannot orphan bytes or delete a live
-owner's file.
+deployment swappable, and a cloud adapter is proxied through `/files/:key` so a
+file's address stays same-origin. Bytes live here; the reference lives in a
+capability table. The **file ledger**, a platform table in the same database, is
+the only place ownership is asserted: one row per key naming its incarnation,
+field and record, its verified type, and whether it is pending, owned or awaiting
+cleanup. Keys are exclusive in the PoC rather than silently
+shareable, and the ledger doubles as the cleanup queue, so a failed
+create/update, a replacement, a record deletion, a soft-hidden file field, or a
+whole-capability deletion cannot orphan bytes or delete a live owner's file.
 
 When capability deletion is admitted, its durable manifest absorbs the target
 incarnation's committed active and inactive references, pending ownership, and
 already-enqueued cleanup before the table drops; deduplication stays
-incarnation-bound.
+incarnation-bound. The incarnation's ledger rows are retired in the
+tombstone transaction, and the manifest keeps the duty to delete the bytes.
 
 #### Cross-store lifecycle recovery
 
@@ -943,6 +948,13 @@ ordering is asymmetric and explicit:
   capability the address names really is absent, and is corrected to the bare
   desk's own address once the page is up. Later cleanup retries do not
   resurrect the deleted surface.
+- **File upload and save:** stream into staging with no row → admit and fsync →
+  write the ledger row as `pending` → rename into place and fsync the directory;
+  the save promotes the key inside its own transaction and marks every displaced
+  key `cleanup_enqueued` there too → only after commit, delete the displaced
+  bytes, staging path first, and then their rows. Boot empties staging, so a
+  crash mid-stream leaves nothing; a crash after the row leaves a `pending` row
+  for the desk-load sweep. A failed delete stays enqueued with its attempt count.
 
 Boot recovery runs before serving affected routes. It never infers ownership from
 arbitrary stored paths, follows symlinks outside configured roots, overwrites a
@@ -968,7 +980,10 @@ Update has merge-patch semantics, and record identity is a separate platform
 target. Only submitted active fields change: omitted active fields, all inactive values,
 `id`, `created_at`, and `extra` survive, an explicit `null` clears only an optional
 active field, and the complete result validates before the write. An edit therefore
-cannot erase soft-hidden or forward-compatible state. Incidental I/O stays the
+cannot erase soft-hidden or forward-compatible state. A file field goes further: its
+written value is always the router-checked submission, whether the Handler passes it
+back or leaves it out, any other value is refused, and only the platform control's
+explicit clear empties it (ADR-0009). Incidental I/O stays the
 Handler's business; canonical state always crosses the mutation interface.
 
 ### Reads — free
@@ -1026,24 +1041,52 @@ dependency. A cheap classifier may route or reject obvious non-queries early
 ### Files — a platform tool, same split
 
 File storage is platform tooling. Building a storage system is out of scope,
-brittle, and pointless, so the AI never does it; it calls a provided S3-shaped
-tool, backed by default by the local filesystem (`Bun.file` / `Bun.write`) and
-swappable to R2, S3, or Garage by config.
+brittle, and pointless, so the AI never does it, and neither does generated
+behavior: the platform itself drives an S3-shaped store, backed by default by the
+local filesystem (`Bun.file` / `Bun.write`) and swappable to R2, S3, or Garage by
+config.
 
-- **Upload = write = constrained.** Uploads arrive through the generic router
-  (`/capability/:id/create`, multipart); the generated Handler calls
-  `files.put(...)` and stores the reference through the mutation interface. A
-  durable pending ownership record exists before bytes can be orphaned; database
-  success assigns the key exclusively to one incarnation/record/field, while
-  failure schedules idempotent compensation.
+- **Upload = write = constrained.** A file travels ahead of the save, one
+  request per file, read into staging the moment it arrives, so it is never held
+  in memory. The platform admits it there (closed allowlist of what a browser can
+  show; extension, declared type and bytes must cohere), writes its ledger row as
+  pending, and only then renames it into place, so bytes can never be orphaned and
+  a refusal reaches the person before they save. The save itself carries
+  references, not bytes. The router checks each one before generated code runs
+  and again inside the save's transaction; the Handler passes back the projection
+  it was given, or leaves the field out, and either way the checked submission is
+  written; and the mutation interface accepts only a pending reference minted for
+  that incarnation and field, or the key that record's field holds now. Database
+  success promotes the reference, assigning the key exclusively to one
+  incarnation/record/field, and enqueues whatever it displaced. A failed save
+  changes nothing, so its pending references stay with the open form, and an
+  abandoned upload is deleted by a confirmed leave or taken by the next desk-load
+  sweep. The AI never touches bytes.
 - **Serve = read = free + infrastructure.** A platform-owned route `/files/:key`
-  streams bytes via `Bun.file`, and generated HTML simply references
-  `/files/<key>` (in an `<img src>`, say). The AI never builds file serving,
-  exactly as it never builds routing.
-- **Lifecycle follows ownership.** Update replacement/removal, confirmed record
-  deletion, and capability deletion (including inactive file fields) enqueue
-  idempotent cleanup. A key is not silently shared between records in the PoC.
-  External cleanup failure leaves durable retry work, never an untracked orphan.
+  streams bytes via `Bun.file`, looking the key up under a read token for its
+  incarnation like every other read, so a closing capability's files stop serving. Generated code
+  is handed each file as `{ url, name, kind, mime, size }` and puts the `url`
+  where it belongs (an `<img src>`, say); it never needs the key and never
+  composes the address. The AI never builds file serving, exactly as it never
+  builds routing.
+- **Content stays opaque here.** M7 stores and serves bytes and never reads them.
+  Asking what a document *says* — extraction, embeddings, retrieval as a second
+  read tool beside `data_query` — is Module 8, and every vector it derives is
+  owned by the key it came from.
+- **Lifecycle follows ownership.** A platform-owned file ledger holds one row per
+  admitted key — incarnation, field, record once saved, the verified type, and
+  whether the key is pending, owned or awaiting cleanup — and is the only place
+  ownership is asserted. Update replacement/removal, confirmed record deletion,
+  and capability deletion (including inactive file fields) enqueue idempotent
+  cleanup; capability deletion goes through M4's owned-resource manifest rather
+  than a second path. Leaving a record whose form holds an upload asks first, as
+  a running build does, and a confirmed leave deletes it. A reload destroys an
+  open form, so any pending key still standing at desk load is swept there; a second tab's form loses its upload to that sweep, and its save
+  is refused with a sentence rather than failing silently. Nothing waits on a
+  timer. A key is not silently shared between records in the PoC. External
+  cleanup failure leaves durable retry work, never an untracked orphan.
+
+ADR-0009 is the contract.
 
 ### `data_query` — the ephemeral exception
 
@@ -1055,7 +1098,7 @@ actually called, and compute. SQL carries the whole computation; the model never
 does arithmetic by reading rows. The loop's queries execute in a worker holding its
 own read-only connection, so a clumsy query cannot block the desk and a closing read
 gate can actually cancel one. The query creates no registry row, no logo on the
-ground, and no version, artifact, cache, or persisted read dependency. Once M8
+ground, and no version, artifact, cache, or persisted read dependency. Once M9
 exists the Event Log may still record the ordinary user action, which does not turn
 the query into a built capability. Scope follows the context-aware prompt bar: the
 open capability resolves vague references and never fences the search.
@@ -1083,7 +1126,7 @@ answer window stands, and the window itself when one does, re-titled to the refu
 and brought forward. An answer left standing beside a refusal goes on answering a question
 nobody asked. When nothing can answer, Aluna names the gap and stops — an offer with a
 confirmation is a proposal, and the proposal
-surface is Module 8's. ADR-0008 is the contract.
+surface is Module 9's. ADR-0008 is the contract.
 
 ## 8. The two loops
 
@@ -1136,7 +1179,7 @@ Intent Resolver  ── async, off the interaction path: reads event batch + con
         │
         ├─ confidence < threshold ──▶ log only, back off (raise bar for this pattern)
         │
-        └─ confidence ≥ threshold ──▶ M8-owned friendly proposal surface
+        └─ confidence ≥ threshold ──▶ M9-owned friendly proposal surface
                                               │
                                   ┌───────────┴───────────┐
                                   ▼                       ▼
@@ -1156,7 +1199,7 @@ request to the same Builder that Loop 1 uses, and re-runs no prompt classificati
 
 > The implicit UX is deliberately not yet defined. Event capture, the server-side
 > gate, async inference, explicit confirmation, and resolved-request hand-off are
-> fixed. Module 8 decides where and when the proposal appears, and which Builder
+> fixed. Module 9 decides where and when the proposal appears, and which Builder
 > lifecycle presenter follows confirmation — a foreground interruption, or a
 > quieter background presentation. The desk does not settle it: a proposal is Aluna
 > speaking unprompted, and the expected carrier is the companion, a talking pet
@@ -1198,7 +1241,7 @@ lease is held, and commit swaps the complete View into that same window. Meanwhi
 a build-id provisional tile marks the ground only after new-capability admission,
 so the build stays visible whether or not the user is watching the window. It is
 replaced on activation and removed on every non-activation. That presentation is not a core Builder invariant;
-Module 8 may choose another presenter after confirmation.
+Module 9 may choose another presenter after confirmation.
 
 Reads remain concurrent and never enter the mutation coordinator. Capability
 deletion adds a per-incarnation closing step: once it is admitted, new routes,
@@ -1244,7 +1287,7 @@ External cleanup retries cannot resurrect the deleted surface.
    Handlers, item renderer, and tier-on tests are version-keyed caches. A total
    positive-proof Diff Engine chooses between regeneration and copy, and snapshot
    metadata proves completeness. The arrow only points spec → derived artifacts.
-   Through M9, platform artifact-shape changes still reset and rebuild rather than
+   Through M10, platform artifact-shape changes still reset and rebuild rather than
    using the deferred preserving-upgrade marker (ADR-0005 §7).
 
 2. **Mutation constrained and coordinated, reads free and declared where

@@ -22,7 +22,7 @@ container reads (§2, §6). (b) §7's preservation cutover is deferred. The
 project is greenfield and under development, so the M2→M3 artifact-*shape* change
 is handled by `bun run reset` + rebuild; M3 introduces no persisted
 `artifact_contract` marker and no migrate-without-reset machinery. The
-preservation path is deferred until the platform is feature-complete (post-M8) —
+preservation path is deferred until the platform is feature-complete (post-M10) —
 it remains the architecture's end-state vision (ARCH §2, §9.1). Backwards
 compatibility does not drive design while the project is under development.
 
@@ -44,7 +44,7 @@ day) alongside `datetime` (an instant), so a "due date" asks for a day rather th
 timestamp. It is an additive extension applied through the centralized field renderer
 (epic 3.2/01) and its compile-enforced consumers — the spec enum, the DDL mapper
 (`date` → `TEXT`), the data tool, and the gate's sample generator — and supersedes the
-"pantry untouched" note in §Consequences below. `file` still remains M6.
+"pantry untouched" note in §Consequences below. `file` still remains M7.
 
 **Amended 2026-07-10 for Module 4.** §3's "full record" means the complete
 canonical row remains available to platform code on the server; it does not
@@ -190,7 +190,7 @@ presentational platform code is allowed.
    HTMX wiring and close-on-success) become fixed platform modules. They implement
    no capability rule and persist no canonical state. Consequently `list.html` and
    `create.html` cease to be generated units. Field rendering is centralized and
-   exhaustive so Module 4's list types and Module 6's file types extend one
+   exhaustive so Module 4's list types and Module 7's file types extend one
    platform module. For active `string[]` fields, that module also interprets the
    closed authored list input mode and normalizes both controls to the same
    ordered-array Handler contract.
@@ -308,7 +308,7 @@ presentational platform code is allowed.
    of old and new artifacts, and no atomic migrate-without-reset cutover. The
    original preservation design — keeping committed capabilities live and
    re-deriving them across a contract change without a reset — is deferred until
-   the platform is feature-complete (post-M8), when real user data exists to
+   the platform is feature-complete (post-M10), when real user data exists to
    preserve; it remains the platform artifact-contract upgrade the architecture
    still describes as the end state (ARCH §2, §9.1). Until then, backwards
    compatibility does not drive design.
@@ -332,17 +332,17 @@ presentational platform code is allowed.
 - **The spec schema changes shape.** `ui_intent.views` retires in favor of item
   intent + detail fields/order, and Module 4 adds strict per-active-`string[]`
   form list-input intent. The field-type pantry gains a `date` type (2026-07-06
-  amendment, above) but is otherwise unchanged; `file` remains M6.
+  amendment, above) but is otherwise unchanged; `file` remains M7.
 - **Metrics retain semantic continuity.** Item-renderer generation replaces M2
-  view generation as the presentation-generation stage, so M8 compares the
+  view generation as the presentation-generation stage, so M10 compares the
   presentation-gen stage across module versions rather than assuming generated
-  `.html`. M3 records no `artifact_contract` marker. If M8 needs to distinguish
+  `.html`. M3 records no `artifact_contract` marker. If M10 needs to distinguish
   historical shapes, it adds a metrics-only dimension; the registry/serving
-  upgrade marker remains deferred post-M8 (§7).
+  upgrade marker remains deferred post-M10 (§7).
 - **No in-place upgrade path in M3 (by choice).** During development the
   artifact-shape change is a `bun run reset` + rebuild, not a preserving
   migration; no dual contract or migration machinery is built now. The
-  preservation cutover is deferred post-M8 (§7).
+  preservation cutover is deferred post-M10 (§7).
 - **`design-system.md` gains a section** for the platform modules, the primitive
   vocabulary, and the closed-value contract — including the inline-style
   token-discipline rules — authored during Module 3.
