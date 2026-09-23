@@ -151,4 +151,4 @@ row before the model reads it.
 served as they are, and the platform's HTML filter marks the markup that shows
 them `loading="lazy"` or `preload="metadata"` itself. Derived files would be owned keys with their own lifecycle,
 which is the part that most needs to be right the first time. Reading the
-*contents* of a document is Module 8's business, not this one's.
+*contents* of a document is Module 9's business, not this one's.

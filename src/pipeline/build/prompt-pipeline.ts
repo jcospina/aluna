@@ -5,7 +5,7 @@
 // build-shaped classification into a `ResolvedBuildRequest` bound to its target expectation and
 // that catalog's fingerprint. It then hands the request to the core Builder with the explicit
 // foreground presenter. The lease, lease-head revalidation, the admission row, mutation, Gate
-// and activation all live in `core-builder.ts`, which Module 9 drives with another presenter.
+// and activation all live in `core-builder.ts`, which Module 10 drives with another presenter.
 //
 // Neither `reject` nor `data_query` reaches the Builder. A refusal deflects with a warm line; a
 // question runs and is answered in the answer window (6.5/03). Both leave the same best-effort

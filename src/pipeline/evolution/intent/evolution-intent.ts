@@ -24,7 +24,7 @@ const UI_CHANGE_FACTS = new Set([
 
 /**
  * The resolver's classification, re-checked against the capability the run aims at, so one about
- * a capability never authors a candidate for another. `/prompt` cannot fire this; Module 9 can.
+ * a capability never authors a candidate for another. `/prompt` cannot fire this; Module 10 can.
  */
 export function resolveEvolutionIntent(
   active: CapabilityRow,

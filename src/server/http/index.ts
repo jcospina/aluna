@@ -44,7 +44,14 @@ export {
 } from "./fragments.ts";
 export {
   hasMeaningfulPromptContent,
-  isCrossSitePrompt,
   readPrompt,
   readPromptSubmission,
 } from "./prompt-request.ts";
+export {
+  BodyTooLargeError,
+  guardStreamingRoute,
+  guardWritingRoute,
+  isSendersDoing,
+  passesThrough,
+  TEXT_BODY_LIMIT_BYTES,
+} from "./writing-route-guard.ts";

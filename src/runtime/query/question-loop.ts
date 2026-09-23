@@ -121,7 +121,7 @@ export async function runQuestionLoop(
   // The gap, or the ending this question truthfully has instead. A search that matched nothing
   // keeps its own (decision 17): that ending is about her search, and this one is about the desk,
   // and the weaker claim is the true one. `runQuestionNoHome` then runs decision 30's two checks
-  // against the held catalog. **This is where Module 9 wires its proposal surface when it has
+  // against the held catalog. **This is where Module 10 wires its proposal surface when it has
   // one** (decision 20); until then the sentence ships with no control of any kind.
   const named = async (): Promise<QuestionLoopResult> => {
     if (questionFoundNothing(steps)) return await spoken();

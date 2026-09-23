@@ -227,10 +227,10 @@ are **deliberately left alone**: closed module plans are history.
 20. **When nothing can answer, she names the gap and stops.** *"You don't have anywhere
     for hiking trips yet — you can ask me to make one."* No button, no confirmation
     control. An offer-with-a-yes is a **proposal**, and the proposal surface belongs to
-    Module 9: `intent/schema.ts` presently admits only `requires_confirmation:
-    z.literal(false)`, and its own comment reserves confirmations for M4 deletion and M9
+    Module 10: `intent/schema.ts` presently admits only `requires_confirmation:
+    z.literal(false)`, and its own comment reserves confirmations for M4 deletion and M10
     proposals. The information still arrives, and the action is one ordinary sentence away
-    in the box already under the cursor. This is the first place M9 should wire its
+    in the box already under the cursor. This is the first place M10 should wire its
     proposal surface when it has one.
 
 ### The surface
@@ -267,7 +267,7 @@ are **deliberately left alone**: closed module plans are history.
 22. **Nothing in this module depends on the pet.** An earlier draft of this plan anchored
     the answer to the prompt bar so the pet could inhabit it later. The window removes
     that dependency entirely. The pet is a delight feature that may never be built, and
-    no plan should be written that waits on it — including Module 9's proposal surface,
+    no plan should be written that waits on it — including Module 10's proposal surface,
     which should settle itself on machinery that exists rather than inherit this
     deferral.
 
@@ -353,7 +353,7 @@ are **deliberately left alone**: closed module plans are history.
     writes a best-effort row to `intent_resolution_metrics` (ARCH §6.3) carrying no
     content. Adding steps taken and wall-clock elapsed keeps it content-free — no prompt,
     no SQL, no results, nothing about the user's data — and answers the one question
-    decision 8 guessed at. Latency is explicitly part of this PoC's thesis, and Module 10
+    decision 8 guessed at. Latency is explicitly part of this PoC's thesis, and Module 11
     is the customer.
 
 ## What this module does not do
@@ -368,7 +368,7 @@ model's own knowledge of language, applied at query time, is the whole semantic 
 Decision 19 states what it would cost to change that and where the decision belongs.
 
 **It does not offer to build anything.** Aluna names a gap; she never presents a
-confirmation. The proposal surface is Module 9's to design.
+confirmation. The proposal surface is Module 10's to design.
 
 **It does not move build narration.** The capability window keeps it.
 
@@ -485,7 +485,7 @@ be cancelled. Answers are spoken by Aluna in a window of their own that displace
 the capability window nor the developer panel, so a capability stays open while it is
 asked about, and they create no
 registry/version/artifact/cache/read-dependency state. Every collection states how many
-records it holds. M9 may later record the ordinary user action in the Event Log without
+records it holds. M10 may later record the ordinary user action in the Event Log without
 turning a query into a capability, and remains free to design the proposal surface that
 decision 20 deliberately leaves unbuilt.
 

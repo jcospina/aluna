@@ -13,7 +13,7 @@ It does not specify implementation — types, classes, function signatures, file
 
 Two things are left undefined on purpose:
 
-- **Where a behavioural proposal appears (Module 9).** Deferred, not decided. It belongs to the pet — a talking companion that will carry Aluna's narration and is not designed yet ([Module 5's plan](../modules/05-the-desk/PLAN.md)). Everything around it is fixed: event capture, the gate, async inference, confirmation and hand-off to the build pipeline. One commitment holds regardless: nothing is built without an explicit confirmation. *(Module 6's answer surface was the other half of this and is now settled without the pet — the answer opens in its own window; see ADR-0008. Module 9 is free to settle its own surface the same way rather than waiting.)*
+- **Where a behavioural proposal appears (Module 10).** Deferred, not decided. It belongs to the pet — a talking companion that will carry Aluna's narration and is not designed yet ([Module 5's plan](../modules/05-the-desk/PLAN.md)). Everything around it is fixed: event capture, the gate, async inference, confirmation and hand-off to the build pipeline. One commitment holds regardless: nothing is built without an explicit confirmation. *(Module 6's answer surface was the other half of this and is now settled without the pet — the answer opens in its own window; see ADR-0008. Module 10 is free to settle its own surface the same way rather than waiting.)*
 - **Every piece's internals.** Each module's implementation is its own to decide. The "verify by running it" demos describe observable behavior, not the code that produces it.
 
 ## How this plan is sliced
@@ -28,7 +28,7 @@ and everything after either reuses it or deliberately deepens it.
 Four rules govern the ordering:
 
 1. **Scaffolding first.** Module 1 stands up the repo and wires every dependency together with zero domain logic.
-2. **Explicit prompting before implicit prompting.** Modules 2–7 build the entire explicit loop end to end. Implicit (Module 9) reuses that work.
+2. **Explicit prompting before implicit prompting.** Modules 2–7 build the entire explicit loop end to end. Implicit (Module 10) reuses that work.
 3. **Each module is progressive and self-contained.** Each builds on the one before it and is, on its own, a complete, demonstrable, testable piece of the product. Stop after any module and you still have a thing that runs.
 4. **The demo stays alive.** Relevant runtime work reaches the current homepage
    demo as soon as it can be exercised. The demo may be ugly and
@@ -62,11 +62,12 @@ parallel rebuild.
 | 5 | **The Desk** | Open a capability from its logo into the one window, put it away, rename or delete it from the desk; every capability carries a picture of its own | Wallpaper · logo layer · one window · drawn line everywhere · High Meadow tokens · capability logos · choice + long-text fields | M1–M4 |
 | 6 | **Reads Set Free — Ad-hoc Data Queries** | Ask questions across your data; Aluna answers out loud; nothing is built | Bounded read-only query loop in a worker · spoken answers · a third window for answers · record counts | M4's physically read-only query seam |
 | 7 | **Files — Upload, Store & Serve** | Create capabilities that hold files; upload, view, and delete them | S3-shaped object store · file ledger · `file` / `file[]` field types · upload ahead of the save · serve (read) · lifecycle | M1–M6 |
-| 8 | **File Content Understanding** | Ask what your own documents say, not just how many you have | Text extraction · chunking · embeddings · retrieval as a second read tool · derived-vector lifecycle | M6's query loop · M7's files |
-| 9 | **Implicit Loop — Behavior → Proposal → Build** | The app notices a pattern in how you work and offers to build for you | Event tracker · event log · server-side gate · async resolution · proposals | M1–M8 |
-| 10 | **Experiment Harness — Metrics, Latency & Tuning** | Read the PoC's conclusions; tune the implicit gate against real data | Metrics querying · outcome/overlap analysis · experimenter surface · gate tuning | M1–M9 |
+| 8 | **Composition — Linked Capabilities** | Link a record to a record in another capability — a book to its author, a stock count to a book — and build a large feature by chaining small capabilities | Link field type · record picker · link-aware Builder and query loop · what deletion does to a link | M1–M7 |
+| 9 | **File Content Understanding** | Ask what your own documents say, not just how many you have | Text extraction · chunking · embeddings · retrieval as a second read tool · derived-vector lifecycle | M6's query loop · M7's files |
+| 10 | **Implicit Loop — Behavior → Proposal → Build** | The app notices a pattern in how you work and offers to build for you | Event tracker · event log · server-side gate · async resolution · proposals | M1–M9 |
+| 11 | **Experiment Harness — Metrics, Latency & Tuning** | Read the PoC's conclusions; tune the implicit gate against real data | Metrics querying · outcome/overlap analysis · experimenter surface · gate tuning | M1–M10 |
 
-The explicit loop is complete at the end of Module 7. Module 8 teaches Aluna to read what those files say; Module 9 turns on the second loop; Module 10 makes the experiment legible.
+The explicit loop is complete at the end of Module 7. Module 8 lets capabilities link to each other; Module 9 teaches Aluna to read what those files say; Module 10 turns on the second loop; Module 11 makes the experiment legible.
 
 ## Module 1 — Platform Scaffold & Runtime Spine
 
@@ -97,7 +98,7 @@ The app boots and stays up. Shell, SSE, AI provider, and both DB connections are
 
 **Why second:** this is the moment the premise becomes real — *the app writes
 itself*. Everything here (registry, data-access seam, router, builder, queue,
-metrics, SSE swap) is reused and deepened by Modules 3–9.
+metrics, SSE swap) is reused and deepened by Modules 3–11.
 
 ### Epics
 
@@ -110,8 +111,8 @@ metrics, SSE swap) is reused and deepened by Modules 3–9.
   > **Historical closure:** Module 2 vendored the HTMX SSE extension and proved
   > the per-build ephemeral `sse-connect`/`sse-close="done"` path plus OOB toolbar
   > swap. Module 4 reuses that explicit presenter but keeps SSE/DOM ownership out
-  > of the core Builder so Module 9 may choose another presenter. See ADR-0002.
-- **2.7 — Metrics writing.** One metrics record per generation: timing breakdown (incl. test-gen and test-run when the behavioral tier is on), per-rung gate outcomes and any retries, model, tokens, outcome. The test-tier columns are what let M10 quantify behavioral verification's cost against the no-test baseline. (ARCH §6.3 "Generation Metrics", §6.2)
+  > of the core Builder so Module 10 may choose another presenter. See ADR-0002.
+- **2.7 — Metrics writing.** One metrics record per generation: timing breakdown (incl. test-gen and test-run when the behavioral tier is on), per-rung gate outcomes and any retries, model, tokens, outcome. The test-tier columns are what let M11 quantify behavioral verification's cost against the no-test baseline. (ARCH §6.3 "Generation Metrics", §6.2)
 
 ### Verify by running it
 Type *"I want to keep track of my notes."* → watch the friendly narration build it → a *Notes* tab appears in the toolbar → the content area shows a list and an "add note" form → add a note → it persists → refresh the page → the toolbar rehydrates and the note is still there. A metrics row was written for the build.
@@ -144,7 +145,7 @@ is evolved rather than bypassed from here on.
 - **3.4 — One item renderer, shared by every action.** Re-cut the artifact contract: each capability gets one generated item-renderer unit. The router extends the injected toolbox with a capability-scoped presentation adapter that supplies it to `create.ts`, `read.ts`, and later `search.ts`; handlers never import it or duplicate markup. The platform wrapper owns the escaped `data-item` payload, accessible trigger, and click-to-open behavior. Amends [ADR-0004](adr/0004-capability-artifact-contract-and-validation-isolation.md); see [ADR-0005](adr/0005-opinionated-capability-ui-design-contract-and-gate.md).
 - **3.5 — Few-shot design gallery.** A curated, repo-only set of 2–3 deliberately different item-renderer exemplars, each pairing an item composition with the collection layout it suits (text-forward cards in a `feed`, media tiles in a `grid`, compact metadata rows in a `feed`) and obeying the same contract while composing differently. They enter the unit prompt alongside the capability's chosen `collection.layout` with explicit *"vary, don't copy"* framing. LLM-facing only, never rendered to the user. (ADR-0005)
 - **3.6 — Design-lint gate rung.** A new fail-closed rung in the existing layered gate: render hostile synthetic field values and reject off-token styling (raw values on the token-owned color/font/type/spacing/border axes, forbidden style constructs), fabricated/unknown classes, executable markup, and unsafe field interpolation — fed back through the same bounded fix loop as the type-check rung. Item payload, accessibility and modal invariants are platform-owned and covered by deterministic platform tests, never delegated to the model. (ARCH §6.2 gate; ADR-0005)
-- **3.7 — Switch to the new artifact shape (reset, not migrate).** Make the M3 shape (platform-rendered views + one item renderer) the only one the build pipeline produces and the registry/router serve; retire the M2 `list.html`/`create.html` paths. Because the project is greenfield, the M2→M3 transition is `bun run reset` plus a fresh rebuild: Module 3 builds no preservation cutover, no dual-serving, and no persisted `artifact_contract` marker. That preservation path and its registry/serving marker wait until the platform is feature-complete (ADR-0005 §7); M10 may add only a metrics classification for historical shape comparison. (ADR-0005)
+- **3.7 — Switch to the new artifact shape (reset, not migrate).** Make the M3 shape (platform-rendered views + one item renderer) the only one the build pipeline produces and the registry/router serve; retire the M2 `list.html`/`create.html` paths. Because the project is greenfield, the M2→M3 transition is `bun run reset` plus a fresh rebuild: Module 3 builds no preservation cutover, no dual-serving, and no persisted `artifact_contract` marker. That preservation path and its registry/serving marker wait until the platform is feature-complete (ADR-0005 §7); M11 may add only a metrics classification for historical shape comparison. (ADR-0005)
 
 ### Verify by running it
 Run `bun run reset`, then build *"I want to keep track of my notes"* fresh → the styled list truncates long text and exposes a *New note* button → the shared modal opens with an on-brand form → a created note appears through the same item renderer used by the read path → clicking its platform-owned wrapper opens the same modal prefilled and read-only. Build *"save links with a title and a url"* and confirm its item composition differs from Notes while reusing the same modal and primitives; build something visual (e.g. *"a place for my photos"*) and confirm it comes out as a `grid` collection while Notes stays a `feed`. Finally, make an item renderer emit an unknown class or unsafe field value and confirm the design gate fails with friendly narration and no pointer flip.
@@ -254,7 +255,7 @@ M4 contract. This is bounded development sequencing, not persisted dual-serving.
 - **4.8 — Resolver, explicit presenter, active context & overlap.** Act on
   `new_capability | extend_capability | ui_change`; keep `reject`/`data_query` out
   of the Builder; resolve meaningful separate capabilities. Separate the resolved
-  build request/core lifecycle from the explicit foreground SSE presenter so M9
+  build request/core lifecycle from the explicit foreground SSE presenter so M10
   can reuse it without reclassification or forced foreground UX. Bind
   `expected_absent` or exact id/incarnation/version plus the resolver-visible
   catalog revision/fingerprint, and refuse either mismatch as stale after lease
@@ -707,16 +708,17 @@ adapter and its static contract, execute in a worker that cannot block the desk 
 cancelled, are spoken by Aluna in a window of their own that displaces neither the
 capability window nor the developer panel, and create no
 registry/version/artifact/cache/read-dependency state. Every collection states how many
-records it holds. M9 may later record the ordinary user action in the Event Log without
+records it holds. M10 may later record the ordinary user action in the Event Log without
 turning the query into a capability.
 
 ## Module 7 — Files: Upload, Store & Serve
 
 **Goal:** apply the same constrained-write / free-read split to bytes (ARCH §7 "Files"). A capability can now hold files: upload is a constrained write the platform performs, serving is a free read through a platform route. With this the explicit loop is complete.
 
-**Why seventh:** files are the last user-facing surface of the explicit loop. They
-reuse M4's mutation interface (for the reference), M4's owned-resource manifest
-(for deletion) and M5's field set (for the control), all of which now exist. The
+**Why seventh:** files are the last user-facing surface one capability needs on
+its own. They reuse M4's mutation interface (for the reference), M4's
+owned-resource manifest (for deletion) and M5's field set (for the control), all
+of which now exist. The
 `grid` collection layout (`ui_intent.collection.layout: "grid"`) is exactly where
 uploaded images present, and `.media-frame` — drawn for M3 and never yet backed by
 a field type — finally holds something real.
@@ -782,14 +784,87 @@ New and evolved capabilities hold files end to end through platform tooling, wit
 recoverable ownership across create/update/record-delete/capability-delete.
 The explicit prompting feature is complete.
 
-## Module 8 — File Content Understanding
+## Module 8 — Composition: Linked Capabilities
+
+**Goal:** a record in one capability can point at a record in another, so a large
+feature is built by chaining small capabilities. Books link each book to its
+author, and Authors is a capability managed on its own. Inventory then records
+how many copies of a book you own by pointing at the book already in Books. You
+never type the book again, and a book without an Inventory record is still a
+book.
+
+**Why eighth:** Module 7 completes the explicit loop, and no record that loop
+builds can point at a record in another capability. Linking changes what a capability is, so it comes
+before the implicit loop, which hands its proposals to the explicit Builder and
+can offer only what that Builder can build. File content understanding needs
+nothing from this module, and this module needs nothing from it.
+
+> **What exists today, and what this module has to change.** A capability can
+> already read another one's table. Each Action in a spec lists
+> `read_dependencies`, exact `{ capability_id, incarnation_id }` pairs, and the
+> Action's generated SQL may join those tables and no others (ARCH §7 "Reads").
+> M4 uses the same list to block deleting a capability that another one reads
+> (ADR-0006). Only evolution can add a dependency. A new capability is built with
+> none, and the model writes the join itself, matching on whatever plain columns
+> it chose. Nothing records which record points at which. There is no link field
+> type, no control that picks a record from another capability, and no rule for
+> what happens to a book when its author is deleted. The architecture also rules
+> out the most direct way to build a link: ARCH §3 and §6.3 say there are no
+> foreign keys, and §6.2 and §8 add that capabilities share no fields and the user
+> never reconciles schemas or data models. This module amends §3, §6.2, §6.3 and
+> §8 before it builds anything.
+
+### Epics
+
+Not yet designed. The shape to grill, in dependency order:
+
+- the ARCH §3, §6.2, §6.3 and §8 amendment, and whether a link is a SQLite
+  foreign key or a reference the platform enforces, the way the file ledger owns
+  a file key;
+- the link as a field type: one record or many (a book with two authors), and
+  what the router checks before it writes one;
+- what generated code receives for a link, as 7.1 defines
+  `{ url, name, kind, mime, size }` for a file, and what the item renderer shows;
+- the platform control that picks a record from the other capability, and
+  whether it can add a missing author without leaving the form;
+- the other direction: an author's record listing that author's books;
+- the Builder seeing the catalog when it builds a new capability, so "track how
+  many copies of each book I have" links to Books instead of building a second
+  books table, and whether overlap resolution (4.8) needs a third answer beside
+  *extend* and *separate*;
+- evolving a text field into a link: Books already holds author names as text,
+  and moving them onto Authors records has to respect the additive-only rule;
+- deletion at both ends: an author with books pointing at them, and a
+  capability another one links to;
+- the query loop reading declared links, so a question follows them instead of
+  guessing a join;
+- the words: ADR-0005 already says *composition* for how an item renderer
+  arranges a record's markup (*closed values, open composition*, the few-shot
+  gallery's `composition` field), so `CONTEXT.md` has to tell composing
+  capabilities from composing an item, and name the link itself.
+
+### Verify by running it
+Build Books with an author on each book, then ask for Authors. Link each book to
+an author, open an author and see their books. Build Inventory, give two books a
+count by picking them from Books rather than typing them, and confirm the other
+books need no Inventory record. Delete an author whose books point at them and
+see the rule this module chose. Ask *"how many copies of Le Guin's books do I
+have?"* and get one spoken answer that followed Inventory to Books to Authors.
+
+### Exit criteria
+A capability can be built or evolved to link to records in another. The user
+picks a linked record and never retypes it. A chain of links reads back on the
+desk and in Aluna's answers, and deleting either end of a link follows one
+stated rule.
+
+## Module 9 — File Content Understanding
 
 **Goal:** Aluna can answer questions about what is *inside* the documents a
 capability holds, not only about the rows. M6 answers with SQL over the catalog;
 this module adds the second read tool — retrieval over extracted document text —
 and lets the loop use either or both.
 
-**Why eighth:** it is the first thing that needs files to exist, and nothing else
+**Why ninth:** it is the first thing that needs files to exist, and nothing else
 needs it. It is also the first time the *contents* of a person's private documents
 leave the machine, which is its own decision rather than a fifth bullet under
 Module 7.
@@ -808,14 +883,14 @@ file ledger already knows how to own.
 A person can ask what one of their own documents says and get a grounded spoken
 answer, and every vector dies with the file, record or capability it came from.
 
-## Module 9 — Implicit Loop: Behavior → Proposal → Build
+## Module 10 — Implicit Loop: Behavior → Proposal → Build
 
 **Goal:** turn on the second intent loop (ARCH §8 "Loop 2"). Aluna watches *how*
 the user behaves and proposes a capability. Confirmation hands an already-resolved
-request to the explicit Builder established in M2–M4 and extended through M7. It
+request to the explicit Builder established in M2–M4 and extended through M8. It
 never silently changes Aluna or reclassifies the accepted proposal.
 
-**Why ninth:** this thin layer is the whole difference between implicit and explicit. It needs a complete, populated app to observe (Modules 2–7) and reuses the entire build pipeline, adding exactly the two things explicit never needed: full-fidelity event capture and the behavior→proposal classifier path.
+**Why tenth:** this thin layer is the whole difference between implicit and explicit. It needs a complete, populated app to observe (Modules 2–8) and reuses the entire build pipeline, adding exactly the two things explicit never needed: full-fidelity event capture and the behavior→proposal classifier path.
 
 > **Open in this module: where a proposal appears.** Capture, gate, async
 > inference, explicit confirmation, resolved-request hand-off, and reuse of M4's
@@ -829,14 +904,14 @@ never silently changes Aluna or reclassifies the accepted proposal.
 
 ### Epics
 
-- **9.1 — Define the implicit UX (open design).** Settle proposal placement and
+- **10.1 — Define the implicit UX (open design).** Settle proposal placement and
   timing, and the post-confirmation Builder presenter, with the pet's design rather
   than ahead of it. M3 supplies presentation primitives, M5 supplies the desk and
   the window they sit on, and M4 supplies presenter-independent resolved-request
   execution. Nothing builds without explicit confirmation.
   (ARCH §8 "Loop 2"; M5 plan)
-- **9.2 — Event tracker (dumb shell recorder).** Capture every action — click, hover, dwell, focus, scroll — with full context (timestamp, active capability, element id/type, on-screen data). Batch and ship to the server. No client-side logic: no thresholds, no detection. (ARCH §6.1 "Event Tracker", §8 "Loop 2")
-- **9.3 — Event Log (ordinary append + deletion ownership).** Record every action
+- **10.2 — Event tracker (dumb shell recorder).** Capture every action — click, hover, dwell, focus, scroll — with full context (timestamp, active capability, element id/type, on-screen data). Batch and ship to the server. No client-side logic: no thresholds, no detection. (ARCH §6.1 "Event Tracker", §8 "Loop 2")
+- **10.3 — Event Log (ordinary append + deletion ownership).** Record every action
   with before/after situation and every capability incarnation whose product data
   appears. The server derives ownership from admitted route/query/read-token
   context and canonical payload production; client/model labels are not trusted.
@@ -844,20 +919,20 @@ never silently changes Aluna or reclassifies the accepted proposal.
   and rejects the batch if any pair is no longer active/current. Explicit
   capability deletion purges/redacts owned product payloads through M4's cleanup
   seam, while a content-free deletion fact may remain.
-- **9.4 — Server-side gate.** A cheap deterministic heuristic that trips only on a real pattern. No LLM call until it trips. Thresholds live server-side, next to the dataset — the experiment's main tuning knob, changeable without redeploying the shell. (ARCH §8 "Loop 2", server-side gate)
-- **9.5 — Async intent resolution.** Off the interaction path (never blocks). Reads the event batch + context through the existing resolver. Below threshold → log only and back off (raise the bar for this pattern). Above threshold → proceed to a proposal. (ARCH §8 "Loop 2")
-- **9.6 — Proposal + decision (contract fixed, presentation per 9.1).** Confirm
+- **10.4 — Server-side gate.** A cheap deterministic heuristic that trips only on a real pattern. No LLM call until it trips. Thresholds live server-side, next to the dataset — the experiment's main tuning knob, changeable without redeploying the shell. (ARCH §8 "Loop 2", server-side gate)
+- **10.5 — Async intent resolution.** Off the interaction path (never blocks). Reads the event batch + context through the existing resolver. Below threshold → log only and back off (raise the bar for this pattern). Above threshold → proceed to a proposal. (ARCH §8 "Loop 2")
+- **10.6 — Proposal + decision (contract fixed, presentation per 10.1).** Confirm
   hands the already-resolved request directly to M4's mutation coordinator/Builder;
   it carries `expected_absent` or exact capability id/incarnation/version plus
   the resolver-visible catalog revision/fingerprint used for classification. A
   lease-head mismatch of either refuses stale work rather than rebasing or
   reclassifying it; only then is the dependency-generation catalog frozen.
   Ignore logs and backs off. It never re-runs prompt classification.
-  Presentation comes from 9.1. (ARCH §8 "Loop 2", §9.3)
+  Presentation comes from 10.1. (ARCH §8 "Loop 2", §9.3)
 
 ### Verify by running it
 Repeatedly do something suggestive. The gate asynchronously proposes a due-date
-evolution. Confirm and prove the accepted resolved request enters the M2–M7
+evolution. Confirm and prove the accepted resolved request enters the M2–M8
 Builder exactly once without reclassification; Ignore backs off. Delete the
 capability and confirm its Event Log product payloads are gone while content-free
 experiment/deletion facts remain.
@@ -865,15 +940,15 @@ experiment/deletion facts remain.
 ### Exit criteria
 Behavioral patterns produce confirmation-gated proposals that, when accepted, build through the existing explicit pipeline. The app never changes itself without a confirmation. Both intent loops are live.
 
-## Module 10 — Experiment Harness: Metrics, Latency & Tuning
+## Module 11 — Experiment Harness: Metrics, Latency & Tuning
 
 **Goal:** make the PoC's conclusions legible — the reason the project exists (ARCH §6.3 "Generation Metrics", §9.6). Metrics have been written since Module 2; this module surfaces and analyzes them, and gives the implicit gate a tuning loop against the real event-log dataset.
 
-**Why last:** it depends on data accrued by every prior module — generation metrics from Modules 2–9 and the event log from Module 9. It is an experimenter-facing surface, kept clearly separate from the friendly app (ARCH §9.7).
+**Why last:** it depends on data accrued by every prior module — generation metrics from Modules 2–10 and the event log from Module 10. It is an experimenter-facing surface, kept clearly separate from the friendly app (ARCH §9.7).
 
 ### Epics
 
-- **10.1 — Metrics querying.** Query by build id and capability incarnation across
+- **11.1 — Metrics querying.** Query by build id and capability incarnation across
   `running | success | failed | interrupted` lifecycle status and typed outcomes
   such as `activated | no_change | stale`, plus semantic stage timings, queue
   wait, model, tokens, retries, Gate outcomes, and
@@ -881,12 +956,12 @@ Behavioral patterns produce confirmation-gated proposals that, when accepted, bu
   behavioral modes without assuming every snapshot contains `.html` or tests; add
   a metrics-only artifact-shape dimension if comparison needs one, without
   introducing the deferred registry/serving upgrade marker. (ARCH §6.3, §6.2)
-- **10.2 — Outcome & overlap analysis.** Join admitted generation rows with the
+- **11.2 — Outcome & overlap analysis.** Join admitted generation rows with the
   separate non-build `intent_resolution_metrics` rows to analyze
   extend-vs-separate decisions, activation/no-change/stale/failure rates, and
   the complete intent-classification distribution. (ARCH §6.2, §8 "Overlap resolution")
-- **10.3 — Experimenter surface.** An internal view/report to read the dataset, deliberately outside the user-facing product voice — the friendly app shows no internals. It lives in the developer panel's window, which is already furniture rather than a capability and already stands outside the product voice, so metrics, latency and gate tuning join it there instead of claiming a third window. (ARCH §9.7; M5 plan)
-- **10.4 — Gate tuning loop.** Adjust the implicit gate's thresholds against the event-log dataset and observe the effect on proposal behavior — without redeploying the shell. (ARCH §8 "Loop 2")
+- **11.3 — Experimenter surface.** An internal view/report to read the dataset, deliberately outside the user-facing product voice — the friendly app shows no internals. It lives in the developer panel's window, which is already furniture rather than a capability and already stands outside the product voice, so metrics, latency and gate tuning join it there instead of claiming a third window. (ARCH §9.7; M5 plan)
+- **11.4 — Gate tuning loop.** Adjust the implicit gate's thresholds against the event-log dataset and observe the effect on proposal behavior — without redeploying the shell. (ARCH §8 "Loop 2")
 
 ### Verify by running it
 After exercising both loops, open the developer panel from its tile → see per-generation timing breakdowns, success/failure rates, and overlap decisions → adjust a gate threshold → observe that the implicit loop now proposes more (or less) aggressively.
@@ -901,14 +976,14 @@ These are not modules but disciplines, which every module must honor from its in
 | Concern | Introduced in | Rule | ARCH ref |
 |---|---|---|---|
 | **Mutation coordinator** | M2 (build queue), completed M4 | Resolved builds bind target + resolver-catalog fingerprint, use bounded tickets then one active lease, and fail stale on lease-head mismatch; all shared-connection writes use ownership-checked leases; deletion atomically try-acquires and never queues | §8 "Concurrency" |
-| **Spec → derived artifacts discipline** | M2 | The arrow only ever points authored spec → handlers/item renderer/tests. M4's total positive-proof matrix scopes regeneration and preserves committed incarnation/version history. Through M10, platform artifact-shape changes reset/rebuild; preserving upgrades and their marker remain deferred | §2, §9.1 |
+| **Spec → derived artifacts discipline** | M2 | The arrow only ever points authored spec → handlers/item renderer/tests. M4's total positive-proof matrix scopes regeneration and preserves committed incarnation/version history. Through M11, platform artifact-shape changes reset/rebuild; preserving upgrades and their marker remain deferred | §2, §9.1 |
 | **Validate-before-commit / atomic pointer flip** | M2 | Nothing goes live until it clears every active gate rung — type-check, signatures, smoke run, (behavioral tier on) tests, and (from M3) design lint — then pointer + `success/activated` commit at the point of no return; later transport failure cannot undo it | §6.2, §9.5 |
 | **Additive-only structure** | M2 (DDL), M4 (evolution) | The admitted platform DDL path adds or soft-hides and never `DROP`s/destructively renames; this is an interface/static-contract guarantee, not hostile-code containment | §3, §9.3 |
 | **Closed-value design contract + design gate** | M3, re-derived M5 | Generated item markup targets allow-listed semantic/primitive classes first (incl. layout utilities), with token-disciplined inline `style` as the escape hatch; a fail-closed design-lint rung enforces it. From M5 the token layer is `design/styles/`: colour, type size and spacing are picked from its sets, and font family, border, `border-radius` and `box-shadow` are never declared at all, because the ink system owns every boundary. Structural mechanics — including the closed `feed \| grid` collection layout the container reads from `ui_intent` — are platform-owned presentation | §6.2, §6.3, §7, §9.7 |
 | **Metrics on every admitted build** | M2, lifecycle tightened M4 | Resolver-only/pre-lease outcomes are best-effort and are not builds; durability begins with direct stale or `running`. Activation, no-op, stale admission, failure, and interruption remain queryable | §6.3, §9.6 |
 | **Read-only adapter safety** | M1 (connection), M4 (persistent Actions), M6 (whole-catalog query) | Mutation through the supplied query adapter fails at SQLite. Persistent generated Actions declare dependencies; M6 access is ephemeral and atomically acquires the catalog token set. In-process execution is not a security sandbox | §3, §7 |
 | **Product voice, never internals** | M2 onward | Narration, proposals, confirmations, errors all speak in friendly product voice | §9.7 |
-| **Confirmation boundaries** | M4 (record and capability deletion), M5 (the doorway moves to the logo), M9 (every proposal) | Destructive deletion and implicit proposals require explicit confirmation through platform-owned product UI, which from M5 means a confirmation filling the window and never an affordance in window chrome. Explicit prompt evolution proceeds directly but stays foreground and narrated; no preview/code-steering loop is introduced | §9.3 |
+| **Confirmation boundaries** | M4 (record and capability deletion), M5 (the doorway moves to the logo), M10 (every proposal) | Destructive deletion and implicit proposals require explicit confirmation through platform-owned product UI, which from M5 means a confirmation filling the window and never an affordance in window chrome. Explicit prompt evolution proceeds directly but stays foreground and narrated; no preview/code-steering loop is introduced | §9.3 |
 
 ## Dependency flow
 
@@ -943,14 +1018,17 @@ M6 Reads free                                 │
 M7 Files  ── explicit loop COMPLETE ──────────┘
    │  (object store · file ledger · file fields · serve)
    ▼
-M8 File content understanding
+M8 Composition
+   │  (link field · record picker · link-aware Builder and query loop)
+   ▼
+M9 File content understanding
    │  (extraction · chunking · embeddings · retrieval as a second read tool)
    ▼
-M9 Implicit loop   ── reuses the M2–M4 Builder as extended through M7
-   │  (event tracker · event log · gate · async resolution · proposals)
-   ▼
-M10 Experiment harness   ── reads metrics (M2–M9) + event log (M9)
-      (latency · outcomes · experimenter surface in the developer panel · gate tuning)
+M10 Implicit loop   ── reuses the M2–M4 Builder as extended through M8
+    │  (event tracker · event log · gate · async resolution · proposals)
+    ▼
+M11 Experiment harness   ── reads metrics (M2–M10) + event log (M10)
+       (latency · outcomes · experimenter surface in the developer panel · gate tuning)
 ```
 
-Linear and progressive: each module runs, is testable, and stands on its own. Capabilities are presentable at M3, fully evolvable at M4, and get the surface they were designed for at M5; the explicit loop is whole at M7; document understanding (M8) and implicit (M9) are layers on top of it; the experiment surface (M10) reads what everything before it produced.
+Linear and progressive: each module runs, is testable, and stands on its own. Capabilities are presentable at M3, fully evolvable at M4, and get the surface they were designed for at M5; the explicit loop is whole at M7; linked capabilities (M8), document understanding (M9) and implicit (M10) are layers on top of it; the experiment surface (M11) reads what everything before it produced.

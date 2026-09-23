@@ -27,7 +27,7 @@ nothing.
 **Text is read to the end.** Markdown and plain text are admitted when they are UTF-8,
 with or without a BOM, UTF-16 with a BOM, or 8-bit text with no zero bytes, such as the
 Windows-1252 that Excel writes for Spanish text. The check streams over the whole file
-and records the encoding it found in the ledger's encoding column, where Module 8 starts
+and records the encoding it found in the ledger's encoding column, where Module 9 starts
 reading plain text.
 
 **No declaration is not a contradiction.** Operating systems routinely send nothing for

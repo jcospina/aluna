@@ -108,7 +108,7 @@ pointer manifest.
 
 An explicit platform artifact-contract upgrade mechanism may eventually re-derive
 caches without pretending user intent changed, but its registry/serving marker and
-preservation machinery are deferred until after M10. M10 may add a metrics-only
+preservation machinery are deferred until after M11. M11 may add a metrics-only
 artifact-shape dimension for historical comparisons; that is not a serving marker.
 
 ### What is deliberately *not* locked in
@@ -122,7 +122,7 @@ built:
   templates, libraries, colors, copy — none of it is specified here. Pinning it
   down now would be guesswork the build is free to overrule.
 - **The implicit-loop UX.** §8 defines the backstage of the implicit loop; where
-  and how the proposal reaches the user is Module 9's call.
+  and how the proposal reaches the user is Module 10's call.
 
 Software is not specified front-to-back in advance: constraints surface, tools
 change, and better ideas arrive mid-build. What is locked here is the skeleton
@@ -141,7 +141,7 @@ It shows up on every axis:
 | **Data access** | Capability-bound mutation interface (no raw mutation SQL) | Parameterized read-only SQL (`SELECT` + joins); persistent cross-capability dependencies declared |
 | **Structure** | Isolated table per capability, no foreign keys | Relationships materialize at query time via joins |
 | **Schema lifecycle** | Platform-derived evolution DDL is additive-only; explicit confirmed capability deletion purges that capability's structure | — |
-| **Records** | User deletes own records through platform-owned confirmation (recorded once M9's Event Log exists) | — |
+| **Records** | User deletes own records through platform-owned confirmation (recorded once M10's Event Log exists) | — |
 | **Orchestration** | One mutation coordinator atomically admits every shared-connection write — builds, record/platform writes, and deletion | Prompt resolution/reads stay outside; deletion briefly closes the target incarnation to new reads |
 
 Every danger of unconstrained access — corruption, drop-table, integrity drift,
@@ -203,7 +203,7 @@ SHELL (fixed)
        │                       │
        │                       └─resolved build request─▶ explicit presenter ─┐
        │                                                                      │
-  Event Tracker ─batch─▶ M9 gate + resolver ─confirmed resolved request─▶ chosen presenter
+  Event Tracker ─batch─▶ M10 gate + resolver ─confirmed resolved request─▶ chosen presenter
                                                                               │
   Logo layer                                                                  │
        │ open                                                                 │
@@ -418,8 +418,8 @@ into a structured object:
 ```
 
 Typed explicit intents proceed directly and therefore carry
-`requires_confirmation: false`; only an M9 behavior-derived proposal sets it true,
-and confirmation belongs to M9's proposal surface before Builder hand-off.
+`requires_confirmation: false`; only an M10 behavior-derived proposal sets it true,
+and confirmation belongs to M10's proposal surface before Builder hand-off.
 
 Two responsibilities live here rather than in separate modules:
 
@@ -539,7 +539,7 @@ and a verified `v>N` path that never activated are candidates for recovery.
 Failure rolls back product state, finalizes failure metrics separately, and leaves
 candidate paths for guarded reconciliation. Startup marks interrupted metrics and
 reconciles only paths proven never committed. The prior version stays live
-throughout failure. Restore/changelog work in M10 must add a durable activation
+throughout failure. Restore/changelog work in M11 must add a durable activation
 ledger before anything may reclaim committed history.
 
 After the activation transaction commits, rendering, SSE delivery, client
@@ -588,7 +588,7 @@ create no generation row. Each admitted record write keeps the generated Handler
 its mutation call, and presentation completion inside one SQLite transaction, and
 any non-success response rolls the write back before the short lease releases.
 Module 2's historical `html-gen` is the first presentation-gen shape; from Module 3
-on, item renderer generation is recorded under the semantic stage name. Module 10
+on, item renderer generation is recorded under the semantic stage name. Module 11
 need not assume every version writes `.html` or behavioral tests.
 
 `reject`, `data_query`, and a prompt deflected before classification because it
@@ -651,7 +651,7 @@ while non-activation restores through `fragment` rather than pretending a commit
 Four domain stores in `bun:sqlite`, plus small platform lifecycle metadata
 (mutation ownership/deletion tombstones), generated code files, and an object
 store on disk. Two of these do not exist yet: no migration creates the Event Log,
-which Module 9 builds, and no code implements the object store, which Module 7
+which Module 10 builds, and no code implements the object store, which Module 7
 builds, so `storage/` holds only a README.
 
 #### Capability Registry — the source of truth
@@ -660,9 +660,9 @@ One active row per capability. The structured authored spec is canonical; the
 platform-owned incarnation/version and pointer to one complete immutable snapshot
 live alongside it. A row may temporarily become a non-routable deletion tombstone
 carrying cleanup work; resolvers, routes, and the ground see only active rows.
-Through M10 there is no registry/serving artifact-contract upgrade marker:
+Through M11 there is no registry/serving artifact-contract upgrade marker:
 greenfield shape changes use reset + rebuild (ADR-0005 §7). Snapshot publication
-metadata is per-version completeness evidence, and an optional M10 metrics-only
+metadata is per-version completeness evidence, and an optional M11 metrics-only
 shape label is analytical, not preservation machinery.
 
 ```json
@@ -807,8 +807,8 @@ inventories and tests stay in snapshot files. Each persistent read dependency is
 strict `{ capability_id, incarnation_id }` pair resolving to an active row; arrays
 are unique and canonically ordered, and the target capability is implicit. Naming
 exact live incarnations lets permanent deletion find reverse dependencies without
-inspecting generated code. Through M10 there is no registry/serving
-artifact-contract upgrade marker (ADR-0005 §7); an M10 metrics-only shape label may
+inspecting generated code. Through M11 there is no registry/serving
+artifact-contract upgrade marker (ADR-0005 §7); an M11 metrics-only shape label may
 classify historical rows. Keeping the active registry set lean matters because the
 Intent Resolver scans every row on every classification, reading `prompt_context`
 to understand the capabilities that already exist.
@@ -852,7 +852,7 @@ production; it does not trust client- or model-supplied incarnation labels.
 Ingestion uses a short coordinator write and atomically validates and appends the
 derived set only while every pair is still active and current, so a late
 pre-deletion batch is rejected after closing or tombstoning and cannot resurrect
-purged content. That lets M9 extend M4's cleanup seam without guessing from free
+purged content. That lets M10 extend M4's cleanup seam without guessing from free
 text.
 
 #### Data Tables — additive-only, generated DDL
@@ -1071,7 +1071,7 @@ config.
   builds routing.
 - **Content stays opaque here.** M7 stores and serves bytes and never reads them.
   Asking what a document *says* — extraction, embeddings, retrieval as a second
-  read tool beside `data_query` — is Module 8, and every vector it derives is
+  read tool beside `data_query` — is Module 9, and every vector it derives is
   owned by the key it came from.
 - **Lifecycle follows ownership.** A platform-owned file ledger holds one row per
   admitted key — incarnation, field, record once saved, the verified type, and
@@ -1098,7 +1098,7 @@ actually called, and compute. SQL carries the whole computation; the model never
 does arithmetic by reading rows. The loop's queries execute in a worker holding its
 own read-only connection, so a clumsy query cannot block the desk and a closing read
 gate can actually cancel one. The query creates no registry row, no logo on the
-ground, and no version, artifact, cache, or persisted read dependency. Once M9
+ground, and no version, artifact, cache, or persisted read dependency. Once M10
 exists the Event Log may still record the ordinary user action, which does not turn
 the query into a built capability. Scope follows the context-aware prompt bar: the
 open capability resolves vague references and never fences the search.
@@ -1126,7 +1126,7 @@ answer window stands, and the window itself when one does, re-titled to the refu
 and brought forward. An answer left standing beside a refusal goes on answering a question
 nobody asked. When nothing can answer, Aluna names the gap and stops — an offer with a
 confirmation is a proposal, and the proposal
-surface is Module 9's. ADR-0008 is the contract.
+surface is Module 10's. ADR-0008 is the contract.
 
 ## 8. The two loops
 
@@ -1179,7 +1179,7 @@ Intent Resolver  ── async, off the interaction path: reads event batch + con
         │
         ├─ confidence < threshold ──▶ log only, back off (raise bar for this pattern)
         │
-        └─ confidence ≥ threshold ──▶ M9-owned friendly proposal surface
+        └─ confidence ≥ threshold ──▶ M10-owned friendly proposal surface
                                               │
                                   ┌───────────┴───────────┐
                                   ▼                       ▼
@@ -1199,7 +1199,7 @@ request to the same Builder that Loop 1 uses, and re-runs no prompt classificati
 
 > The implicit UX is deliberately not yet defined. Event capture, the server-side
 > gate, async inference, explicit confirmation, and resolved-request hand-off are
-> fixed. Module 9 decides where and when the proposal appears, and which Builder
+> fixed. Module 10 decides where and when the proposal appears, and which Builder
 > lifecycle presenter follows confirmation — a foreground interruption, or a
 > quieter background presentation. The desk does not settle it: a proposal is Aluna
 > speaking unprompted, and the expected carrier is the companion, a talking pet
@@ -1241,7 +1241,7 @@ lease is held, and commit swaps the complete View into that same window. Meanwhi
 a build-id provisional tile marks the ground only after new-capability admission,
 so the build stays visible whether or not the user is watching the window. It is
 replaced on activation and removed on every non-activation. That presentation is not a core Builder invariant;
-Module 9 may choose another presenter after confirmation.
+Module 10 may choose another presenter after confirmation.
 
 Reads remain concurrent and never enter the mutation coordinator. Capability
 deletion adds a per-incarnation closing step: once it is admitted, new routes,
@@ -1287,7 +1287,7 @@ External cleanup retries cannot resurrect the deleted surface.
    Handlers, item renderer, and tier-on tests are version-keyed caches. A total
    positive-proof Diff Engine chooses between regeneration and copy, and snapshot
    metadata proves completeness. The arrow only points spec → derived artifacts.
-   Through M10, platform artifact-shape changes still reset and rebuild rather than
+   Through M11, platform artifact-shape changes still reset and rebuild rather than
    using the deferred preserving-upgrade marker (ADR-0005 §7).
 
 2. **Mutation constrained and coordinated, reads free and declared where

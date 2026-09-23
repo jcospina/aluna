@@ -27,7 +27,7 @@ contract, and intent-distribution data accrues from day one.
   *same* call (no separate copy-generation call, ARCH §6.2) that threads through
   narration and deflection. `requires_confirmation` exists in the shape but is
   always `false` in M2 (confirmations are reserved: capability delete in M4,
-  proposals in M9).
+  proposals in M10).
 - **Scope line.** Classification only — what the job *does* with the intent
   (proceed or deflect) is the deflection issue's business.
 

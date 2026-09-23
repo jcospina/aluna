@@ -128,7 +128,7 @@ fix loop). Terms per [CONTEXT.md](../../CONTEXT.md) ("Engineering language"):
    transition is the simplest possible: change the generators, **`bun run reset`,
    and rebuild capabilities fresh**. M3 builds **no** preservation cutover, **no**
    dual-serving of old/new artifacts, and **no** persisted `artifact_contract`
-   marker. The migrate-without-reset path (and any contract marker M10 later
+   marker. The migrate-without-reset path (and any contract marker M11 later
    wants) is deferred until the platform is feature-complete; the architecture
    still describes it as the end state (ARCH §2, §9.1). Until then, backwards
    compatibility does not drive design.
@@ -223,7 +223,7 @@ Suggested cut — `/to-issues` finalizes:
   pipeline produces and the registry/router serve; retire the M2
   `list.html`/`create.html` paths. The M2→M3 transition is **`bun run reset` +
   rebuild fresh** — no preservation cutover, no dual-serving, no persisted
-  `artifact_contract` marker (deferred post-M10, ADR-0005 §7). This epic is also
+  `artifact_contract` marker (deferred post-M11, ADR-0005 §7). This epic is also
   the end-to-end acceptance: a reset + rebuild yields styled, varied capabilities
   (the module demo).
 

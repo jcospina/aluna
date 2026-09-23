@@ -38,7 +38,7 @@ in ADR-0009, and in the architecture and design documents.
    one request per file, streamed into staging and recorded once admitted. The
    serve bullet hands generated code a `url` instead of a key and takes a read token. The
    lifecycle bullet gains the file ledger, the leave warning and the desk-load sweep. A new
-   bullet says M7 never reads a file's contents, and points at Module 8.
+   bullet says M7 never reads a file's contents, and points at Module 9.
 2. **`architecture.md` §6.3, "Object Store", and `storage/README.md`.** Both name the
    file ledger as the one place ownership is asserted, and the store gains its
    `.incoming/` staging folder. §6.3's lifecycle recovery gains the upload-and-save
@@ -50,7 +50,10 @@ in ADR-0009, and in the architecture and design documents.
    loop becomes Module 9 and the experiment harness Module 10. Epic numbers and
    cross-references are carried across in `docs/modules.md`, `docs/architecture.md`, the
    ADRs, every closed module plan and issue, code comments, and the placement note in
-   `design/index.html`, so a module number names one module everywhere.
+   `design/index.html`, so a module number names one module everywhere. *Amended
+   2026-09-23: composition then took Module 8, so file content understanding is Module
+   9, the implicit loop Module 10 and the experiment harness Module 11, carried across
+   the same places.*
 5. **`CONTEXT.md`.** Four entries added: *file admission*, *file reference*, *pending
    upload*, *file ledger*. *Desk-load sweep* widens from logos to pending uploads, and the
    leave-run warning under *put away* widens to a form holding an upload.
@@ -100,7 +103,7 @@ in ADR-0009, and in the architecture and design documents.
      the application. A DOC downloads, so a spreadsheet saved as `.doc` harms nothing.
    - Markdown and plain text are UTF-8 with or without a BOM, UTF-16 with a BOM, or 8-bit
      text with no zero bytes, such as the Windows-1252 Excel writes for Spanish text. The
-     check streams over the whole file and records the encoding it found for Module 8.
+     check streams over the whole file and records the encoding it found for Module 9.
    - Containers are checked and codecs are not. A video whose codec the browser refuses
      shows the platform control's download link where the player would be.
 4. **The recorded type is the verified one.** Everything downstream — the card, the
@@ -483,7 +486,7 @@ held upload. Shape follows the existing field structure and the drawn line. `des
 the product requirement, so the image states land with or before 7.1's control, and the
 rest with or before the epic that builds them.
 
-## Left for Module 8
+## Left for Module 9
 
 Reading what a document says: extraction per kind, chunking, the embedding provider and
 what leaves the machine, the vector store, retrieval as a second read tool beside

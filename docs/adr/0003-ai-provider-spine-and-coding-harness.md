@@ -129,7 +129,7 @@ and the SSE conventions in [ADR-0002](0002-sse-transport-conventions.md).
   the 2.6 note.
 - **The Chinese coding models are first-class provider options.** The registry
   treats them identically to Claude/GPT/Gemini. Selecting the global default is an
-  experiment output (M10), recorded in metrics.
+  experiment output (M11), recorded in metrics.
 - **No sandbox dependency is taken on now.** The resulting guarantee is
   contract/static-check protection against accidental model output, not
   hostile-code containment. If the threat model expands, E2B (Firecracker, TS SDK)
@@ -172,5 +172,5 @@ keying off the endpoint host:
   with credits and a key on hand. That exercises the "which model is the configured
   default … is deliberately open" clause above rather than contradicting it: a
   one-env swap of the trio (`OMNI_MODEL` + `OMNI_BASE_URL` + `OMNI_API_KEY`) moves
-  it to any `claude-*` or other model. Selecting the *empirical* default remains M10
+  it to any `claude-*` or other model. Selecting the *empirical* default remains M11
   experiment work.

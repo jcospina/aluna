@@ -505,7 +505,7 @@ function sumUnitDuration(units: readonly GeneratedUnit[], kind: GeneratedUnit["k
 
 /**
  * Records the gate legs: per-rung outcomes, the behavioral tier's test-gen and test-run timings
- * and usage (the columns M10 weighs the tier with), and the design-lint rung's repair tokens.
+ * and usage (the columns M11 weighs the tier with), and the design-lint rung's repair tokens.
  */
 export function recordGateMetrics(
   acc: DemoBuildAccumulator,

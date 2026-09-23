@@ -23,7 +23,7 @@ budget a real question never approaches, on a PoC whose capabilities and questio
 are simple. This measurement is what will say whether ten was generous or tight,
 and it is the only way anyone will ever know.
 
-**Latency is explicitly part of this PoC's thesis, and Module 10 is the customer.**
+**Latency is explicitly part of this PoC's thesis, and Module 11 is the customer.**
 The elapsed number is wall-clock across the whole question — the thing the user
 waited through — not a sum of step times.
 

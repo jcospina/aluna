@@ -22,7 +22,7 @@ container reads (§2, §6). (b) §7's preservation cutover is deferred. The
 project is greenfield and under development, so the M2→M3 artifact-*shape* change
 is handled by `bun run reset` + rebuild; M3 introduces no persisted
 `artifact_contract` marker and no migrate-without-reset machinery. The
-preservation path is deferred until the platform is feature-complete (post-M10) —
+preservation path is deferred until the platform is feature-complete (post-M11) —
 it remains the architecture's end-state vision (ARCH §2, §9.1). Backwards
 compatibility does not drive design while the project is under development.
 
@@ -308,7 +308,7 @@ presentational platform code is allowed.
    of old and new artifacts, and no atomic migrate-without-reset cutover. The
    original preservation design — keeping committed capabilities live and
    re-deriving them across a contract change without a reset — is deferred until
-   the platform is feature-complete (post-M10), when real user data exists to
+   the platform is feature-complete (post-M11), when real user data exists to
    preserve; it remains the platform artifact-contract upgrade the architecture
    still describes as the end state (ARCH §2, §9.1). Until then, backwards
    compatibility does not drive design.
@@ -334,15 +334,15 @@ presentational platform code is allowed.
   form list-input intent. The field-type pantry gains a `date` type (2026-07-06
   amendment, above) but is otherwise unchanged; `file` remains M7.
 - **Metrics retain semantic continuity.** Item-renderer generation replaces M2
-  view generation as the presentation-generation stage, so M10 compares the
+  view generation as the presentation-generation stage, so M11 compares the
   presentation-gen stage across module versions rather than assuming generated
-  `.html`. M3 records no `artifact_contract` marker. If M10 needs to distinguish
+  `.html`. M3 records no `artifact_contract` marker. If M11 needs to distinguish
   historical shapes, it adds a metrics-only dimension; the registry/serving
-  upgrade marker remains deferred post-M10 (§7).
+  upgrade marker remains deferred post-M11 (§7).
 - **No in-place upgrade path in M3 (by choice).** During development the
   artifact-shape change is a `bun run reset` + rebuild, not a preserving
   migration; no dual contract or migration machinery is built now. The
-  preservation cutover is deferred post-M10 (§7).
+  preservation cutover is deferred post-M11 (§7).
 - **`design-system.md` gains a section** for the platform modules, the primitive
   vocabulary, and the closed-value contract — including the inline-style
   token-discipline rules — authored during Module 3.

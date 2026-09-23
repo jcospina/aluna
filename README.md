@@ -84,6 +84,7 @@ Bun loads `.env` automatically. The checked-in [.env.example](.env.example) docu
 | `OMNI_BASE_URL` | No | `https://api.openai.com/v1` | Provider endpoint. Change this together with the key and model when switching providers. Anthropic hosts use the Anthropic wire; other non-OpenAI hosts use the OpenAI-compatible wire. |
 | `OMNI_BEHAVIORAL_TIER` | No | `on` | Enables AI-authored behavioral checks. Accepts `on/off`, `true/false`, `yes/no`, or `1/0`. |
 | `PORT` | No | `3030` | Local HTTP port. `0` asks the operating system for an available port. |
+| `OMNI_MAX_FILE_BYTES` | No | `524288000` (500 MiB) | The largest file one upload may carry, in bytes. The server also refuses any request that declares a larger body. A value that is not a positive whole number stops the server at boot. |
 | `OMNI_CRUD_SQLITE_LIBRARY` | No | Standard Homebrew paths on macOS | Full path to an extension-capable `libsqlite3.dylib` when it is installed elsewhere. |
 | `CC` | No | `cc` | C compiler used for the SQLite search-normalization bridge. |
 

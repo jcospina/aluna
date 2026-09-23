@@ -13,7 +13,7 @@ ADR-0006)
 ## What to build
 
 Explicit-loop foreground presentation becomes an adapter over a reusable core
-Builder — the seam Module 9's implicit loop will consume.
+Builder — the seam Module 10's implicit loop will consume.
 
 - The core Builder accepts an already-resolved build request and emits
   lifecycle events without owning the prompt route, active DOM, or SSE.
@@ -31,7 +31,7 @@ Builder — the seam Module 9's implicit loop will consume.
   a new-capability stale refusal before incarnation assignment.
 - The M2–M4 explicit adapter resolves a typed prompt, occupies the active
   content area, and narrates the foreground product-voice story, emitting one
-  View `commit`. Module 9 may hand an already-resolved confirmed proposal to
+  View `commit`. Module 10 may hand an already-resolved confirmed proposal to
   the same Builder without reclassification and choose a different presenter;
   mutation, staging, Gate, activation, and metrics remain identical. Document
   the reuse seam.
@@ -156,14 +156,14 @@ shows its direct `failed/stale` row with stages skipped.
   `handSuppliedEvolutionIntent`, and re-pointing its coverage onto `/prompt`). The
   module acceptance line "no direct/demo admission bypass" is satisfied when 04
   lands; 03's own guarantee holds for every path 03 owns.
-- **Finding 4 (MEDIUM) → Module 9.** The seam is real for the terminal only: the
+- **Finding 4 (MEDIUM) → Module 10.** The seam is real for the terminal only: the
   in-flight liveness sink still carries ADR-0002 SSE event names, a dead sink is
   read as cancellation, and the product-voice narration is authored inside the
   stages. The acceptance criterion — a Builder invocable with no SSE presenter,
   identical mutation/Gate/activation — is met by the terminal seam and proven with
   no transport at all. Widening waits for a second real presenter to shape the
   interface against rather than guessing now. Recorded in `core-builder.ts` and
-  `CONTEXT.md` so M9 finds it.
+  `CONTEXT.md` so M10 finds it.
 - **Whole-catalog staleness — confirmed intended.** The fingerprint covers every
   active row, so any concurrent registry change refuses a queued build even when it
   touched an unrelated capability. Confirmed as the literal reading of decisions

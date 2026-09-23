@@ -44,7 +44,7 @@ boundary, or exit criteria. Decision records: [ADR-0002 update](../../docs/adr/0
    fragment; narration → fragments → commit swap → `done` ride
    `GET /build/:id/stream`, which the server closes. Intent resolution runs
    *inside* the job (the POST never blocks on an AI call). The persistent shell
-   channel is deliberately **not** built — it is M9's, designed with its UX.
+   channel is deliberately **not** built — it is M10's, designed with its UX.
    The htmx SSE extension is vendored and `hx-swap-oob`-over-SSE proven in 2.6
    (the open question flagged in modules.md). The production event vocabulary
    is finalized during 2.6, starting from the seed (`narration`, `fragment`,
@@ -70,7 +70,7 @@ boundary, or exit criteria. Decision records: [ADR-0002 update](../../docs/adr/0
    `extend_capability` → deflected; no collision logic, no auto-suffixed ids.
    `requires_confirmation` exists in the shape but is always `false` in M2
    (later confirmations cover record and capability deletion through deterministic
-   platform chrome in M4, plus proposals in M9; neither deletion confirmation is
+   platform chrome in M4, plus proposals in M10; neither deletion confirmation is
    an Intent Resolver concern).
 
 7. **Concurrency UX: refusal + courtesy, no queueing yet.** The single-flight
@@ -82,7 +82,7 @@ boundary, or exit criteria. Decision records: [ADR-0002 update](../../docs/adr/0
 
    > **M4 forward amendment:** M2 itself retains single-flight refusal. Module 4
    > supersedes the system-wide end state with bounded FIFO build reservations and
-   > one active build lease inside the mutation coordinator. Module 9 later submits
+   > one active build lease inside the mutation coordinator. Module 10 later submits
    > confirmed proposals through that existing coordinator; it does not introduce
    > the first real queue.
 

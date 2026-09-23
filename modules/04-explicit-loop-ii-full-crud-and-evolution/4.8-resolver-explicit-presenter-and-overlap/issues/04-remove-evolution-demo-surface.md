@@ -161,7 +161,7 @@ Builder.
    branch unreachable from the sole production caller. Now narrowed to the new
    `EvolutionIntentClassification` (`extend_capability | ui_change`), which
    deletes half the runtime guard. What survives is the `target_capability` /
-   `active.id` pairing check, documented as defence-in-depth for Module 9's
+   `active.id` pairing check, documented as defence-in-depth for Module 10's
    implicit loop rather than for `/prompt`.
 5. **Panel-scoped assertions had been weakened to page-scoped.** The surface test
    again slices the `<aside id="developer-panel">` region and asserts the

@@ -20,7 +20,7 @@ retire the remaining M2 `list.html`/`create.html` paths end to end. Because the
 project is greenfield and under development, the M2→M3 transition is **`bun run
 reset` + rebuild fresh** — **no** preservation cutover, **no** dual-serving of
 old/new artifacts, **no** persisted `artifact_contract` marker (all deferred
-post-M10, ADR-0005 §7). This epic is also the module's end-to-end acceptance.
+post-M11, ADR-0005 §7). This epic is also the module's end-to-end acceptance.
 
 - Remove any remaining M2 four-unit generation/serving paths so only the M3 shape
   is produced and served.
@@ -76,7 +76,7 @@ tests, metrics, comments, and current architecture docs with the mandatory M3 sh
   `presentation_gen_ms`; M2's `html_gen_ms` remains only as historical schema data.
 - Updated current architecture, module, issue, registry, pipeline, and metrics language
   to describe version directories containing the item renderer + Handlers and to keep
-  artifact-contract preservation/markers explicitly deferred until after M10.
+  artifact-contract preservation/markers explicitly deferred until after M11.
 
 ## Verification
 

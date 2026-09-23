@@ -7,7 +7,7 @@
 //
 // What the numbers are for is decision 8: ten steps was a guess, and these rows are the only
 // thing that will ever say whether it was generous or tight. So the arms below are the three
-// shapes of question Module 10 has to be able to tell apart — one that answered quickly, one that
+// shapes of question Module 11 has to be able to tell apart — one that answered quickly, one that
 // spent the whole budget, and one the person gave up on.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -103,7 +103,7 @@ describe("what one question cost, over the path a person asks on", () => {
   });
 
   test("so the quick question and the long one are told apart by their rows alone", async () => {
-    // The property Module 10 buys with all of this: two questions, nothing in either row about
+    // The property Module 11 buys with all of this: two questions, nothing in either row about
     // what was asked, and the counts still separate them.
     const quick = asking(questionProvider());
     await askInTheWindow(quick.app, "how many notes did I write in July?");

@@ -22,9 +22,11 @@ import {
   readActiveRegistryCatalog,
 } from "../../../registry/index.ts";
 import {
+  guardWritingRoute,
   NOT_FOUND_NOTICE,
   renderCachedCapabilitySurface,
   renderRehydratedShellPage,
+  TEXT_BODY_LIMIT_BYTES,
 } from "../../../server/http/index.ts";
 import {
   createMutationCoordinator,
@@ -153,7 +155,7 @@ export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps =
   app.get(CAPABILITY_VIEW_TRAILING_SLASH_ROUTE, view);
   // Catch every HTTP method here so a wrong pair receives the same warm product
   // boundary instead of falling through to Hono's generic 404 response.
-  app.all(CAPABILITY_ROUTE, (c) =>
+  app.all(CAPABILITY_ROUTE, guardWritingRoute(TEXT_BODY_LIMIT_BYTES), (c) =>
     handleCapabilityRequest(
       c,
       databases,
@@ -265,7 +267,7 @@ async function handleCapabilityRequest(
     return c.html(NOT_FOUND_FRAGMENT, 404);
   }
 
-  // The body is read here — before a read token, the write lease and `BEGIN IMMEDIATE`. Read in
+  // The body is parsed here — before a read token, the write lease and `BEGIN IMMEDIATE`. Read in
   // the handler scope, a client dribbling a POST body held all three for as long as it cared to.
   const spec = capabilitySpecFromRow(row);
   let parsedRequest: ParsedCapabilityRequest;

@@ -270,7 +270,7 @@ fail, and the server stops booting. Keeping the two paid logos would have meant
 hand-writing an artifact-contract upgrade — rewrite five `spec.json` files,
 recompute each file digest inside its `snapshot.json`, recompute each
 `snapshot_content_digest` — which is machinery `docs/architecture.md` defers past
-M10. The corpus was reset instead, on the human's call, and the two credits already
+M11. The corpus was reset instead, on the human's call, and the two credits already
 authorised went to rebuilding rather than to preserving two drawings that were the
 problem in the first place.
 

@@ -253,7 +253,7 @@ units, gate, commit) — shown as it streams, and it is the one place in Aluna a
 monospace face appears, because it shows raw payloads and stands outside the
 product voice. It is a curiosity surface for people who want to see how Aluna
 works, never a place to steer code, schema, framework, or styling decisions.
-Module 10's experimenter surface lives in it too (design D13; M5 plan).
+Module 11's experimenter surface lives in it too (design D13; M5 plan).
 _Avoid_: console, debug drawer, inspector, right sidebar
 
 **The pet**:
@@ -264,7 +264,7 @@ delight feature carrying no business logic. Defined now, deferred to a later iss
 a TBD authentic Kogi word (do not fabricate one). It is related to Aluna, but it is
 **not Aluna herself**. Its form, anatomy, hue and technique are the user's to decide
 and are not anticipated anywhere. **Nothing depends on it.** Module 6's answer window
-settled the query-answer surface without it (ADR-0008), and Module 9 may settle the
+settled the query-answer surface without it (ADR-0008), and Module 10 may settle the
 proposal surface the same way; the pet is a delight feature that may never be built,
 and no plan should be written that waits on it.
 _Avoid_: orb (the superseded concept), mascot, avatar, assistant, bot, spinner
@@ -392,13 +392,13 @@ publication, activation. It owns no prompt route, no active DOM, and no SSE. It
 takes a **resolved build request** and a **build presenter**, and emits one terminal
 lifecycle event into that presenter while its lease is still held. This is the
 reuse seam: the explicit loop resolves a typed prompt and supplies the foreground
-presenter, while Module 9's implicit loop will hand over an already-confirmed
+presenter, while Module 10's implicit loop will hand over an already-confirmed
 proposal in the same shape — never reclassified — and choose a presenter of its
 own. Mutation, staging, Gate, activation, and metrics are identical either way
 (PLAN decision 31, ADR-0006, ARCH §6.2). Today the seam is terminal-only: the
 in-flight liveness sink still carries ADR-0002 SSE event names, a dead sink is
 read as cancellation, and the product-voice narration is authored inside the
-stages. Module 9 can swap the terminal presenter but not yet the in-flight story;
+stages. Module 10 can swap the terminal presenter but not yet the in-flight story;
 widening it waits for a second real presenter to shape it against.
 _Avoid_: build pipeline, the builder service, prompt pipeline
 
@@ -421,7 +421,7 @@ no sidecar for the desk. Cancellation gives it back at once; a failure, a stale
 refusal and a measured no-op end the narration with their own authored line and
 the window **holds** there until the person dismisses the ending, which is when
 the collection is placed (PLAN decisions 23, 25). Presentation is not a Builder
-invariant: Module 9 may choose another presenter entirely (PLAN decisions 29, 31;
+invariant: Module 10 may choose another presenter entirely (PLAN decisions 29, 31;
 ADR-0002).
 _Avoid_: renderer, view layer, the SSE handler
 
@@ -698,7 +698,7 @@ _Avoid_: no results, zero rows, empty result, you have none
 What this desk has for a subject no collection on it covers, and the ending Aluna reaches by
 saying so and stopping: *"You don't have anywhere for hiking trips yet — you can ask me to
 make one."* She names the subject in the person's own words and offers no control, because an
-offer with a yes is a **proposal** and that surface is Module 9's (PLAN decision 20). Earned by
+offer with a yes is a **proposal** and that surface is Module 10's (PLAN decision 20). Earned by
 looking rather than shrugging: a question that searched and matched **nothing matched** keeps
 that weaker, truer ending; a subject naming anything the desk already holds — a collection, what
 it calls one record, a column, one of a column's declared values — is refused; and so is a

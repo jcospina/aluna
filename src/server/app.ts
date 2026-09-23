@@ -42,6 +42,7 @@ import {
 import { type BuildJobQueue, createBuildJobQueue } from "../pipeline/jobs/build-jobs.ts";
 import { captureRestorationDescriptor } from "../pipeline/jobs/restoration.ts";
 import { errorDetail } from "../platform/errors.ts";
+import { resolveMaxFileBytes } from "../platform/files/file-cap.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../platform/persistence/db.ts";
 import { createProvider, type Provider } from "../platform/provider/index.ts";
 import { getCapability, listCapabilityDependents } from "../registry/index.ts";
@@ -56,15 +57,18 @@ import {
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../runtime/router/index.ts";
 import {
   BLANK_PROMPT_NOTICE,
+  guardWritingRoute,
   hasMeaningfulPromptContent,
-  isCrossSitePrompt,
+  isSendersDoing,
   LONG_PROMPT_NOTICE,
   MAX_PROMPT_LENGTH,
+  passesThrough,
   readPromptSubmission,
   renderBuildSubscriber,
   renderCachedCapabilitySurface,
   renderPromptNotice,
   renderRehydratedShellPage,
+  TEXT_BODY_LIMIT_BYTES,
 } from "./http/index.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "./sse/index.ts";
 
@@ -113,6 +117,11 @@ export interface AppDeps {
   readonly logoClaims?: RunningLogoClaims;
   /** Test seam for the bounded moment a claim loser watches the winner. */
   readonly logoClaimObservationMs?: number;
+  /**
+   * The per-file cap a streaming writing route counts against. Defaults to `OMNI_MAX_FILE_BYTES`;
+   * the route-walk test shrinks it so an upload route can be probed past its limit.
+   */
+  readonly maxFileBytes?: number;
 }
 
 /** The fully-resolved dependency set every route group below is wired from. */
@@ -134,6 +143,7 @@ interface ResolvedAppDeps {
   readonly logoProvider?: LogoGenerationProvider;
   readonly logoClaims: RunningLogoClaims;
   readonly logoClaimObservationMs?: number;
+  readonly maxFileBytes: number;
 }
 
 function resolveRegistryDatabases(
@@ -193,6 +203,7 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     logoProvider: deps.logoProvider,
     logoClaims: deps.logoClaims ?? createRunningLogoClaims(),
     logoClaimObservationMs: deps.logoClaimObservationMs,
+    maxFileBytes: resolveFileCap(deps),
     deletionCleanup:
       deps.deletionCleanup ??
       createDeletionCleanupSupervisor({
@@ -201,6 +212,10 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
         mutationCoordinator,
       }),
   };
+}
+
+function resolveFileCap(deps: AppDeps): number {
+  return deps.maxFileBytes ?? resolveMaxFileBytes();
 }
 
 /**
@@ -240,12 +255,15 @@ const APP_SECURITY_HEADERS: Readonly<Record<string, string>> = {
  * route's `default-src 'none'; … ; sandbox` is stricter than this and must survive.
  */
 function registerSecurityHeaders(app: Hono): void {
-  app.use("*", async (c, next) => {
-    await next();
-    for (const [name, value] of Object.entries(APP_SECURITY_HEADERS)) {
-      if (!c.res.headers.has(name)) c.res.headers.set(name, value);
-    }
-  });
+  app.use(
+    "*",
+    passesThrough(async (c, next) => {
+      await next();
+      for (const [name, value] of Object.entries(APP_SECURITY_HEADERS)) {
+        if (!c.res.headers.has(name)) c.res.headers.set(name, value);
+      }
+    }),
+  );
 }
 
 /**
@@ -282,8 +300,8 @@ function registerCapabilityPageRecovery(app: Hono, recoverLogos: () => Promise<v
   };
   // Both spellings of the one address (`CAPABILITY_VIEW_TRAILING_SLASH_ROUTE`): a desk drawn
   // for a bookmark with a trailing slash owes the same reconciliation as one without it.
-  app.use("/capability/:id", recover);
-  app.use("/capability/:id/", recover);
+  app.get("/capability/:id", recover);
+  app.get("/capability/:id/", recover);
 }
 
 /**
@@ -333,13 +351,7 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
 
   // Prompt submission enters the build-job lifecycle. The POST creates the ephemeral job and
   // returns the subscriber fragment; resolution and builder stages run from `/build/:id/stream`.
-  app.post("/prompt", async (c) => {
-    // Before the body is read, because reading it is the first thing that costs: a build spends
-    // provider tokens and commits to the desk, and neither is another site's to trigger.
-    if (isCrossSitePrompt(c)) {
-      return c.text("Forbidden", 403, { "cache-control": "no-store" });
-    }
-
+  app.post("/prompt", guardWritingRoute(TEXT_BODY_LIMIT_BYTES), async (c) => {
     const submission = await readPromptSubmission(c);
 
     // Nothing meaningful typed, nothing to build: an empty-looking prompt must not reach
@@ -366,7 +378,7 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
     });
   });
 
-  app.post("/build/:id/cancel", (c) =>
+  app.post("/build/:id/cancel", guardWritingRoute(TEXT_BODY_LIMIT_BYTES), (c) =>
     buildJobs.cancel(c.req.param("id")) ? c.body(null, 202) : c.body(null, 404),
   );
 
@@ -457,7 +469,9 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
     );
   });
 
-  app.post("/capability-deletion/:id/confirm", (c) => handleCapabilityDeletionConfirmation(c, ctx));
+  app.post("/capability-deletion/:id/confirm", guardWritingRoute(TEXT_BODY_LIMIT_BYTES), (c) =>
+    handleCapabilityDeletionConfirmation(c, ctx),
+  );
 }
 
 /**
@@ -465,7 +479,9 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
  * are: no Handler, no resolver and no provider, so menu to registry is zero-AI end to end.
  */
 function registerCapabilityRenameRoutes(app: Hono, ctx: ResolvedAppDeps): void {
-  app.post("/capability-rename/:id", (c) => handleCapabilityRename(c, ctx));
+  app.post("/capability-rename/:id", guardWritingRoute(TEXT_BODY_LIMIT_BYTES), (c) =>
+    handleCapabilityRename(c, ctx),
+  );
 }
 
 /**
@@ -480,7 +496,8 @@ export function createApp(deps: AppDeps = {}): Hono {
   // A bare 404 is heuristically cacheable (RFC 9111 §4.2.2), so a half-built address would stick.
   app.notFound((c) => c.text("404 Not Found", 404, { "cache-control": "no-store" }));
   app.onError((error, c) => {
-    console.error("omni-crud request failed:", error);
+    // An overflow or a hang-up under a streamed body; the streaming guard replaces this answer.
+    if (!isSendersDoing(error)) console.error("omni-crud request failed:", error);
     return c.text("Internal Server Error", 500, { "cache-control": "no-store" });
   });
 
@@ -515,7 +532,7 @@ export function createApp(deps: AppDeps = {}): Hono {
 
   // Static assets live in ./public, served under /static/*, a prefix that keeps the asset
   // namespace clear of root-level routes. rewriteRequestPath strips it before the lookup.
-  app.use(
+  app.get(
     "/static/*",
     serveStatic({
       root: "./public",
@@ -525,7 +542,7 @@ export function createApp(deps: AppDeps = {}): Hono {
 
   // High Meadow ships directly from its source directory so the product and
   // handbook cannot drift into separate token or asset copies.
-  app.use(
+  app.get(
     "/design/*",
     serveStatic({
       root: "./design",
@@ -536,7 +553,7 @@ export function createApp(deps: AppDeps = {}): Hono {
   // The architecture tour ships the same way, from its own top-level folder: its scripts
   // reach design/styles and design/scripts by relative path, so neither can drift.
   app.get("/architecture", (c) => c.redirect("/architecture/", 301));
-  app.use(
+  app.get(
     "/architecture/*",
     serveStatic({
       root: "./architecture",
