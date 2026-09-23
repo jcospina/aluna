@@ -83,7 +83,7 @@ foreground stream and complete `commit` swap),
 5. **M4 adds only `string[]`, behind one extensible list seam.** Spec, request
    parsing, validation, SQLite JSON encoding/decoding, Gate samples, and platform
    form/detail rendering gain `string[]`. `number[]`, `boolean[]`, `date[]`, and
-   `datetime[]` wait for a concrete need; M6 still owns `file[]`. A required
+   `datetime[]` wait for a concrete need; M7 still owns `file[]`. A required
    `string[]` must contain at least one non-empty string when created or saved;
    an optional submitted empty list stores `[]`; historical rows may remain
    `null`. Every active `string[]` has exactly one entry in
@@ -188,7 +188,7 @@ foreground stream and complete `commit` swap),
     They name every external capability each persistent Handler may join. The query
     adapter permits arbitrary SQL over that committed catalog and rejects access
     outside it. The Gate observes the same catalog against scratch tables. This is
-    lifecycle metadata, not a foreign key or stored relationship. M5 `data_query`
+    lifecycle metadata, not a foreign key or stored relationship. M6 `data_query`
     remains ephemeral and may query the whole live catalog without persisting a
     dependency. Capability deletion is refused while a live capability declares a
     dependency on the target incarnation, with deterministic copy naming the
@@ -423,7 +423,7 @@ foreground stream and complete `commit` swap),
     permanent deletion the same semantic capability id may be created again only
     after cleanup completes, with a new incarnation and path. This prevents stale
     cleanup and Bun's dynamic-import cache from touching or loading the new code,
-    and keeps Module 8 metrics distinct across delete/recreate lifetimes.
+    and keeps Module 10 metrics distinct across delete/recreate lifetimes.
 
 26. **Artifact publication is staged, verified, atomic, and no-overwrite.** Each
     build writes to a unique same-filesystem build-id staging directory. The
@@ -456,7 +456,7 @@ foreground stream and complete `commit` swap),
 
 28. **Resolution admission and generation metrics are distinct.** `/prompt`
     creates a non-mutating stream/job ticket and carries resolver timing/outcome
-    in job memory; it owns no mutation lease and may resolve to `reject` or M5
+    in job memory; it owns no mutation lease and may resolve to `reject` or M6
     `data_query`. Resolution reads one versioned active registry catalog and the
     resolved build request binds its revision or canonical fingerprint in addition
     to the target expectation. Only a resolved build intent enters the mutation
@@ -550,7 +550,7 @@ foreground stream and complete `commit` swap),
     expected-absence, or catalog mismatch fails stale and is never silently
     rebased, retargeted, or reclassified.
     The M2–M4 explicit adapter resolves a typed prompt, occupies the active content
-    area, and narrates the foreground story. Module 7 may hand an already-resolved,
+    area, and narrates the foreground story. Module 9 may hand an already-resolved,
     confirmed implicit proposal to the same Builder without reclassification and
     choose a different presenter in its open UX design. Mutation, staging, Gate,
     activation, and metrics remain identical.
@@ -562,7 +562,7 @@ foreground stream and complete `commit` swap),
     the meaningful distinction (for example **Work contacts** / `work_contacts`),
     never `contacts_2`; `namespace` is metrics-only. Active capability is strong
     context, explicit wording may override it, and exact identity collisions
-    remain deterministic. `reject` and M5 `data_query` never enter the Builder.
+    remain deterministic. `reject` and M6 `data_query` never enter the Builder.
 
 33. **Capability deletion is zero-AI, permanent, and dependency-safe.** A
     platform-owned toolbar action uses authored product voice and no resolver or
@@ -577,8 +577,8 @@ foreground stream and complete `commit` swap),
     AI-authored SQL.
 
 34. **Deletion is a durable two-phase lifecycle, not pretend cross-store
-    atomicity.** Every target route, declared cross-capability query, M5 whole-
-    catalog query, and M6 file serve acquires ownership-validated read tokens for
+    atomicity.** Every target route, declared cross-capability query, M6 whole-
+    catalog query, and M7 file serve acquires ownership-validated read tokens for
     the incarnations it can observe. An operation acquires its complete
     incarnation token set atomically against one gate/catalog snapshot; if any
     member is missing, stale, or closing, it receives no tokens and does not
@@ -591,7 +591,7 @@ foreground stream and complete `commit` swap),
     adapters collect a deduplicated owned-resource manifest, including inactive
     fields. In one SQLite transaction the registry row becomes a non-routable
     deletion tombstone carrying that manifest, capability-owned Event Log payloads
-    are purged/redacted when M7 is installed, and the table is dropped. After
+    are purged/redacted when M9 is installed, and the table is dropped. After
     commit, the gate can never reopen: idempotent adapters delete version artifacts and external resources;
     then the tombstone is removed. Crash/failure after the database commit leaves
     the capability logically gone with durable cleanup work. Boot recovery retries
@@ -606,13 +606,13 @@ foreground stream and complete `commit` swap),
     otherwise the current active capability's canonical View remains. Later cleanup
     failure cannot resurrect the deleted surface.
 
-35. **The owned-resource cleanup seam pre-pays Module 6 and Module 7.** M4
+35. **The owned-resource cleanup seam pre-pays Module 7 and Module 9.** M4
     contributes the artifact collector/cleaner and a fake-resource acceptance
-    adapter. M6 extends the manifest to absorb every target-incarnation file
+    adapter. M7 extends the manifest to absorb every target-incarnation file
     lifecycle state before table drop: committed references from active and
     inactive `file | file[]` fields, pending ownership, and already-enqueued
     cleanup. Keys are deduplicated and remain incarnation-bound through tombstone
-    cleanup. M7 adds capability-owned Event Log payload cleanup. Event ownership
+    cleanup. M9 adds capability-owned Event Log payload cleanup. Event ownership
     provenance is derived server-side from admitted route/query/read-token context
     and canonical payload production; client- or model-supplied incarnation labels
     are never trusted. Ingestion validates and appends that complete derived set
@@ -830,7 +830,7 @@ build intents. Send active capability id with prompt submission; act on
 out of the Builder. Narrow the pre-provider duplicate heuristic so semantic
 overlap sees the full registry. Separate the resolved build request from the
 explicit SSE presenter: explicit evolution remains a foreground product-voice
-story and emits one View `commit`, while Module 7 can reuse the same core Builder
+story and emits one View `commit`, while Module 9 can reuse the same core Builder
 with an already-resolved confirmed proposal bound to expected target
 id/incarnation/version plus the resolver catalog revision/fingerprint. Revalidate
 both after lease acquisition; either mismatch is stale and never reclassified.
@@ -843,9 +843,9 @@ closing/drain, durable registry tombstone, pre-drop
 resource collection, database point of no return, idempotent artifact/resource
 cleanup, deterministic pre-/post-tombstone UI, id reservation, and boot recovery.
 Read operations acquire their complete incarnation-token set atomically. Use a
-fake owned-resource adapter to prove absorption of committed/pending/cleanup M6
+fake owned-resource adapter to prove absorption of committed/pending/cleanup M7
 states and an Event Log fake to prove server-derived ownership provenance plus
-the M7 purge seam. Fault tests
+the M9 purge seam. Fault tests
 cover before/after DB commit, partial cleanup, restart, same-id recreation with a
 new incarnation, read-token timeout/reopen, late stale Event Log ingestion,
 path traversal/symlink rejection, and repeated cleanup.

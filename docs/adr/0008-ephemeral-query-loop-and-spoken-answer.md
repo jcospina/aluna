@@ -146,9 +146,9 @@ semantic storage earns its own ADR and its own module.
 
 **When nothing can answer, Aluna names the gap and stops.** She says the user has nowhere
 for the subject yet and that they can ask her to make one. She presents no confirmation
-control: an offer-with-a-yes is a proposal, and the proposal surface belongs to Module 8
+control: an offer-with-a-yes is a proposal, and the proposal surface belongs to Module 9
 — `src/pipeline/intent/schema.ts` admits only `requires_confirmation: z.literal(false)`,
-and reserves confirmations for M4 deletion and M8 proposals. The information still
+and reserves confirmations for M4 deletion and M9 proposals. The information still
 arrives, and the action is one ordinary sentence away in the box already under the
 cursor.
 
@@ -209,7 +209,7 @@ should be written that waits on it. `design/research/the-spark.md` was deleted a
 abandoned rather than folded into a page, and `docs/pet.md` is guidance of its vintage
 rather than a contract — two of its statements are stale, "renders into the content area"
 against a desk that ships no content area, and "supports walking" as a claim about a
-design not yet made. Module 8 should settle its proposal surface the same way, on
+design not yet made. Module 9 should settle its proposal surface the same way, on
 machinery that exists, rather than inheriting this deferral.
 
 **Build narration is untouched.** It stays in the window, where M5 put it, because a
@@ -288,14 +288,14 @@ solve a problem that this product's scale does not have.
   module plan.
 - The read gate gains a cancellation mechanism it did not have. Any future long-running
   read that wants to be drainable should follow the same shape.
-- Module 8 inherits a named first customer for its proposal surface: the moment a
-  confirmation exists, the gap answer is where it belongs. Until then M8 remains free to
+- Module 9 inherits a named first customer for its proposal surface: the moment a
+  confirmation exists, the gap answer is where it belongs. Until then M9 remains free to
   design that surface without inheriting a shape this module guessed at.
-- Module 9 inherits two numbers that tell it whether the ten-step budget was generous or
+- Module 10 inherits two numbers that tell it whether the ten-step budget was generous or
   tight.
 - The desk gains a third window and no window manager. Anything later wanting a fourth
   should expect to justify it against this contract's reasoning, not merely cite it.
-- The pet is removed from every module's critical path. Module 8's proposal surface is now
+- The pet is removed from every module's critical path. Module 9's proposal surface is now
   the only thing still deferred to it, and need not be.
 - `data_query` remains outside the mutation coordinator, creates no lifecycle state, and
   declares no read dependency, exactly as ARCH §7 and §8 already require.

@@ -740,13 +740,13 @@ carried it, the desk puts none anywhere else, and only the name is left.
 Two surfaces are deferred rather than decided, and both belong to the companion —
 a talking pet that will carry narration once it lands and that is not designed
 yet. Where a disposable query answer appears belongs to Module 6, and where a
-behavioural proposal appears belongs to Module 8. The desk narrows each question
+behavioural proposal appears belongs to Module 9. The desk narrows each question
 without answering it, and neither answer is chosen here. Decision 23's build log
 is the answer for the surface as it exists today, and it is expected to be
 absorbed by the pet later rather than contradicted by it. The pet itself is not
 built in this module.
 
-Module 9's experimenter surface inherits D13's precedent: it lives in the
+Module 10's experimenter surface inherits D13's precedent: it lives in the
 developer panel's window, which is furniture rather than a capability and already
 sits outside the product voice, so metrics, latency and gate tuning belong beside
 it. That is one exception to the one-window rule, not two — this module adds no
@@ -865,7 +865,7 @@ Forms speak the controls the design
 draws — choice, long text, guidance, limits, in-field errors — and the layout
 answers text scaling, a phone, and a screen smaller than the one the window was
 left on. The toolbar, the detail modal, the sidebar and the code behind them are
-gone, and Modules 6 through 9 build against the surface they will ship on rather
+gone, and Modules 6 through 10 build against the surface they will ship on rather
 than the one being deleted.
 
 ## Issue conversion

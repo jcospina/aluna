@@ -15,7 +15,7 @@ Resolution admitted before mutation, never owning it.
 
 - `POST /prompt` creates a non-mutating stream/job ticket and immediately
   returns the subscriber fragment. It owns no mutation lease and may resolve
-  to `reject` or (M5) `data_query`; those finish without mutation admission
+  to `reject` or (M6) `data_query`; those finish without mutation admission
   and never enter the Builder.
 - The resolver reads **one versioned active registry catalog**; the resolved
   build request binds that catalog's revision or canonical fingerprint in

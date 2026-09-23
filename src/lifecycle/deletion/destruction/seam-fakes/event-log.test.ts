@@ -53,7 +53,7 @@ function acquire(
 }
 
 // biome-ignore lint/complexity/noExcessiveLinesPerFunction: one scratch-database lifecycle keeps the provenance and late-batch evidence coherent.
-describe("the Module 8 Event Log acceptance fake", () => {
+describe("the Module 9 Event Log acceptance fake", () => {
   let dir: string;
   let conns: PlatformDatabase;
 
@@ -192,7 +192,7 @@ describe("the Module 8 Event Log acceptance fake", () => {
     );
     if (appended.status !== "appended") throw new Error("the batch should have appended");
     readGates.release(tokens);
-    // The batch M8 would have queued just before deletion started.
+    // The batch M9 would have queued just before deletion started.
     const queued: AdmittedEventContext = {
       kind: "queued",
       route: "/capability/notes",

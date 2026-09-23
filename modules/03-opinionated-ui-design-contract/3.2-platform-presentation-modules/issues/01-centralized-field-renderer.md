@@ -18,7 +18,7 @@ The single platform module that renders a capability's fields deterministically
 from its spec — used by both the create form and the read-only detail surface.
 Centralized and **exhaustive over the field-type pantry**
 (`string | number | boolean | datetime | date` — a `date` type was added here per
-the 2026-07-06 ADR-0005 amendment) so Module 4's list types and Module 6's file
+the 2026-07-06 ADR-0005 amendment) so Module 4's list types and Module 7's file
 types extend exactly one place (ADR-0005 §1).
 Presentation only — no capability rule, no canonical state.
 

@@ -44,7 +44,7 @@ boundary, or exit criteria. Decision records: [ADR-0002 update](../../docs/adr/0
    fragment; narration → fragments → commit swap → `done` ride
    `GET /build/:id/stream`, which the server closes. Intent resolution runs
    *inside* the job (the POST never blocks on an AI call). The persistent shell
-   channel is deliberately **not** built — it is M7's, designed with its UX.
+   channel is deliberately **not** built — it is M9's, designed with its UX.
    The htmx SSE extension is vendored and `hx-swap-oob`-over-SSE proven in 2.6
    (the open question flagged in modules.md). The production event vocabulary
    is finalized during 2.6, starting from the seed (`narration`, `fragment`,
@@ -64,13 +64,13 @@ boundary, or exit criteria. Decision records: [ADR-0002 update](../../docs/adr/0
    the complete language (`new_capability | extend_capability | ui_change |
    data_query` + a reject bucket) from the first build; M2 *acts* only on
    `new_capability`. Everything else gets a warm, product-voice **deflection**
-   streamed over the same per-build channel and logged to metrics — so M4/M5
+   streamed over the same per-build channel and logged to metrics — so M4/M6
    change no contract, and intent-distribution data accrues from day one.
    Duplicates fall out free: "track my notes" when Notes exists classifies as
    `extend_capability` → deflected; no collision logic, no auto-suffixed ids.
    `requires_confirmation` exists in the shape but is always `false` in M2
    (later confirmations cover record and capability deletion through deterministic
-   platform chrome in M4, plus proposals in M7; neither deletion confirmation is
+   platform chrome in M4, plus proposals in M9; neither deletion confirmation is
    an Intent Resolver concern).
 
 7. **Concurrency UX: refusal + courtesy, no queueing yet.** The single-flight
@@ -82,7 +82,7 @@ boundary, or exit criteria. Decision records: [ADR-0002 update](../../docs/adr/0
 
    > **M4 forward amendment:** M2 itself retains single-flight refusal. Module 4
    > supersedes the system-wide end state with bounded FIFO build reservations and
-   > one active build lease inside the mutation coordinator. Module 7 later submits
+   > one active build lease inside the mutation coordinator. Module 9 later submits
    > confirmed proposals through that existing coordinator; it does not introduce
    > the first real queue.
 
@@ -90,10 +90,10 @@ boundary, or exit criteria. Decision records: [ADR-0002 update](../../docs/adr/0
    (Zod-validated structured object); **deterministic platform code derives the
    DDL** — the AI never writes SQL (ARCH §1 schema ownership). Field type enum
    in M2: `string | number | boolean | datetime`, each with `required`.
-   Excluded for now: list types (M4 evolution), `file`/`file[]` (M6),
+   Excluded for now: list types (M4 evolution), `file`/`file[]` (M7),
    relations (never — no foreign keys). Every capability table automatically
    gets platform-owned columns: `id` (PK), `created_at` (uniform — pre-pays
-   M5's NL→SQL catalog), and `extra` (the JSON escape-hatch column, present
+   M6's NL→SQL catalog), and `extra` (the JSON escape-hatch column, present
    from birth). Deviation noted: ARCH's example shows `created_at` as a spec
    field with `auto`; making it platform-owned removes the `auto` concept from
    M2's pantry. Capability tables are prefixed (`cap_<id>`) so they can never

@@ -48,7 +48,7 @@ import {
 
 /**
  * Columns every capability data table gets from the platform, never from the spec: `id` (PK),
- * `created_at` (uniform, pre-paying M5's NL→SQL catalog), `extra` (the JSON escape hatch).
+ * `created_at` (uniform, pre-paying M6's NL→SQL catalog), `extra` (the JSON escape hatch).
  */
 export const PLATFORM_COLUMNS = ["id", "created_at", "extra"] as const;
 

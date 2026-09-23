@@ -28,7 +28,7 @@ The third gate rung — the one that lifts "validated" from *compiles and runs* 
 - **The tier is a global toggle, default ON** (PLAN decision 5). OFF exists
   *only* to measure the no-test baseline — "how much worse it got" — never as a
   working mode. When OFF, generation and execution are skipped and the metrics
-  row records the tier as off, so M8 can compare the two runs.
+  row records the tier as off, so M10 can compare the two runs.
 - **Measure**: test-gen and test-run durations, tokens, and outcomes captured
   for the metrics row — these columns are the entire point of the tier being a
   toggle (ARCH §6.2).

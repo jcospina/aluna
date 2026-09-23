@@ -22,15 +22,15 @@ A question about something the user tracks nowhere ends with Aluna naming the ga
 Then she stops.
 
 **No button, no confirmation control, no yes.** An offer-with-a-yes is a
-**proposal**, and the proposal surface belongs to Module 8:
+**proposal**, and the proposal surface belongs to Module 9:
 `src/pipeline/intent/schema.ts` presently admits only `requires_confirmation:
 z.literal(false)`, and its own comment reserves confirmations for M4 deletion and
-M8 proposals. Nothing in this issue may add a control that accepts an offer, and
+M9 proposals. Nothing in this issue may add a control that accepts an offer, and
 nothing may set that flag.
 
 **The information still arrives, and that is the whole point.** The action is one
 ordinary sentence away in the box already under the cursor, which is where every
-other thing the user asks for starts. This is the first place M8 should wire its
+other thing the user asks for starts. This is the first place M9 should wire its
 proposal surface when it has one, and the issue should say so where the code makes
 the choice.
 
@@ -48,7 +48,7 @@ declining to look.
 - [x] The sentence names the subject in the user's words and no capability, table
       or column
 - [x] The ending cannot be produced without the loop having looked first
-- [x] A comment where the ending is produced records that this is M8's first
+- [x] A comment where the ending is produced records that this is M9's first
       proposal-surface site
 - [ ] **Sign-off gate:** the human has read the sentence and confirms it informs
       without offering
@@ -73,7 +73,7 @@ nowhere for what was asked about. It carries no statement and spends no read, an
 the platform's own sentence: *"You don't have anywhere for hiking trips yet — you can ask me to
 make one."* Then she stops. Nothing renders a button, a link or a control of any kind, and
 `requires_confirmation` still admits only `false` — the surface that would accept an offer is
-Module 8's, and the loop says so where the ending is produced.
+Module 9's, and the loop says so where the ending is produced.
 
 **The words are the platform's, beside every other ending's.** `question-narration.ts` holds the
 sentence, the one naming nothing in particular (`QUESTION_NO_HOME_FOR_THAT`, *"You don't have

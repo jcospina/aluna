@@ -32,7 +32,7 @@ const PLATFORM_DATA_TABLES = [
   "capability_deletion_tombstones",
   EVENT_LOG_TABLE,
   // Both halves of the Event Log store, or a reset leaves ownership rows pointing at deleted
-  // event ids. Neither exists outside the 4.9 seam fake until M7, so both are no-ops today.
+  // event ids. Neither exists outside the 4.9 seam fake until M9, so both are no-ops today.
   EVENT_LOG_OWNERSHIP_TABLE,
 ] as const;
 

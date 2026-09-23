@@ -19,7 +19,7 @@ Deletion as a durable two-phase lifecycle, not pretend cross-store atomicity.
   deduplicated owned-resource manifest, **including inactive fields**.
 - In one SQLite transaction: the registry row becomes a non-routable deletion
   tombstone carrying that manifest, capability-owned Event Log payloads are
-  purged/redacted when M7 is installed (fake seam in 4.9/04), and the table is
+  purged/redacted when M9 is installed (fake seam in 4.9/04), and the table is
   dropped. That commit is deletion's point of no return; the gate can never
   reopen after it.
 - After commit: idempotent adapters delete version artifacts and external

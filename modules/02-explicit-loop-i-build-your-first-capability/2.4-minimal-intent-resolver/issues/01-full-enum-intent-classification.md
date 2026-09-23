@@ -14,7 +14,7 @@ The resolver's classification call: prompt + registry context → a structured,
 Zod-validated intent through the provider contract. Per PLAN decision 6, the
 intent schema **speaks the complete language from the first build** —
 `new_capability | extend_capability | ui_change | data_query` plus a reject
-bucket — while M2 *acts* only on `new_capability`. M4/M5 then change no
+bucket — while M2 *acts* only on `new_capability`. M4/M6 then change no
 contract, and intent-distribution data accrues from day one.
 
 - **Context assembly.** The call sees the whole registry (every capability's
@@ -27,7 +27,7 @@ contract, and intent-distribution data accrues from day one.
   *same* call (no separate copy-generation call, ARCH §6.2) that threads through
   narration and deflection. `requires_confirmation` exists in the shape but is
   always `false` in M2 (confirmations are reserved: capability delete in M4,
-  proposals in M7).
+  proposals in M9).
 - **Scope line.** Classification only — what the job *does* with the intent
   (proceed or deflect) is the deflection issue's business.
 

@@ -91,7 +91,7 @@ describe("generation-metrics store — round-trips and partial writes", () => {
     const metrics = buildMetrics();
     writeGenerationMetrics(metrics, conns.readwrite);
 
-    // Read back through the *read-only* connection — the M8 query surface — proving
+    // Read back through the *read-only* connection — the M10 query surface — proving
     // the write landed in the shared file.
     const fetched = getGenerationMetrics("build-notes-1", conns.readonly);
     expect(fetched).toEqual({ ...metrics, createdAt: fetched?.createdAt ?? "" });
@@ -162,7 +162,7 @@ describe("generation-metrics store — round-trips and partial writes", () => {
       rung: "smoke",
       message: "create handler threw",
     });
-    // The per-rung detail survives so M8 can see exactly where it stopped.
+    // The per-rung detail survives so M10 can see exactly where it stopped.
     expect(fetched?.gateRungs).toEqual([
       { rung: "structural", status: "passed", durationMs: 10 },
       { rung: "smoke", status: "failed", durationMs: 6, error: "create handler threw" },

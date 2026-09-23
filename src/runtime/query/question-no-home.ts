@@ -2,8 +2,8 @@
 // sentence is `question-narration.ts`'s, beside every other ending's.
 //
 // No button, and nothing here may grow one. An offer with a yes is a proposal, and the proposal
-// surface is Module 8's — `src/pipeline/intent/schema.ts` admits only `requires_confirmation:
-// z.literal(false)`. This ending is the first place M8 should wire that surface when it has one.
+// surface is Module 9's — `src/pipeline/intent/schema.ts` admits only `requires_confirmation:
+// z.literal(false)`. This ending is the first place M9 should wire that surface when it has one.
 // Until then the action stays one ordinary sentence away, in the box already under the cursor.
 //
 // One call, carrying the question and nothing else: no rows, no collections, no steps. What comes

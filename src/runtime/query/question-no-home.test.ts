@@ -3,7 +3,7 @@
 //
 // Four claims decay quietly and each is pinned here. The sentence informs and offers nothing, so
 // it carries no control and the resolver's confirmation flag stays shut — the surface that would
-// accept an offer is Module 8's. The subject is words this person wrote, because free text of the
+// accept an offer is Module 9's. The subject is words this person wrote, because free text of the
 // model's inside a sentence the platform vouches for is what 6.4/04 spent its findings on. The
 // claim is about their desk, so it is refused when it names something they already have, and a
 // question that searched and matched nothing keeps its own weaker, truer ending. And the whole of
@@ -525,7 +525,7 @@ describe("she cannot say it without having looked", () => {
 describe("no button, and no confirmation to wire one to", () => {
   test("the resolver still admits only an unconfirmed classification", () => {
     // Decision 20's whole restraint, checked where it is actually enforced. The moment this
-    // flag opens, the gap answer is where Module 8 should wire its proposal surface.
+    // flag opens, the gap answer is where Module 9 should wire its proposal surface.
     expect(intentClassificationSchema.safeParse(A_DATA_QUERY_CLASSIFICATION).success).toBe(true);
     expect(
       intentClassificationSchema.safeParse({

@@ -13,8 +13,8 @@ permanent capability deletion
 
 The read-token layer deletion drains against.
 
-- Every target route and declared cross-capability query (and later M5
-  whole-catalog query and M6 file serve — the interface must accommodate them)
+- Every target route and declared cross-capability query (and later M6
+  whole-catalog query and M7 file serve — the interface must accommodate them)
   acquires ownership-validated read tokens for the incarnations it can
   observe.
 - An operation acquires its **complete** incarnation token set atomically

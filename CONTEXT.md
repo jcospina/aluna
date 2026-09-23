@@ -119,7 +119,10 @@ unreachable from window chrome, which is why no lamp is signal red (design D3;
 M5 plan 17, 19).
 The same leave-run warning guards switching to another capability logo and
 Back/Forward while a build or evolution is mounted; confirmation uses the one
-cancel teardown and then completes the requested navigation.
+cancel teardown and then completes the requested navigation. From Module 7 it also
+guards every in-desk exit from a form that holds an upload, pending or still
+streaming, and a confirmed leave deletes it; a form holding only typed text still
+closes without asking.
 _Avoid_: minimise, hide, exit; "close" names the gesture, "put away" is what it
 does. **Dismiss** is not a synonym for it either — it is the word for ending a
 held ending and getting back whatever it covered (see **Ending**), which leaves
@@ -250,7 +253,7 @@ units, gate, commit) — shown as it streams, and it is the one place in Aluna a
 monospace face appears, because it shows raw payloads and stands outside the
 product voice. It is a curiosity surface for people who want to see how Aluna
 works, never a place to steer code, schema, framework, or styling decisions.
-Module 9's experimenter surface lives in it too (design D13; M5 plan).
+Module 10's experimenter surface lives in it too (design D13; M5 plan).
 _Avoid_: console, debug drawer, inspector, right sidebar
 
 **The pet**:
@@ -261,7 +264,7 @@ delight feature carrying no business logic. Defined now, deferred to a later iss
 a TBD authentic Kogi word (do not fabricate one). It is related to Aluna, but it is
 **not Aluna herself**. Its form, anatomy, hue and technique are the user's to decide
 and are not anticipated anywhere. **Nothing depends on it.** Module 6's answer window
-settled the query-answer surface without it (ADR-0008), and Module 8 may settle the
+settled the query-answer surface without it (ADR-0008), and Module 9 may settle the
 proposal surface the same way; the pet is a delight feature that may never be built,
 and no plan should be written that waits on it.
 _Avoid_: orb (the superseded concept), mascot, avatar, assistant, bot, spinner
@@ -327,10 +330,14 @@ that could move without the drawing changing
 _Avoid_: logo job, render status, retry flag, hash seed
 
 **Desk-load sweep**:
-What a desk load does for the capabilities that have no face: a fresh render arms
-one load-triggered attempt on every `absent` tile, and that is the whole
-self-healing mechanism — no scheduler, because the page load is the one moment the
-platform reliably gets. It is not a background job and holds no queue of its own.
+What a desk load does for the work nobody else will finish, because the page load
+is the one moment the platform reliably gets. For the capabilities that have no
+face, a fresh render arms one load-triggered attempt on every `absent` tile, and
+that is the whole self-healing mechanism — no scheduler. From Module 7 it also
+takes every **pending upload** still standing, since a reload has destroyed any
+form that held one, and hands it to the file ledger's cleanup without holding up
+the render.
+It is not a background job and holds no queue of its own.
 _Avoid_: retry job, logo worker, background sweep, cron
 
 **Logo recovery**:
@@ -385,13 +392,13 @@ publication, activation. It owns no prompt route, no active DOM, and no SSE. It
 takes a **resolved build request** and a **build presenter**, and emits one terminal
 lifecycle event into that presenter while its lease is still held. This is the
 reuse seam: the explicit loop resolves a typed prompt and supplies the foreground
-presenter, while Module 8's implicit loop will hand over an already-confirmed
+presenter, while Module 9's implicit loop will hand over an already-confirmed
 proposal in the same shape — never reclassified — and choose a presenter of its
 own. Mutation, staging, Gate, activation, and metrics are identical either way
 (PLAN decision 31, ADR-0006, ARCH §6.2). Today the seam is terminal-only: the
 in-flight liveness sink still carries ADR-0002 SSE event names, a dead sink is
 read as cancellation, and the product-voice narration is authored inside the
-stages. Module 8 can swap the terminal presenter but not yet the in-flight story;
+stages. Module 9 can swap the terminal presenter but not yet the in-flight story;
 widening it waits for a second real presenter to shape it against.
 _Avoid_: build pipeline, the builder service, prompt pipeline
 
@@ -414,7 +421,7 @@ no sidecar for the desk. Cancellation gives it back at once; a failure, a stale
 refusal and a measured no-op end the narration with their own authored line and
 the window **holds** there until the person dismisses the ending, which is when
 the collection is placed (PLAN decisions 23, 25). Presentation is not a Builder
-invariant: Module 8 may choose another presenter entirely (PLAN decisions 29, 31;
+invariant: Module 9 may choose another presenter entirely (PLAN decisions 29, 31;
 ADR-0002).
 _Avoid_: renderer, view layer, the SSE handler
 
@@ -510,6 +517,48 @@ new selection of one is refused as a typed `choice_disabled`, distinct from the
 undeclared refusal because the value is real. Retiring is how an option is taken
 out of use, since removing one is refused; a field may never retire them all.
 _Avoid_: deleted option, removed option, inactive option
+
+**File admission**:
+The platform's decision that an uploaded file is a type Aluna accepts. The
+extension must be on the closed allowlist, which holds only what a browser can
+show, a declared type must not contradict it (a blank or generic declaration is
+no claim, not a contradiction), and the file's own bytes must confirm the family.
+A file that fails is refused; nothing is ever stored as an unknown type, and the
+type a file is recorded under is the verified one, never the claimed one.
+_Avoid_: mime check, upload validation, file sniffing
+
+**File reference**:
+What a record holds for an uploaded file: an opaque key plus the verified kind,
+type, size and original name — never the bytes. The platform mints one only for a
+file it has admitted and stored, and it is *pending* until a save commits it, at
+which point the key belongs exclusively to one record's field. Generated code
+sees it as the projection `{ url, name, kind, mime, size }` and hands that
+projection back when it saves; it never needs the key, it can neither invent a
+reference nor claim another record's, and it cannot change or drop one — the
+checked submission is what gets written.
+_Avoid_: file id, attachment, blob, upload
+
+**Pending upload**:
+A file already streamed in and admitted, held under durable pending ownership
+while the person is still filling the form. It is refusable before the save and
+belongs to nobody until one commits it. Leaving a record whose form holds one
+asks first, through the same question that guards a running build, and a
+confirmed leave deletes it. Anything a crash, a kill or a closed tab leaves
+behind is taken by the **desk-load sweep**, since a reload destroys an open form;
+a second tab's form loses its upload that way, and its save is refused with a
+sentence asking for the file again. Nothing waits on a timer.
+_Avoid_: staged file, temp file, draft upload
+
+**File ledger**:
+The platform's record of who owns every stored file: one row per admitted key
+naming the incarnation, the field, the record once a save claims it, the verified
+type, and whether the key is pending, owned or awaiting cleanup. It is the only
+place ownership is asserted — a capability's own column holds the reference a
+record shows, never the claim to it — and it is what a deletion asks for every
+key an incarnation owns. A file still streaming sits in staging with no row; the
+row is written once the file is admitted, and the ledger is the cleanup queue as
+well.
+_Avoid_: file table, uploads table, blob registry
 
 **List input mode**:
 The AI-authored, platform-rendered form choice for one active `string[]` field.
@@ -649,7 +698,7 @@ _Avoid_: no results, zero rows, empty result, you have none
 What this desk has for a subject no collection on it covers, and the ending Aluna reaches by
 saying so and stopping: *"You don't have anywhere for hiking trips yet — you can ask me to
 make one."* She names the subject in the person's own words and offers no control, because an
-offer with a yes is a **proposal** and that surface is Module 8's (PLAN decision 20). Earned by
+offer with a yes is a **proposal** and that surface is Module 9's (PLAN decision 20). Earned by
 looking rather than shrugging: a question that searched and matched **nothing matched** keeps
 that weaker, truer ending; a subject naming anything the desk already holds — a collection, what
 it calls one record, a column, one of a column's declared values — is refused; and so is a

@@ -3,7 +3,7 @@
 //
 // First the seam: the Builder runs a complete evolution — Diff, Gate, publication, activation,
 // durable metrics — driven by a recording fake presenter that knows nothing about transports,
-// DOM or the prompt route. That is the interface Module 7's implicit loop will consume with a
+// DOM or the prompt route. That is the interface Module 9's implicit loop will consume with a
 // presenter of its own.
 //
 // Then staleness: a request whose target expectation, expected-absence or resolver catalog no

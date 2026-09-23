@@ -13,7 +13,7 @@ ADR-0006)
 
 M4's only new field type, `string[]`, cut vertically through every layer behind
 one extensible list seam (so `number[]`/`boolean[]`/`date[]`/`datetime[]` can
-follow when a concrete need exists; `file[]` stays M6):
+follow when a concrete need exists; `file[]` stays M7):
 
 - Spec: `string[]` is a valid field type; Gate samples include it.
 - Request parsing: repeated keys (4.1/03) become the ordered array value.

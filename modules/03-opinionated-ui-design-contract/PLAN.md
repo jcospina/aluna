@@ -26,7 +26,7 @@ fix loop). Terms per [CONTEXT.md](../../CONTEXT.md) ("Engineering language"):
    field rendering** become fixed platform modules. They implement no capability
    rule and hold no canonical state, so they are covered by **deterministic
    platform tests, not gate rungs**. Field rendering is centralized and
-   exhaustive over the M2 pantry so M4's list types and M6's file types extend
+   exhaustive over the M2 pantry so M4's list types and M7's file types extend
    **one** place. Consequently `list.html` and `create.html` **cease to be
    generated units**, and a toolbar click renders the platform list scaffolding
    live from the spec (deterministic, no AI) with records still arriving through
@@ -82,7 +82,7 @@ fix loop). Terms per [CONTEXT.md](../../CONTEXT.md) ("Engineering language"):
    closed enum the platform list container maps to a token-consuming layout
    class. `table` and `masonry` are **deferred** — a true table dissolves the
    per-record creative surface (the platform would render aligned cells from
-   fields, bypassing the item renderer) and overlaps M5's `data_query`
+   fields, bypassing the item renderer) and overlaps M6's `data_query`
    auto-table. Default is `feed`; the AI authors `grid` for visually-dominant
    data. The item renderer is generated **knowing** the chosen layout, so item
    composition and collection arrangement are co-designed. An unknown value
@@ -116,7 +116,7 @@ fix loop). Terms per [CONTEXT.md](../../CONTEXT.md) ("Engineering language"):
    state. The spec Zod schema in [`src/registry/spec.ts`](../../src/registry/spec.ts)
    changes shape accordingly; the M2 field-type pantry
    (`string | number | boolean | datetime`, each `required`) gains a **`date`** type
-   (2026-07-06, ADR-0005 amendment) but is otherwise unchanged (`file` stays M6).
+   (2026-07-06, ADR-0005 amendment) but is otherwise unchanged (`file` stays M7).
    Clicking the item wrapper opens the modal **prefilled and
    read-only** from the escaped payload; M4 adds the Save button to the same
    platform module.
@@ -128,7 +128,7 @@ fix loop). Terms per [CONTEXT.md](../../CONTEXT.md) ("Engineering language"):
    transition is the simplest possible: change the generators, **`bun run reset`,
    and rebuild capabilities fresh**. M3 builds **no** preservation cutover, **no**
    dual-serving of old/new artifacts, and **no** persisted `artifact_contract`
-   marker. The migrate-without-reset path (and any contract marker M8 later
+   marker. The migrate-without-reset path (and any contract marker M10 later
    wants) is deferred until the platform is feature-complete; the architecture
    still describes it as the end state (ARCH §2, §9.1). Until then, backwards
    compatibility does not drive design.
@@ -190,7 +190,7 @@ Suggested cut — `/to-issues` finalizes:
   `feed | grid` layout modes, empty state, "New X") + accessible item wrapper
   (trigger, escaped `data-item` payload, click-to-open); (b) the shared modal
   (open/prefill/focus), read-only content in M3; (c) the centralized, exhaustive
-  create/detail field renderer (the one place M4/M6 extend); (d) retire
+  create/detail field renderer (the one place M4/M7 extend); (d) retire
   `list.html`/`create.html` from generation and re-point `GET /capability/:id`
   (and the rehydration path in `src/web/cached-view.ts`) to render the platform
   list scaffolding from the spec. Platform-owned; deterministic platform tests.
@@ -223,7 +223,7 @@ Suggested cut — `/to-issues` finalizes:
   pipeline produces and the registry/router serve; retire the M2
   `list.html`/`create.html` paths. The M2→M3 transition is **`bun run reset` +
   rebuild fresh** — no preservation cutover, no dual-serving, no persisted
-  `artifact_contract` marker (deferred post-M8, ADR-0005 §7). This epic is also
+  `artifact_contract` marker (deferred post-M10, ADR-0005 §7). This epic is also
   the end-to-end acceptance: a reset + rebuild yields styled, varied capabilities
   (the module demo).
 

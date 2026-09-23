@@ -3,7 +3,7 @@
 // narrates in product voice, and emits one View `commit`, only for a real pointer activation.
 //
 // Everything here is presentation: the Builder has finished mutating, gating and activating
-// before any of these methods run. Module 7 replaces this file and nothing else to give the
+// before any of these methods run. Module 9 replaces this file and nothing else to give the
 // implicit loop a quieter face, while mutation, staging, Gate, activation and metrics stay put.
 //
 // Every non-activating terminal — stale, no_change, cancelled, failed — resolves the job's

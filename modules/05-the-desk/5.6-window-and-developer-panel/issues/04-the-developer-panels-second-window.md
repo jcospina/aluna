@@ -29,7 +29,7 @@ voice.
   it to the front without closing or overwriting the other window's desktop box.
   Moving back above 720px restores and clamps both desktop boxes.
 - **This is one exception, not two.** No third window and no general window
-  manager is added here. Module 9's experimenter surface inherits this precedent
+  manager is added here. Module 10's experimenter surface inherits this precedent
   and lives in the same window, which is why metrics, latency and gate tuning
   belong beside it rather than in a window of their own.
 

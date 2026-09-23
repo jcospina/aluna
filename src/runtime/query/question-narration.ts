@@ -113,7 +113,7 @@ export function questionNothingFoundSentence(steps: readonly QuestionStep[]): st
 }
 
 /** The gap sentence around whatever it names (decision 20). No control comes with it and none
- * may: an offer with a yes is a proposal, and Module 8 owns that surface. */
+ * may: an offer with a yes is a proposal, and Module 9 owns that surface. */
 function noHomeSentence(subject: string): string {
   return `You don't have anywhere for ${subject} yet — you can ask me to make one.`;
 }

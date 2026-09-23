@@ -10,17 +10,17 @@ permanent capability deletion
 
 ## What to build
 
-The cleanup seam that pre-pays Module 6 (files) and Module 7 (Event Log),
+The cleanup seam that pre-pays Module 7 (files) and Module 9 (Event Log),
 proven with fakes, plus the epic's consolidated fault battery.
 
 - **Artifact collector/cleaner.** M4's real contribution: collect and delete
   version artifacts idempotently (an already-absent resource is success).
-- **Fake owned-resource acceptance adapter (M6 seam).** Proves the manifest
+- **Fake owned-resource acceptance adapter (M7 seam).** Proves the manifest
   absorbs every target-incarnation file lifecycle state before table drop:
   committed references from active **and inactive** `file | file[]`-shaped
   fields, pending ownership, and already-enqueued cleanup. Keys deduplicated
   and incarnation-bound through tombstone cleanup.
-- **Event Log fake (M7 seam).** Event ownership provenance is derived
+- **Event Log fake (M9 seam).** Event ownership provenance is derived
   server-side from admitted route/query/read-token context and canonical
   payload production; client- or model-supplied incarnation labels are never
   trusted. Ingestion validates and appends the complete derived set atomically
@@ -50,7 +50,7 @@ proven with fakes, plus the epic's consolidated fault battery.
 
 Not user-visible beyond deletion continuing to work; the dev preview lists the
 collected manifest and cleanup progress for the last deletion (including the
-fake adapters' absorbed states), demonstrating the M6/M7 seams are real.
+fake adapters' absorbed states), demonstrating the M7/M9 seams are real.
 
 Built as `/demo/deletion-cleanup` and **removed again in this same issue**, once
 it had done its job.
@@ -65,7 +65,7 @@ recorded under *Live verification* below).
 It comes down because this is the last issue in the epic, so there is no work
 left for it to scaffold. It added no coverage — everything it showed is asserted
 by the fault battery and the two seam-fake suites — and keeping it carried a real
-cost: wiring it put the M6 fake into the *live* deletion adapter inventory in dev,
+cost: wiring it put the M7 fake into the *live* deletion adapter inventory in dev,
 which is what let a dev-written tombstone name an adapter a production bundle
 could not discharge. Removing the surface removes that hazard at the root rather
 than defending against it.
@@ -98,10 +98,10 @@ evidence with it. `src/app/app.test.ts` pins both as 404 in every environment.
   over the fixed `event_log` / `event_log_ownership` store, running inside
   deletion's one transaction so it commits or rolls back with the tombstone and
   the table drop. It is conditional on the store being installed: a platform
-  without M7 purges nothing and reports zeroes. Payloads are irreversibly
+  without M9 purges nothing and reports zeroes. Payloads are irreversibly
   redacted and ownership rows released, leaving the content-free deletion fact
   ARCH §6.3 allows. No adapter callback runs inside that transaction.
-- **M6 owned-resource acceptance fake**
+- **M7 owned-resource acceptance fake**
   (`src/capability-deletion/seam-fakes/owned-resources.test-support.ts`). An in-memory object
   store that tracks references and bytes separately, so cleaning a key twice is
   observably a success. It models committed references through active *and*
@@ -110,7 +110,7 @@ evidence with it. `src/app/app.test.ts` pins both as 404 in every environment.
   reference with no readable record, or collection attempted after the table is
   gone. It returns duplicate keys deliberately — deduplication is the manifest's
   job, and doing it in the collector would hide a regression there.
-- **M7 Event Log acceptance fake**
+- **M9 Event Log acceptance fake**
   (`src/capability-deletion/seam-fakes/event-log.test-support.ts`). Installs the same fixed
   store the core purge owns. Ownership is derived server-side from the admitted
   route/action and the read-token set the platform itself issued; the proposed
@@ -121,9 +121,9 @@ evidence with it. `src/app/app.test.ts` pins both as 404 in every environment.
 - **The seam fakes are test fixtures, not wiring.** Both live under
   `src/capability-deletion/seam-fakes/*.test-support.ts`, so bun does not run them
   and the server's module graph never reaches them. `OWNED_RESOURCE_ADAPTER`
-  (`owned_files`) reserves the name M6 will install for real; nothing registers it
+  (`owned_files`) reserves the name M7 will install for real; nothing registers it
   today. A manifest naming an adapter this process lacks stays a hard failure on
-  purpose — a real M6 obligation must never be discharged by accident.
+  purpose — a real M7 obligation must never be discharged by accident.
 - **Deletion itself is unchanged in shape.** `destroyCapability` and
   `recoverCapabilityDeletionTombstones` take the same inputs they did after
   4.9/03; the only production change is the real Event Log purge replacing the
@@ -133,7 +133,7 @@ evidence with it. `src/app/app.test.ts` pins both as 404 in every environment.
 
 Stated plainly so a later module does not inherit a false assumption:
 
-- The `file` / `file[]` **shape is carried, not enforced**. M6 adds those field
+- The `file` / `file[]` **shape is carried, not enforced**. M7 adds those field
   types; until then the fake records the shape on each reference and the tests
   assert it round-trips, but no field is actually `file`-typed and one `file[]`
   reference holds one key rather than several.
@@ -144,10 +144,10 @@ Stated plainly so a later module does not inherit a false assumption:
   whose ownership was derived server-side earlier, and only revalidation defends
   it. Nothing reachable over HTTP constructs one — the demo replays only the set
   the live derivation produced.
-- **The M7 store is installed only by tests**, never by a migration and never by
+- **The M9 store is installed only by tests**, never by a migration and never by
   a running server (`src/persistence/migrations.ts` still reserves the Event Log
-  for M7). `purgeInstalledCapabilityPayloads` is conditional on the tables being
-  present, so a real platform purges nothing until M7 installs them. `bun run
+  for M9). `purgeInstalledCapabilityPayloads` is conditional on the tables being
+  present, so a real platform purges nothing until M9 installs them. `bun run
   reset` now clears `event_log_ownership` alongside `event_log`, which was
   already listed — a leftover from before this seam existed.
 
@@ -164,7 +164,7 @@ Stated plainly so a later module does not inherit a false assumption:
   - **A dev manifest was unrecoverable under a production run** — a dev deletion
     persisted a tombstone naming `owned_files`, which a production bundle could
     not discharge, failing on every boot forever and reserving the capability id
-    with it. Root cause: the demo put the M6 fake on the live adapter path.
+    with it. Root cause: the demo put the M7 fake on the live adapter path.
     Resolved by removing the demo, so no fake ever reaches a durable manifest.
   - **Three findings dissolved with the demo**: the journal reporting an empty
     manifest on refusals, the preview being unable to show absorbed states after
@@ -291,12 +291,12 @@ still whole, plus the retired surfaces staying retired.
    `http://localhost:3030/demo/deletion-cleanup` both return 404 — epic 4.9's two
    previews are retired.
 
-The M6/M7 seam evidence is no longer a browser surface. It lives in
+The M7/M9 seam evidence is no longer a browser surface. It lives in
 `bun run test src/capability-deletion`, whose names read as the acceptance list.
 
 ## Post-epic review hardening (2026-08-04)
 
-- **The M6 seam fake was invisible to code review.**
+- **The M7 seam fake was invisible to code review.**
   `seam-fakes/owned-resources.test-support.ts` contained two raw NUL bytes — `.join("\0")`
   composite-key separators written as literal NULs instead of the `"\u0000"` escape used
   everywhere else in the codebase. Git therefore classified the file as **binary**
@@ -305,6 +305,6 @@ The M6/M7 seam evidence is no longer a browser surface. It lives in
   property. Fixed; git now diffs it as text. The fake itself was read in full and is sound.
 - **`event_log_ownership` reset justification corrected.** The comment claimed the 4.9/04
   seam fake "makes this table real in a dev database" — the whole point of this issue was
-  that it no longer can. Both Event Log entries are no-ops until M7 installs the store.
+  that it no longer can. Both Event Log entries are no-ops until M9 installs the store.
 - **`.DS_Store` untracked and gitignored** (it was tracked, and this epic's final commit
   modified it), and `design/` excluded from `biome`, so `bun run lint` exits 0.

@@ -1,7 +1,7 @@
 // The generation-metrics access module (ARCH §6.3, §6.2; PLAN flow step 8).
 //
 // One row per generation, recording what the system did to build itself — distinct from the event
-// log, which is M7's record of what the user did. Every build, every failed build and every
+// log, which is M9's record of what the user did. Every build, every failed build and every
 // deflection writes exactly one row, so latency and capability conclusions come from querying it.
 //
 // The writer is callable with partial knowledge (PLAN decision 6): the optional groups map to
@@ -48,7 +48,7 @@ const generationIntentSchema = z.strictObject({
 export type GenerationIntent = z.infer<typeof generationIntentSchema>;
 
 // The PLAN step-8 timing breakdown. Every leg is optional: a deflection omits the group, a failed
-// build fills only what it reached. `testGenMs` and `testRunMs` are what M8 weighs the tier by.
+// build fills only what it reached. `testGenMs` and `testRunMs` are what M10 weighs the tier by.
 const generationTimingsSchema = z.strictObject({
   specGenMs: z.number().nonnegative().optional(),
   migrationMs: z.number().nonnegative().optional(),
@@ -219,7 +219,7 @@ export function writeGenerationMetrics(
 
 /**
  * Fetch one metrics row by generation id, or null when it doesn't exist. Reads
- * ride the read-only connection by convention — the M8 query surface.
+ * ride the read-only connection by convention — the M10 query surface.
  */
 export function getGenerationMetrics(
   id: string,
@@ -234,7 +234,7 @@ export function getGenerationMetrics(
 
 /**
  * List every metrics row, newest first then by id — the experiment's dataset
- * Ordered deterministically so M8's queries see a stable order.
+ * Ordered deterministically so M10's queries see a stable order.
  */
 export function listGenerationMetrics(database: Database = dbReadonly): StoredGenerationMetrics[] {
   const rows = database
