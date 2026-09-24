@@ -45,6 +45,7 @@ import {
   InvalidFileReferenceError,
   MaxLengthExceededError,
   MissingRequiredFieldsError,
+  RecordChangedError,
   RecordNotFoundError,
 } from "../../data/index.ts";
 import {
@@ -77,6 +78,7 @@ import {
   missingRequiredFieldsFailure,
   NOT_FOUND_FRAGMENT,
   readUnavailable,
+  recordChangedFailure,
   recordMutationRefusal,
   recordNotFoundFailure,
   WIRE_PROTOCOL_ERROR_FRAGMENT,
@@ -88,7 +90,7 @@ import {
   type WireProtocolAction,
   WireProtocolError,
 } from "../wire/wire-protocol.ts";
-import { invokeCapabilityHandler } from "./handler-invocation.ts";
+import { fileClaimScope, invokeCapabilityHandler } from "./handler-invocation.ts";
 
 /**
  * Registry lookup seam. Production uses the validated registry store; route tests
@@ -275,20 +277,6 @@ async function handleCapabilityRequest(
   let parsedRequest: ParsedCapabilityRequest;
   try {
     parsedRequest = await parseCapabilityRequest(c.req.raw, action, spec);
-    // The refusals the platform owns — an undeclared choice value, an over-long string, a file it
-    // may not claim — settle before any generated code loads, so a Handler cannot answer 200.
-    if (action === "create" || action === "update") {
-      assertSubmittedFieldValues(
-        activeSpecFields(spec.schema.fields),
-        parsedRequest.input.values,
-        action,
-        {
-          database: databases.readonly,
-          capabilityId: row.id,
-          incarnationId: row.incarnation_id,
-        },
-      );
-    }
   } catch (error) {
     return capabilityHandlerFailure(c, row.id, action, error);
   }
@@ -300,6 +288,11 @@ async function handleCapabilityRequest(
   if (!tokens) return readUnavailable(c, row.id, action);
 
   try {
+    // The refusals the platform owns — an undeclared choice value, an over-long string, a file it
+    // may not claim or keep — settle before any generated code loads, so a Handler cannot answer
+    // 200. Under the read token, because an edit's file check reads the capability's own table.
+    const refused = platformRefusal(c, databases, row, spec, action, parsedRequest);
+    if (refused) return refused;
     if (isMutationAction(action)) {
       return await handleRecordMutation(
         c,
@@ -335,6 +328,28 @@ async function handleCapabilityRequest(
     );
   } finally {
     readGates.release(tokens);
+  }
+}
+
+function platformRefusal(
+  c: Context,
+  databases: PlatformDatabase,
+  row: CapabilityRow,
+  spec: CapabilitySpec,
+  action: WireProtocolAction,
+  parsedRequest: ParsedCapabilityRequest,
+): Response | undefined {
+  if (action !== "create" && action !== "update") return undefined;
+  try {
+    assertSubmittedFieldValues(
+      activeSpecFields(spec.schema.fields),
+      parsedRequest.input.values,
+      action,
+      fileClaimScope(databases.readonly, row, spec, parsedRequest.recordTarget),
+    );
+    return undefined;
+  } catch (error) {
+    return capabilityHandlerFailure(c, row.id, action, error);
   }
 }
 
@@ -475,6 +490,9 @@ function capabilityHandlerFailure(
   }
   if (error instanceof InvalidFileReferenceError) {
     return invalidFileReferenceFailure(c, id, error);
+  }
+  if (error instanceof RecordChangedError) {
+    return recordChangedFailure(c, id, error);
   }
   if (error instanceof RecordNotFoundError) {
     return recordNotFoundFailure(c, id, action, error);

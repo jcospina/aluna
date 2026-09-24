@@ -6,6 +6,7 @@
 // every await: a capability being deleted asks its readers to stop, and every step here is
 // a place a Handler could otherwise carry on working for a lifetime that has ended.
 
+import type { Database } from "bun:sqlite";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import {
   createPresentationAdapter,
@@ -25,17 +26,19 @@ import {
   createCapabilityMutationPort,
   createCapabilityQueryPort,
   createCapabilityUpdateMutationPort,
-  projectFileLedgerRow,
+  deriveCapabilityTableDdl,
+  type FileClaimScope,
   resolveSubmittedFiles,
   type SubmittedFiles,
+  submittedFileProjection,
 } from "../../data/index.ts";
 import type {
   CapabilityCreateHandler,
-  CapabilityCreateInput,
-  CapabilityCreateInputValue,
   CapabilityDeleteHandler,
   CapabilityInput,
   CapabilityReadHandler,
+  CapabilitySaveInput,
+  CapabilitySaveInputValue,
   CapabilityUpdateHandler,
 } from "../contract.ts";
 import { assertReadOwnership } from "../wire/failure-responses.ts";
@@ -64,21 +67,19 @@ export async function invokeCapabilityHandler(
     signal,
   });
   const writes = writeWindow();
+  // The router's first check ran before the save's transaction opened; this one runs inside it,
+  // holding the write lock, so a sweep or another save that committed in between is refused.
+  const checkFiles = (save: "create" | "update") =>
+    resolveSubmittedFiles(
+      activeSpecFields(spec.schema.fields),
+      input.values,
+      save,
+      fileClaimScope(databases.readwrite, row, spec, parsedRequest.recordTarget),
+    );
 
   if (action === "create") {
     assertReadOwnership(signal);
-    // The router's first check ran before the save's transaction opened; this one runs inside it,
-    // holding the write lock, so a sweep or another save that committed in between is refused.
-    const files = resolveSubmittedFiles(
-      activeSpecFields(spec.schema.fields),
-      input.values,
-      action,
-      {
-        database: databases.readwrite,
-        capabilityId: row.id,
-        incarnationId: row.incarnation_id,
-      },
-    );
+    const files = checkFiles(action);
     const mutation = writes.guard(
       createCapabilityMutationPort(spec, databases.readwrite, signal, {
         incarnationId: row.incarnation_id,
@@ -102,13 +103,16 @@ export async function invokeCapabilityHandler(
   }
   if (action === "update") {
     assertReadOwnership(signal);
+    const target = requireRecordTarget(parsedRequest.recordTarget, action);
+    const files = checkFiles(action);
     const mutation = writes.guard(
       createCapabilityUpdateMutationPort(
         spec,
-        requireRecordTarget(parsedRequest.recordTarget, action),
+        target,
         new Set(input.submittedFields),
         databases.readwrite,
         signal,
+        { incarnationId: row.incarnation_id, submitted: files },
       ),
     );
     const present = await buildPresentationAdapter(row, loadItemRenderer);
@@ -116,7 +120,12 @@ export async function invokeCapabilityHandler(
     const handler = await loadHandler(row.artifacts_path, action);
     assertReadOwnership(signal);
     const fragment = await writes.answered(
-      (handler as CapabilityUpdateHandler)({ input, mutation, query, present }),
+      (handler as CapabilityUpdateHandler)({
+        input: withFileProjections(input, files),
+        mutation,
+        query,
+        present,
+      }),
     );
     assertReadOwnership(signal);
     return fragment;
@@ -129,6 +138,7 @@ export async function invokeCapabilityHandler(
         requireRecordTarget(parsedRequest.recordTarget, action),
         databases.readwrite,
         signal,
+        { incarnationId: row.incarnation_id },
       ),
     );
     const handler = await loadHandler(row.artifacts_path, action);
@@ -192,10 +202,30 @@ function writeWindow() {
   };
 }
 
-/** The Handler's input, with each submitted file field's key replaced by its projection. */
-function withFileProjections(input: CapabilityInput, files: SubmittedFiles): CapabilityCreateInput {
-  const values: Record<string, CapabilityCreateInputValue> = { ...input.values };
-  for (const [field, row] of files) values[field] = row === null ? null : projectFileLedgerRow(row);
+/**
+ * Where a save's file references are checked. An update's record is where its files are kept, so a
+ * submission that keeps one is checked against what the record holds now.
+ */
+export function fileClaimScope(
+  database: Database,
+  row: CapabilityRow,
+  spec: CapabilitySpec,
+  recordTarget: string | undefined,
+): FileClaimScope {
+  return {
+    database,
+    capabilityId: row.id,
+    incarnationId: row.incarnation_id,
+    ...(recordTarget === undefined
+      ? {}
+      : { record: { table: deriveCapabilityTableDdl(spec).tableName, id: recordTarget } }),
+  };
+}
+
+/** The Handler's input, with each submitted file field's wire value replaced by its projection. */
+function withFileProjections(input: CapabilityInput, files: SubmittedFiles): CapabilitySaveInput {
+  const values: Record<string, CapabilitySaveInputValue> = { ...input.values };
+  for (const [field, file] of files) values[field] = submittedFileProjection(file);
   return { values: Object.freeze(values), submittedFields: input.submittedFields };
 }
 

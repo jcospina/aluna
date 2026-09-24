@@ -1,9 +1,9 @@
 // The platform validation that runs before a generated Handler rather than inside it.
 //
-// Three of the platform's structural refusals need no stored record: whether a choice value is one
-// the field declares, whether a string is longer than the field said it holds, and whether a file
-// field names a pending key this field may claim. The platform authored the sentence, status and
-// retarget for all three.
+// Three of the platform's structural refusals: whether a choice value is one the field declares,
+// whether a string is longer than the field said it holds, and whether a file field names a pending
+// key this field may claim or, on an edit, what its record holds now. The platform authored the
+// sentence, status and retarget for all three.
 //
 // They used to be reachable only from `normalizeSpecFieldValues`, which runs from inside the
 // mutation port and so from inside the Handler. Canonical state was safe either way; what was at
@@ -22,7 +22,8 @@ import { type FileClaimScope, resolveSubmittedFiles } from "./file-claims.ts";
  * Refuse a submission the platform owns the answer to, before any generated code loads.
  *
  * @param values the parsed wire values — strings and string arrays, exactly as submitted
- * @param files the ledger this capability's incarnation claims its pending keys from
+ * @param files the ledger this capability's incarnation claims its pending keys from, and an
+ * update's record, whose files a submission may keep
  */
 export function assertSubmittedFieldValues(
   fields: readonly SpecField[],

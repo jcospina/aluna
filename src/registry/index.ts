@@ -15,6 +15,7 @@ export {
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_OWNED_ERROR_CODES,
   platformOwnedErrorCodeList,
+  RECORD_NOT_FOUND_ERROR_CODE,
 } from "./fields/behavioral-errors.ts";
 export {
   admittedChoiceValues,
@@ -54,6 +55,7 @@ export {
   hasActiveFileField,
   INVALID_FILE_REFERENCE_ERROR_CODE,
   isFileFieldType,
+  RECORD_CHANGED_ERROR_CODE,
 } from "./fields/file.ts";
 export {
   type FieldGuidance,
@@ -97,6 +99,7 @@ export {
   resolveLogoShades,
 } from "./logo.ts";
 export {
+  ALUNA_RESERVED_FIELD_PREFIX,
   activeSpecFields,
   type BehavioralErrorMarkers,
   type CapabilityRegistryWrite,

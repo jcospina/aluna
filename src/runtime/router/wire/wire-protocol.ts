@@ -100,7 +100,7 @@ function validatePresenceMarkers(
     return rejectUnexpectedPresenceMarkers(action, markers);
   }
 
-  const submitted = collectSubmittedFields(action, markers, activeFields);
+  const submitted = collectSubmittedFields(markers, activeFields);
   if (action === "create") requireAllCreateFields(activeFields, submitted);
   return submitted;
 }
@@ -116,21 +116,14 @@ function rejectUnexpectedPresenceMarkers(
 }
 
 function collectSubmittedFields(
-  action: "create" | "update",
   markers: readonly string[],
   activeFields: ReturnType<typeof activeSpecFields>,
 ): ReadonlySet<string> {
-  const activeByName = new Map(activeFields.map((field) => [field.name, field]));
+  const activeNames = new Set(activeFields.map((field) => field.name));
   const submitted = new Set<string>();
   for (const fieldName of markers) {
-    const field = activeByName.get(fieldName);
-    if (fieldName.trim().length === 0 || !field) {
+    if (fieldName.trim().length === 0 || !activeNames.has(fieldName)) {
       throw new WireProtocolError(`Invalid submitted field marker "${fieldName}".`);
-    }
-    // A create names a file by the key its upload answered with, or leaves it out. What an update
-    // may say about a file it already holds comes later, so until then it says nothing.
-    if (isFileFieldType(field.type) && action === "update") {
-      throw new WireProtocolError(`File field "${fieldName}" is not submitted to an update yet.`);
     }
     if (submitted.has(fieldName)) {
       throw new WireProtocolError(`Duplicate submitted field marker "${fieldName}".`);
@@ -243,7 +236,7 @@ function normalizeMutationValues(
     values[key] = normalizeRepeatedValue(key, repeated, field, form);
   }
 
-  addSubmittedEmptyLists(values, activeFields, submittedFields);
+  addSubmittedEmptyValues(values, activeFields, submittedFields);
   return values;
 }
 
@@ -279,18 +272,15 @@ function normalizeScalarValue(key: string, repeated: readonly string[]): Capabil
   return only;
 }
 
-function addSubmittedEmptyLists(
+/** A marked field with no value: an empty list, or a file field that holds nothing. */
+function addSubmittedEmptyValues(
   values: Record<string, CapabilityInputValue>,
   activeFields: ReturnType<typeof activeSpecFields>,
   submittedFields: ReadonlySet<string>,
 ): void {
   for (const field of activeFields) {
-    if (
-      !submittedFields.has(field.name) ||
-      !isListFieldType(field.type) ||
-      Object.hasOwn(values, field.name)
-    )
-      continue;
-    values[field.name] = [];
+    if (!submittedFields.has(field.name) || Object.hasOwn(values, field.name)) continue;
+    if (isListFieldType(field.type)) values[field.name] = [];
+    else if (isFileFieldType(field.type)) values[field.name] = "";
   }
 }

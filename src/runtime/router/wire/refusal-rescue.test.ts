@@ -12,6 +12,7 @@ import {
   INVALID_FILE_REFERENCE_ERROR_CODE,
   MAX_LENGTH_EXCEEDED_ERROR_CODE,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  RECORD_CHANGED_ERROR_CODE,
 } from "../../../registry/index.ts";
 import { RECORD_NOT_FOUND_ERROR_CODE } from "../../data/access/mutation.ts";
 import {
@@ -36,6 +37,7 @@ describe("the shell's refusal rescue list", () => {
         CHOICE_DISABLED_ERROR_CODE,
         MAX_LENGTH_EXCEEDED_ERROR_CODE,
         INVALID_FILE_REFERENCE_ERROR_CODE,
+        RECORD_CHANGED_ERROR_CODE,
         MUTATION_BUSY_ERROR_CODE,
         READ_UNAVAILABLE_ERROR_CODE,
         RECORD_NOT_FOUND_ERROR_CODE,

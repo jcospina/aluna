@@ -118,9 +118,9 @@ interface CapabilityInput {
   readonly values: Readonly<Record<string, CapabilityInputValue>>;
   readonly submittedFields: ReadonlySet<string>;
 }
-type CapabilityCreateInputValue = CapabilityInputValue${files ? " | CapabilityFileProjection | null" : ""};
-interface CapabilityCreateInput {
-  readonly values: Readonly<Record<string, CapabilityCreateInputValue>>;
+type CapabilitySaveInputValue = CapabilityInputValue${files ? " | CapabilityFileProjection | null" : ""};
+interface CapabilitySaveInput {
+  readonly values: Readonly<Record<string, CapabilitySaveInputValue>>;
   readonly submittedFields: ReadonlySet<string>;
 }
 interface CapabilityMutationPort {
@@ -159,12 +159,15 @@ interface CapabilityContext {
   readonly present: PresentationAdapter;
 }
 interface CapabilityCreateContext {
-  readonly input: CapabilityCreateInput;
+  readonly input: CapabilitySaveInput;
   readonly query: CapabilityQueryPort;
   readonly present: PresentationAdapter;
   readonly mutation: CapabilityMutationPort;
 }
-interface CapabilityUpdateContext extends CapabilityContext {
+interface CapabilityUpdateContext {
+  readonly input: CapabilitySaveInput;
+  readonly query: CapabilityQueryPort;
+  readonly present: PresentationAdapter;
   readonly mutation: CapabilityUpdateMutationPort;
 }
 interface CapabilityDeleteContext {

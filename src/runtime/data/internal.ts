@@ -4,6 +4,8 @@ import {
   INVALID_FILE_REFERENCE_ERROR_CODE,
   MAX_LENGTH_EXCEEDED_ERROR_CODE,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  RECORD_CHANGED_ERROR_CODE,
+  RECORD_NOT_FOUND_ERROR_CODE,
 } from "../../registry/index.ts";
 
 // The platform's typed data-validation failures. The base class and the structural refusals live
@@ -22,6 +24,20 @@ export class FileFieldWriteError extends CapabilityDataValidationError {
 
   constructor(field: string) {
     super(`Field "${field}" holds a file reference, which only the platform writes.`);
+  }
+}
+
+export { RECORD_NOT_FOUND_ERROR_CODE };
+
+export class RecordNotFoundError extends CapabilityDataValidationError {
+  override readonly name = "RecordNotFoundError";
+  readonly code = RECORD_NOT_FOUND_ERROR_CODE;
+
+  constructor(
+    readonly capabilityId: string,
+    readonly action: "update" | "delete",
+  ) {
+    super(`Record not found for ${action} in capability "${capabilityId}".`);
   }
 }
 
@@ -136,5 +152,21 @@ export class InvalidFileReferenceError extends CapabilityDataValidationError {
     this.action = action;
     this.fields = fields;
     this.reasons = Object.freeze({ ...reasons });
+  }
+}
+
+/**
+ * An edit whose file field no longer matches what its record holds, because another window saved
+ * the field after this form was drawn. Refused before anything is written, so that save stands.
+ */
+export class RecordChangedError extends CapabilityDataValidationError {
+  override readonly name = "RecordChangedError";
+  readonly action = "update";
+  readonly code = RECORD_CHANGED_ERROR_CODE;
+  readonly fields: readonly string[];
+
+  constructor(capabilityId: string, fields: readonly string[]) {
+    super(`Kept file no longer held for capability "${capabilityId}": ${fields.join(", ")}.`);
+    this.fields = [...fields];
   }
 }
