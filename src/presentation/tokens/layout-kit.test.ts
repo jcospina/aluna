@@ -146,15 +146,18 @@ describe("the two control stylesheets", () => {
     );
   });
 
-  test("move a button from exactly one rule, which excludes disabled itself", () => {
+  test("move a button from exactly one rule, which excludes disabled and held itself", () => {
     // Deleting `.btn:active` from controls.css left `.btn:disabled:active` with nothing to
-    // suppress. `translate`, because travel is the axis Reduce Motion turns off (PLAN 44).
+    // suppress. `translate`, because travel is the axis Reduce Motion turns off (PLAN 44). A
+    // held save is `aria-disabled` rather than disabled, and it must not press in either.
     const pressing = [...rules(read(CONTROLS)), ...rules(read(FORM_CONTROLS))].filter(
       (rule) =>
         rule.selector.startsWith(".btn") &&
         (rule.properties.includes("translate") || rule.properties.includes("transform")),
     );
-    expect(pressing.map((rule) => rule.selector)).toEqual([".btn:active:not(:disabled)"]);
+    expect(pressing.map((rule) => rule.selector)).toEqual([
+      '.btn:active:not(:disabled, [aria-disabled="true"])',
+    ]);
   });
 
   test("keep no control rule the later file overrides outright", () => {

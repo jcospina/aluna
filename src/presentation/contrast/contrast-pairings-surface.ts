@@ -313,6 +313,17 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     sites: ["design/styles/layout.css § .page__foot [color]"],
   },
   {
+    what: "a file's name, size and progress, over the upload's fill",
+    foreground: ink2,
+    background: { token: "ground-deep" },
+    threshold: "text",
+    note:
+      "The details a file field prints beside its file are read against the band that " +
+      "fills the well as the bytes arrive, the tightest of the three grounds they sit on.",
+    alsoCovers: [surface2, { token: "pane-5" }],
+    sites: ["design/styles/components/file-field.css § .file__meta, .file__sub [color]"],
+  },
+  {
     what: "an option's note under the keyboard",
     foreground: ink2,
     background: { token: "ground-deep" },
@@ -409,6 +420,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "design/styles/components/doc.css § .swatch__ratio[data-under] [color]",
       "design/styles/components/form-controls.css § .field.is-invalid .field__guidance--error, .field.is-invalid .field__guidance.is-over [color]",
       "design/styles/components/form-controls.css § .field__guidance.is-over [color]",
+      "design/styles/components/file-field.css § .file.is-refused .field__guidance--error [color]",
       'public/css/components.css § .notice[data-role="error"] [color]',
       "public/css/prompt.css § .prompt.is-refused .prompt__field::placeholder [color]",
     ],

@@ -529,11 +529,11 @@
  * is no second palette of hover colours to keep in step — and no variant whose
  * hover reads worse than its rest. */
 @media (hover: hover) {
-  .btn:hover:not(:disabled) {
+  .btn:hover:not(:disabled, [aria-disabled="true"]) {
     background: color-mix(in oklab, var(--btn-fill), var(--btn-hover-toward) 13%);
   }
 
-  .btn--outline:hover:not(:disabled) {
+  .btn--outline:hover:not(:disabled, [aria-disabled="true"]) {
     background: color-mix(in oklab, var(--surface-2), var(--ink) 6%);
   }
 }
@@ -544,7 +544,7 @@
  * a button, so a disabled one is excluded here rather than moved back afterwards; and the
  * 2px is `--travel-press`, which stops it jumping for a reader who asked for less motion.
  */
-.btn:active:not(:disabled) {
+.btn:active:not(:disabled, [aria-disabled="true"]) {
   translate: var(--travel-press) var(--travel-press);
 }
 

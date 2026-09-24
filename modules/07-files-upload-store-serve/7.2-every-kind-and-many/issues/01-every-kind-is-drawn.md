@@ -13,16 +13,19 @@ Module 7 — Files: Upload, Store & Serve · Epic 7.2 — Every kind, and many
 
 ## What to build
 
-7.1/02 drew the control for an image. This issue draws the remaining states in
-`design/controls.html`, so that each 7.2 issue builds against a drawing rather than a
+7.1/02 drew the control for an image, and with it the control's shape for every kind: a
+frame that previews a video with play, pause and the time, and a row for a document or a
+sound, with play and pause for a sound (`design/controls.html`, Files). This issue draws the
+remaining states there, so that each 7.2 issue builds against a drawing rather than a
 guess.
 
 **The filled state for each kind, inside the open record.** A card is a `<button>`, and
 the item vocabulary bans `controls`, `<a>` and `href`. The open record is therefore where
 a file plays, opens or downloads. Draw these:
 
-- a video with its player, which plays and seeks
-- an audio file with its player
+- a video with its full player, which plays and seeks, in the record's render view
+  (decision 29: the form's control only previews it)
+- an audio file with its full player, in the same view
 - a PDF with an open link
 - any other document with its name, size and a download link
 
@@ -35,7 +38,8 @@ Draw adding, removing and the in-flight row. The list-of-strings field's drawn r
 the precedent.
 
 **Refusals.** Draw the refusal of a family the field doesn't accept and the refusal of a
-list at its count cap, in the voice 7.1/02 settled.
+list at its count cap, in the voice 7.1/02 settled. 7.1/02 drafted the wrong-kind sentence
+for a video, a sound and a document on the page; settle them here.
 
 Shape follows 7.1/02's control, the token layer and the drawn line, and
 `form-controls.css` stays within its ceiling.

@@ -1,5 +1,5 @@
 /*
- * The repeated-value list — the one control that is made of other controls.
+ * The repeated-value list — a control made of other controls, as the file field is.
  *
  * A `string[]` field is drawn in the mode its form declares. `comma_separated` needs
  * nothing here: it is one `.field__control` holding one input, and commas are the

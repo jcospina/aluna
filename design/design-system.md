@@ -306,6 +306,18 @@ it, the grip is also a `<button>`: space picks the row up, the arrow keys move i
 space drops it and escape puts it back, with each step said in the field's own
 `.field-list__live` region.
 
+A file field is one control, and the kind it holds picks its shape. A photo or a video
+fills `.file__stage`, a 4:3 `.field__control` that is the drop target while the field is
+empty and the preview once it is filled, with Replace and Clear on `.file__bar` under it; a
+video keeps one control of its own, play and the time. A document or a sound is
+`.file__row`, a well at a text field's height with square actions exactly as tall, and a
+sound puts play and pause where a document shows its glyph. A file travels the moment it
+is picked, so the field shows its progress and a Stop, and the form's save waits for it.
+The held save is `aria-disabled` rather than disabled, so a keyboard still reaches it and a
+screen reader says what it is waiting on, and its fill is held back rather than faded so
+the sentence stays legible. Clear is the only way to empty a file field, and the preview is
+the file as it is served, not the copy that was picked.
+
 Two keys sit on a field. `guidance` is a short hint under the field, and it also
 carries the sentence announcing a default, so a default needs no key of its own.
 `max_length` is declared once and drives both the handler's validation and the

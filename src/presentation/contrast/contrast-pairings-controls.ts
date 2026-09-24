@@ -43,6 +43,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     sites: [
       "design/styles/components/controls.css § .search__glyph [color]",
       "design/styles/components/list-field.css § .field-list__grip [color]",
+      "design/styles/components/file-field.css § .file__glyph [color]",
       "public/css/collection.css § .capability-search__icon [color]",
     ],
   },
@@ -80,7 +81,9 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       { mix: ["sky", "surface"], toward: 0.13, space: "oklab" },
       { mix: ["sun", "surface"], toward: 0.13, space: "oklab" },
     ],
-    sites: ["design/styles/components/form-controls.css § .btn:hover:not(:disabled) [background]"],
+    sites: [
+      'design/styles/components/form-controls.css § .btn:hover:not(:disabled, [aria-disabled="true"]) [background]',
+    ],
   },
   {
     what: "a light-labelled button under the pointer",
@@ -91,16 +94,23 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "The two fills dark enough to need a light label step toward ink, which is still " +
       "away from the label. Signal is the tighter of the two and stands for shade.",
     alsoCovers: [{ mix: ["shade", "ink"], toward: 0.13, space: "oklab" }],
-    sites: ["design/styles/components/form-controls.css § .btn:hover:not(:disabled) [background]"],
+    sites: [
+      'design/styles/components/form-controls.css § .btn:hover:not(:disabled, [aria-disabled="true"]) [background]',
+    ],
   },
   {
-    what: "the outline button under the pointer",
+    what: "the outline button, or an empty file well, under the pointer",
     foreground: ink,
     background: { mix: ["surface-2", "ink"], toward: 0.06, space: "oklab" },
     threshold: "text",
-    note: "The one variant with no fill of its own, so its hover names its own two ends.",
+    note:
+      "The one variant with no fill of its own, so its hover names its own two ends. An " +
+      "empty file well is a button with the same well, so it steps the same way, and the " +
+      "glyph in it wakes to ink.",
     sites: [
-      "design/styles/components/form-controls.css § .btn--outline:hover:not(:disabled) [background]",
+      'design/styles/components/form-controls.css § .btn--outline:hover:not(:disabled, [aria-disabled="true"]) [background]',
+      "design/styles/components/file-field.css § .file:not(.is-invalid) .file__pick:hover [background]",
+      "design/styles/components/file-field.css § .file__pick:hover .file__glyph [color]",
     ],
   },
   {
@@ -195,6 +205,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "design/styles/components/controls.css § .field__chevron [color]",
       "design/styles/components/form-controls.css § .choice__mark [color]",
       "design/styles/components/form-controls.css § .listbox__chevron [color]",
+      "design/styles/components/file-field.css § .file__line [border-top-color]",
     ],
   },
   {
@@ -221,6 +232,72 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "inline field; `--leaf` on the range is 3.01 on the window it stands on.",
     alsoCovers: [{ token: "surface" }, { token: "surface-2" }],
     sites: ["public/css/fields.css § .field__checkbox [accent-color]"],
+  },
+  {
+    what: "a file field's glyph under a dragged file",
+    foreground: ink,
+    background: { token: "pane-5" },
+    threshold: "non-text",
+    note: "The well turns pale sky where a file would land, and its glyph wakes to ink.",
+    sites: ["design/styles/components/file-field.css § .file.is-dragover .file__glyph [color]"],
+  },
+  {
+    what: "a sound's play toggle, at rest and pressed",
+    foreground: ink,
+    background: { token: "ground-deep" },
+    threshold: "non-text",
+    note:
+      "A fill rather than an edge inside the well, so it is read against the band it takes " +
+      "under the pointer and while the sound plays, the darker of its two grounds.",
+    alsoCovers: [surface2],
+    sites: ["design/styles/components/file-field.css § .file__toggle [color]"],
+  },
+  {
+    what: "the focus ring on a sound's play toggle",
+    foreground: ring,
+    background: surface2,
+    threshold: "non-text",
+    note:
+      "It hugs the toggle at no offset, so it stays inside the well and is read against " +
+      "the well's own fill rather than the window's.",
+    sites: ["design/styles/components/file-field.css § .file__toggle:focus-visible [outline]"],
+  },
+  {
+    what: "a file field's glyph over the upload's band, or in an alert well",
+    foreground: { token: "ink-2" },
+    background: { token: "ground-deep" },
+    threshold: "non-text",
+    note:
+      "`--ink-3` is kept to the window's two fills, so the glyph steps up where the well " +
+      "fills behind it as the bytes arrive, and where a refusal turns an empty well. The " +
+      "band is the tighter of the two.",
+    alsoCovers: [{ token: "well-alert" }],
+    sites: [
+      'design/styles/components/file-field.css § .file__well[role="progressbar"] .file__glyph, .file.is-invalid .file__glyph [color]',
+    ],
+  },
+  {
+    what: "the track under an upload's progress line",
+    foreground: { token: "ink", alpha: 0.13, over: surface2 },
+    background: surface2,
+    threshold: "exempt",
+    note:
+      "The form's hairline, and it carries no text: the ink line that grows along it and " +
+      "the percentage above it are what say how far the upload has come.",
+    sites: ["design/styles/components/file-field.css § .file__track [border-top-color]"],
+  },
+  {
+    what: "the label on a save held by an upload",
+    foreground: ink,
+    background: { mix: ["shade", "surface"], toward: 0.55, space: "oklab" },
+    threshold: "text",
+    note:
+      "A held save says what it is waiting on in place of its verb, so its fill is held " +
+      "back toward paper rather than faded, as the prompt's busy submit is, and the " +
+      "sentence stays legible.",
+    sites: [
+      'design/styles/components/file-field.css § .btn--primary[aria-disabled="true"] [color]',
+    ],
   },
   {
     what: "a leaf mark on the window — the range, and the search spinner",

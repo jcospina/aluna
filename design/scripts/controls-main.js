@@ -14,6 +14,7 @@
  * to catch.
  */
 
+import { mountFileBench } from "./file-bench.js";
 import { mountAllInk, reseedInk, startInk } from "./ink.js";
 import { mountListRows, wireListRows } from "./list-rows.js";
 import { mountListboxes } from "./listbox.js";
@@ -167,6 +168,7 @@ function boot() {
   mountCounters(document);
   mountBenches(document.body);
   mountEcho(document.body);
+  mountFileBench(document.body);
 
   /*
    * Last, once the document has stopped being rearranged — mounting a window

@@ -25,8 +25,8 @@ window, using the same code as the desk.
 
 **`controls.html`, the controls.** Every form control a generated capability can
 use, in each of its states: buttons, text fields, dates, numbers, search,
-checkboxes, radios, segmented buttons, a textarea that grows as you type, and a
-custom listbox for enums.
+checkboxes, radios, segmented buttons, a textarea that grows as you type, a
+custom listbox for enums, and a file field that uploads and previews what it holds.
 
 **`logo.html`, the logo contract.** How a capability's logo is made: the request
 sent once, as the last step of a build that has already cleared its gate, the

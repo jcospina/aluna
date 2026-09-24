@@ -298,9 +298,11 @@ in ADR-0009, and in the architecture and design documents.
     file would be another owned key with its own cleanup path, and ownership is the part
     that must be right first.
 29. **The card shows a file; the record plays it.** A card is a `<button>`, and the item
-    vocabulary bans `controls`, `<a>` and `href`. Video and audio therefore play and seek in
-    the platform file control inside the open record, and a document opens or downloads
-    from there.
+    vocabulary bans `controls`, `<a>` and `href`. Inside the open record's form, the platform
+    file control previews video and audio with play, pause and the time, and nothing more;
+    the full player, which seeks, belongs to a render view of the record, a surface the
+    record does not have yet (settled while 7.1/02 drew the control, 2026-09-23). A document
+    opens or downloads from the file control.
 
 ### Lifecycle
 
@@ -481,8 +483,8 @@ families and renders all four kinds without a Gate rejection, and evolving Notes
 `design/controls.html` carries the note that a file field "is the one absence left, and it
 is not a gap." Module 7 removes that note and draws the control: the empty state, the
 filled state for each kind, the progress line, the `file[]` list, a refusal in the field,
-the player and the open and download links inside the record, and the leave question for a
-held upload. Shape follows the existing field structure and the drawn line. `design/` is
+the open and download links inside the record, the full player in the record's render view
+(decision 29), and the leave question for a held upload. Shape follows the existing field structure and the drawn line. `design/` is
 the product requirement, so the image states land with or before 7.1's control, and the
 rest with or before the epic that builds them.
 

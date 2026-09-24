@@ -23,6 +23,7 @@
         <a href="#list">Lists</a>
         <a href="#enum">Enums</a>
         <a href="#choice">Choice</a>
+        <a href="#files">Files</a>
         <a href="#form">Assembled</a>
         <a href="#decisions">Decisions</a>
         <a href="#open">Still open</a>
@@ -1148,6 +1149,312 @@
         </div>
       </section>
 
+      <!-- ══ Files ═════════════════════════════════════════════════════ -->
+      <section class="window--section" id="files" data-window data-title="Files">
+        <p class="sm">
+          A field that holds a file takes the shape its kind asks for. A photo or a video fills a
+          frame that is the drop target while the field is empty and the preview once it is filled.
+          A document is a row at a text field's height, and a sound is the same row with play and
+          pause where the document's glyph would be.
+        </p>
+        <p class="sm">
+          <strong>A file travels the moment it is picked</strong>, so the field shows its progress
+          and the form's save waits for it, saying what it is waiting on; the record under
+          <a href="#form">A record, assembled</a>
+          shows that. Stop hands back what the field held before. Clear is the only way to empty a
+          field, and nothing is gone until the record is saved. The preview is the file as it is
+          served, so seeing it proves the round trip.
+        </p>
+
+        <div class="row">
+          <span class="caps">Upload speed</span>
+          <span class="segmented" role="group" aria-label="Upload speed">
+            <button type="button" aria-pressed="false" data-file-speed="1500">Quick</button>
+            <button type="button" aria-pressed="true" data-file-speed="5000">Steady</button>
+            <button type="button" aria-pressed="false" data-file-speed="15000">Slow</button>
+          </span>
+        </div>
+        <p class="xs" style="margin-top: 10px">
+          Nothing on this page uploads: a pick streams against a timer at this speed. The buttons
+          above each field stand in for files you may not have, and a file from your own machine
+          works too. Pick it, drop it on a field, or paste it while the field has focus.
+        </p>
+
+        <div class="forms" style="margin-top: 22px">
+          <div>
+            <h3 class="kicker">A new record</h3>
+            <div class="note" data-file-bench style="margin-bottom: 14px; padding: 12px">
+              <div class="row">
+                <span class="caps">Pick</span>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="photo"
+                  data-target="file-photo-new"
+                >
+                  A photo · 2.4 MB
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="big"
+                  data-target="file-photo-new"
+                >
+                  A photo · 612 MB
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="heic"
+                  data-target="file-photo-new"
+                >
+                  An iPhone HEIC
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="pdf"
+                  data-target="file-photo-new"
+                >
+                  A PDF
+                </button>
+              </div>
+            </div>
+            <div class="field file" id="file-photo-new" data-file-field data-kind="image">
+              <span class="field__label caps" id="file-photo-new-label">Photo</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="file-photo-new-guidance"
+                >A picture of the whole plant.</span
+              >
+            </div>
+          </div>
+
+          <div>
+            <h3 class="kicker">A record that holds a photo</h3>
+            <div class="note" data-file-bench style="margin-bottom: 14px; padding: 12px">
+              <div class="row">
+                <span class="caps">Pick</span>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="photo"
+                  data-target="file-photo-saved"
+                >
+                  A photo · 2.4 MB
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="big"
+                  data-target="file-photo-saved"
+                >
+                  A photo · 612 MB
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="heic"
+                  data-target="file-photo-saved"
+                >
+                  An iPhone HEIC
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="pdf"
+                  data-target="file-photo-saved"
+                >
+                  A PDF
+                </button>
+              </div>
+            </div>
+            <div
+              class="field file"
+              id="file-photo-saved"
+              data-file-field
+              data-kind="image"
+              data-holds-name="high-meadow.webp"
+              data-holds-size="365524"
+              data-holds-src="./assets/wallpaper/high-meadow.webp"
+            >
+              <span class="field__label caps" id="file-photo-saved-label">Photo</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="file-photo-saved-guidance"
+                >A picture of the whole plant.</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <h3 class="kicker" style="margin-top: 30px">The other kinds</h3>
+        <p class="sm">
+          A video keeps one control in the frame, play and the time, in a corner so the picture
+          stays whole. There is no poster, and some browsers draw no first frame, so the video's
+          glyph stands behind it and shows wherever nothing is drawn. The full player, with seeking,
+          belongs to a render view of the record, which is not drawn yet.
+        </p>
+        <p class="sm">
+          The row's actions are squares exactly as tall as the control, and a sound's toggle is a
+          fill rather than a box, because a button drawn inside the drawn well would read as two
+          boxes. A file of the wrong kind is refused in the field, as a photo field refuses one; the
+          wording of those three sentences is a draft for 7.2 to settle.
+        </p>
+
+        <div class="forms">
+          <div>
+            <div class="note" data-file-bench style="margin-bottom: 14px; padding: 12px">
+              <div class="row">
+                <span class="caps">Pick</span>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="video"
+                  data-target="file-video"
+                >
+                  A video
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="pdf"
+                  data-target="file-video"
+                >
+                  A PDF
+                </button>
+              </div>
+            </div>
+            <div
+              class="field file"
+              id="file-video"
+              data-file-field
+              data-kind="video"
+              data-holds-name="repotting.mp4"
+              data-holds-size="1986753"
+              data-holds-src="./assets/media/repotting.mp4"
+              data-holds-duration="18"
+            >
+              <span class="field__label caps" id="file-video-label">Repotting video</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="file-video-guidance"
+                >The root ball as it comes out of the pot.</span
+              >
+            </div>
+          </div>
+
+          <div>
+            <div class="note" data-file-bench style="margin-bottom: 14px; padding: 12px">
+              <div class="row">
+                <span class="caps">Pick</span>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="sound"
+                  data-target="file-audio"
+                >
+                  A sound
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="pdf"
+                  data-target="file-audio"
+                >
+                  A PDF
+                </button>
+              </div>
+            </div>
+            <div
+              class="field file"
+              id="file-audio"
+              data-file-field
+              data-kind="audio"
+              data-holds-name="morning-chimes.m4a"
+              data-holds-size="23620"
+              data-holds-src="./assets/media/morning-chimes.m4a"
+              data-holds-duration="6"
+            >
+              <span class="field__label caps" id="file-audio-label">Voice note</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="file-audio-guidance"
+                >Anything you noticed while watering.</span
+              >
+            </div>
+          </div>
+
+          <div>
+            <div class="note" data-file-bench style="margin-bottom: 14px; padding: 12px">
+              <div class="row">
+                <span class="caps">Pick</span>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="pdf"
+                  data-target="file-document"
+                >
+                  A PDF
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="photo"
+                  data-target="file-document"
+                >
+                  A photo · 2.4 MB
+                </button>
+              </div>
+            </div>
+            <div
+              class="field file"
+              id="file-document"
+              data-file-field
+              data-kind="document"
+              data-holds-name="repotting-guide.pdf"
+              data-holds-size="184320"
+            >
+              <span class="field__label caps" id="file-document-label">Care sheet</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="file-document-guidance"
+                >The sheet from the nursery, if it came with one.</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <div class="cols" style="margin-top: 30px">
+          <div class="note note--sky">
+            <h4>The refusals, word for word</h4>
+            <p class="sm">
+              A file that is not a photo:
+              <em>That isn’t a photo I can show here. Mind picking a different one?</em>
+              A file over the cap, whatever its kind:
+              <em
+                >That’s over 500 MB, more than I can keep in one file. Mind picking a smaller one?</em
+              >
+              The other kinds say the same of themselves, as drafts:
+              <em>That isn’t a video I can play here.</em>
+              <em>That isn’t a sound I can play here.</em>
+              <em>That isn’t a document I can keep here.</em>
+            </p>
+            <p class="sm">
+              Each takes the guidance's place. The well turns to the alert fill only when the field
+              is empty; a refused replacement leaves the kept file, and its well, as they were.
+            </p>
+          </div>
+          <div class="note note--sun">
+            <h4>The save that waits</h4>
+            <p class="sm">
+              While anything in a form is uploading, its save says what it is waiting on —
+              <em>I’m waiting on the photo…</em>, or <em>the files…</em> when there is more than one
+              — and does nothing when pressed. It stays in the tab order, so a keyboard reaches it
+              and a screen reader says why, and its fill is held back rather than faded, so what it
+              says stays legible. Replace the site photo under
+              <a href="#form">A record, assembled</a>
+              to watch it.
+            </p>
+          </div>
+        </div>
+      </section>
+
       <!-- ══ Assembled ═════════════════════════════════════════════════ -->
       <section class="window--section" id="form" data-window data-title="A record, assembled">
         <p class="sm">
@@ -1246,6 +1553,24 @@
               </span>
             </label>
 
+            <div
+              class="field file"
+              id="file-assembled"
+              data-file-field
+              data-kind="image"
+              data-holds-name="high-meadow.webp"
+              data-holds-size="365524"
+              data-holds-src="./assets/wallpaper/high-meadow.webp"
+            >
+              <span class="field__label caps" id="file-assembled-label"
+                >Site photo <span class="field__optional">optional</span></span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="file-assembled-guidance"
+                >Where the work was done.</span
+              >
+            </div>
+
             <label class="choice">
               <input class="choice__input" type="checkbox" checked>
               <span class="choice__mark"
@@ -1271,8 +1596,10 @@
             </label>
 
             <div class="form__actions">
-              <button class="btn btn--primary" type="button">Save changes</button>
-              <button class="btn btn--outline" type="button">Cancel</button>
+              <button class="btn btn--primary" type="button" data-held-save>
+                <span data-held-save-label>Save changes</span>
+              </button>
+              <button class="btn btn--outline" type="button" data-file-cancel>Cancel</button>
               <span class="form__spacer"></span>
               <button class="btn btn--danger" type="button">Delete</button>
             </div>
@@ -1488,6 +1815,19 @@
                   </td>
                   <td class="sm">Both controls under <a href="#list">A list of strings</a></td>
                 </tr>
+                <tr>
+                  <td>C17</td>
+                  <td>
+                    <strong
+                      >A file field is one control, and the kind it holds picks its shape.</strong
+                    >
+                    A photo or a video fills a frame that previews it; a document or a sound is a
+                    row at a text field's height, with play and pause for a sound. Every kind shares
+                    the pick, the drop, the progress, Stop, Replace and Clear, a refusal in the
+                    guidance's place, and a save that waits for the upload and says so
+                  </td>
+                  <td class="sm">The fields under <a href="#files">Files</a></td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -1515,30 +1855,18 @@
           </p>
         </div>
 
-        <div class="cols">
-          <div class="note note--sun">
-            <h4>The date and number pickers are still the browser's</h4>
-            <p class="sm">
-              A calendar popup and a spinner, both replaced elements, and both outside the
-              stylesheet in the same way <code>&lt;select&gt;</code> is. A date field with no way to
-              open a picker costs more than a foreign glyph does, so both stay for now and only
-              their colour is claimed.
-            </p>
-            <p class="sm">
-              If the calendar ever has to be ours, it costs the same 300 lines the listbox did, and
-              it also has to know about months.
-            </p>
-          </div>
-
-          <div class="note note--sun">
-            <h4>A file field is the one absence left, and it is not a gap</h4>
-            <p class="sm">
-              Files do not exist yet; the control arrives with the module that gives them somewhere
-              to live. The list-of-strings field that stood here with it was a gap rather than an
-              absence, and it is drawn now — both modes, under
-              <a href="#list">A list of strings</a>.
-            </p>
-          </div>
+        <div class="note note--sun">
+          <h4>The date and number pickers are still the browser's</h4>
+          <p class="sm">
+            A calendar popup and a spinner, both replaced elements, and both outside the stylesheet
+            in the same way <code>&lt;select&gt;</code> is. A date field with no way to open a
+            picker costs more than a foreign glyph does, so both stay for now and only their colour
+            is claimed.
+          </p>
+          <p class="sm">
+            If the calendar ever has to be ours, it costs the same 300 lines the listbox did, and it
+            also has to know about months.
+          </p>
         </div>
       </section>
 
