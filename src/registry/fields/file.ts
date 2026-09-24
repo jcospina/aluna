@@ -18,6 +18,8 @@ export const FILE_FIELD_TYPES = ["file"] as const;
 
 /** A save naming a file this field may not claim: platform-owned, like an undeclared choice. */
 export const INVALID_FILE_REFERENCE_ERROR_CODE = "invalid_file_reference";
+/** An edit whose file field no longer matches what its record holds: it changed in another window. */
+export const RECORD_CHANGED_ERROR_CODE = "record_changed";
 export type FileFieldType = (typeof FILE_FIELD_TYPES)[number];
 
 export function isFileFieldType(type: string): type is FileFieldType {

@@ -7,10 +7,11 @@ import type { CapabilitySpec, SpecField } from "../spec/spec.ts";
 import { allUnique, sameOrderedStrings, sqlNameText } from "../spec/spec-text.ts";
 import { capabilityToolSchema, FULL_CAPABILITY_TOOLS } from "../tools.ts";
 import { CHOICE_DISABLED_ERROR_CODE, INVALID_CHOICE_ERROR_CODE } from "./choice.ts";
-import { INVALID_FILE_REFERENCE_ERROR_CODE } from "./file.ts";
+import { INVALID_FILE_REFERENCE_ERROR_CODE, RECORD_CHANGED_ERROR_CODE } from "./file.ts";
 import { MAX_LENGTH_EXCEEDED_ERROR_CODE } from "./max-length.ts";
 
 export const MISSING_REQUIRED_FIELDS_ERROR_CODE = "missing_required_fields";
+export const RECORD_NOT_FOUND_ERROR_CODE = "record_not_found";
 export const MAX_BEHAVIORAL_ERRORS = 8;
 export const BEHAVIORAL_ERROR_MARKERS = {
   role_attribute: "data-role",
@@ -67,11 +68,12 @@ export function defaultBehavioralErrorsForSchema(
  * may not author them: a second copy in `behavioral_errors` would make the contract two contracts.
  */
 export const PLATFORM_OWNED_ERROR_CODES = [
-  "record_not_found",
+  RECORD_NOT_FOUND_ERROR_CODE,
   INVALID_CHOICE_ERROR_CODE,
   CHOICE_DISABLED_ERROR_CODE,
   MAX_LENGTH_EXCEEDED_ERROR_CODE,
   INVALID_FILE_REFERENCE_ERROR_CODE,
+  RECORD_CHANGED_ERROR_CODE,
 ] as const;
 
 /** {@link PLATFORM_OWNED_ERROR_CODES} as a prompt names them, so a new one reaches every prompt. */

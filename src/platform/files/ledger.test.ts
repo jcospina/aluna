@@ -11,6 +11,8 @@ import {
 } from "../persistence/scratch-db.test-support.ts";
 import { seedFileLedgerRow } from "./ledger.test-support.ts";
 import {
+  enqueueDisplacedFile,
+  enqueueRecordFiles,
   FILE_LEDGER_TABLE,
   isFileKey,
   mintFileKey,
@@ -101,6 +103,51 @@ describe("the file ledger table", () => {
     });
     const swept = seed({ state: "cleanup_enqueued" });
     expect(promotePendingFile(env.conns.readwrite, swept, "record-3")).toBe(false);
+  });
+});
+
+describe("giving up a key", () => {
+  const owner = { capabilityId: "photos", incarnationId: FIRST_INCARNATION_ID };
+  const stateOf = (key: string) => readFileLedgerRow(env.conns.readwrite, key)?.state;
+
+  test("a displaced key goes only from the field and record that own it", () => {
+    const held = seed({ state: "owned", recordId: "record-1" });
+    const cover = seed({ state: "owned", recordId: "record-1", field: "cover" });
+    const theirs = seed({ state: "owned", recordId: "record-2" });
+    const elsewhere = seed({ state: "owned", recordId: "record-1", incarnationId: "another" });
+    const pending = seed();
+    const displaced = { ...owner, field: "photo", recordId: "record-1" };
+
+    for (const key of [cover, theirs, elsewhere, pending]) {
+      expect(enqueueDisplacedFile(env.conns.readwrite, displaced, key)).toBe(false);
+    }
+    expect(enqueueDisplacedFile(env.conns.readwrite, displaced, held)).toBe(true);
+    expect(enqueueDisplacedFile(env.conns.readwrite, displaced, held)).toBe(false);
+    expect([held, cover, theirs, elsewhere, pending].map(stateOf)).toEqual([
+      "cleanup_enqueued",
+      "owned",
+      "owned",
+      "owned",
+      "pending",
+    ]);
+  });
+
+  test("a deleted record gives up every key it owns in this incarnation, and nothing else", () => {
+    const held = seed({ state: "owned", recordId: "record-1" });
+    const cover = seed({ state: "owned", recordId: "record-1", field: "cover" });
+    const theirs = seed({ state: "owned", recordId: "record-2" });
+    const elsewhere = seed({ state: "owned", recordId: "record-1", incarnationId: "another" });
+    const pending = seed();
+
+    enqueueRecordFiles(env.conns.readwrite, owner, "record-1");
+
+    expect([held, cover, theirs, elsewhere, pending].map(stateOf)).toEqual([
+      "cleanup_enqueued",
+      "cleanup_enqueued",
+      "owned",
+      "owned",
+      "pending",
+    ]);
   });
 });
 

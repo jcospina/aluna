@@ -38,6 +38,17 @@ keeps the photo. A finished upload the form displaced or abandoned stays `pendin
 7.3/02 builds the pending-only route. Nothing is lost by that: `bun run reset` clears it,
 and 7.3 sweeps it.
 
+What 7.1/05 landed for this issue. An edit posts the field's presence marker and one value:
+the key the record holds, which keeps it, `""` when it holds none, a pending key, which
+replaces it, or `FILE_CLEAR_VALUE` (`src/runtime/data/index.ts`), which clears it. An empty
+value never clears. The browser script cannot import that constant, so the server-drawn
+control should carry it in its markup (from `src/presentation/controls/file-control.ts`)
+rather than have `public/` restate it. An edit whose value no longer matches what the record
+holds, because another tab replaced, cleared or added a photo, is refused as
+`record_changed` with a platform sentence, retargeted to the edit form's error region with
+`data-error-fields` naming the field. A replace or a clear is not checked that way: one
+posted from a stale form gives up whatever the record holds now (see 7.3/01's note).
+
 **The card shows the photo.** Photos' item renderer from 7.1/06 draws the saved photo
 through the projection's `url`.
 

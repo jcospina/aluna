@@ -2,9 +2,13 @@
 
 export {
   claimPendingFile,
+  FILE_CLEAR_VALUE,
   type FileClaimScope,
   resolveSubmittedFiles,
+  type SubmittedFile,
   type SubmittedFiles,
+  submittedFileKey,
+  submittedFileProjection,
 } from "./access/file-claims.ts";
 export {
   type CapabilityCreateValues,
@@ -68,5 +72,6 @@ export {
   MissingRequiredFieldsError,
   materializeCapabilityActionRecord,
   normalizeSearchText,
+  RecordChangedError,
   selectCapabilityRows,
 } from "./tool.ts";

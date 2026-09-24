@@ -94,7 +94,7 @@ export default async function search({ input, query, present }: CapabilityContex
   });
 
   test("is never told a file can arrive in its input", () => {
-    for (const name of ["read", "update", "delete", "search"] as const) {
+    for (const name of ["read", "delete", "search"] as const) {
       expect(buildUnitPrompt(photoSpec(), { kind: "handler", name })).not.toContain(
         "CapabilityFileProjection",
       );
@@ -151,5 +151,39 @@ describe("a create written for the narrower input, on a capability with a photo"
 
     const retry = buildUnitPrompt(photoSpec(), create, failure);
     expect(retry.slice(retry.indexOf("Failure to fix:"))).toContain(taughtExtractor(photoSpec()));
+  });
+});
+
+describe("an update on a capability with a photo", () => {
+  const update = { kind: "handler", name: "update" } as const;
+  const updateHandler = (body: string) => `
+export default async function update({ input, mutation, present }: CapabilityUpdateContext): Promise<string> {
+  ${body}
+}
+`;
+
+  test("is told what a file field arrives as, and never about a create's port", () => {
+    const prompt = buildUnitPrompt(photoSpec(), update);
+    const without = new Set(buildUnitPrompt(notesSpec(), update).split("\n"));
+    const fileOnly = prompt.split("\n").filter((line) => !without.has(line));
+    expect(fileOnly.some((line) => line.includes("`mutation.update`"))).toBe(true);
+    expect(prompt).not.toContain("mutation.create");
+    expect(buildUnitPrompt(notesSpec(), update)).not.toContain("CapabilityFileProjection");
+  });
+
+  test("may hand the submitted photo back to the patch it writes", () => {
+    const content = updateHandler(`const patch: Record<string, unknown> = {};
+  if (input.submittedFields.has("caption")) patch.caption = typeof input.values.caption === "string" ? input.values.caption : "";
+  if (input.submittedFields.has("photo")) patch.photo = input.values.photo;
+  const saved = mutation.update(patch).fields.photo;
+  const url = saved !== null && typeof saved === "object" && "url" in saved ? saved.url : "";
+  return present(mutation.update(patch)) + url;`);
+    expect(checkGeneratedUnit(photoSpec(), update, content)).toBeUndefined();
+  });
+
+  test("may not treat the photo as the text it never is", () => {
+    const content = updateHandler(`const photo = input.values.photo;
+  return present(mutation.update({ caption: photo === undefined ? "" : photo.trim() }));`);
+    expect(checkGeneratedUnit(photoSpec(), update, content)?.message).toContain("trim");
   });
 });

@@ -696,6 +696,8 @@ document.addEventListener("htmx:beforeSwap", (event) => {
     "max_length_exceeded",
     // A file the save could not claim: gone to a sweep, or another field's or another save's.
     "invalid_file_reference",
+    // An edit whose file field no longer matches its record: another window saved it since.
+    "record_changed",
     "mutation_busy",
     "read_unavailable",
     "record_not_found",
@@ -961,9 +963,7 @@ document.addEventListener("htmx:afterSettle", (event) => {
   const target = /** @type {CustomEvent<{ target?: unknown }>} */ (event).detail?.target;
   // Only a swap of the region itself can have emptied it; a swap into something inside it — the
   // records region reloading — never leaves the window with nothing in it.
-  if (target instanceof HTMLElement && target.id === WINDOW_REGION_ID) {
-    putAwayEmptyWindow(target);
-  }
+  if (target instanceof HTMLElement && target.id === WINDOW_REGION_ID) putAwayEmptyWindow(target);
 });
 document.addEventListener("htmx:sseClose", (event) => {
   if (closeTypeOf(event) !== "message") return;

@@ -1,23 +1,12 @@
 // A create claiming a pending photo, through the router and the hand-written photos fixture. The
 // upload route is 7.1/07's, so each case mints its ledger rows directly.
 
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
-import {
-  type FileLedgerSeed,
-  requireFileLedgerRow,
-  seedFileLedgerRow,
-} from "../../../platform/files/ledger.test-support.ts";
-import {
-  FILE_LEDGER_TABLE,
-  type FileLedgerRow,
-  mintFileKey,
-} from "../../../platform/files/ledger.ts";
-import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { FILE_LEDGER_TABLE, mintFileKey } from "../../../platform/files/ledger.ts";
 import { capabilityCreateErrorId } from "../../../presentation/index.ts";
 import { SECOND_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import { INVALID_FILE_REFERENCE_ERROR_CODE } from "../../../registry/index.ts";
-import { createApp } from "../../../server/app.ts";
 import { createMutationCoordinator } from "../../concurrency/mutation-coordinator.ts";
 import {
   type CapabilityActionRecord,
@@ -25,92 +14,14 @@ import {
   FILE_URL_PREFIX,
 } from "../../data/index.ts";
 import type { CapabilityContext, CapabilityCreateContext } from "../contract.ts";
-import { ALUNA_PRESENT_MARKER, ALUNA_RECORD_ID_MARKER } from "../wire/wire-protocol.ts";
-import {
-  install,
-  makeSpyLoader,
-  NOTES_INCARNATION_ID,
-  photosRow,
-  setupRouterTest,
-  teardownRouterTest,
-} from "./router.test-support.ts";
+import { createBody, PHOTO, projectionOf, usePhotosRouter } from "./router.file.test-support.ts";
+import { makeSpyLoader } from "./router.test-support.ts";
 import type { CapabilityRouterDeps, HandlerLoader } from "./router.ts";
-
-const PHOTO = "photo";
-
-function createBody(caption: string, photo?: string): RequestInit {
-  const body = new URLSearchParams([
-    [ALUNA_PRESENT_MARKER, "caption"],
-    ["caption", caption],
-  ]);
-  if (photo !== undefined) {
-    body.append(ALUNA_PRESENT_MARKER, PHOTO);
-    body.append(PHOTO, photo);
-  }
-  return {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: body.toString(),
-  };
-}
-
-function projectionOf(row: FileLedgerRow): CapabilityFileProjection {
-  return {
-    url: `${FILE_URL_PREFIX}${row.key}`,
-    name: row.name,
-    kind: row.kind as CapabilityFileProjection["kind"],
-    mime: row.mime,
-    size: row.size,
-  };
-}
 
 function createHandler(
   write: (context: CapabilityCreateContext) => CapabilityActionRecord,
 ): HandlerLoader {
   return async () => async (context: CapabilityCreateContext) => context.present(write(context));
-}
-
-/** A scratch database with the photos fixture installed, fresh for every case. */
-function usePhotosRouter() {
-  const scratch: { dir?: string; conns?: PlatformDatabase } = {};
-  beforeEach(() => {
-    const env = setupRouterTest();
-    Object.assign(scratch, { dir: env.dir, conns: env.conns });
-    install(env.conns, photosRow());
-  });
-  afterEach(() => {
-    if (scratch.dir && scratch.conns) teardownRouterTest(scratch.dir, scratch.conns);
-  });
-
-  const conns = (): PlatformDatabase => {
-    if (!scratch.conns) throw new Error("the photos router is used outside a test");
-    return scratch.conns;
-  };
-  return {
-    conns,
-    mint: (overrides: Partial<FileLedgerSeed> = {}) =>
-      seedFileLedgerRow(conns().readwrite, {
-        capabilityId: "photos",
-        incarnationId: NOTES_INCARNATION_ID,
-        field: PHOTO,
-        ...overrides,
-      }),
-    request: (path: string, init?: RequestInit, deps: Partial<CapabilityRouterDeps> = {}) => {
-      const { mutationCoordinator, ...router } = deps;
-      // The app owns the coordinator its routes share, so one handed only to the router is unused.
-      return createApp({
-        capabilityRouter: { databases: conns(), ...router },
-        ...(mutationCoordinator ? { mutationCoordinator } : {}),
-      }).request(path, init);
-    },
-    stored: () =>
-      conns().readwrite.query(`SELECT "id", "photo" FROM "cap_photos"`).all() as {
-        id: string;
-        photo: string | null;
-      }[],
-    ledger: (key: string) => requireFileLedgerRow(conns().readwrite, key),
-    ledgerRows: () => conns().readwrite.query(`SELECT * FROM ${FILE_LEDGER_TABLE}`).all(),
-  };
 }
 
 describe("a create claims a pending photo", () => {
@@ -419,38 +330,6 @@ describe("a save that does not finish gives its key back", () => {
     expect(response.status).toBe(200);
     expect(photos.stored()).toEqual([]);
     expect(photos.ledger(key)).toMatchObject({ state: "pending", record_id: null });
-  });
-});
-
-describe("an edit of the caption keeps a claimed photo", () => {
-  const photos = usePhotosRouter();
-
-  test("the update never names the photo column, and the card still draws the photo", async () => {
-    const key = photos.mint();
-    await photos.request("/capability/photos/create", createBody("Dawn", key));
-    const [record] = photos.stored();
-    if (!record) throw new Error("the create stored nothing");
-    // Aborts any UPDATE whose SET names the column, so "kept" is proved, not inferred.
-    photos.conns().readwrite.exec(
-      `CREATE TRIGGER "photo_untouched" BEFORE UPDATE OF "photo" ON "cap_photos"
-       BEGIN SELECT RAISE(ABORT, 'the photo column was written'); END;`,
-    );
-    const body = new URLSearchParams([
-      [ALUNA_PRESENT_MARKER, "caption"],
-      ["caption", "Dusk"],
-      [ALUNA_RECORD_ID_MARKER, record.id],
-    ]);
-
-    const response = await photos.request("/capability/photos/update", {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: body.toString(),
-    });
-
-    expect(response.status).toBe(200);
-    expect(await response.text()).toContain(`src="${FILE_URL_PREFIX}${key}"`);
-    expect(photos.stored()).toEqual([record]);
-    expect(photos.ledger(key)).toMatchObject({ state: "owned", record_id: record.id });
   });
 });
 

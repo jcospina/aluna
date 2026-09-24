@@ -69,8 +69,15 @@ then `resolveSubmittedFiles` and a binding, as `runtime/router/dispatch/handler-
 does. `normalizeFieldValue` in `runtime/data/tool.ts` still refuses a file value outright, so a
 behavioral setup row must go through the port. The contract a generated unit is compiled
 against (`handlerContractDeclarations` in `builder/generated-code-check.ts`) and the Handler
-prompt's input lines already carry the projection for a spec with an active file field. The
-update port still refuses a submitted file field until 7.1/05. To lift the refusal of generated `file` fields, add `file` to
+prompt's input lines already carry the projection for a spec with an active file field, on
+update as on create since 7.1/05. The update port writes a submitted file field only from a
+binding too: an unbound port refuses one with `FileFieldWriteError`. A behavioral update case
+carrying a file token therefore needs the scratch ledger, `resolveSubmittedFiles(fields, values,
+"update", { ...scope, record: { table, id } })` and the port's sixth parameter, as
+`handler-invocation.ts` passes them. Today no Gate run submits a file field on an edit
+(`formSubmitsField`, and `gate.smoke-file.test.ts` pins it), so an update Handler that runs the
+photo through the scalar extractor compiles, passes the Gate and fails every real edit of a
+record with a photo. To lift the refusal of generated `file` fields, add `file` to
 `GENERATION_FIELD_TYPES` in `registry/spec/spec.ts`, which also makes
 `unofferedFieldTypeIssues` in `builder/spec/unoffered-field-types.ts` find nothing to refuse.
 Then change the line both builder prompts carry, "every field sends accepts as null". A file
@@ -91,6 +98,10 @@ evolution-matrix row adds a file field yet; the choice battery in
       by `kind` and `name`
 - [ ] The behavioral input digest changes when a file token changes
 - [ ] The smoke rung's non-text exclusions include a file field
+- [ ] The smoke rung's update samples submit each active file field as 7.1/08's form will:
+      the held key, a fresh scratch reference, `FILE_CLEAR_VALUE`, and `""` for an empty
+      field, through a scratch-ledger binding, so an update Handler that mangles the photo
+      fails the Gate
 - [ ] The HTML filter sets `loading="lazy"` and `decoding="async"` on an `<img>` with a
       `/files/` source, and enforcing its output a second time leaves it unchanged
 - [ ] No test calls the real provider

@@ -24,10 +24,13 @@ export interface CapabilityInput {
   readonly submittedFields: ReadonlySet<string>;
 }
 
-/** A create's input, the one that can name a file: its projection, or `null` if submitted empty. */
-export type CapabilityCreateInputValue = CapabilityInputValue | CapabilityFileProjection | null;
-export interface CapabilityCreateInput {
-  readonly values: Readonly<Record<string, CapabilityCreateInputValue>>;
+/**
+ * A save's input, the one that can name a file: the projection of what the save will store, or
+ * `null` for an empty field or an edit's clear.
+ */
+export type CapabilitySaveInputValue = CapabilityInputValue | CapabilityFileProjection | null;
+export interface CapabilitySaveInput {
+  readonly values: Readonly<Record<string, CapabilitySaveInputValue>>;
   readonly submittedFields: ReadonlySet<string>;
 }
 
@@ -42,13 +45,16 @@ export interface CapabilityContext {
 }
 
 export interface CapabilityCreateContext {
-  readonly input: CapabilityCreateInput;
+  readonly input: CapabilitySaveInput;
   readonly query: CapabilityQueryPort;
   readonly present: PresentationAdapter;
   readonly mutation: CapabilityMutationPort;
 }
 
-export interface CapabilityUpdateContext extends CapabilityContext {
+export interface CapabilityUpdateContext {
+  readonly input: CapabilitySaveInput;
+  readonly query: CapabilityQueryPort;
+  readonly present: PresentationAdapter;
   readonly mutation: CapabilityUpdateMutationPort;
 }
 

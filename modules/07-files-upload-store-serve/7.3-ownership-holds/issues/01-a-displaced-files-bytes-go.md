@@ -35,6 +35,16 @@ rather than on registry tombstones. After the last retry, the next desk load for
 another try, as it does for a stuck capability deletion. Boot drains whatever is
 enqueued.
 
+What 7.1/05 landed for this issue. An edit tells a kept key the record no longer holds by
+its displaced row, which still names the capability, incarnation, field and record
+(`heldByThisRecord` in `src/runtime/data/access/file-claims.ts`). Deleting that row takes
+the evidence with it: once the worker drains, a stale keep reads as an unknown key and the
+person is asked to add a photo they never touched, where PLAN decision 16 says the entry
+changed in another window. Keeping that answer after the drain is this issue's to design,
+for instance by leaving the edit check what it needs past the row, or by having the edit
+form post the key it was drawn with, which would also stop a stale replace or clear from
+giving up a photo another tab saved.
+
 ## Acceptance criteria
 
 - [ ] After a replace, a clear or a record delete commits, the displaced key's bytes are
@@ -47,6 +57,11 @@ enqueued.
 - [ ] A failing unlink records its attempt count and last error, retries at 1s, 5s and
       30s, and is retried again on the next desk load
 - [ ] Boot drains every `cleanup_enqueued` row
+- [ ] A kept key whose displaced row the worker has already deleted still answers
+      `record_changed`
+- [ ] A replace or a clear posted from a form drawn before another tab saved the field
+      answers `record_changed` and gives nothing up, unless PLAN decision 16 is amended to
+      accept that the last save wins
 - [ ] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo

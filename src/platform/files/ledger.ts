@@ -62,3 +62,45 @@ export function promotePendingFile(database: Database, key: string, recordId: st
     .run(recordId, key);
   return changes === 1;
 }
+
+/** The capability incarnation a ledger row belongs to. */
+export interface FileLedgerOwner {
+  readonly capabilityId: string;
+  readonly incarnationId: string;
+}
+
+/**
+ * Give up a key that `recordId`'s `field` owns, for 7.3/01's worker to delete. False when no such
+ * owned row exists, which the caller refuses: the stored reference and the ledger disagree.
+ */
+export function enqueueDisplacedFile(
+  database: Database,
+  owner: FileLedgerOwner & { readonly field: string; readonly recordId: string },
+  key: string,
+): boolean {
+  const { changes } = database
+    .query(
+      `UPDATE ${FILE_LEDGER_TABLE} SET "state" = 'cleanup_enqueued'
+       WHERE "key" = ? AND "capability_id" = ? AND "incarnation_id" = ? AND "field" = ?
+         AND "record_id" = ? AND "state" = 'owned'`,
+    )
+    .run(key, owner.capabilityId, owner.incarnationId, owner.field, owner.recordId);
+  return changes === 1;
+}
+
+/**
+ * Give up every key `recordId` owns, in every field, hidden ones included, as its delete commits.
+ * One update on the record column, which is indexed for this.
+ */
+export function enqueueRecordFiles(
+  database: Database,
+  owner: FileLedgerOwner,
+  recordId: string,
+): void {
+  database
+    .query(
+      `UPDATE ${FILE_LEDGER_TABLE} SET "state" = 'cleanup_enqueued'
+       WHERE "record_id" = ? AND "capability_id" = ? AND "incarnation_id" = ? AND "state" = 'owned'`,
+    )
+    .run(recordId, owner.capabilityId, owner.incarnationId);
+}

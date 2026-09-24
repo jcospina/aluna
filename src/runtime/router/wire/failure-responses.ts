@@ -29,6 +29,7 @@ import type {
   InvalidFileReferenceError,
   MaxLengthExceededError,
   MissingRequiredFieldsError,
+  RecordChangedError,
   RecordNotFoundError,
 } from "../../data/index.ts";
 import type { WireProtocolAction } from "./wire-protocol.ts";
@@ -233,6 +234,26 @@ export function invalidFileReferenceFailure(
     refusalFragment(
       error.code,
       "I can't save that file in this field. Mind adding it here again?",
+      error.fields,
+    ),
+    422,
+  );
+}
+
+/**
+ * An edit whose file field no longer matches what its record holds: another window saved the field
+ * after this form was drawn. Nothing was written, and opening the entry again shows what it holds.
+ */
+export function recordChangedFailure(
+  c: Context,
+  capabilityId: string,
+  error: RecordChangedError,
+): Response {
+  retargetMutationError(c, capabilityId, error.action);
+  return c.html(
+    refusalFragment(
+      error.code,
+      "This entry changed in another window. Mind opening it again?",
       error.fields,
     ),
     422,

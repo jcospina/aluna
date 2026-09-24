@@ -47,6 +47,7 @@ export {
   InvalidFileReferenceError,
   MaxLengthExceededError,
   MissingRequiredFieldsError,
+  RecordChangedError,
 } from "./internal.ts";
 export type { CapabilityFileProjection };
 export { materializeCapabilityActionRecord };

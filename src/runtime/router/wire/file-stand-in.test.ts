@@ -1,7 +1,8 @@
 // A save through the file stand-in, driven by what the rendered forms actually submit. A create
 // stores `NULL` in the file column, and an edit of another field never names it, so the column
 // is left alone under the merge-patch rule. A create that names a file claims it
-// (`router.file-claim.test.ts`); an update may not name one until 7.1/05.
+// (`router.file-claim.test.ts`), and an edit that names one keeps, replaces or clears it
+// (`router.file-edit.test.ts`).
 
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
@@ -16,13 +17,14 @@ import {
   PHOTO_FIELD,
   photoSpec,
 } from "../../../registry/fields/file.test-support.ts";
-import type { CapabilityRow } from "../../../registry/index.ts";
+import { type CapabilityRow, INVALID_FILE_REFERENCE_ERROR_CODE } from "../../../registry/index.ts";
 import { createApp } from "../../../server/app.ts";
 import {
   assertSubmittedFieldValues,
   createCapabilityUpdateMutationPort,
   InvalidFileReferenceError,
 } from "../../data/index.ts";
+import { FileFieldWriteError } from "../../data/internal.ts";
 import { normalizeSpecFieldValues, normalizeStoredRow } from "../../data/tool.ts";
 import {
   createCapabilityDataTool,
@@ -136,7 +138,7 @@ describe("a save through the file stand-in", () => {
     return record;
   }
 
-  test("a presence marker for the file field is refused before any Handler runs", async () => {
+  test("an edit naming the file field with anything but a file is refused before any Handler runs", async () => {
     await createThroughForm("A day out");
     const form = renderEditForm(renderableFromRow(photosRow()), storedRecord());
     const crafted = await submit(form, {});
@@ -150,7 +152,10 @@ describe("a save through the file stand-in", () => {
       body: body.toString(),
     });
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(422);
+    expect(await response.text()).toContain(
+      `data-error-code="${INVALID_FILE_REFERENCE_ERROR_CODE}"`,
+    );
     expect(handlerRuns).toBe(runsBefore);
     expect(storedPhotos()).toEqual([{ photo: null }]);
   });
@@ -165,7 +170,7 @@ describe("a save through the file stand-in", () => {
     expect(storedPhotos()).toEqual([]);
   });
 
-  test("the update port refuses a submitted file field, so nothing can clear it", async () => {
+  test("the update port refuses a file field the router never checked, so nothing else can clear it", async () => {
     await createThroughForm("A day out");
     const record = storedRecord();
     expect(() =>
@@ -175,27 +180,27 @@ describe("a save through the file stand-in", () => {
         new Set([PHOTO_FIELD.name]),
         conns.readwrite,
       ),
-    ).toThrow('Field "photo" holds a file reference, which only the platform writes.');
+    ).toThrow(FileFieldWriteError);
     expect(storedPhotos()).toEqual([{ photo: null }]);
   });
 });
 
 describe("the file field's refusals below the router", () => {
-  test("the wire says why it refused an update's marker, and takes a create's", async () => {
+  test("the wire takes a file marker on both saves, and one with no value holds nothing", async () => {
     const body = new URLSearchParams([
       [ALUNA_PRESENT_MARKER, PHOTO_FIELD.name],
       [ALUNA_RECORD_ID_MARKER, "r"],
     ]);
     const update = new Request("http://aluna.test/", { method: "POST", body });
-    await expect(parseCapabilityRequest(update, "update", photoSpec())).rejects.toThrow(
-      'File field "photo" is not submitted to an update yet.',
-    );
+    const edited = await parseCapabilityRequest(update, "update", photoSpec());
+    expect(edited.input.values).toEqual({ [PHOTO_FIELD.name]: "" });
 
     body.delete(ALUNA_RECORD_ID_MARKER);
     body.append(ALUNA_PRESENT_MARKER, CAPTION_FIELD.name);
     const create = new Request("http://aluna.test/", { method: "POST", body });
     const parsed = await parseCapabilityRequest(create, "create", photoSpec());
     expect(parsed.input.submittedFields.has(PHOTO_FIELD.name)).toBe(true);
+    expect(parsed.input.values[PHOTO_FIELD.name]).toBe("");
   });
 
   test("a value for the file field is checked as a reference, never measured as text", () => {
@@ -211,7 +216,7 @@ describe("the file field's refusals below the router", () => {
     );
     for (const photo of [long[PHOTO_FIELD.name], "", { url: "/files/k" }]) {
       expect(() => normalizeSpecFieldValues("photos", fields, { ...long, photo })).toThrow(
-        'Field "photo" holds a file reference, which only the platform writes.',
+        FileFieldWriteError,
       );
     }
   });

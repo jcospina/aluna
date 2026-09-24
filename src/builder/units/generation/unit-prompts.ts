@@ -76,7 +76,7 @@ function priorSourceSection(unit: UnitDescriptor, priorSource: string): string[]
 function indexedInputRepairGuidance(unit: UnitDescriptor, message: string): string[] {
   if (
     unit.kind !== "handler" ||
-    (!/Capability(?:Create)?InputValue \| undefined/.test(message) &&
+    (!/Capability(?:Save)?InputValue \| undefined/.test(message) &&
       !(
         message.includes("readonly string[]") && message.includes("not assignable to type 'string'")
       ))
@@ -163,7 +163,8 @@ function buildHandlerPrompt(
 }
 
 function inputValueContract(spec: CapabilitySpec, action: HandlerUnitName): string[] {
-  const files = action === "create" && hasActiveFileField(spec.schema.fields);
+  const files =
+    (action === "create" || action === "update") && hasActiveFileField(spec.schema.fields);
   const valueType = files
     ? "string | readonly string[] | CapabilityFileProjection | null"
     : "string | readonly string[]";
@@ -181,11 +182,7 @@ function inputValueContract(spec: CapabilitySpec, action: HandlerUnitName): stri
 
   return [
     ...scalarRules,
-    ...(files
-      ? [
-          "- A file field arrives as its projection `{ url, name, kind, mime, size }`, or `null` when it was submitted empty, or not at all. Pass `input.values[name]` to `mutation.create` unchanged or leave the field out; never build, edit or replace one.",
-        ]
-      : []),
+    ...(files ? fileInputRules(action) : []),
     "- Use the scalar extractor only for scalar schema fields. For a string[] field, use `Array.isArray(value) ? [...value] : []`; do not take only its first element.",
     "- A submitted unchecked boolean may have no `input.values` entry. Interpret that `undefined` as false only after `input.submittedFields` proves the boolean was submitted.",
     ...(action === "update"
@@ -193,6 +190,16 @@ function inputValueContract(spec: CapabilitySpec, action: HandlerUnitName): stri
           "- Only add a field to an update patch when `input.submittedFields.has(fieldName)`; the extracted fallback is a submitted value, never evidence that an omitted field should be patched.",
         ]
       : []),
+  ];
+}
+
+function fileInputRules(action: "create" | "update"): string[] {
+  const arrives =
+    action === "create"
+      ? "or `null` when it was submitted empty, or not at all"
+      : "or `null` when the edit empties it or it holds nothing; a file field the edit left out is not in `input.values` and keeps its file";
+  return [
+    `- A file field arrives as the projection \`{ url, name, kind, mime, size }\` of what the save will store, ${arrives}. Pass \`input.values[name]\` to \`mutation.${action}\` unchanged or leave the field out; never run it through the scalar extractor, and never build, edit, replace or \`null\` one yourself.`,
   ];
 }
 
