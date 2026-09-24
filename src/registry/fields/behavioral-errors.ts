@@ -7,6 +7,7 @@ import type { CapabilitySpec, SpecField } from "../spec/spec.ts";
 import { allUnique, sameOrderedStrings, sqlNameText } from "../spec/spec-text.ts";
 import { capabilityToolSchema, FULL_CAPABILITY_TOOLS } from "../tools.ts";
 import { CHOICE_DISABLED_ERROR_CODE, INVALID_CHOICE_ERROR_CODE } from "./choice.ts";
+import { INVALID_FILE_REFERENCE_ERROR_CODE } from "./file.ts";
 import { MAX_LENGTH_EXCEEDED_ERROR_CODE } from "./max-length.ts";
 
 export const MISSING_REQUIRED_FIELDS_ERROR_CODE = "missing_required_fields";
@@ -65,12 +66,19 @@ export function defaultBehavioralErrorsForSchema(
  * Structural failures the platform raises itself, before any generated Handler runs. A capability
  * may not author them: a second copy in `behavioral_errors` would make the contract two contracts.
  */
-const PLATFORM_OWNED_ERROR_CODES = [
+export const PLATFORM_OWNED_ERROR_CODES = [
   "record_not_found",
   INVALID_CHOICE_ERROR_CODE,
   CHOICE_DISABLED_ERROR_CODE,
   MAX_LENGTH_EXCEEDED_ERROR_CODE,
+  INVALID_FILE_REFERENCE_ERROR_CODE,
 ] as const;
+
+/** {@link PLATFORM_OWNED_ERROR_CODES} as a prompt names them, so a new one reaches every prompt. */
+export function platformOwnedErrorCodeList(): string {
+  const leading = PLATFORM_OWNED_ERROR_CODES.slice(0, -1).join(", ");
+  return `${leading} and ${PLATFORM_OWNED_ERROR_CODES.at(-1)}`;
+}
 
 function validatePlatformOwnedErrorCodes(
   ctx: z.RefinementCtx,

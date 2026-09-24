@@ -1,10 +1,12 @@
 // A save through the file stand-in, driven by what the rendered forms actually submit. A create
 // stores `NULL` in the file column, and an edit of another field never names it, so the column
-// is left alone under the merge-patch rule. Until the upload control exists nothing else can
-// write one: a crafted marker is refused at the wire and a Handler's value at the mutation port.
+// is left alone under the merge-patch rule. A create that names a file claims it
+// (`router.file-claim.test.ts`); an update may not name one until 7.1/05.
 
+import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
+import { mintFileKey } from "../../../platform/files/ledger.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { renderCreateForm, renderEditForm } from "../../../presentation/fields/field-renderer.ts";
 import { submittedInputs } from "../../../presentation/fields/form-submission.test-support.ts";
@@ -19,6 +21,7 @@ import { createApp } from "../../../server/app.ts";
 import {
   assertSubmittedFieldValues,
   createCapabilityUpdateMutationPort,
+  InvalidFileReferenceError,
 } from "../../data/index.ts";
 import { normalizeSpecFieldValues, normalizeStoredRow } from "../../data/tool.ts";
 import {
@@ -178,21 +181,34 @@ describe("a save through the file stand-in", () => {
 });
 
 describe("the file field's refusals below the router", () => {
-  test("the wire says why it refused the marker", async () => {
-    for (const action of ["create", "update"] as const) {
-      const body = new URLSearchParams([[ALUNA_PRESENT_MARKER, PHOTO_FIELD.name]]);
-      if (action === "update") body.append(ALUNA_RECORD_ID_MARKER, "r");
-      const request = new Request("http://aluna.test/", { method: "POST", body });
-      await expect(parseCapabilityRequest(request, action, photoSpec())).rejects.toThrow(
-        'File field "photo" is not submitted by this protocol.',
-      );
-    }
+  test("the wire says why it refused an update's marker, and takes a create's", async () => {
+    const body = new URLSearchParams([
+      [ALUNA_PRESENT_MARKER, PHOTO_FIELD.name],
+      [ALUNA_RECORD_ID_MARKER, "r"],
+    ]);
+    const update = new Request("http://aluna.test/", { method: "POST", body });
+    await expect(parseCapabilityRequest(update, "update", photoSpec())).rejects.toThrow(
+      'File field "photo" is not submitted to an update yet.',
+    );
+
+    body.delete(ALUNA_RECORD_ID_MARKER);
+    body.append(ALUNA_PRESENT_MARKER, CAPTION_FIELD.name);
+    const create = new Request("http://aluna.test/", { method: "POST", body });
+    const parsed = await parseCapabilityRequest(create, "create", photoSpec());
+    expect(parsed.input.submittedFields.has(PHOTO_FIELD.name)).toBe(true);
   });
 
-  test("a value for the file field is refused as a write, never measured as text", () => {
+  test("a value for the file field is checked as a reference, never measured as text", () => {
     const fields = photoSpec().schema.fields;
     const long = { [CAPTION_FIELD.name]: "c", [PHOTO_FIELD.name]: "x".repeat(20_001) };
-    expect(() => assertSubmittedFieldValues("photos", fields, long, "create")).not.toThrow();
+    const scope = {
+      database: new Database(":memory:"),
+      capabilityId: "photos",
+      incarnationId: "i",
+    };
+    expect(() => assertSubmittedFieldValues(fields, long, "create", scope)).toThrow(
+      InvalidFileReferenceError,
+    );
     for (const photo of [long[PHOTO_FIELD.name], "", { url: "/files/k" }]) {
       expect(() => normalizeSpecFieldValues("photos", fields, { ...long, photo })).toThrow(
         'Field "photo" holds a file reference, which only the platform writes.',
@@ -200,13 +216,29 @@ describe("the file field's refusals below the router", () => {
     }
   });
 
-  test("a stored reference nothing could have written fails closed on read", () => {
+  test("a stored reference the save could not have written fails closed on read", () => {
     const row = { id: "r", created_at: "2026-09-24 00:00:00", extra: "{}", caption: "c" };
-    expect(() =>
-      normalizeStoredRow(photoSpec().schema.fields, { ...row, photo: '{"key":"k"}' }),
-    ).toThrow('Expected file column "photo" to be empty.');
+    const key = mintFileKey();
+    const stored = { key, kind: "image", mime: "image/jpeg", size: 3, name: "a.jpg" };
+    for (const photo of [
+      '{"key":"k"}',
+      JSON.stringify({ ...stored, key: "k" }),
+      JSON.stringify({ ...stored, kind: "spreadsheet" }),
+      JSON.stringify({ ...stored, size: -1 }),
+      JSON.stringify({ ...stored, url: "/files/k" }),
+      "not json",
+    ]) {
+      expect(() => normalizeStoredRow(photoSpec().schema.fields, { ...row, photo })).toThrow(
+        'Expected file column "photo" to hold a stored file reference.',
+      );
+    }
     expect(normalizeStoredRow(photoSpec().schema.fields, { ...row, photo: null })).toMatchObject({
       photo: null,
+    });
+    expect(
+      normalizeStoredRow(photoSpec().schema.fields, { ...row, photo: JSON.stringify(stored) }),
+    ).toMatchObject({
+      photo: { url: `/files/${key}`, name: "a.jpg", kind: "image", mime: "image/jpeg", size: 3 },
     });
   });
 });

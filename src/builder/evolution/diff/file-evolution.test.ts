@@ -42,13 +42,33 @@ function photoOf(draft: CandidateDraft) {
 }
 
 describe("adding a file field", () => {
-  test("is one additive new-field fact that selects the writes and never search", () => {
+  test("is one additive new-field fact that selects the writes and every reader of records", () => {
     const diff = workFor(journalCapabilityRow(), (draft) => withPhoto(draft));
 
     expect(diff.facts).toEqual([{ kind: "new_active_field", field: "photo", fieldType: "file" }]);
     expect(diff.workPlan.platformWork).toEqual(["add_column", "platform_form_detail"]);
+    // Every Handler holding `query` receives records that can now carry a file: its contract moved.
+    expect(diff.workPlan.regeneratedUnits).toEqual([
+      "create",
+      "read",
+      "update",
+      "delete",
+      "search",
+    ]);
+    expect(diff.workPlan.gate.behavioral.actions).toEqual([
+      "create",
+      "read",
+      "update",
+      "delete",
+      "search",
+    ]);
+  });
+
+  test("a second file field moves no reader's contract, so read and search are copied", () => {
+    const diff = workFor(journalWithPhoto(), (draft) =>
+      withPhoto(draft, { name: "cover", label: "Cover" }),
+    );
     expect(diff.workPlan.regeneratedUnits).toEqual(["create", "update"]);
-    expect(diff.workPlan.gate.behavioral.actions).toEqual(["create", "update"]);
   });
 
   test("derives one nullable ADD COLUMN", () => {
@@ -64,6 +84,24 @@ describe("adding a file field", () => {
 });
 
 describe("a committed file field", () => {
+  test("hidden or reactivated as the only one, regenerates the readers of records", () => {
+    for (const [lifecycle, next] of [
+      ["active", "inactive"],
+      ["inactive", "active"],
+    ] as const) {
+      const diff = workFor(journalWithPhoto(lifecycle), (draft) =>
+        Object.assign(photoOf(draft), { lifecycle: next }),
+      );
+      expect(diff.workPlan.regeneratedUnits).toEqual([
+        "create",
+        "read",
+        "update",
+        "delete",
+        "search",
+      ]);
+    }
+  });
+
   test("relabels and hides through facts the matrix maps", () => {
     const row = journalWithPhoto();
     expect(factsFor(row, (draft) => Object.assign(photoOf(draft), { label: "Picture" }))).toEqual([

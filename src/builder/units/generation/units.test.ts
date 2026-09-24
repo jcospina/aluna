@@ -354,7 +354,7 @@ const UNDEFINED_INDEXED_INPUT_UPDATE_HANDLER = [
 ].join("\n");
 
 const SAFE_INDEXED_INPUT_UPDATE_HANDLER = [
-  "function scalarValue(value: string | readonly string[] | undefined): string {",
+  "function scalarValue(value: unknown): string {",
   '  if (typeof value === "string") return value;',
   '  return "";',
   "}",
@@ -1231,9 +1231,7 @@ describe("unit generation with bounded fix loop — retry, strict-index, and val
     expect(prompt).toContain(
       "`input.submittedFields.has(name)` is runtime presence information; it does not narrow",
     );
-    expect(prompt).toContain(
-      "function scalarValue(value: string | readonly string[] | undefined): string",
-    );
+    expect(prompt).toContain("function scalarValue(value: unknown): string");
     expect(prompt).toContain('if (typeof value === "string") return value');
     expect(prompt).toContain('return ""');
     expect(prompt).toContain(

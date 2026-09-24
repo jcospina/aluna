@@ -6,8 +6,8 @@ import { type FileFieldType, isFileFieldType } from "../../registry/fields/file.
 import { type FieldType, fieldTypeSchema } from "../../registry/spec/spec.ts";
 
 /**
- * Every pantry type but a file: what reading a file column yields is the save's to define
- * (7.1/04), so until then declaring one is refused rather than guessed.
+ * Every pantry type but a file. A record's file reaches a Handler as its projection through
+ * `query.records()`; a projected column may be computed, so nothing vouches it names a stored file.
  */
 export type CapabilityQueryResultType = Exclude<FieldType, FileFieldType>;
 export const QUERY_RESULT_TYPES = fieldTypeSchema.options.filter(

@@ -16,6 +16,7 @@ import {
   type CapabilityTool,
   type FieldType,
   FULL_CAPABILITY_TOOLS,
+  hasActiveFileField,
   isChoiceFieldType,
   isListFieldType,
   isSearchableTextType,
@@ -176,7 +177,7 @@ export function diffCapabilitySpec(
 ): CapabilityDiff {
   const facts = detectFacts(committed, candidate);
   assertTotalCoverage(committed, candidate);
-  const workPlan = projectWorkPlan(facts, candidate);
+  const workPlan = projectWorkPlan(facts, committed, candidate);
   return { facts, workPlan, isNoop: facts.length === 0 };
 }
 
@@ -339,12 +340,8 @@ function changedBehavioralErrorActions(
   const before = behavioralErrorCasesByKey(committed);
   const after = behavioralErrorCasesByKey(candidate);
   const actions = new Set<CapabilityTool>();
-  for (const [key, action] of before) {
-    if (!after.has(key)) actions.add(action);
-  }
-  for (const [key, action] of after) {
-    if (!before.has(key)) actions.add(action);
-  }
+  for (const [key, action] of before) if (!after.has(key)) actions.add(action);
+  for (const [key, action] of after) if (!before.has(key)) actions.add(action);
   return FULL_CAPABILITY_TOOLS.filter((action) => actions.has(action));
 }
 
@@ -357,7 +354,11 @@ interface WorkSink {
   fullSuite: boolean;
 }
 
-function projectWorkPlan(facts: readonly ChangeFact[], candidate: CapabilitySpec): DiffWorkPlan {
+function projectWorkPlan(
+  facts: readonly ChangeFact[],
+  committed: CapabilitySpec,
+  candidate: CapabilitySpec,
+): DiffWorkPlan {
   const sink: WorkSink = {
     platform: new Set(),
     units: new Set(),
@@ -365,6 +366,14 @@ function projectWorkPlan(facts: readonly ChangeFact[], candidate: CapabilitySpec
     fullSuite: false,
   };
   for (const fact of facts) contributeFact(fact, candidate, sink);
+  // Whether a record can carry a file is part of the contract every Handler holding `query` is
+  // compiled against (`handlerContractDeclarations`), so a copy written before would not compile.
+  if (hasActiveFileField(committed.schema.fields) !== hasActiveFileField(candidate.schema.fields)) {
+    for (const action of ["read", "delete", "search"] as const) {
+      sink.units.add(action);
+      sink.tests.add(action);
+    }
+  }
 
   const regeneratedUnits = orderBy(sink.units, GENERATED_UNITS);
   const building = facts.length > 0;

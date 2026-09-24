@@ -19,6 +19,7 @@ import {
   type SpecField,
 } from "../../../registry/index.ts";
 import { MaxLengthExceededError } from "../internal.ts";
+import { ownValue } from "./own-value.ts";
 
 /**
  * Refuse the whole submission if any string field carries more than it declared room for. Length
@@ -35,7 +36,7 @@ export function assertAdmittedStringLengths(
   for (const field of fields) {
     // A reference is not text a person typed, so no length refusal may name it (`tool.ts`).
     if (isFileFieldType(field.type)) continue;
-    const measured = measuredLength(values[field.name]);
+    const measured = measuredLength(ownValue(values, field.name));
     if (measured === undefined) continue;
     if (measured > (declared.get(field.name) ?? MAX_DECLARED_MAX_LENGTH)) overrun.push(field.name);
   }

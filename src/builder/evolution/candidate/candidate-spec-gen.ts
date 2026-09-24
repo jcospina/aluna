@@ -32,6 +32,7 @@ import {
   MIN_DECLARED_MAX_LENGTH,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
+  platformOwnedErrorCodeList,
   promptCapabilitySpecSchema,
   uiCollectionLayoutSchema,
 } from "../../../registry/index.ts";
@@ -92,7 +93,7 @@ export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): str
     "- behavioral_errors: every case names one owning action from tools plus trigger, code, fields (active fields only), and expected_markers.",
     `  - If any active fields are required, include exactly two cases in this order: action "create", then action "update". Both use trigger/code "${MISSING_REQUIRED_FIELDS_ERROR_CODE}", fields set to every active required field name in schema order, and expected_markers exactly ${JSON.stringify(BEHAVIORAL_ERROR_MARKERS)}.`,
     "  - If no active fields are required, include no missing_required_fields cases.",
-    '  - record_not_found, invalid_choice, choice_disabled and max_length_exceeded are platform-owned; never author any of them. Behavior-specific cases beyond the required pair may target any action in tools; keep every "action"/"trigger"/"code" combination unique.',
+    `  - ${platformOwnedErrorCodeList()} are platform-owned; never author any of them. Behavior-specific cases beyond the required pair may target any action in tools; keep every "action"/"trigger"/"code" combination unique.`,
     "",
     "Field pantry:",
     `- a field's type is one of: ${fieldTypes}. string[] is the only list type; no files or relations.`,

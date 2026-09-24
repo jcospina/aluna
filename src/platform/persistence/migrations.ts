@@ -13,6 +13,7 @@
 import type { Database } from "bun:sqlite";
 import { LOGO_BIRTH_STATUS, LOGO_STATUSES } from "../../registry/logo.ts";
 import { REGISTRY_TABLE } from "../../registry/store/store.ts";
+import { FILE_LEDGER_STATES, FILE_LEDGER_TABLE } from "../files/ledger.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,
@@ -305,6 +306,45 @@ export const MIGRATIONS: readonly Migration[] = [
       database.exec(
         `ALTER TABLE ${INTENT_RESOLUTION_METRICS_TABLE}
          ADD COLUMN elapsed_ms INTEGER CHECK (elapsed_ms IS NULL OR elapsed_ms >= 0);`,
+      );
+    },
+  },
+  // The file ledger (Module 7 PLAN decision 21). `kind` carries no `IN (…)` CHECK for the reason a
+  // choice column has none: families grow, and SQLite cannot alter a column constraint. The save
+  // checks it against the field's `accepts` instead, so every claimed row projects.
+  {
+    id: "0016_file_ledger",
+    up: (database) => {
+      database.exec(
+        `CREATE TABLE IF NOT EXISTS ${FILE_LEDGER_TABLE} (
+           key              TEXT PRIMARY KEY,
+           capability_id    TEXT NOT NULL,
+           incarnation_id   TEXT NOT NULL,
+           field            TEXT NOT NULL,
+           record_id        TEXT,
+           state            TEXT NOT NULL
+             CHECK (state IN (${FILE_LEDGER_STATES.map((state) => `'${state}'`).join(", ")})),
+           kind             TEXT NOT NULL,
+           mime             TEXT NOT NULL CHECK (length(mime) > 0),
+           size             INTEGER NOT NULL CHECK (size BETWEEN 0 AND ${Number.MAX_SAFE_INTEGER}),
+           name             TEXT NOT NULL,
+           encoding         TEXT,
+           created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+           cleanup_attempts INTEGER NOT NULL DEFAULT 0 CHECK (cleanup_attempts >= 0),
+           cleanup_error    TEXT,
+           CHECK (
+             (state = 'pending' AND record_id IS NULL) OR
+             (state = 'owned' AND record_id IS NOT NULL) OR
+             state = 'cleanup_enqueued'
+           )
+         ) STRICT;`,
+      );
+      database.exec(
+        `CREATE INDEX IF NOT EXISTS ${FILE_LEDGER_TABLE}_record ON ${FILE_LEDGER_TABLE} (record_id);`,
+      );
+      database.exec(
+        `CREATE INDEX IF NOT EXISTS ${FILE_LEDGER_TABLE}_incarnation
+         ON ${FILE_LEDGER_TABLE} (incarnation_id);`,
       );
     },
   },

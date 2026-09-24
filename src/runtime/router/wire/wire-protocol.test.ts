@@ -161,6 +161,17 @@ describe("reserved capability wire protocol — input parsing", () => {
     expect(singleton.input.values.tags).toEqual(["solo"]);
   });
 
+  test("a submitted empty list named constructor still arrives as its own empty array", async () => {
+    const tags = listSpec();
+    const named = JSON.parse(JSON.stringify(tags).replaceAll('"tags"', '"constructor"'));
+    const parsed = await parseCapabilityRequest(
+      post([[ALUNA_PRESENT_MARKER, "constructor"]]),
+      "create",
+      named,
+    );
+    expect(Object.getOwnPropertyDescriptor(parsed.input.values, "constructor")?.value).toEqual([]);
+  });
+
   test("normalizes comma-separated values before Handler input without changing repeatable commas", async () => {
     const commaSeparated = await parseCapabilityRequest(
       post([

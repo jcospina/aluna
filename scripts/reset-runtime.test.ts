@@ -29,6 +29,7 @@ describe("runtime reset script", () => {
       CREATE TABLE generation_lifecycle_metrics (build_id TEXT PRIMARY KEY) STRICT;
       CREATE TABLE intent_resolution_metrics (request_id TEXT PRIMARY KEY) STRICT;
       CREATE TABLE capability_deletion_tombstones (capability_id TEXT PRIMARY KEY) STRICT;
+      CREATE TABLE file_ledger (key TEXT PRIMARY KEY) STRICT;
       CREATE TABLE cap_notes (id TEXT PRIMARY KEY, text TEXT) STRICT;
       INSERT INTO schema_migrations (id) VALUES ('0001_platform_migrations_ledger');
       INSERT INTO capability_registry (id) VALUES ('notes');
@@ -36,6 +37,7 @@ describe("runtime reset script", () => {
       INSERT INTO generation_lifecycle_metrics (build_id) VALUES ('build-notes-1');
       INSERT INTO intent_resolution_metrics (request_id) VALUES ('request-notes-1');
       INSERT INTO capability_deletion_tombstones (capability_id) VALUES ('retired-notes');
+      INSERT INTO file_ledger (key) VALUES ('a-pending-photo');
       INSERT INTO cap_notes (id, text) VALUES ('note-1', 'old data');
     `);
     database.close();
@@ -48,6 +50,7 @@ describe("runtime reset script", () => {
       "generation_lifecycle_metrics",
       "intent_resolution_metrics",
       "capability_deletion_tombstones",
+      "file_ledger",
     ]);
     expect(result.droppedTables).toEqual(["cap_notes"]);
     // Naming the paths, not counting them: deleting two of the wrong things would
@@ -75,6 +78,7 @@ describe("runtime reset script", () => {
     expect(
       wipedDatabase.query("SELECT capability_id FROM capability_deletion_tombstones").all(),
     ).toEqual([]);
+    expect(wipedDatabase.query("SELECT key FROM file_ledger").all()).toEqual([]);
     expect(
       wipedDatabase
         .query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'cap_notes'")

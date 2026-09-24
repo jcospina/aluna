@@ -59,10 +59,18 @@ several checks cannot bite on a file field yet:
 - `fieldValueMatches` in `gate-internal.ts`, which compares with `===`
 - `gate-behavioral-input.ts`, which treats a file input as a scalar string
 
-Generated code cannot write a file field: `normalizeFieldValue` in `runtime/data/tool.ts`
-refuses any value for one on create, including a behavioral case's setup rows, and the update
-port in `runtime/data/access/mutation.ts` refuses a submitted one. 7.1/04 and 7.1/05 relax
-those two for real references. To lift the refusal of generated `file` fields, add `file` to
+What 7.1/04 landed for this issue. The create port in `runtime/data/access/mutation.ts`
+writes a file field only from a `FileSubmissionBinding`, the router-checked pending rows, and a
+Handler may hand back just the projection it was given, or leave the field out. A port built
+without a binding, as every Gate port is today, writes every file field empty and refuses a
+projection. The Gate's scratch pair (`openScratchDatabasePair` in `builder/gate/gate-internal.ts`)
+runs no platform migrations, so it has no `file_ledger`. The scratch ledger needs that table,
+then `resolveSubmittedFiles` and a binding, as `runtime/router/dispatch/handler-invocation.ts`
+does. `normalizeFieldValue` in `runtime/data/tool.ts` still refuses a file value outright, so a
+behavioral setup row must go through the port. The contract a generated unit is compiled
+against (`handlerContractDeclarations` in `builder/generated-code-check.ts`) and the Handler
+prompt's input lines already carry the projection for a spec with an active file field. The
+update port still refuses a submitted file field until 7.1/05. To lift the refusal of generated `file` fields, add `file` to
 `GENERATION_FIELD_TYPES` in `registry/spec/spec.ts`, which also makes
 `unofferedFieldTypeIssues` in `builder/spec/unoffered-field-types.ts` find nothing to refuse.
 Then change the line both builder prompts carry, "every field sends accepts as null". A file

@@ -11,14 +11,24 @@
 
 import { z } from "zod";
 
-import type { CapabilitySpec } from "../spec/spec.ts";
+import type { CapabilitySpec, SpecField } from "../spec/spec.ts";
 import { allUnique } from "../spec/spec-text.ts";
 
 export const FILE_FIELD_TYPES = ["file"] as const;
+
+/** A save naming a file this field may not claim: platform-owned, like an undeclared choice. */
+export const INVALID_FILE_REFERENCE_ERROR_CODE = "invalid_file_reference";
 export type FileFieldType = (typeof FILE_FIELD_TYPES)[number];
 
 export function isFileFieldType(type: string): type is FileFieldType {
   return (FILE_FIELD_TYPES as readonly string[]).includes(type);
+}
+
+/** Whether any active field holds a file, so records and inputs can carry its projection. */
+export function hasActiveFileField(
+  fields: readonly Pick<SpecField, "type" | "lifecycle">[],
+): boolean {
+  return fields.some((field) => field.lifecycle === "active" && isFileFieldType(field.type));
 }
 
 /** The families a file field may take, in their canonical order. */

@@ -11,6 +11,7 @@ export const GENERATION_LIFECYCLE_TABLE = "generation_lifecycle_metrics";
 export const INTENT_RESOLUTION_METRICS_TABLE = "intent_resolution_metrics";
 export const EVENT_LOG_TABLE = "event_log";
 export const EVENT_LOG_OWNERSHIP_TABLE = "event_log_ownership";
+export const FILE_LEDGER_TABLE = "file_ledger";
 
 /** Every generated capability's data table is `cap_<id>`; nothing else in the file carries it. */
 export const CAPABILITY_TABLE_PREFIX = "cap_";

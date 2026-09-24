@@ -26,6 +26,7 @@ import { ReadGateClosingError } from "../../concurrency/read-gates.ts";
 import type {
   ChoiceDisabledError,
   InvalidChoiceError,
+  InvalidFileReferenceError,
   MaxLengthExceededError,
   MissingRequiredFieldsError,
   RecordNotFoundError,
@@ -102,7 +103,7 @@ export function recordMutationRefusal(
 }
 
 /**
- * Aim a refusal at the region the action's own form shows errors in. The four typed validation
+ * Aim a refusal at the region the action's own form shows errors in. The typed validation
  * failures below all carry `action: "create" | "update"`, so the delete branch is theirs only if
  * a delete-shaped validation error is ever added — which is a decision, not a default.
  */
@@ -212,6 +213,26 @@ export function maxLengthExceededFailure(
     refusalFragment(
       error.code,
       "That's longer than this field holds. Mind trimming it a little?",
+      error.fields,
+    ),
+    422,
+  );
+}
+
+/**
+ * A file the save may not claim: gone before the save, another field's, or already saved. Each
+ * reason has the same remedy, adding the file in this field, so one sentence asks for that.
+ */
+export function invalidFileReferenceFailure(
+  c: Context,
+  capabilityId: string,
+  error: InvalidFileReferenceError,
+): Response {
+  retargetMutationError(c, capabilityId, error.action);
+  return c.html(
+    refusalFragment(
+      error.code,
+      "I can't save that file in this field. Mind adding it here again?",
       error.fields,
     ),
     422,

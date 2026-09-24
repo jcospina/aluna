@@ -28,6 +28,8 @@ import {
 import { type CapabilityQueryResultType, QUERY_RESULT_TYPES } from "./query-result-types.ts";
 import { assertAdmittedChoiceValues, normalizeChoiceValue } from "./schema/choice-values.ts";
 import { deriveCapabilityTableDdl } from "./schema/ddl.ts";
+import { type CapabilityFileProjection, projectStoredFileReference } from "./schema/file-values.ts";
+import { ownValue } from "./schema/own-value.ts";
 import { assertAdmittedStringLengths } from "./schema/string-lengths.ts";
 
 export { normalizeSearchText } from "../../platform/persistence/sqlite-functions.ts";
@@ -40,13 +42,22 @@ export {
 export {
   CapabilityDataValidationError,
   ChoiceDisabledError,
+  type FileReferenceRefusal,
   InvalidChoiceError,
+  InvalidFileReferenceError,
   MaxLengthExceededError,
   MissingRequiredFieldsError,
 } from "./internal.ts";
+export type { CapabilityFileProjection };
 export { materializeCapabilityActionRecord };
 
-export type CapabilityDataColumnValue = string | number | boolean | readonly string[] | null;
+export type CapabilityDataColumnValue =
+  | string
+  | number
+  | boolean
+  | readonly string[]
+  | CapabilityFileProjection
+  | null;
 
 export interface CapabilityDataRow {
   readonly id: string;
@@ -279,7 +290,9 @@ export function normalizeSpecFieldValues(
 ): Record<string, SqlValue> {
   const normalized: Record<string, SqlValue> = {};
   const missing = fields
-    .filter((field) => field.required && isMissingRequiredValue(field, values[field.name]))
+    .filter(
+      (field) => field.required && isMissingRequiredValue(field, ownValue(values, field.name)),
+    )
     .map((field) => field.name);
   if (missing.length > 0) {
     throw new MissingRequiredFieldsError(capabilityId, missing, action);
@@ -293,7 +306,7 @@ export function normalizeSpecFieldValues(
   assertAdmittedStringLengths(capabilityId, fields, values, action);
 
   for (const field of fields) {
-    const raw = values[field.name];
+    const raw = ownValue(values, field.name);
     if (raw === undefined || raw === null) {
       normalized[field.name] = null;
       continue;
@@ -475,7 +488,7 @@ function normalizeStoredFieldValue(
   name: string,
   type: FieldType,
   value: unknown,
-): string | number | boolean | readonly string[] | null {
+): CapabilityDataColumnValue {
   if (value === null) return null;
 
   switch (type) {
@@ -499,8 +512,7 @@ function normalizeStoredFieldValue(
     case "string[]":
       return parseStoredStringList(name, value);
     case "file":
-      // Nothing writes a reference until the save that claims one (7.1/04).
-      throw new Error(`Expected file column "${name}" to be empty.`);
+      return projectStoredFileReference(name, value);
   }
 }
 

@@ -11,6 +11,8 @@ import {
 } from "../../../registry/index.ts";
 import { FileFieldWriteError } from "../internal.ts";
 import { deriveCapabilityTableDdl } from "../schema/ddl.ts";
+import { fileKeyFromProjection, storedFileReference } from "../schema/file-values.ts";
+import { ownValue } from "../schema/own-value.ts";
 import {
   type CapabilityActionRecord,
   type CapabilityDataRow,
@@ -22,6 +24,7 @@ import {
   type SqlValue,
   type StoredCapabilityRow,
 } from "../tool.ts";
+import { claimPendingFile, type FileClaimScope, type SubmittedFiles } from "./file-claims.ts";
 import { assertReadOwnership } from "./read-ownership.ts";
 
 export type CapabilityCreateValues = Record<string, unknown>;
@@ -55,33 +58,106 @@ export class RecordNotFoundError extends CapabilityDataValidationError {
 
 const PLATFORM_POPULATED_COLUMNS = new Set<string>(PLATFORM_COLUMNS);
 
+/**
+ * The router-checked file submission a create writes (Module 7 PLAN decision 17). Without one, as
+ * in the Gate's scratch runs, every file field is empty and a Handler can hand back only `null`.
+ */
+export interface FileSubmissionBinding {
+  readonly incarnationId: string;
+  readonly submitted: SubmittedFiles;
+}
+
 export function createCapabilityMutationPort(
   spec: CapabilitySpec,
   database = db,
   signal?: AbortSignal,
+  files?: FileSubmissionBinding,
 ): CapabilityMutationPort {
   const parsed = capabilitySpecSchema.parse(spec);
   const { tableName } = deriveCapabilityTableDdl(parsed);
   const quotedTable = sqlIdentifier(tableName);
   const fields = activeSpecFields(parsed.schema.fields);
+  const dataFields = fields.filter((field) => !isFileFieldType(field.type));
+  const fileFields = fields.filter((field) => isFileFieldType(field.type));
   const allowedInsertFields = new Set(fields.map((field) => field.name));
+  const scope: FileClaimScope | undefined = files && {
+    database,
+    capabilityId: parsed.id,
+    incarnationId: files.incarnationId,
+  };
+
+  // A submission's file belongs to one record: a second create cannot claim it or quietly drop it.
+  const written = new Set<string>();
 
   return {
     create(values) {
       assertReadOwnership(signal);
-      const normalized = normalizeInsertValues(parsed.id, fields, allowedInsertFields, values);
-      const columns = ["id", ...fields.map((field) => field.name)];
-      const sqlValues: SqlValue[] = [randomUUID()];
-      for (const field of fields) sqlValues.push(normalized[field.name] ?? null);
-
-      const placeholders = columns.map(() => "?").join(", ");
-      const quotedColumns = columns.map(sqlIdentifier).join(", ");
-      const stored = database
-        .query(`INSERT INTO ${quotedTable} (${quotedColumns}) VALUES (${placeholders}) RETURNING *`)
-        .get(...sqlValues) as StoredCapabilityRow;
+      const own = isPlainObject(values) ? { ...values } : values;
+      const normalized = normalizeInsertValues(parsed.id, dataFields, allowedInsertFields, own);
+      const keys = writtenFileKeys(fileFields, own, files?.submitted, written);
+      const id = randomUUID();
+      // A savepoint inside the save's transaction: a Handler that catches a failed insert and
+      // answers anyway must not commit the key it promoted for a record that was never written.
+      const insert = database.transaction((): StoredCapabilityRow => {
+        for (const [field, key] of keys) {
+          normalized[field.name] = key === null ? null : claimedReference(field, key, id, scope);
+        }
+        const columns = ["id", ...fields.map((field) => field.name)];
+        const sqlValues: SqlValue[] = [
+          id,
+          ...fields.map((field) => normalized[field.name] ?? null),
+        ];
+        const placeholders = columns.map(() => "?").join(", ");
+        const quotedColumns = columns.map(sqlIdentifier).join(", ");
+        return database
+          .query(
+            `INSERT INTO ${quotedTable} (${quotedColumns}) VALUES (${placeholders}) RETURNING *`,
+          )
+          .get(...sqlValues) as StoredCapabilityRow;
+      });
+      const stored = insert();
+      for (const key of keys.values()) if (key !== null) written.add(key);
       return createCapabilityActionRecord(normalizeStoredRow(fields, stored));
     },
   };
+}
+
+/**
+ * The key each file field writes: always the router-checked submission. A Handler may hand back the
+ * projection it was given, or leave the field out; any other value is refused before any write.
+ */
+function writtenFileKeys(
+  fileFields: readonly SpecField[],
+  values: CapabilityCreateValues,
+  submitted: SubmittedFiles | undefined,
+  written: ReadonlySet<string>,
+): ReadonlyMap<SpecField, string | null> {
+  const keys = new Map<SpecField, string | null>();
+  for (const field of fileFields) {
+    const submittedKey = submitted?.get(field.name)?.key ?? null;
+    const given = ownValue(values, field.name);
+    const refused = given !== undefined && !namesSubmittedFile(given, submittedKey);
+    if (refused || (submittedKey !== null && written.has(submittedKey))) {
+      throw new FileFieldWriteError(field.name);
+    }
+    keys.set(field, submittedKey);
+  }
+  return keys;
+}
+
+function namesSubmittedFile(given: unknown, submittedKey: string | null): boolean {
+  if (given === null) return submittedKey === null;
+  return submittedKey !== null && fileKeyFromProjection(given) === submittedKey;
+}
+
+function claimedReference(
+  field: SpecField,
+  key: string,
+  recordId: string,
+  scope: FileClaimScope | undefined,
+): string {
+  if (!scope) throw new FileFieldWriteError(field.name);
+  return storedFileReference(claimPendingFile(field, key, recordId, "create", scope));
 }
 
 export function createCapabilityUpdateMutationPort(
@@ -169,9 +245,10 @@ function updateBoundTarget(
 
   // `current` is what the row already holds, the one thing that makes a disabled choice value
   // admissible: a record standing on an option before it was retired keeps it through an edit.
+  // A file field is never submitted to an update (7.1/05), so its stored reference stays as it is.
   const normalized = normalizeSpecFieldValues(
     authority.capabilityId,
-    authority.fields,
+    authority.fields.filter((field) => !isFileFieldType(field.type)),
     merged,
     "update",
     current,

@@ -6,7 +6,8 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
-import { HANDLER_CONTRACT_DECLARATIONS } from "../../builder/generated-code-check.ts";
+import { handlerContractDeclarations } from "../../builder/generated-code-check.ts";
+import { photoSpec } from "../../registry/fields/file.test-support.ts";
 import { FILE_FIELD_TYPES, fieldTypeSchema, isFileFieldType } from "../../registry/index.ts";
 import { QUERY_RESULT_TYPES } from "./query-result-types.ts";
 
@@ -48,7 +49,7 @@ describe("the declarable query-result types", () => {
   });
 
   test("are the union a generated Handler is compiled against", () => {
-    const declared = /readonly type: ([^;]+);/.exec(HANDLER_CONTRACT_DECLARATIONS)?.[1];
+    const declared = /readonly type: ([^;]+);/.exec(handlerContractDeclarations(photoSpec()))?.[1];
     expect(declared).toBe(QUERY_RESULT_TYPES.map((type) => JSON.stringify(type)).join(" | "));
   });
 

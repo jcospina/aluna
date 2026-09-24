@@ -1,8 +1,9 @@
 // The platform validation that runs before a generated Handler rather than inside it.
 //
-// Two of the platform's structural refusals depend on the submission alone: whether a choice value
-// is one the field declares, and whether a string is longer than the field said it holds. Neither
-// needs the stored row, and the platform authored the sentence, status and retarget for both.
+// Three of the platform's structural refusals need no stored record: whether a choice value is one
+// the field declares, whether a string is longer than the field said it holds, and whether a file
+// field names a pending key this field may claim. The platform authored the sentence, status and
+// retarget for all three.
 //
 // They used to be reachable only from `normalizeSpecFieldValues`, which runs from inside the
 // mutation port and so from inside the Handler. Canonical state was safe either way; what was at
@@ -15,20 +16,24 @@
 import type { SpecField } from "../../../registry/index.ts";
 import { assertDeclaredChoiceValues } from "../schema/choice-values.ts";
 import { assertAdmittedStringLengths } from "../schema/string-lengths.ts";
+import { type FileClaimScope, resolveSubmittedFiles } from "./file-claims.ts";
 
 /**
  * Refuse a submission the platform owns the answer to, before any generated code loads.
  *
  * @param values the parsed wire values — strings and string arrays, exactly as submitted
+ * @param files the ledger this capability's incarnation claims its pending keys from
  */
 export function assertSubmittedFieldValues(
-  capabilityId: string,
   fields: readonly SpecField[],
   values: Readonly<Record<string, unknown>>,
   action: "create" | "update",
+  files: FileClaimScope,
 ): void {
+  const { capabilityId } = files;
   // Stated in the order `normalizeSpecFieldValues` states them, so a submission that is
   // wrong twice is refused for the same reason wherever the check runs.
   assertDeclaredChoiceValues(capabilityId, fields, values, action);
   assertAdmittedStringLengths(capabilityId, fields, values, action);
+  resolveSubmittedFiles(fields, values, action, files);
 }

@@ -1,12 +1,13 @@
 import {
   CHOICE_DISABLED_ERROR_CODE,
   INVALID_CHOICE_ERROR_CODE,
+  INVALID_FILE_REFERENCE_ERROR_CODE,
   MAX_LENGTH_EXCEEDED_ERROR_CODE,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../registry/index.ts";
 
-// The platform's typed data-validation failures. The base class and the three structural refusals
-// live together so the router has one place to read the mutation contract from.
+// The platform's typed data-validation failures. The base class and the structural refusals live
+// together so the router has one place to read the mutation contract from.
 
 export class CapabilityDataValidationError extends Error {
   override readonly name: string = "CapabilityDataValidationError";
@@ -101,5 +102,39 @@ export class MaxLengthExceededError extends CapabilityDataValidationError {
     super(`Over-length value for capability "${capabilityId}": ${fields.join(", ")}.`);
     this.action = action;
     this.fields = [...fields];
+  }
+}
+
+/** Why a save's file reference was refused: its shape, its absence, whose it is, its kind or its state. */
+export type FileReferenceRefusal =
+  | "malformed"
+  | "unknown"
+  | "other_incarnation"
+  | "other_field"
+  | "not_accepted"
+  | "owned"
+  | "cleanup_enqueued";
+
+/**
+ * A file field naming anything but a pending key minted for this incarnation and field, refused
+ * before generated code runs. One code for every reason: each asks the person for the file again.
+ */
+export class InvalidFileReferenceError extends CapabilityDataValidationError {
+  override readonly name = "InvalidFileReferenceError";
+  readonly action: "create" | "update";
+  readonly code = INVALID_FILE_REFERENCE_ERROR_CODE;
+  readonly fields: readonly string[];
+  readonly reasons: Readonly<Record<string, FileReferenceRefusal>>;
+
+  constructor(
+    capabilityId: string,
+    reasons: Readonly<Record<string, FileReferenceRefusal>>,
+    action: "create" | "update",
+  ) {
+    const fields = Object.keys(reasons);
+    super(`Refused file reference for capability "${capabilityId}": ${fields.join(", ")}.`);
+    this.action = action;
+    this.fields = fields;
+    this.reasons = Object.freeze({ ...reasons });
   }
 }

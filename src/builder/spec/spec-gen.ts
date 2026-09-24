@@ -34,6 +34,7 @@ import {
   MIN_DECLARED_MAX_LENGTH,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_COLUMNS,
+  platformOwnedErrorCodeList,
   promptCapabilitySpecSchema,
   uiCollectionLayoutSchema,
 } from "../../registry/index.ts";
@@ -138,7 +139,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "- behavioral_errors: structured validation-error cases. Product copy is not the contract.",
     `  - If any schema fields are required, include exactly two cases in this order: action "create", then action "update". Both use trigger/code "${MISSING_REQUIRED_FIELDS_ERROR_CODE}", fields set to every active required field name in schema order, and expected_markers exactly ${JSON.stringify(BEHAVIORAL_ERROR_MARKERS)}.`,
     "  - If no fields are required, use an empty array.",
-    "  - record_not_found, invalid_choice, choice_disabled and max_length_exceeded are platform-owned refusals Aluna answers itself; never author a case for any of them.",
+    `  - ${platformOwnedErrorCodeList()} are platform-owned refusals Aluna answers itself; never author a case for any of them.`,
     "- prompt_context: one concise sentence describing what this capability stores, used later to recognise related requests.",
     "",
     "Resolved intent:",

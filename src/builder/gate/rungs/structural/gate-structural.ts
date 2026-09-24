@@ -14,14 +14,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import ts from "typescript";
 import { errorMessage } from "../../../../platform/errors.ts";
-import { capabilitySpecSchema } from "../../../../registry/index.ts";
+import { type CapabilitySpec, capabilitySpecSchema } from "../../../../registry/index.ts";
 import { SPEC_FILE } from "../../../artifacts/publication/snapshot-contract.ts";
 import {
   formatDiagnostics,
-  HANDLER_CONTRACT_DECLARATIONS,
+  handlerContractDeclarations,
   handlerContractType,
   hasExportSurface,
-  ITEM_RENDERER_CONTRACT_DECLARATIONS,
+  itemRendererContractDeclarations,
   STRICT_CHECK_OPTIONS,
 } from "../../../generated-code-check.ts";
 import type { HandlerUnitName } from "../../../units/generation/units.ts";
@@ -69,7 +69,7 @@ export function runStructuralRung(input: CapabilityGateInput): StructuralGateRes
     });
   }
   const handlerNames = spec.tools;
-  const handlerTypeFailures = typeCheckHandlerUnits(handlerNames, input.handlers);
+  const handlerTypeFailures = typeCheckHandlerUnits(spec, handlerNames, input.handlers);
   const units: StructuralUnitOutcome[] = [structuralSpecOutcome(handlerNames, input.handlers)];
   units.push(structuralItemOutcome(input));
   for (const name of handlerNames) {
@@ -99,7 +99,7 @@ function structuralItemOutcome(input: CapabilityGateInput): StructuralUnitOutcom
     // dropped the import and ambient bans for the snapshot the Gate admits.
     const contractFailure = checkItemRendererSourceContract(input.spec, input.itemRenderer);
     if (contractFailure) throw new Error(contractFailure);
-    const rendererFailure = typeCheckItemRenderer(input.itemRenderer);
+    const rendererFailure = typeCheckItemRenderer(input.spec, input.itemRenderer);
     if (rendererFailure) throw new Error(rendererFailure);
     return passedUnit("item-renderer", "item", "item.ts");
   } catch (error) {
@@ -244,12 +244,13 @@ function assertDefaultFunctionModifiers(
 }
 
 function typeCheckHandlerUnits(
+  spec: CapabilitySpec,
   handlerNames: readonly HandlerUnitName[],
   handlers: Readonly<Partial<Record<HandlerUnitName, string>>>,
 ): ReadonlyMap<HandlerUnitName, string> {
   const dir = mkdtempSync(join(tmpdir(), "aluna-gate-typecheck-"));
   try {
-    writeFileSync(join(dir, "contract.d.ts"), HANDLER_CONTRACT_DECLARATIONS);
+    writeFileSync(join(dir, "contract.d.ts"), handlerContractDeclarations(spec));
     for (const name of handlerNames) {
       writeFileSync(join(dir, `${name}.ts`), handlers[name] ?? "");
       const suffix = `${name[0]?.toUpperCase()}${name.slice(1)}`;
@@ -292,10 +293,10 @@ function diagnosticAppliesToHandler(diagnostic: ts.Diagnostic, name: HandlerUnit
   return !filename || filename.endsWith(`/${name}.ts`) || filename.endsWith(`/${name}.assert.ts`);
 }
 
-function typeCheckItemRenderer(itemRenderer: string): string | undefined {
+function typeCheckItemRenderer(spec: CapabilitySpec, itemRenderer: string): string | undefined {
   const dir = mkdtempSync(join(tmpdir(), "aluna-gate-renderer-"));
   try {
-    writeFileSync(join(dir, "contract.d.ts"), ITEM_RENDERER_CONTRACT_DECLARATIONS);
+    writeFileSync(join(dir, "contract.d.ts"), itemRendererContractDeclarations(spec));
     writeFileSync(join(dir, "item.ts"), itemRenderer);
     writeFileSync(
       join(dir, "assert.ts"),

@@ -14,19 +14,27 @@ import {
   renderableFromRow,
 } from "../../../presentation/index.ts";
 import {
+  activeSpecFields,
   type CapabilityRow,
   type CapabilitySpec,
   capabilitySpecFromRow,
 } from "../../../registry/index.ts";
 import {
+  CapabilityDataValidationError,
   createCapabilityDeleteMutationPort,
   createCapabilityMutationPort,
   createCapabilityQueryPort,
   createCapabilityUpdateMutationPort,
+  projectFileLedgerRow,
+  resolveSubmittedFiles,
+  type SubmittedFiles,
 } from "../../data/index.ts";
 import type {
   CapabilityCreateHandler,
+  CapabilityCreateInput,
+  CapabilityCreateInputValue,
   CapabilityDeleteHandler,
+  CapabilityInput,
   CapabilityReadHandler,
   CapabilityUpdateHandler,
 } from "../contract.ts";
@@ -55,56 +63,79 @@ export async function invokeCapabilityHandler(
     dependencies: dependencies.map(capabilitySpecFromRow),
     signal,
   });
+  const writes = writeWindow();
 
   if (action === "create") {
     assertReadOwnership(signal);
-    const mutation = createCapabilityMutationPort(spec, databases.readwrite, signal);
+    // The router's first check ran before the save's transaction opened; this one runs inside it,
+    // holding the write lock, so a sweep or another save that committed in between is refused.
+    const files = resolveSubmittedFiles(
+      activeSpecFields(spec.schema.fields),
+      input.values,
+      action,
+      {
+        database: databases.readwrite,
+        capabilityId: row.id,
+        incarnationId: row.incarnation_id,
+      },
+    );
+    const mutation = writes.guard(
+      createCapabilityMutationPort(spec, databases.readwrite, signal, {
+        incarnationId: row.incarnation_id,
+        submitted: files,
+      }),
+    );
     const present = await buildPresentationAdapter(row, loadItemRenderer);
     assertReadOwnership(signal);
     const handler = await loadHandler(row.artifacts_path, action);
     assertReadOwnership(signal);
-    const fragment = await (handler as CapabilityCreateHandler)({
-      input,
-      mutation,
-      query,
-      present,
-    });
+    const fragment = await writes.answered(
+      (handler as CapabilityCreateHandler)({
+        input: withFileProjections(input, files),
+        mutation,
+        query,
+        present,
+      }),
+    );
     assertReadOwnership(signal);
     return fragment;
   }
   if (action === "update") {
     assertReadOwnership(signal);
-    const mutation = createCapabilityUpdateMutationPort(
-      spec,
-      requireRecordTarget(parsedRequest.recordTarget, action),
-      new Set(input.submittedFields),
-      databases.readwrite,
-      signal,
+    const mutation = writes.guard(
+      createCapabilityUpdateMutationPort(
+        spec,
+        requireRecordTarget(parsedRequest.recordTarget, action),
+        new Set(input.submittedFields),
+        databases.readwrite,
+        signal,
+      ),
     );
     const present = await buildPresentationAdapter(row, loadItemRenderer);
     assertReadOwnership(signal);
     const handler = await loadHandler(row.artifacts_path, action);
     assertReadOwnership(signal);
-    const fragment = await (handler as CapabilityUpdateHandler)({
-      input,
-      mutation,
-      query,
-      present,
-    });
+    const fragment = await writes.answered(
+      (handler as CapabilityUpdateHandler)({ input, mutation, query, present }),
+    );
     assertReadOwnership(signal);
     return fragment;
   }
   if (action === "delete") {
     assertReadOwnership(signal);
-    const mutation = createCapabilityDeleteMutationPort(
-      spec,
-      requireRecordTarget(parsedRequest.recordTarget, action),
-      databases.readwrite,
-      signal,
+    const mutation = writes.guard(
+      createCapabilityDeleteMutationPort(
+        spec,
+        requireRecordTarget(parsedRequest.recordTarget, action),
+        databases.readwrite,
+        signal,
+      ),
     );
     const handler = await loadHandler(row.artifacts_path, action);
     assertReadOwnership(signal);
-    const fragment = await (handler as CapabilityDeleteHandler)({ input, mutation, query });
+    const fragment = await writes.answered(
+      (handler as CapabilityDeleteHandler)({ input, mutation, query }),
+    );
     assertReadOwnership(signal);
     return fragment;
   }
@@ -117,6 +148,55 @@ export async function invokeCapabilityHandler(
   const fragment = await (handler as CapabilityReadHandler)({ input, query, present });
   assertReadOwnership(signal);
   return fragment;
+}
+
+/**
+ * The span a writing Handler may write in: from its call until its answer settles. Each write asks
+ * `Bun.peek`, which reads a settled promise synchronously, so once the answer has settled a queued
+ * write is refused even before the route sees it. Returning a value settles it at the `return`;
+ * returning a promise settles it only once that promise is adopted, and writes in between land.
+ */
+function writeWindow() {
+  let answer: Promise<string> | undefined;
+  const assertOpen = () => {
+    if (answer !== undefined && Bun.peek.status(answer) !== "pending") {
+      throw new CapabilityDataValidationError(
+        "The mutation port closed when its Handler answered.",
+      );
+    }
+  };
+  return {
+    guard<Port extends object>(port: Port): Port {
+      return Object.fromEntries(
+        Object.entries(port).map(
+          ([name, write]: [string, (...parameters: unknown[]) => unknown]) => {
+            const guarded = (...args: unknown[]) => {
+              assertOpen();
+              return write(...args);
+            };
+            return [
+              name,
+              Object.defineProperties(guarded, {
+                name: { value: write.name },
+                length: { value: write.length },
+              }),
+            ];
+          },
+        ),
+      ) as Port;
+    },
+    answered(pending: Promise<string>): Promise<string> {
+      answer = pending;
+      return pending;
+    },
+  };
+}
+
+/** The Handler's input, with each submitted file field's key replaced by its projection. */
+function withFileProjections(input: CapabilityInput, files: SubmittedFiles): CapabilityCreateInput {
+  const values: Record<string, CapabilityCreateInputValue> = { ...input.values };
+  for (const [field, row] of files) values[field] = row === null ? null : projectFileLedgerRow(row);
+  return { values: Object.freeze(values), submittedFields: input.submittedFields };
 }
 
 function requireRecordTarget(

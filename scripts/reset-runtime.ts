@@ -13,6 +13,7 @@ import {
   CAPABILITY_TABLE_PREFIX,
   EVENT_LOG_OWNERSHIP_TABLE,
   EVENT_LOG_TABLE,
+  FILE_LEDGER_TABLE,
   GENERATION_LIFECYCLE_TABLE,
   GENERATION_METRICS_TABLE,
   INTENT_RESOLUTION_METRICS_TABLE,
@@ -34,6 +35,7 @@ const PLATFORM_DATA_TABLES = [
   // Both halves of the Event Log store, or a reset leaves ownership rows pointing at deleted
   // event ids. Neither exists outside the 4.9 seam fake until M10, so both are no-ops today.
   EVENT_LOG_OWNERSHIP_TABLE,
+  FILE_LEDGER_TABLE,
 ] as const;
 
 export interface ResetRuntimeOptions {

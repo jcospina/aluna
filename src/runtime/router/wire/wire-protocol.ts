@@ -99,7 +99,7 @@ function validatePresenceMarkers(
     return rejectUnexpectedPresenceMarkers(action, markers);
   }
 
-  const submitted = collectSubmittedFields(markers, activeFields);
+  const submitted = collectSubmittedFields(action, markers, activeFields);
   if (action === "create") requireAllCreateFields(activeFields, submitted);
   return submitted;
 }
@@ -115,6 +115,7 @@ function rejectUnexpectedPresenceMarkers(
 }
 
 function collectSubmittedFields(
+  action: "create" | "update",
   markers: readonly string[],
   activeFields: ReturnType<typeof activeSpecFields>,
 ): ReadonlySet<string> {
@@ -125,9 +126,10 @@ function collectSubmittedFields(
     if (fieldName.trim().length === 0 || !field) {
       throw new WireProtocolError(`Invalid submitted field marker "${fieldName}".`);
     }
-    // The form's file stand-in submits nothing, so a marker for one did not come from the form.
-    if (isFileFieldType(field.type)) {
-      throw new WireProtocolError(`File field "${fieldName}" is not submitted by this protocol.`);
+    // A create names a file by the key its upload answered with, or leaves it out. What an update
+    // may say about a file it already holds is 7.1/05's, so until then it says nothing.
+    if (isFileFieldType(field.type) && action === "update") {
+      throw new WireProtocolError(`File field "${fieldName}" is not submitted to an update yet.`);
     }
     if (submitted.has(fieldName)) {
       throw new WireProtocolError(`Duplicate submitted field marker "${fieldName}".`);
@@ -282,7 +284,11 @@ function addSubmittedEmptyLists(
   submittedFields: ReadonlySet<string>,
 ): void {
   for (const field of activeFields) {
-    if (!submittedFields.has(field.name) || !isListFieldType(field.type) || field.name in values)
+    if (
+      !submittedFields.has(field.name) ||
+      !isListFieldType(field.type) ||
+      Object.hasOwn(values, field.name)
+    )
       continue;
     values[field.name] = [];
   }

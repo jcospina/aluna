@@ -8,6 +8,7 @@ import {
   type ScratchDbEnv,
   teardownScratchDbEnv,
 } from "../../../platform/persistence/scratch-db.test-support.ts";
+import { photoSpec } from "../../../registry/fields/file.test-support.ts";
 import {
   FIRST_INCARNATION_ID,
   SECOND_INCARNATION_ID,
@@ -35,6 +36,7 @@ export function teardownRouterTest(dir: string, conns: PlatformDatabase): void {
 
 export const NOTES_ARTIFACTS = "src/runtime/router/__fixtures__/notes/v1/";
 export const BOOM_ARTIFACTS = "src/runtime/router/__fixtures__/boom/v1/";
+export const PHOTOS_ARTIFACTS = "src/runtime/router/__fixtures__/photos/v1/";
 export const NOTES_INCARNATION_ID = FIRST_INCARNATION_ID;
 
 export function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
@@ -48,6 +50,17 @@ export function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow 
     display_label_override: null,
     ...overrides,
   };
+}
+
+/** The fixture with a photo field (`__fixtures__/photos`), whose card draws the photo. */
+export function photosRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
+  const spec = photoSpec();
+  return notesRow({
+    ...spec,
+    ui_intent: { ...spec.ui_intent, item: { ...spec.ui_intent.item, shows: ["photo", "caption"] } },
+    artifacts_path: PHOTOS_ARTIFACTS,
+    ...overrides,
+  });
 }
 
 /**

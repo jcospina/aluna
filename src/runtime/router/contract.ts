@@ -8,6 +8,7 @@
 import type { PresentationAdapter } from "../../presentation/index.ts";
 import type {
   CapabilityDeleteMutationPort,
+  CapabilityFileProjection,
   CapabilityMutationPort,
   CapabilityQueryPort,
   CapabilityUpdateMutationPort,
@@ -23,6 +24,13 @@ export interface CapabilityInput {
   readonly submittedFields: ReadonlySet<string>;
 }
 
+/** A create's input, the one that can name a file: its projection, or `null` if submitted empty. */
+export type CapabilityCreateInputValue = CapabilityInputValue | CapabilityFileProjection | null;
+export interface CapabilityCreateInput {
+  readonly values: Readonly<Record<string, CapabilityCreateInputValue>>;
+  readonly submittedFields: ReadonlySet<string>;
+}
+
 /**
  * The platform-built contexts keep write authority apart from free reads: create is
  * capability-bound, update and delete record-bound. The Handler never imports platform modules.
@@ -33,7 +41,10 @@ export interface CapabilityContext {
   readonly present: PresentationAdapter;
 }
 
-export interface CapabilityCreateContext extends CapabilityContext {
+export interface CapabilityCreateContext {
+  readonly input: CapabilityCreateInput;
+  readonly query: CapabilityQueryPort;
+  readonly present: PresentationAdapter;
   readonly mutation: CapabilityMutationPort;
 }
 
