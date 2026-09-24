@@ -9,6 +9,8 @@ export type {
   CapabilityContext,
   CapabilityCreateContext,
   CapabilityCreateHandler,
+  CapabilityCreateInput,
+  CapabilityCreateInputValue,
   CapabilityDeleteContext,
   CapabilityDeleteHandler,
   CapabilityHandler,

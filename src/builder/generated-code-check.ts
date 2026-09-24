@@ -9,6 +9,8 @@
 
 import ts from "typescript";
 
+import { FILE_FAMILIES, hasActiveFileField } from "../registry/fields/file.ts";
+import type { CapabilitySpec } from "../registry/spec/spec.ts";
 import { QUERY_RESULT_TYPES } from "../runtime/data/query-result-types.ts";
 import type { HandlerUnitName } from "./units/generation/units.ts";
 
@@ -38,6 +40,9 @@ export const STRICT_CHECK_OPTIONS: ts.CompilerOptions = {
  */
 const QUERY_RESULT_TYPE_UNION = QUERY_RESULT_TYPES.map((type) => JSON.stringify(type)).join(" | ");
 
+/** A file's `kind`, derived from the families the runtime admits, as the union above is. */
+const FILE_FAMILY_UNION = FILE_FAMILIES.map((family) => JSON.stringify(family)).join(" | ");
+
 /** Format TypeScript diagnostics with file:line:col positions for a stage's report. */
 export function formatDiagnostics(diagnostics: readonly ts.Diagnostic[]): string {
   return diagnostics
@@ -60,8 +65,31 @@ export function hasExportSurface(statement: ts.Statement): boolean {
   );
 }
 
-const RECORD_CONTRACT_DECLARATIONS = `
-type CapabilityDataColumnValue = string | number | boolean | readonly string[] | null;
+/**
+ * A capability with no active file field is checked against the value types it had before files.
+ * The projection's interface is declared either way: an unused declaration changes no code's types.
+ */
+function carriesFiles(spec: Pick<CapabilitySpec, "schema">): boolean {
+  return hasActiveFileField(spec.schema.fields);
+}
+
+const FILE_PROJECTION_DECLARATION = `
+interface CapabilityFileProjection {
+  readonly url: string;
+  readonly name: string;
+  readonly kind: ${FILE_FAMILY_UNION};
+  readonly mime: string;
+  readonly size: number;
+}`;
+
+function recordContractDeclarations(files: boolean): string {
+  return `${FILE_PROJECTION_DECLARATION}
+type CapabilityDataColumnValue =
+  | string
+  | number
+  | boolean
+  | readonly string[]${files ? "\n  | CapabilityFileProjection" : ""}
+  | null;
 interface CapabilityDataRow {
   readonly id: string;
   readonly created_at: string;
@@ -76,13 +104,23 @@ interface CapabilityActionRecord {
 }
 type PresentationAdapter = (record: CapabilityActionRecord) => string;
 `;
+}
 
-// The handler contract, including ADR-0005 §2's injected `present` adapter — the shape
-// `src/runtime/router/contract.ts` declares and the gate's structural rung re-checks.
-export const HANDLER_CONTRACT_DECLARATIONS = `${RECORD_CONTRACT_DECLARATIONS}
+/**
+ * The handler contract, including ADR-0005 §2's injected `present` adapter — the shape
+ * `src/runtime/router/contract.ts` declares and the gate's structural rung re-checks.
+ */
+export function handlerContractDeclarations(spec: Pick<CapabilitySpec, "schema">): string {
+  const files = carriesFiles(spec);
+  return `${recordContractDeclarations(files)}
 type CapabilityInputValue = string | readonly string[];
 interface CapabilityInput {
   readonly values: Readonly<Record<string, CapabilityInputValue>>;
+  readonly submittedFields: ReadonlySet<string>;
+}
+type CapabilityCreateInputValue = CapabilityInputValue${files ? " | CapabilityFileProjection | null" : ""};
+interface CapabilityCreateInput {
+  readonly values: Readonly<Record<string, CapabilityCreateInputValue>>;
   readonly submittedFields: ReadonlySet<string>;
 }
 interface CapabilityMutationPort {
@@ -120,7 +158,10 @@ interface CapabilityContext {
   readonly query: CapabilityQueryPort;
   readonly present: PresentationAdapter;
 }
-interface CapabilityCreateContext extends CapabilityContext {
+interface CapabilityCreateContext {
+  readonly input: CapabilityCreateInput;
+  readonly query: CapabilityQueryPort;
+  readonly present: PresentationAdapter;
   readonly mutation: CapabilityMutationPort;
 }
 interface CapabilityUpdateContext extends CapabilityContext {
@@ -136,6 +177,7 @@ type CapabilityReadHandler = (context: CapabilityContext) => Promise<string>;
 type CapabilityUpdateHandler = (context: CapabilityUpdateContext) => Promise<string>;
 type CapabilityDeleteHandler = (context: CapabilityDeleteContext) => Promise<string>;
 `;
+}
 
 export function handlerContractType(action: HandlerUnitName): string {
   if (action === "create") return "CapabilityCreateHandler";
@@ -146,6 +188,8 @@ export function handlerContractType(action: HandlerUnitName): string {
 
 // The item-renderer contract: one record → its inner markup string (the composition
 // input the presentation adapter binds, src/presentation/records/adapter.ts `ItemRenderer`).
-export const ITEM_RENDERER_CONTRACT_DECLARATIONS = `${RECORD_CONTRACT_DECLARATIONS}
+export function itemRendererContractDeclarations(spec: Pick<CapabilitySpec, "schema">): string {
+  return `${recordContractDeclarations(carriesFiles(spec))}
 type ItemRenderer = (record: PresentableRecord) => string;
 `;
+}

@@ -13,6 +13,8 @@ export {
   defaultBehavioralErrorsForSchema,
   MAX_BEHAVIORAL_ERRORS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  PLATFORM_OWNED_ERROR_CODES,
+  platformOwnedErrorCodeList,
 } from "./fields/behavioral-errors.ts";
 export {
   admittedChoiceValues,
@@ -49,6 +51,8 @@ export {
   type FileFamily,
   type FileFieldType,
   familiesSchema,
+  hasActiveFileField,
+  INVALID_FILE_REFERENCE_ERROR_CODE,
   isFileFieldType,
 } from "./fields/file.ts";
 export {

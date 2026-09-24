@@ -21,10 +21,10 @@ import {
 } from "../../../registry/index.ts";
 import {
   formatDiagnostics,
-  HANDLER_CONTRACT_DECLARATIONS,
+  handlerContractDeclarations,
   handlerContractType,
   hasExportSurface,
-  ITEM_RENDERER_CONTRACT_DECLARATIONS,
+  itemRendererContractDeclarations,
   STRICT_CHECK_OPTIONS,
 } from "../../generated-code-check.ts";
 import type {
@@ -73,7 +73,7 @@ function checkHandlerUnit(
 ): string | undefined {
   const sourceMessage = checkHandlerSourceContract(spec, action, content, dependencyCatalog);
   if (sourceMessage) return sourceMessage;
-  return typeCheckUnit(content, HANDLER_CONTRACT_DECLARATIONS, handlerAssert(action));
+  return typeCheckUnit(content, handlerContractDeclarations(spec), handlerAssert(action));
 }
 
 /** The complete static Handler contract shared by unit generation and whole-snapshot Gate. */
@@ -92,7 +92,7 @@ export function checkHandlerSourceContract(
 function checkItemRendererUnit(spec: CapabilitySpec, content: string): string | undefined {
   const sourceMessage = checkItemRendererSourceContract(spec, content);
   if (sourceMessage) return sourceMessage;
-  return typeCheckUnit(content, ITEM_RENDERER_CONTRACT_DECLARATIONS, ITEM_RENDERER_ASSERT);
+  return typeCheckUnit(content, itemRendererContractDeclarations(spec), ITEM_RENDERER_ASSERT);
 }
 
 /**

@@ -73,7 +73,7 @@ describe("both prompts describe the three declarations", () => {
     });
 
     test(`${name}: the platform owns the over-length refusal, so nobody authors it`, () => {
-      expect(build()).toContain("max_length_exceeded are platform-owned");
+      expect(build()).toMatch(/max_length_exceeded[^\n]* are platform-owned/);
     });
   }
 });

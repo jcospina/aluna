@@ -17,6 +17,7 @@ import {
   type BehavioralErrorCase,
   type CapabilityRow,
   type CapabilitySpec,
+  hasActiveFileField,
   isSearchableTextType,
   presentationFieldDescriptors,
   type SpecField,
@@ -75,7 +76,7 @@ function priorSourceSection(unit: UnitDescriptor, priorSource: string): string[]
 function indexedInputRepairGuidance(unit: UnitDescriptor, message: string): string[] {
   if (
     unit.kind !== "handler" ||
-    (!message.includes("CapabilityInputValue | undefined") &&
+    (!/Capability(?:Create)?InputValue \| undefined/.test(message) &&
       !(
         message.includes("readonly string[]") && message.includes("not assignable to type 'string'")
       ))
@@ -87,7 +88,7 @@ function indexedInputRepairGuidance(unit: UnitDescriptor, message: string): stri
     "",
     "Required repair for indexed input values:",
     "- Replace the unsafe scalar extraction with this readonly-safe shape; do not preserve or rearrange the failed narrowing:",
-    '  `function scalarValue(value: string | readonly string[] | undefined): string { if (typeof value === "string") return value; return ""; }`',
+    '  `function scalarValue(value: unknown): string { if (typeof value === "string") return value; return ""; }`',
     ...(unit.name === "update"
       ? [
           "- Keep update field admission separate: test `input.submittedFields.has(fieldName)` before adding that field to the patch.",
@@ -139,7 +140,7 @@ function buildHandlerPrompt(
       : []),
     "Available global types in the isolated type-check:",
     contextContract(action),
-    ...inputValueContract(action),
+    ...inputValueContract(spec, action),
     "- `input.submittedFields` is a platform-validated `ReadonlySet<string>`; reserved `__aluna_` markers never reach generated code.",
     "- A choice field's value has already been checked against its declared values by the platform, which answers an undeclared one itself. Never re-validate the option set or emit an error for it.",
     "- A string field's length has already been checked against its declared max_length by the platform, which answers an over-length submission itself. Never re-validate string length, truncate a value, or emit an error for it.",
@@ -161,22 +162,30 @@ function buildHandlerPrompt(
   ].join("\n");
 }
 
-function inputValueContract(action: HandlerUnitName): string[] {
-  const declared =
-    "- `input.values` is a `Readonly<Record<string, string | readonly string[]>>`; repeated keys keep arrival order and spec-known list fields are arrays when a value exists.";
+function inputValueContract(spec: CapabilitySpec, action: HandlerUnitName): string[] {
+  const files = action === "create" && hasActiveFileField(spec.schema.fields);
+  const valueType = files
+    ? "string | readonly string[] | CapabilityFileProjection | null"
+    : "string | readonly string[]";
+  const declared = `- \`input.values\` is a \`Readonly<Record<string, ${valueType}>>\`; repeated keys keep arrival order and spec-known list fields are arrays when a value exists.`;
   if (action === "read" || action === "delete") return [declared];
 
   const scalarRules = [
     declared,
-    "- Every indexed `input.values[name]` read may be `undefined` under `noUncheckedIndexedAccess`—including a direct known-field read such as `input.values.title`. Its real indexed type is `string | readonly string[] | undefined`.",
+    `- Every indexed \`input.values[name]\` read may be \`undefined\` under \`noUncheckedIndexedAccess\`—including a direct known-field read such as \`input.values.title\`. Its real indexed type is \`${valueType} | undefined\`.`,
     "- `input.submittedFields.has(name)` is runtime presence information; it does not narrow a separate `input.values[name]` expression for TypeScript. Read and narrow the value independently.",
     '- For scalar fields, narrow with `typeof value === "string"` first. Do not use `Array.isArray` and then return the unchecked false branch as a string: TypeScript may retain the `readonly string[]` member there.',
-    '- Safe scalar extractor: `function scalarValue(value: string | readonly string[] | undefined): string { if (typeof value === "string") return value; return ""; }`.',
+    '- Safe scalar extractor: `function scalarValue(value: unknown): string { if (typeof value === "string") return value; return ""; }`.',
   ];
   if (action === "search") return scalarRules;
 
   return [
     ...scalarRules,
+    ...(files
+      ? [
+          "- A file field arrives as its projection `{ url, name, kind, mime, size }`, or `null` when it was submitted empty, or not at all. Pass `input.values[name]` to `mutation.create` unchanged or leave the field out; never build, edit or replace one.",
+        ]
+      : []),
     "- Use the scalar extractor only for scalar schema fields. For a string[] field, use `Array.isArray(value) ? [...value] : []`; do not take only its first element.",
     "- A submitted unchecked boolean may have no `input.values` entry. Interpret that `undefined` as false only after `input.submittedFields` proves the boolean was submitted.",
     ...(action === "update"
@@ -273,7 +282,7 @@ function actionBehavior(spec: CapabilitySpec, action: HandlerUnitName): string {
   if (action === "create") {
     return [
       "- Read values only from `input.values`, coerce them into the Action-safe field types, call `mutation.create`, and return `present(row)` for the inserted row.",
-      '- Create presence is explicit: every active field is in `input.submittedFields`. A submitted empty optional scalar becomes `null`; treat either "on" (browser checkbox) or "true" (Gate synthetic input) as a checked boolean, while an unchecked submitted boolean has no value and becomes `false`; never invent a value for a required field.',
+      `- Create presence is explicit: every active field is in \`input.submittedFields\`${hasActiveFileField(spec.schema.fields) ? ", except a file field the form left out" : ""}. A submitted empty optional scalar becomes \`null\`; treat either "on" (browser checkbox) or "true" (Gate synthetic input) as a checked boolean, while an unchecked submitted boolean has no value and becomes \`false\`; never invent a value for a required field.`,
       "- A string[] input is already a readonly string array in submitted order. Narrow with `Array.isArray`, pass a flat mutable copy such as `[...value]` to `mutation.create`, and never wrap the array in another array or split commas.",
       "- Destructure `{ input, mutation, present }`: `export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string>`.",
     ].join("\n");

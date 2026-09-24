@@ -42,6 +42,7 @@ import {
   assertSubmittedFieldValues,
   ChoiceDisabledError,
   InvalidChoiceError,
+  InvalidFileReferenceError,
   MaxLengthExceededError,
   MissingRequiredFieldsError,
   RecordNotFoundError,
@@ -71,6 +72,7 @@ import {
   choiceDisabledFailure,
   internalFailure,
   invalidChoiceFailure,
+  invalidFileReferenceFailure,
   maxLengthExceededFailure,
   missingRequiredFieldsFailure,
   NOT_FOUND_FRAGMENT,
@@ -273,14 +275,18 @@ async function handleCapabilityRequest(
   let parsedRequest: ParsedCapabilityRequest;
   try {
     parsedRequest = await parseCapabilityRequest(c.req.raw, action, spec);
-    // The two refusals the platform owns — an undeclared choice value, an over-long string —
-    // settle before any generated code loads, so a Handler cannot catch one and answer 200.
+    // The refusals the platform owns — an undeclared choice value, an over-long string, a file it
+    // may not claim — settle before any generated code loads, so a Handler cannot answer 200.
     if (action === "create" || action === "update") {
       assertSubmittedFieldValues(
-        row.id,
         activeSpecFields(spec.schema.fields),
         parsedRequest.input.values,
         action,
+        {
+          database: databases.readonly,
+          capabilityId: row.id,
+          incarnationId: row.incarnation_id,
+        },
       );
     }
   } catch (error) {
@@ -466,6 +472,9 @@ function capabilityHandlerFailure(
   }
   if (error instanceof MaxLengthExceededError) {
     return maxLengthExceededFailure(c, id, error);
+  }
+  if (error instanceof InvalidFileReferenceError) {
+    return invalidFileReferenceFailure(c, id, error);
   }
   if (error instanceof RecordNotFoundError) {
     return recordNotFoundFailure(c, id, action, error);

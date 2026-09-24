@@ -18,6 +18,7 @@ import {
 import { insertCapability, REGISTRY_TABLE } from "../../registry/store/store.ts";
 import { notesRow } from "../../runtime/router/dispatch/router.test-support.ts";
 import { waitForLog } from "../async.test-support.ts";
+import { FILE_LEDGER_TABLE } from "../files/ledger.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,
@@ -122,6 +123,7 @@ describe("platform migrations runner", () => {
         GENERATION_METRICS_TABLE,
         GENERATION_LIFECYCLE_TABLE,
         INTENT_RESOLUTION_METRICS_TABLE,
+        FILE_LEDGER_TABLE,
       ].sort(),
     );
   });

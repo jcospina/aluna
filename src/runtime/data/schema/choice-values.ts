@@ -18,6 +18,7 @@ import {
   ChoiceDisabledError,
   InvalidChoiceError,
 } from "../internal.ts";
+import { ownValue } from "./own-value.ts";
 
 type ChoiceField = Pick<SpecField, "name" | "type" | "values">;
 
@@ -32,7 +33,7 @@ export function assertDeclaredChoiceValues(
   action: "create" | "update",
 ): void {
   const undeclared = fields
-    .filter((field) => isUndeclaredChoiceValue(field, values[field.name]))
+    .filter((field) => isUndeclaredChoiceValue(field, ownValue(values, field.name)))
     .map((field) => field.name);
   if (undeclared.length > 0) {
     throw new InvalidChoiceError(capabilityId, undeclared, action);
@@ -49,7 +50,9 @@ export function assertAdmittedChoiceValues(
   assertDeclaredChoiceValues(capabilityId, fields, values, action);
 
   const retired = fields
-    .filter((field) => isRefusedDisabledValue(field, values[field.name], held[field.name]))
+    .filter((field) =>
+      isRefusedDisabledValue(field, ownValue(values, field.name), ownValue(held, field.name)),
+    )
     .map((field) => field.name);
   if (retired.length > 0) {
     throw new ChoiceDisabledError(capabilityId, retired, action);

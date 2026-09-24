@@ -7,6 +7,7 @@
 // A model told only the enum picks the first member every time.
 
 import { describe, expect, test } from "bun:test";
+import { PLATFORM_OWNED_ERROR_CODES } from "../../registry/index.ts";
 import {
   makeSpecProvider,
   notesIntent,
@@ -57,9 +58,9 @@ describe("spec generation stage — the choice contract in the prompt", () => {
   });
 
   test("names every platform-owned refusal a capability must never author", () => {
-    const prompt = choicePrompt();
-    expect(prompt).toContain(
-      "record_not_found, invalid_choice, choice_disabled and max_length_exceeded are platform-owned",
-    );
+    const owned = choicePrompt()
+      .split("\n")
+      .find((line) => line.includes("platform-owned refusals"));
+    for (const code of PLATFORM_OWNED_ERROR_CODES) expect(owned).toContain(code);
   });
 });

@@ -694,6 +694,8 @@ document.addEventListener("htmx:beforeSwap", (event) => {
     // A string longer than its field's declared max_length. The native attribute stops it on a
     // filled-in form, so this is the crafted-request path.
     "max_length_exceeded",
+    // A file the save could not claim: gone to a sweep, or another field's or another save's.
+    "invalid_file_reference",
     "mutation_busy",
     "read_unavailable",
     "record_not_found",
@@ -732,9 +734,8 @@ document.addEventListener("htmx:beforeSwap", (event) => {
  * @param {boolean} navigated
  */
 function tellDeskTheWindowTookCapability(navigated) {
-  document.dispatchEvent(
-    new CustomEvent("aluna:window-took-capability", { detail: { navigated } }),
-  );
+  const event = new CustomEvent("aluna:window-took-capability", { detail: { navigated } });
+  document.dispatchEvent(event);
 }
 
 /** @param {HTMLElement} subscriber */
