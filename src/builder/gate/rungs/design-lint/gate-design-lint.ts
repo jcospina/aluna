@@ -31,6 +31,7 @@ import {
 import {
   type CapabilitySpec,
   choiceFieldOptions,
+  isFileFieldType,
   type SpecField,
 } from "../../../../registry/index.ts";
 import { normalizeMaxAttempts } from "../../../attempts.ts";
@@ -316,7 +317,7 @@ function buildProbeRecords(spec: CapabilitySpec): readonly DesignProbe[] {
       kind: "baseline",
       record: recordWith(spec, (field) => syntheticValue(field)),
     },
-    ...spec.ui_intent.item.shows.map((fieldName) => ({
+    ...contrastedFields(spec).map((fieldName) => ({
       label: `synthetic contrast for ${fieldName}`,
       kind: "contrast" as const,
       record: contrastingRecord(spec, fieldName),
@@ -327,10 +328,27 @@ function buildProbeRecords(spec: CapabilitySpec): readonly DesignProbe[] {
     probes.push({
       label: `hostile #${index + 1}`,
       kind: "hostile",
-      record: recordWith(spec, (field) => (field.type === "string[]" ? [payload] : payload)),
+      record: recordWith(spec, (field) => hostileValue(field, payload)),
     });
   }
   return probes;
+}
+
+/**
+ * The shown fields a contrast probe can vary. A file field holds only `null` in every probe
+ * (`formSubmitsField`), and a contrast that cannot move would fail every renderer.
+ */
+function contrastedFields(spec: CapabilitySpec): readonly string[] {
+  const files = new Set(
+    spec.schema.fields.filter((field) => isFileFieldType(field.type)).map((field) => field.name),
+  );
+  return spec.ui_intent.item.shows.filter((name) => !files.has(name));
+}
+
+/** A hostile payload wherever a field holds text; a file field holds none (`formSubmitsField`). */
+function hostileValue(field: SpecField, payload: string): string | readonly string[] | null {
+  if (isFileFieldType(field.type)) return null;
+  return field.type === "string[]" ? [payload] : payload;
 }
 
 function contrastingRecord(spec: CapabilitySpec, fieldName: string): PresentableRecord {
@@ -361,7 +379,7 @@ function recordWith(
 
 /** A benign, typed value for the synthetic probe — mirrors the smoke rung's sample shapes.
  *  It is also what catches a renderer that hard-codes a dangerous URL. */
-function syntheticValue(field: SpecField): string | number | boolean | readonly string[] {
+function syntheticValue(field: SpecField): string | number | boolean | readonly string[] | null {
   switch (field.type) {
     case "string":
       return `Sample ${field.name}`;
@@ -377,6 +395,9 @@ function syntheticValue(field: SpecField): string | number | boolean | readonly 
       return firstChoiceValue(field);
     case "string[]":
       return [`Sample ${field.name} first`, `Sample ${field.name} second`];
+    case "file":
+      // Empty, as every Gate value for one is (`formSubmitsField`, `builder/gate/gate-internal.ts`).
+      return null;
   }
 }
 
@@ -397,7 +418,7 @@ function contrastingChoiceValue(field: SpecField): string {
 
 /** A second benign value with the same runtime type but different semantic content. The
  * pair proves composition depends on record data without prescribing wording or format. */
-function contrastingValue(field: SpecField): string | number | boolean | readonly string[] {
+function contrastingValue(field: SpecField): string | number | boolean | readonly string[] | null {
   switch (field.type) {
     case "string":
       return `Different ${field.name}`;
@@ -413,6 +434,8 @@ function contrastingValue(field: SpecField): string | number | boolean | readonl
       return contrastingChoiceValue(field);
     case "string[]":
       return [`Different ${field.name} first`, `Different ${field.name} second`];
+    case "file":
+      return null;
   }
 }
 
@@ -424,7 +447,7 @@ function findRecordContentViolation(
   // unwritten contract that silently compared the wrong records and blamed the wrong field.
   const baseline = rendered.find(({ probe }) => probe.kind === "baseline");
   const contrasts = rendered.filter(({ probe }) => probe.kind === "contrast");
-  if (!baseline || contrasts.length !== spec.ui_intent.item.shows.length) {
+  if (!baseline || contrasts.length !== contrastedFields(spec).length) {
     return "The design-lint record-dependency probes could not be assembled.";
   }
   const baselineContent = observableItemRecordContent(baseline.inner);

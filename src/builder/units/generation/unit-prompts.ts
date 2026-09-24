@@ -17,8 +17,7 @@ import {
   type BehavioralErrorCase,
   type CapabilityRow,
   type CapabilitySpec,
-  isChoiceFieldType,
-  isListFieldType,
+  isSearchableTextType,
   presentationFieldDescriptors,
   type SpecField,
 } from "../../../registry/index.ts";
@@ -414,14 +413,6 @@ type MutationFieldProjection = Pick<SpecField, "name" | "type" | "required"> & {
 };
 type SearchFieldProjection = Pick<SpecField, "name" | "type">;
 
-/**
- * Searchability, decided as the Diff Engine and the behavioral total inputs decide it. All four
- * must move together, or the Diff selects `search` for a field this projection never names.
- */
-function isSearchableProjectionType(type: SpecField["type"]): boolean {
-  return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
-}
-
 function handlerFieldProjection(
   spec: CapabilitySpec,
   action: HandlerUnitName,
@@ -441,7 +432,7 @@ function handlerFieldProjection(
   }
   if (action === "search") {
     return active
-      .filter((field) => isSearchableProjectionType(field.type))
+      .filter((field) => isSearchableTextType(field.type))
       .map(({ name, type }) => ({ name, type }));
   }
   return [];

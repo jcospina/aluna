@@ -18,6 +18,7 @@ import {
   type CapabilityTool,
   choiceFieldOptions,
   type FieldType,
+  type FileFamily,
   FULL_CAPABILITY_TOOLS,
   isSearchableTextType,
   type ReadDependency,
@@ -44,6 +45,11 @@ export interface ActionSchemaField {
    * refuses a longer write before the Handler runs, so the limit moves the digest (ADR-0006).
    */
   readonly max_length?: number;
+  /**
+   * The families a file field takes, absent on every other field. Validation shape, like
+   * `max_length`, so a change to it moves the create and update digests.
+   */
+  readonly accepts?: readonly FileFamily[];
 }
 
 /** search: only the text-shaped fields a query can mechanically match. */
@@ -162,6 +168,7 @@ function canonicalSchemaInput(spec: CapabilitySpec, action: CapabilityTool): Act
     // Absent rather than zero on a field with no bound, so a capability built before any
     // of this digests exactly as it did.
     ...(field.max_length === undefined ? {} : { max_length: field.max_length }),
+    ...(field.accepts === undefined ? {} : { accepts: field.accepts }),
   }));
 }
 

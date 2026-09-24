@@ -4,6 +4,7 @@ import {
   type SpecField,
 } from "../../../../../registry/index.ts";
 import type { CapabilityInput } from "../../../../../runtime/router/index.ts";
+import { formSubmitsField } from "../../../gate-internal.ts";
 
 export type BehavioralScalar = string | number | boolean | readonly string[] | null;
 
@@ -46,9 +47,9 @@ export function fieldValuesToRecord(
 export function inputValuesToHandlerInput(
   spec: CapabilitySpec,
   values: readonly BehavioralInputValue[],
-  submittedFieldNames: readonly string[] = activeSpecFields(spec.schema.fields).map(
-    (field) => field.name,
-  ),
+  submittedFieldNames: readonly string[] = activeSpecFields(spec.schema.fields)
+    .filter(formSubmitsField)
+    .map((field) => field.name),
 ): CapabilityInput {
   const fields = activeSpecFields(spec.schema.fields);
   const fieldsByName = new Map(fields.map((field) => [field.name, field]));

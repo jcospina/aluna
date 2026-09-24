@@ -13,6 +13,7 @@
 // that named no limit, and every `string[]`, were the two shapes with no ceiling anywhere.
 
 import {
+  isFileFieldType,
   MAX_DECLARED_MAX_LENGTH,
   maxLengthsByField,
   type SpecField,
@@ -32,6 +33,8 @@ export function assertAdmittedStringLengths(
   const declared = maxLengthsByField({ schema: { fields: [...fields] } });
   const overrun: string[] = [];
   for (const field of fields) {
+    // A reference is not text a person typed, so no length refusal may name it (`tool.ts`).
+    if (isFileFieldType(field.type)) continue;
     const measured = measuredLength(values[field.name]);
     if (measured === undefined) continue;
     if (measured > (declared.get(field.name) ?? MAX_DECLARED_MAX_LENGTH)) overrun.push(field.name);

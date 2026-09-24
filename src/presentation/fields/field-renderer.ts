@@ -16,7 +16,9 @@ import {
   activeSpecFields,
   type ChoiceFieldType,
   type FieldType,
+  type FileFieldType,
   isChoiceFieldType,
+  isFileFieldType,
   isListFieldType,
   isLongTextField,
   type ListFieldType,
@@ -32,6 +34,7 @@ import {
 import { escapeHtml } from "../../server/http/html.ts";
 import { ADDING_LABEL, busyLabelAttribute, SAVING_RECORD_LABEL } from "../controls/busy-label.ts";
 import { renderChoiceField } from "../controls/choice-control.ts";
+import { renderFileField } from "../controls/file-control.ts";
 import {
   controlShell,
   type FieldChrome,
@@ -219,11 +222,14 @@ interface CreateInput {
   readonly canBeEmpty: boolean;
 }
 
+/** The types drawn as one native input; lists, choices and files each have their own control. */
+type NativeInputFieldType = Exclude<FieldType, ListFieldType | ChoiceFieldType | FileFieldType>;
+
 /**
  * The total dispatch from a pantry field type to its create control. Adding a `FieldType` without
  * a case here fails the type-check (`assertNever`), so a control can never be silently missing.
  */
-function createInputFor(type: Exclude<FieldType, ListFieldType | ChoiceFieldType>): CreateInput {
+function createInputFor(type: NativeInputFieldType): CreateInput {
   switch (type) {
     case "string":
       return { inputType: "text", inline: false, extraAttributes: "", canBeEmpty: true };
@@ -259,6 +265,9 @@ function renderCreateField(capabilityId: string, field: SpecField, form: UiFormI
   if (isChoiceFieldType(field.type)) {
     return renderChoiceField(`cap-${capabilityId}-${field.name}`, field, form, undefined);
   }
+  if (isFileFieldType(field.type)) {
+    return renderFileField(`cap-${capabilityId}-${field.name}`, field, form);
+  }
   // `capabilityId` and `field.name` are both `[a-z][a-z0-9_]*` (spec-validated), so
   // this id is a safe HTML token; the label still escapes its humanized text.
   return renderScalarField(
@@ -281,6 +290,9 @@ function renderEditField(
   if (isChoiceFieldType(field.type)) {
     return renderChoiceField(`edit-${capabilityId}-${field.name}`, field, form, value);
   }
+  if (isFileFieldType(field.type)) {
+    return renderFileField(`edit-${capabilityId}-${field.name}`, field, form);
+  }
   if (field.type === "datetime") return renderEditDatetimeField(capabilityId, field, form, value);
   return renderScalarField(
     `edit-${capabilityId}-${field.name}`,
@@ -299,7 +311,7 @@ function renderEditField(
 function renderScalarField(
   inputId: string,
   field: SpecField,
-  type: Exclude<FieldType, ListFieldType | ChoiceFieldType>,
+  type: NativeInputFieldType,
   form: UiFormIntent,
   value: unknown,
   editing: boolean,

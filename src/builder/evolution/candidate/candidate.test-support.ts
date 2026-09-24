@@ -249,6 +249,7 @@ export interface CandidateDraft {
       }>;
       groups?: Array<{ id: string; heading: string }>;
       max_length?: number;
+      accepts?: string[] | null;
     }>;
   };
   ui_intent: {
