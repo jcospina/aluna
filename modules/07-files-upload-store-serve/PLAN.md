@@ -262,9 +262,9 @@ in ADR-0009, and in the architecture and design documents.
     stop serving even while their byte cleanup is still retrying. The route opens the file
     while it holds the token — bytes already gone answer the `no-store` 404 — and releases
     the token before the body streams, so a long video never holds a deletion's drain; an
-    open file keeps streaming after its unlink. The Range issue proves that
-    open-then-stream path against a concurrent unlink, because Bun 1.3.12 opens a
-    `Bun.file(path)` body only at send time. The original filename
+    open file keeps streaming after its unlink. Because Bun 1.3.12 opens a `Bun.file(path)`
+    body only at send time, the store opens its own descriptor, and 7.1/07 proves that
+    open-then-stream path against an unlink; the Range issue reads its ranges from it. The original filename
     lives in the reference, not the URL. The `url` is always this same-origin route: a
     cloud adapter is proxied through it, Range included, because the page's CSP and the HTML
     filter refuse off-origin sources.
@@ -403,10 +403,12 @@ The tracer bullet, through every layer a photo touches.
 
 - **Store and ledger:** the object store (streaming `put / get / delete / url`, opaque
   UUID keys under `storage/<key>`, staging under `storage/.incoming/` emptied at boot, a
-  local adapter over `Bun.file` / `Bun.write`, config for the root and the 500 MB
-  per-file cap, swappable to R2/S3/Garage behind the same-origin route); the file ledger
+  local adapter writing through a `Bun.file` sink (`Bun.write` cannot fsync, and never
+  settles on an erroring stream) and serving from a descriptor it opens, config for the
+  root and the 500 MB per-file cap, swappable to R2/S3/Garage behind the same-origin
+  route); the file ledger
   with its three states and its columns, in `bun run reset`'s platform tables (reset
-  already empties `storage/`, `.incoming/` included).
+  clears the store's own entries under its configured root, `.incoming/` included).
 - **Travel:** the per-route body limits and the cross-site refusal across the server; the
   upload route with admission limited to image signatures, filename handling, the
   stage-then-record ordering, its platform write and its read token; a refusal that

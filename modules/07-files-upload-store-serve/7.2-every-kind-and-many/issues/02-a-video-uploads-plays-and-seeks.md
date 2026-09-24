@@ -75,6 +75,19 @@ exists. The create and update behavioral inputs carry `accepts`, so a widening m
 suites' digests. `familiesSchema` in `src/registry/fields/file.ts` puts `accepts` in the
 enum's order, and `file.test.ts` proves that over four families.
 
+**What 7.1/07 landed for this issue.** The serve route already opens the file under its read
+token and releases the token before the body streams, and `HEAD` already answers with the
+headers and `Content-Length`. `ObjectStore.get` (`src/platform/files/object-store.ts`) opens its
+own descriptor, and "keeps streaming an object opened before it was deleted" in
+`object-store.test.ts` proves open-then-stream against an unlink. What is left for Range:
+`OpenedObject` reads from byte 0, so `get` needs a start and a length, read from that descriptor
+rather than from `Bun.file().slice()`. Bun sends a stream body chunked whatever `Content-Length`
+the route states, so a 206 must be checked on a real socket, as the 200 is. Bun also drops a
+response whose client has already gone without cancelling its body, so the route closes the file
+on the request's abort itself, and a 206 must keep doing so. And a body that errors partway still
+ends cleanly on the wire, so a range whose read fails arrives looking whole: the size the route
+checks before it answers is the only guard.
+
 ## Acceptance criteria
 
 - [ ] `accepts` can hold `video`, and a candidate that drops a committed family is

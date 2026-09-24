@@ -14,6 +14,7 @@
 
 import type { Context } from "hono";
 import { errorDetail } from "../../../platform/errors.ts";
+import { ADD_FILE_AGAIN_SENTENCE } from "../../../platform/files/refusal-copy.ts";
 import {
   capabilityCreateErrorId,
   capabilityDeleteErrorId,
@@ -230,14 +231,7 @@ export function invalidFileReferenceFailure(
   error: InvalidFileReferenceError,
 ): Response {
   retargetMutationError(c, capabilityId, error.action);
-  return c.html(
-    refusalFragment(
-      error.code,
-      "I can't save that file in this field. Mind adding it here again?",
-      error.fields,
-    ),
-    422,
-  );
+  return c.html(refusalFragment(error.code, ADD_FILE_AGAIN_SENTENCE, error.fields), 422);
 }
 
 /**

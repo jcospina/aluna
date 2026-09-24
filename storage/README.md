@@ -1,8 +1,10 @@
 # `storage/` — object store (user file blobs)
 
 Default local-filesystem backing for the platform's S3-shaped object store
-(ARCH §6.3 "Object Store", §7 "Files"). Blobs are written here **at runtime** by
-`Bun.write` and served by the platform `/files/:key` route via `Bun.file`.
+(ARCH §6.3 "Object Store", §7 "Files"). Blobs are written here **at runtime** by the
+upload route, through a `Bun.file` sink, and served by the platform `/files/:key` route
+from a descriptor it opens under a read token. `OMNI_OBJECT_STORE_ROOT` moves the store
+elsewhere; this directory is the default.
 
 ```
 storage/<key>             opaque-key-addressed blob (bytes only)
@@ -13,8 +15,8 @@ Bytes live here; the *reference* (storage key + kind + verified mime + size +
 original name) lives as a `file`-typed field in the owning capability's data table,
 and the platform's file ledger is the one place ownership is asserted
 ([ADR-0009](../docs/adr/0009-files-platform-admission-and-the-file-ledger.md)). The store is
-platform infrastructure — the AI never builds storage. Swappable to R2 / S3 /
-Garage by config without touching this layout.
+platform infrastructure — the AI never builds storage. An R2 / S3 / Garage adapter
+can take the same interface without touching this layout.
 
 Each key is exclusively owned by one capability incarnation/record/field in the
 PoC. A file streams into `.incoming/` with no ledger row, gets its row as

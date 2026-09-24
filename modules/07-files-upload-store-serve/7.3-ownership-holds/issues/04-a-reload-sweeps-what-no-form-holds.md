@@ -34,6 +34,14 @@ row whose upload hasn't answered yet. The cleanup unlinks `storage/.incoming/<ke
 first, so the rename then finds its source gone, and the upload answers with the
 second tab's sentence instead of a reference.
 
+**What 7.1/07 landed for this issue.** The upload's half of the race is built:
+`StagedObject.place()` answers `false` when the staged bytes are gone, and the upload route then
+moves its own row to `cleanup_enqueued` (a no-op once the sweep has taken it) and answers 409 with
+`{ refusal: "gone", message }` and the add-it-again sentence. The test "whose row went in but
+whose bytes a cleanup took first asks for the file again" in
+`src/server/files/upload-route.concurrency.test.ts` stages that race by hand. The sweep itself,
+and the race run against it, are this issue's.
+
 ## Acceptance criteria
 
 - [ ] Every key `pending` when a desk load arrives moves to `cleanup_enqueued`, and the

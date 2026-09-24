@@ -732,8 +732,8 @@ Sliced vertically: 7.1 is a photo end to end, and everything after it widens or
 hardens something already running.
 
 - **7.1 — One photo, end to end.** The object store (streaming `put / get /
-  delete / url`, opaque UUID keys under `storage/<key>`, local `Bun.file` /
-  `Bun.write` adapter, swappable to R2/S3/Garage behind the same-origin route), the
+  delete / url`, opaque UUID keys under a configurable root, a local adapter,
+  swappable to R2/S3/Garage behind the same-origin route), the
   file ledger, written once a staged upload is admitted, the server's body cap
   moved onto each route and every writing route refusing a cross-site request, the
   per-file upload route with its 500 MB cap, `/files/:key` under read

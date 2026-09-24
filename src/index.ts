@@ -20,6 +20,7 @@ import {
   platformDeletionCleanup,
   platformLogoClaims,
   platformMutationCoordinator,
+  platformObjectStore,
   platformReadGates,
 } from "./server/app.ts";
 import { resolveServeOptions } from "./server/serve-options.ts";
@@ -33,6 +34,14 @@ captureProcessSecrets();
 const applied = runMigrations();
 if (applied.length > 0) {
   console.log(`omni-crud applied ${applied.length} migration(s): ${applied.join(", ")}`);
+}
+// Nothing can be streaming before the server listens, so staging holds only uploads a previous
+// process never finished. One that died after its row committed leaves that row to the desk-load
+// sweep, which finds its bytes gone.
+try {
+  await platformObjectStore.clearStaging();
+} catch (error) {
+  console.error("omni-crud could not empty the upload staging directory:", errorDetail(error));
 }
 // Discharge anything a previous process left owed, then hand the rest to the supervisor
 // so a failure retries here rather than waiting for the next restart.

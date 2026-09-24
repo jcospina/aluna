@@ -1,6 +1,6 @@
 // What an edit writes to a photo is what the router checked, whatever generated code hands back,
 // and the check holds inside the save's transaction too. Through the router and the photos fixture,
-// with ledger rows minted directly, because the upload route is 7.1/07's.
+// with ledger rows minted directly, as the upload route would mint them.
 
 import { describe, expect, test } from "bun:test";
 

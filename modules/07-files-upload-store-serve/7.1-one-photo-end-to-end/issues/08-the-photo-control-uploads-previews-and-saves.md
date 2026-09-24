@@ -59,6 +59,25 @@ fill one, so this issue removes the refusal and proves that a required photo ref
 without one. The stand-in carries `data-file-stand-in`, not the drawn control's
 `data-file-field` mount hook.
 
+**What 7.1/07 landed for this issue.** The control posts the raw file to
+`fileUploadPath(capabilityId, incarnationId, field)` (`src/server/files/upload-route.ts`), with
+`encodeURIComponent(file.name)` in `X-File-Name` and the file's own type as `Content-Type` (blank
+is fine). An admitted file answers 201 `{ key, url, name, kind, mime, size }`: the form posts `key`
+as the field's value, and the preview draws `url`. A refused one answers 415 with
+`{ refusal, message }`, where `refusal` names the stage (`extension`, `declared_type`,
+`signature`, `not_accepted`) and `message` is the field's sentence from
+`src/platform/files/refusal-copy.ts`. An upload whose bytes a sweep took first answers 409 with
+`refusal: "gone"` and the add-it-again sentence. A 404 has no body: the capability, its
+incarnation or the field is gone. Aborting the request deletes the staged file; an abort after
+the row committed leaves the row `cleanup_enqueued`.
+
+A file over the cap never gets the route's own 413. `XMLHttpRequest` declares the length, and Bun
+refuses a declared length over `maxRequestBodySize` (the file cap) before the app runs, with an
+empty 413, or a network error (status 0) when it closes the connection mid-send. The control
+therefore compares `file.size` with the cap before sending, reading the cap from markup the
+server draws (`resolveMaxFileBytes`), and shows `oversizeSentence(cap)` itself. It maps a bare 413,
+or status 0 on a file over the cap, to the same sentence.
+
 ## Acceptance criteria
 
 - [ ] The control shows the empty, filled, progress and refusal states drawn in 7.1/02,

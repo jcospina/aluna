@@ -1,5 +1,5 @@
-// Ledger rows written directly, standing in for 7.1/07's upload route, which is what mints them in
-// the product. Not a test file itself, so bun never runs it.
+// Ledger rows written directly, standing in for the upload route (`src/server/files/`), which is
+// what mints them in the product. Not a test file itself, so bun never runs it.
 
 import type { Database } from "bun:sqlite";
 import { FILE_LEDGER_TABLE, type FileLedgerRow, mintFileKey, readFileLedgerRow } from "./ledger.ts";
@@ -17,7 +17,7 @@ export interface FileLedgerSeed {
   readonly encoding?: string | null;
 }
 
-/** Admit one file the way the upload route will, and hand back its key. */
+/** Admit one file the way the upload route does, and hand back its key. */
 export function seedFileLedgerRow(database: Database, seed: FileLedgerSeed): string {
   const key = mintFileKey();
   const state = seed.state ?? "pending";

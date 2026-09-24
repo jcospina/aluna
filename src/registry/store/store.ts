@@ -395,6 +395,19 @@ export function listActiveIncarnations(
 }
 
 /**
+ * The active registry as a read gate takes it, one identity per capability: the catalog every
+ * token that reads a single incarnation is acquired against.
+ */
+export function readActiveIncarnationCatalog(
+  database: Database = dbReadonly,
+): { readonly capabilityId: string; readonly incarnationId: string }[] {
+  return listActiveIncarnations(database).map((row) => ({
+    capabilityId: row.id,
+    incarnationId: row.incarnation_id,
+  }));
+}
+
+/**
  * List every capability — the logo layer and the intent resolver both consume this (ARCH §6.3: the
  * resolver scans every row, which is why the row stays lean). Ordered by id, deterministically.
  */

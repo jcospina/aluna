@@ -17,7 +17,7 @@ export const FILE_LEDGER_TABLE = "file_ledger";
 export const CAPABILITY_TABLE_PREFIX = "cap_";
 
 /**
- * The object store's local root. No module owns it yet — M7 builds the store — so it is named
- * here beside the tables rather than in whichever script happens to sweep it.
+ * The object store's default root. `OMNI_OBJECT_STORE_ROOT` moves it
+ * (`src/platform/files/object-store-root.ts`).
  */
 export const OBJECT_STORE_ROOT = "storage";

@@ -1,5 +1,5 @@
 // The photos fixture behind the router's file suites: a scratch database with it installed, the
-// bodies its forms post, and the ledger rows 7.1/07's upload route will mint, written directly.
+// bodies its forms post, and the ledger rows the upload route mints, written directly.
 // Not a test file itself, so bun never runs it.
 
 import { afterEach, beforeEach, expect } from "bun:test";

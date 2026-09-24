@@ -89,6 +89,45 @@ export function readFileLedgerRow(database: Database, key: string): FileLedgerRo
     .get(key) as FileLedgerRow | null;
 }
 
+/** A file admission verified, for the incarnation and field it was uploaded to. */
+export type PendingFile = Pick<
+  FileLedgerRow,
+  "key" | "capability_id" | "incarnation_id" | "field" | "kind" | "mime" | "size" | "name"
+>;
+
+/** Record an admitted key as `pending`. The caller has found its incarnation active in this write. */
+export function insertPendingFile(database: Database, file: PendingFile): void {
+  database
+    .query(
+      `INSERT INTO ${FILE_LEDGER_TABLE}
+         (key, capability_id, incarnation_id, field, record_id, state, kind, mime, size, name)
+       VALUES (?, ?, ?, ?, NULL, 'pending', ?, ?, ?, ?)`,
+    )
+    .run(
+      file.key,
+      file.capability_id,
+      file.incarnation_id,
+      file.field,
+      file.kind,
+      file.mime,
+      file.size,
+      file.name,
+    );
+}
+
+/**
+ * Give up a `pending` key nobody can claim: the upload that minted it never handed it back. False
+ * when the row has left `pending` already.
+ */
+export function enqueuePendingFile(database: Database, key: string): boolean {
+  const { changes } = database
+    .query(
+      `UPDATE ${FILE_LEDGER_TABLE} SET "state" = 'cleanup_enqueued' WHERE "key" = ? AND "state" = 'pending'`,
+    )
+    .run(key);
+  return changes === 1;
+}
+
 /**
  * Move a `pending` key to `owned` by `recordId`. False when the row is no longer `pending`, which
  * the caller refuses: the check it made before this ran is what a sweep or another save outran.

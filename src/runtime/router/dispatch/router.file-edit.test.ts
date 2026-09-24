@@ -1,5 +1,5 @@
 // An edit keeping, replacing and clearing a record's photo, through the router and the hand-written
-// photos fixture. Each case mints its ledger rows directly, because the upload route is 7.1/07's.
+// photos fixture. Each case mints its ledger rows directly, as the upload route would.
 
 import { describe, expect, test } from "bun:test";
 

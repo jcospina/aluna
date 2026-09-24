@@ -1,5 +1,5 @@
-// A create claiming a pending photo, through the router and the hand-written photos fixture. The
-// upload route is 7.1/07's, so each case mints its ledger rows directly.
+// A create claiming a pending photo, through the router and the hand-written photos fixture. Each
+// case mints its ledger rows directly, as the upload route would.
 
 import { describe, expect, test } from "bun:test";
 
