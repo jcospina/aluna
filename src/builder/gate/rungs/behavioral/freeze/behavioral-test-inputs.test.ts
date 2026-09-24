@@ -3,10 +3,12 @@
 // means: what is in, what is out, and which spec edits can and cannot move a digest.
 
 import { describe, expect, test } from "bun:test";
+import { photoSpec } from "../../../../../registry/fields/file.test-support.ts";
 import { SECOND_INCARNATION_ID } from "../../../../../registry/incarnations.test-support.ts";
 import {
   type CapabilitySpec,
   type ChoiceOption,
+  type FileFamily,
   FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../../../../registry/index.ts";
@@ -229,6 +231,48 @@ describe("a choice field's admitted values are create/update validation shape", 
         ),
       ),
     ).toEqual([]);
+  });
+});
+
+/**
+ * A file field's token is one of its families, or null (Module 7 PLAN decision 39), so the families
+ * and the field's type are what the digest must cover. The pantry admits one family today, so the
+ * widened spec below names one the platform will add, and is built without validation.
+ */
+describe("a file field's tokens are create/update validation shape", () => {
+  const digests = (spec: CapabilitySpec) =>
+    FULL_CAPABILITY_TOOLS.map((action) => actionTestInputDigest(actionTestInputs(spec, action)));
+  const moved = (left: CapabilitySpec, right: CapabilitySpec) => {
+    const before = digests(left);
+    const after = digests(right);
+    return FULL_CAPABILITY_TOOLS.filter((_, index) => before[index] !== after[index]);
+  };
+  const withPhoto = (photo: Partial<CapabilitySpec["schema"]["fields"][number]>) => {
+    const spec = photoSpec();
+    const fields = spec.schema.fields.map((field) =>
+      field.name === "photo" ? { ...field, ...photo } : field,
+    );
+    return { ...spec, schema: { fields } } as CapabilitySpec;
+  };
+
+  test("hands the model each file field's families beside its type", () => {
+    expect(actionTestInputs(photoSpec(), "create").schema).toContainEqual({
+      name: "photo",
+      type: "file",
+      required: false,
+      accepts: ["image"],
+    });
+  });
+
+  test("move the create and update digests when the families a token names change", () => {
+    const widened = withPhoto({ accepts: ["image", "video"] as unknown as FileFamily[] });
+    expect(moved(photoSpec(), widened)).toEqual(["create", "update"]);
+  });
+
+  test("move the create and update digests when a field starts taking a token", () => {
+    const asText = withPhoto({ type: "string", accepts: undefined });
+    expect(moved(asText, photoSpec())).toEqual(expect.arrayContaining(["create", "update"]));
+    expect(moved(asText, photoSpec())).not.toContain("delete");
   });
 });
 

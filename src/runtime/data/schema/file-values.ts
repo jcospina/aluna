@@ -5,12 +5,12 @@
 // and the mutation interface reads the key back out of that `url`, so a Handler passes a file on by
 // handing back what it was given.
 
+import { FILE_URL_PREFIX } from "../../../platform/files/file-url.ts";
 import type { FileLedgerRow } from "../../../platform/files/ledger.ts";
 import { isFileKey } from "../../../platform/files/ledger.ts";
 import { FILE_FAMILIES, type FileFamily } from "../../../registry/fields/file.ts";
 
-/** The same-origin address a file is served from, `/files/<key>` (7.1/07). */
-export const FILE_URL_PREFIX = "/files/";
+export { FILE_URL_PREFIX } from "../../../platform/files/file-url.ts";
 
 export interface CapabilityFileProjection {
   readonly url: string;

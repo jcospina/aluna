@@ -89,11 +89,15 @@ export interface ActionFixtureVocabulary {
   readonly row_fields: readonly ActionFixtureField[];
 }
 
-/** One field a synthetic row may carry; a choice also carries the values it still offers. */
+/**
+ * One field a synthetic row may carry; a choice also carries the values it still offers, and a file
+ * field the families its tokens name.
+ */
 export interface ActionFixtureField {
   readonly name: string;
   readonly type: FieldType;
   readonly values?: readonly string[];
+  readonly accepts?: readonly FileFamily[];
 }
 
 export function actionFixtureVocabulary(spec: CapabilitySpec): ActionFixtureVocabulary {
@@ -102,6 +106,7 @@ export function actionFixtureVocabulary(spec: CapabilitySpec): ActionFixtureVoca
       name: field.name,
       type: field.type,
       ...(field.values === undefined ? {} : { values: choiceTestValues(field) }),
+      ...(field.accepts === undefined ? {} : { accepts: field.accepts }),
     })),
   };
 }

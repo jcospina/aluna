@@ -11,6 +11,7 @@ import { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import ts from "typescript";
 import { errorMessage } from "../../platform/errors.ts";
+import { createFileLedgerSchema } from "../../platform/files/ledger.ts";
 import { sqlIdentifier } from "../../platform/persistence/sql-identifier.ts";
 import {
   createPresentationAdapter,
@@ -24,10 +25,8 @@ import {
   type CapabilitySpec,
   type CapabilityTool,
   type FieldType,
-  isFileFieldType,
   LOGO_BIRTH_STATUS,
   type ReadDependency,
-  type SpecField,
 } from "../../registry/index.ts";
 import type { CapabilityCreateValues, CapabilityTableDdl } from "../../runtime/data/index.ts";
 import {
@@ -104,22 +103,17 @@ export interface ScratchDatabasePair {
   readonly readonly: Database;
 }
 
-/** Open a fresh shared-cache in-memory db pair for one rung's scratch execution. */
+/**
+ * Open a fresh shared-cache in-memory db pair for one rung's scratch execution, with its own file
+ * ledger for the scratch references a save claims (`gate-scratch-files.ts`).
+ */
 export function openScratchDatabasePair(): ScratchDatabasePair {
   const name = `aluna_gate_${randomUUID().replaceAll("-", "_")}`;
   const uri = `file:${name}?mode=memory&cache=shared`;
   const readwrite = new Database(uri, { create: true, readwrite: true });
   const readonly = new Database(uri, { readonly: true });
+  createFileLedgerSchema(readwrite);
   return { readwrite, readonly };
-}
-
-/**
- * Whether the platform form submits a field, which every scratch submission mirrors. A file
- * field's stand-in submits nothing, and until 7.1/06 mints scratch references every Gate value
- * for one is `null`: the smoke's samples, the search fixture's rows and design lint's probes.
- */
-export function formSubmitsField(field: SpecField): boolean {
-  return !isFileFieldType(field.type);
 }
 
 /** Apply the migration stage's exact DDL statements to a scratch connection. */
@@ -343,9 +337,28 @@ export function assertFragment(
 export function fieldValueMatches(type: FieldType, stored: unknown, expected: unknown): boolean {
   if (type === "datetime") return sameInstant(stored, expected);
   if (type === "string[]") return JSON.stringify(stored) === JSON.stringify(expected);
+  if (type === "file") return sameFile(stored, expected);
   // A choice stores the exact declared wire value it was admitted as — no canonicalization
   // is possible or permitted — so it compares exactly, like a string.
   return stored === expected;
+}
+
+/**
+ * A file compares by `kind` and `name` and never by key (PLAN decision 39): a test cannot know the
+ * key a scratch run mints, and the name tells apart every file one run submits.
+ */
+function sameFile(stored: unknown, expected: unknown): boolean {
+  if (stored === null || expected === null) return stored === expected;
+  return (
+    isFileLike(stored) &&
+    isFileLike(expected) &&
+    stored.kind === expected.kind &&
+    stored.name === expected.name
+  );
+}
+
+function isFileLike(value: unknown): value is { readonly kind: unknown; readonly name: unknown } {
+  return typeof value === "object" && value !== null && "kind" in value && "name" in value;
 }
 
 function sameInstant(stored: unknown, expected: unknown): boolean {

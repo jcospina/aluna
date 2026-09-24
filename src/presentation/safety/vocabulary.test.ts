@@ -6,6 +6,7 @@ import {
   ALLOWED_CLASSES,
   ALLOWED_ELEMENTS,
   isDangerousUrl,
+  isOffOriginUrl,
   isSafeAttr,
   REMOVED_ELEMENTS,
 } from "./vocabulary.ts";
@@ -68,6 +69,15 @@ describe("isSafeAttr", () => {
     expect(isSafeAttr("div", "href")).toBe(false);
     expect(isSafeAttr("div", "datetime")).toBe(false); // only valid on <time>/<ins>/<del>
     expect(isSafeAttr("span", "src")).toBe(false); // only valid on media elements
+  });
+});
+
+describe("a srcset read as a browser reads it", () => {
+  test("splits a candidate at ASCII whitespace, where a browser splits it", () => {
+    expect(isDangerousUrl("java\tscript:alert(1)")).toBe(true);
+    expect(isDangerousUrl("java\tscript:alert(1) 1x", "srcset")).toBe(false);
+    expect(isOffOriginUrl("/a.png 1x,\u{2003}https://evil.example/x.png 2x", "srcset")).toBe(false);
+    expect(isOffOriginUrl("/a.png 1x, https://evil.example/x.png 2x", "srcset")).toBe(true);
   });
 });
 

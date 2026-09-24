@@ -38,6 +38,7 @@ import {
   promptCapabilitySpecSchema,
   uiCollectionLayoutSchema,
 } from "../../registry/index.ts";
+import { FILE_FIELD_PROMPT_LINES } from "./file-field-guidance.ts";
 import { unofferedFieldTypeIssues } from "./unoffered-field-types.ts";
 
 export interface GenerateSpecInput {
@@ -83,7 +84,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     `- tools: exactly [${tools}] in that canonical order.`,
     '- read_dependencies: exactly five keys in canonical order: { "create": [], "read": [], "update": [], "delete": [], "search": [] }. A fresh capability has no declared external dependencies, so every array is empty.',
     '- schema.fields: at least one field; each field has a stable name, a user-facing label, a type, required (a boolean), and lifecycle: "active".',
-    `- a field's type is one of: ${fieldTypes}. string[] is the only list type; no files or relations.`,
+    `- a field's type is one of: ${fieldTypes}. string[] is the only list type; there are no relations.`,
     "- a field declares values and groups only when its type is choice. Every other field omits both keys entirely (send null for them in the structured output).",
     "- a choice field declares values: an ordered array of at least one option. An option is { value, label, group, note, disabled }, and every option sends all five keys — send null for group, note and disabled when the option has none. value is the stored wire value — short, stable, lowercase — and label is the wording a person reads. Values are unique within the field. Use choice whenever the thing being tracked is one pick from a small closed set the user would recognize (a status, a priority, a category), and never a free string with a rule written about it.",
     `- an option's value and label are each one line of at most ${MAX_CHOICE_OPTION_VALUE_LENGTH} and ${MAX_CHOICE_OPTION_LABEL_LENGTH} characters, and no authored string an option or a group carries may hold a control character.`,
@@ -92,7 +93,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "- an option's disabled is true for an option that existing records may still hold but nobody may newly choose. A capability being built for the first time has retired nothing, so send null for every option.",
     `- a choice field also declares groups: an ordered array of { id, heading }, where heading is at most ${MAX_CHOICE_GROUP_HEADING_LENGTH} characters. Declare groups only when the options fall into named sets a person would look for by heading — currencies by continent, statuses by open and closed. A short flat list needs none, and [] is the ordinary answer. Every declared group must be named by at least one option, and every option's group must be an id declared on its own field.`,
     `- a field declares max_length only when its type is string. It is a positive integer between ${MIN_DECLARED_MAX_LENGTH} and ${MAX_DECLARED_MAX_LENGTH}, and it is the number of characters that field holds — it drives the character counter under the control, the browser's own stop on typing, and Aluna's own refusal of anything longer. Declare it where a real bound is part of what the field is (a summary that must stay short, a headline, a one-line note); omit it (send null) everywhere else, including on every non-string field.`,
-    "- every field sends accepts as null. accepts belongs to a file field, and the type list above offers none.",
+    ...FILE_FIELD_PROMPT_LINES,
     "- field names and the capability id are lowercase letters, digits, and underscores, starting with a letter.",
     `- ${platformColumns} are platform-owned columns Aluna adds automatically. Never include them as fields.`,
     '- created_at may appear only in item shows; its platform descriptor is fixed as name "created_at", label "Created", type "datetime", read-only.',

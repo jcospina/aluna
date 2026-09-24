@@ -29,16 +29,12 @@ import {
   deriveCapabilityTableDdl,
   type FileClaimScope,
   resolveSubmittedFiles,
-  type SubmittedFiles,
-  submittedFileProjection,
+  withFileProjections,
 } from "../../data/index.ts";
 import type {
   CapabilityCreateHandler,
   CapabilityDeleteHandler,
-  CapabilityInput,
   CapabilityReadHandler,
-  CapabilitySaveInput,
-  CapabilitySaveInputValue,
   CapabilityUpdateHandler,
 } from "../contract.ts";
 import { assertReadOwnership } from "../wire/failure-responses.ts";
@@ -220,13 +216,6 @@ export function fileClaimScope(
       ? {}
       : { record: { table: deriveCapabilityTableDdl(spec).tableName, id: recordTarget } }),
   };
-}
-
-/** The Handler's input, with each submitted file field's wire value replaced by its projection. */
-function withFileProjections(input: CapabilityInput, files: SubmittedFiles): CapabilitySaveInput {
-  const values: Record<string, CapabilitySaveInputValue> = { ...input.values };
-  for (const [field, file] of files) values[field] = submittedFileProjection(file);
-  return { values: Object.freeze(values), submittedFields: input.submittedFields };
 }
 
 function requireRecordTarget(

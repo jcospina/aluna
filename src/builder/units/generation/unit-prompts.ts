@@ -18,6 +18,7 @@ import {
   type CapabilityRow,
   type CapabilitySpec,
   hasActiveFileField,
+  isFileFieldType,
   isSearchableTextType,
   presentationFieldDescriptors,
   type SpecField,
@@ -196,7 +197,7 @@ function inputValueContract(spec: CapabilitySpec, action: HandlerUnitName): stri
 function fileInputRules(action: "create" | "update"): string[] {
   const arrives =
     action === "create"
-      ? "or `null` when it was submitted empty, or not at all"
+      ? "or `null` when it was submitted empty; a file field the form left out is not in `input.values` at all, and the record holds no file"
       : "or `null` when the edit empties it or it holds nothing; a file field the edit left out is not in `input.values` and keeps its file";
   return [
     `- A file field arrives as the projection \`{ url, name, kind, mime, size }\` of what the save will store, ${arrives}. Pass \`input.values[name]\` to \`mutation.${action}\` unchanged or leave the field out; never run it through the scalar extractor, and never build, edit, replace or \`null\` one yourself.`,
@@ -357,10 +358,21 @@ function buildItemRendererPrompt(spec: CapabilitySpec): string {
     "Declared item fields (the renderer receives exactly these names/types/labels):",
     itemFieldList(spec),
     "- A choice field's record value is one of its option `value` strings. Present the matching option `label`, never the raw stored value; fall back to the stored value only if no option matches.",
+    ...(showsFileField(spec) ? [ITEM_FILE_FIELD_RULE] : []),
     "",
     "Item generation context JSON:",
     JSON.stringify(itemGenerationContext(spec), null, 2),
   ].join("\n");
+}
+
+/** What the item renderer is told about a file field its card shows. */
+export const ITEM_FILE_FIELD_RULE =
+  "- A file field's record value is `{ url, name, kind, mime, size }`, or `null` when the record holds no file. Draw the picture from `url` inside a `media-frame`, and draw the empty frame with a short note when the value is `null`. Never build a file address yourself. The card is announced by its own text, so when it also shows the field that describes the picture, such as a title, give the picture `alt=\"\"` and a screen reader reads that text once. `name` is the file's name as uploaded, often something like IMG_4821.JPG, and describes nothing.";
+
+function showsFileField(spec: CapabilitySpec): boolean {
+  return spec.schema.fields.some(
+    (field) => isFileFieldType(field.type) && spec.ui_intent.item.shows.includes(field.name),
+  );
 }
 
 function handlerFieldList(spec: CapabilitySpec, action: HandlerUnitName): string {

@@ -15,8 +15,10 @@ import {
   type CapabilitySpec,
   type CapabilityTool,
   FULL_CAPABILITY_TOOLS,
+  isFileFieldType,
   isSearchableTextType,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  type SpecField,
 } from "../../../../../registry/index.ts";
 import { actionTestInputDigest, actionTestInputs } from "../freeze/behavioral-test-inputs.ts";
 import { assertKnownFields, sameBehavioralError } from "../gate-behavioral-shared.ts";
@@ -111,14 +113,40 @@ function assertCaseContract(spec: CapabilitySpec, testCase: FullBehavioralTestCa
   assertActionAndTarget(spec, testCase);
   assertCaseFieldVocabulary(spec, testCase);
   assertErrorOwnership(spec, testCase);
-  assertResponseShape(testCase);
+  // A file token names a family, never text a fragment or a query can show, so it is no evidence.
+  const textual = withoutFileTokens(spec, testCase);
+  assertResponseShape(textual);
   if (testCase.expectedError?.code === MISSING_REQUIRED_FIELDS_ERROR_CODE) {
-    assertMissingRequiredTrigger(testCase);
+    assertMissingRequiredTrigger(textual);
   }
   if (!testCase.expectedError && !testCase.expectedPlatformError) {
-    assertAssertionsUseSyntheticValues(testCase);
-    assertSearchOrderingCoverage(spec, testCase);
+    assertAssertionsUseSyntheticValues(textual);
+    assertSearchOrderingCoverage(spec, textual);
   }
+}
+
+function withoutFileTokens(
+  spec: CapabilitySpec,
+  testCase: FullBehavioralTestCase,
+): FullBehavioralTestCase {
+  const files = new Set(activeFileFields(spec).keys());
+  const textualRow = (row: FullBehavioralTestCase["setupRows"][number]) => ({
+    values: row.values.filter((entry) => !files.has(entry.field)),
+  });
+  return {
+    ...testCase,
+    input: testCase.input.filter((entry) => !files.has(entry.field)),
+    setupRows: testCase.setupRows.map(textualRow),
+    expectedRows: testCase.expectedRows.map(textualRow),
+  };
+}
+
+function activeFileFields(spec: CapabilitySpec): ReadonlyMap<string, SpecField> {
+  return new Map(
+    activeSpecFields(spec.schema.fields)
+      .filter((field) => isFileFieldType(field.type))
+      .map((field) => [field.name, field]),
+  );
 }
 
 /**
@@ -167,6 +195,66 @@ export function assertCaseFieldVocabulary(
       rowFields,
     );
   }
+  assertFileTokens(spec, testCase);
+}
+
+/**
+ * A file field takes a closed token (PLAN decision 39): a family its field accepts, or `null` for
+ * none. Every other input is a string, since only a file field has a token for none.
+ */
+function assertFileTokens(spec: CapabilitySpec, testCase: FullBehavioralTestCase): void {
+  const files = activeFileFields(spec);
+  for (const entry of testCase.input) {
+    const field = files.get(entry.field);
+    if (field) assertFileToken(testCase.name, "input", field, entry.value);
+    else if (entry.value === null) {
+      throw new Error(
+        `Behavioral test "${testCase.name}" input "${entry.field}" is null; only a file field takes null.`,
+      );
+    }
+  }
+  assertRowFileTokens(testCase.name, "setupRows", testCase.setupRows, files);
+  assertRowFileTokens(testCase.name, "expectedRows", testCase.expectedRows, files);
+  assertMissingRecordPostsNoFile(testCase, files);
+}
+
+/**
+ * The platform checks a file against the record it edits before any Handler runs, so a
+ * missing-record case that posts one proves the platform's not-found and never the Handler's.
+ */
+function assertMissingRecordPostsNoFile(
+  testCase: FullBehavioralTestCase,
+  files: ReadonlyMap<string, SpecField>,
+): void {
+  if (testCase.target !== "missing_record") return;
+  const posted = testCase.input.find((entry) => files.has(entry.field));
+  if (posted) {
+    throw new Error(
+      `Behavioral test "${testCase.name}" posts file field "${posted.field}" to a missing record; leave file fields out of a missing-record case.`,
+    );
+  }
+}
+
+function assertRowFileTokens(
+  testName: string,
+  label: string,
+  rows: FullBehavioralTestCase["setupRows"],
+  files: ReadonlyMap<string, SpecField>,
+): void {
+  for (const [index, row] of rows.entries()) {
+    for (const entry of row.values) {
+      const field = files.get(entry.field);
+      if (field) assertFileToken(testName, `${label}[${index}]`, field, entry.value);
+    }
+  }
+}
+
+function assertFileToken(testName: string, label: string, field: SpecField, token: unknown): void {
+  const families: readonly unknown[] = field.accepts ?? [];
+  if (token === null || families.includes(token)) return;
+  throw new Error(
+    `Behavioral test "${testName}" ${label} gives file field "${field.name}" ${JSON.stringify(token)}; a file field takes one of ${JSON.stringify(families)} or null.`,
+  );
 }
 
 /**
@@ -331,7 +419,7 @@ function setupRowMatchesSearchQuery(
 function assertMissingRequiredTrigger(testCase: FullBehavioralTestCase): void {
   const affected = new Set(testCase.expectedError?.fields ?? []);
   const affectedInputs = testCase.input.filter((entry) => affected.has(entry.field));
-  if (affectedInputs.some((entry) => entry.value.trim().length > 0)) {
+  if (affectedInputs.some((entry) => (entry.value ?? "").trim().length > 0)) {
     throw new Error("missing_required_fields cases may not submit non-empty affected fields");
   }
   const submittedAffected = new Set(affectedInputs.map((entry) => entry.field));
@@ -379,9 +467,14 @@ function mutationFragmentValues(testCase: FullBehavioralTestCase): string[] {
       ? (testCase.expectedRows[0]?.values.flatMap(scalarStrings) ?? [])
       : [];
   const unrelatedValues = new Set(unrelatedRowValues(testCase));
-  return [...testCase.input.map((entry) => entry.value), ...resultValues].filter(
+  return [...submittedStrings(testCase), ...resultValues].filter(
     (value) => !unrelatedValues.has(value),
   );
+}
+
+/** The strings a case submits. A `null` is a file field's token for none, never text. */
+function submittedStrings(testCase: FullBehavioralTestCase): string[] {
+  return testCase.input.flatMap((entry) => (entry.value === null ? [] : [entry.value]));
 }
 
 /**

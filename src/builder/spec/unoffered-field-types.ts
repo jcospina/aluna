@@ -1,6 +1,6 @@
 // The builder's own refusal of a field type it does not offer the model. The provider schema's
-// type enum already keeps one out (`GENERATION_FIELD_TYPES`); this holds against a lax provider,
-// until 7.1/06 offers `file` and the list matches the pantry.
+// type enum already keeps one out (`GENERATION_FIELD_TYPES`); this holds against a lax provider.
+// Since 7.1/06 offers `file`, the list matches the pantry and nothing is refused.
 
 import { fieldTypeSchema, GENERATION_FIELD_TYPES } from "../../registry/index.ts";
 

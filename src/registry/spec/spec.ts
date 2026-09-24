@@ -168,10 +168,14 @@ export function isSearchableTextType(type: FieldType): boolean {
 }
 
 /**
- * The types the builder offers the model. `file` stays out until the Gate can mint scratch
- * references for one (`modules/07-files-upload-store-serve/PLAN.md`, Epic 7.1's builder).
+ * The types the builder offers the model: the whole pantry since 7.1/06. A type that joins the
+ * pantry before the Gate can test it stays out of this list until it can.
  */
-export const GENERATION_FIELD_TYPES = [...SCALAR_FIELD_TYPES, ...LIST_FIELD_TYPES] as const;
+export const GENERATION_FIELD_TYPES = [
+  ...SCALAR_FIELD_TYPES,
+  ...LIST_FIELD_TYPES,
+  ...FILE_FIELD_TYPES,
+] as const;
 const generationFieldTypeSchema = z.enum(GENERATION_FIELD_TYPES);
 
 export const fieldLifecycleSchema = z.enum(["active", "inactive"]);

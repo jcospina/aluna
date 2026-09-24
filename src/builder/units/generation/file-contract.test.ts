@@ -11,7 +11,7 @@ import { notesSpec } from "../../../registry/spec/spec.test-support.ts";
 import { projectFileLedgerRow } from "../../../runtime/data/index.ts";
 import { handlerContractDeclarations } from "../../generated-code-check.ts";
 import { checkGeneratedUnit } from "../safety/unit-checks.ts";
-import { buildUnitPrompt } from "./unit-prompts.ts";
+import { buildUnitPrompt, ITEM_FILE_FIELD_RULE } from "./unit-prompts.ts";
 
 const create = { kind: "handler", name: "create" } as const;
 
@@ -185,5 +185,25 @@ export default async function update({ input, mutation, present }: CapabilityUpd
     const content = updateHandler(`const photo = input.values.photo;
   return present(mutation.update({ caption: photo === undefined ? "" : photo.trim() }));`);
     expect(checkGeneratedUnit(photoSpec(), update, content)?.message).toContain("trim");
+  });
+});
+
+describe("the item renderer's prompt", () => {
+  const item = { kind: "item-renderer", name: "item" } as const;
+  const showing = (shows: string[]): CapabilitySpec => {
+    const spec = photoSpec();
+    return { ...spec, ui_intent: { ...spec.ui_intent, item: { ...spec.ui_intent.item, shows } } };
+  };
+
+  test("says what a shown file field arrives as, and that it may be null", () => {
+    const prompt = buildUnitPrompt(showing(["caption", "photo"]), item);
+    expect(prompt).toContain(ITEM_FILE_FIELD_RULE);
+  });
+
+  test("says nothing of files to a card that shows none", () => {
+    expect(buildUnitPrompt(showing(["caption"]), item)).not.toContain(
+      "A file field's record value",
+    );
+    expect(buildUnitPrompt(notesSpec(), item)).not.toContain("A file field's record value");
   });
 });

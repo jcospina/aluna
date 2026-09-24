@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { CAPTION_FIELD, photoSpec } from "../../../../../registry/fields/file.test-support.ts";
+import {
+  CAPTION_FIELD,
+  PHOTO_FIELD,
+  photoSpec,
+} from "../../../../../registry/fields/file.test-support.ts";
 import type { SpecField } from "../../../../../registry/index.ts";
 import { rowMatches } from "../gate-behavioral-shared.ts";
 import { fieldValuesToRecord, inputValuesToHandlerInput } from "./gate-behavioral-input.ts";
@@ -63,8 +67,9 @@ describe("fieldValuesToRecord — list-field normalization", () => {
 });
 
 describe("inputValuesToHandlerInput — what the form submits", () => {
-  test("a file field is left out, as the form's stand-in submits nothing for one", () => {
+  test("a create submits every field, and a file field it leaves out posts empty", () => {
     const input = inputValuesToHandlerInput(photoSpec(), [{ field: "caption", value: "A day" }]);
-    expect([...input.submittedFields]).toEqual([CAPTION_FIELD.name]);
+    expect([...input.submittedFields]).toEqual([CAPTION_FIELD.name, PHOTO_FIELD.name]);
+    expect(input.values).toEqual({ caption: "A day", photo: "" });
   });
 });

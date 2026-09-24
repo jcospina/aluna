@@ -4,64 +4,169 @@
 // The switch is exhaustive by construction (an explicit non-`unknown` return type and no
 // `default`), so a new field type cannot reach the smoke without a sample of its own. A
 // choice is the one type whose sample is not free text: it can only ever hold a value it
-// declares, so both phases draw from its declared options.
+// declares, so both phases draw from its declared options. A file field submits what 7.1/08's
+// control will post, and takes five edits in turn (`fileUpdateSamples`).
 
+import type { Database } from "bun:sqlite";
 import {
   activeSpecFields,
   type CapabilitySpec,
+  isFileFieldType,
   type SpecField,
   selectableChoiceValues,
 } from "../../../../registry/index.ts";
-import type { CapabilityDataColumnValue } from "../../../../runtime/data/index.ts";
+import {
+  type CapabilityDataColumnValue,
+  type CapabilityFileProjection,
+  FILE_CLEAR_VALUE,
+  projectFileLedgerRow,
+} from "../../../../runtime/data/index.ts";
 import type { CapabilityInput, CapabilityInputValue } from "../../../../runtime/router/index.ts";
-import { formSubmitsField } from "../../gate-internal.ts";
+import { mintScratchFile, scratchFileName } from "../../gate-scratch-files.ts";
 
 export interface SmokeInput {
   readonly input: CapabilityInput;
   readonly expectedValues: Readonly<Record<string, CapabilityDataColumnValue>>;
 }
 
-export function buildSmokeInput(spec: CapabilitySpec): SmokeInput {
+/** One pending scratch file: the key a form posts, and the file a read should then find. */
+export interface SmokeFile {
+  readonly key: string;
+  readonly expected: CapabilityFileProjection;
+}
+
+/** The files one cycle submits to a file field: on create, as a replacement, and onto an empty field. */
+export interface SmokeFiles {
+  readonly created: SmokeFile;
+  readonly replacement: SmokeFile;
+  readonly added: SmokeFile;
+}
+
+/** Every active file field's smoke files, minted pending in the scratch ledger before the cycle. */
+export function mintSmokeFiles(
+  spec: CapabilitySpec,
+  database: Database,
+): ReadonlyMap<string, SmokeFiles> {
+  const fileFields = activeSpecFields(spec.schema.fields).filter((field) =>
+    isFileFieldType(field.type),
+  );
+  return new Map(
+    fileFields.map((field) => {
+      const mint = (label: string): SmokeFile => {
+        const row = mintScratchFile(database, spec, field, scratchFileName(label));
+        return { key: row.key, expected: projectFileLedgerRow(row) };
+      };
+      const files = {
+        created: mint("gate smoke"),
+        replacement: mint("gate update"),
+        added: mint("gate added"),
+      };
+      return [field.name, files];
+    }),
+  );
+}
+
+export function buildSmokeInput(
+  spec: CapabilitySpec,
+  files: ReadonlyMap<string, SmokeFiles>,
+): SmokeInput {
   const values: Record<string, CapabilityInputValue> = {};
   const expectedValues: Record<string, CapabilityDataColumnValue> = {};
   const fields = activeSpecFields(spec.schema.fields);
   for (const field of fields) {
-    const sample = sampleValue(field, "create");
+    const sample = sampleValue(field, "create", files.get(field.name));
     if (sample.input !== undefined) values[field.name] = sample.input;
     expectedValues[field.name] = sample.expected;
   }
   return {
-    input: {
-      values,
-      submittedFields: new Set(fields.filter(formSubmitsField).map((field) => field.name)),
-    },
+    input: { values, submittedFields: new Set(fields.map((field) => field.name)) },
     expectedValues,
   };
 }
 
-export function buildUpdateInputs(spec: CapabilitySpec): readonly {
+/**
+ * The same create as the form's stand-in posts it until 7.1/08: every file field left out of both
+ * the values and the submitted fields, so the record holds no file.
+ */
+export function standInCreate(smoke: SmokeInput, spec: CapabilitySpec): SmokeInput {
+  const files = new Set(
+    activeSpecFields(spec.schema.fields)
+      .filter((field) => isFileFieldType(field.type))
+      .map((field) => field.name),
+  );
+  const kept = <Value>(entries: Readonly<Record<string, Value>>) =>
+    Object.fromEntries(Object.entries(entries).filter(([name]) => !files.has(name)));
+  return {
+    input: {
+      values: kept(smoke.input.values),
+      submittedFields: new Set([...smoke.input.submittedFields].filter((name) => !files.has(name))),
+    },
+    expectedValues: {
+      ...kept(smoke.expectedValues),
+      ...Object.fromEntries([...files].map((name) => [name, null])),
+    },
+  };
+}
+
+export interface SmokeUpdateSample {
   readonly field: SpecField;
   readonly input: CapabilityInput;
   readonly expected: CapabilityDataColumnValue;
-}[] {
+}
+
+export function buildUpdateInputs(
+  spec: CapabilitySpec,
+  files: ReadonlyMap<string, SmokeFiles>,
+): readonly SmokeUpdateSample[] {
   const fields = activeSpecFields(spec.schema.fields);
   if (fields.length === 0) throw new Error("Smoke update requires at least one active field.");
-  return fields.map((field) => {
-    const sample = sampleValue(field, "update");
-    return {
-      field,
-      input: {
-        values: sample.input === undefined ? {} : { [field.name]: sample.input },
-        submittedFields: new Set(formSubmitsField(field) ? [field.name] : []),
-      },
-      expected: sample.expected,
-    };
+  return fields.flatMap((field) => {
+    if (isFileFieldType(field.type)) {
+      return fileUpdateSamples(field, requireSmokeFiles(field, files.get(field.name)));
+    }
+    const sample = sampleValue(field, "update", undefined);
+    return [updateSample(field, sample.input, sample.expected)];
   });
+}
+
+/**
+ * The edits 7.1/08's control posts, in an order where each starts from what the last one left:
+ * keep the file the record holds, replace it, clear it, leave the empty field empty, and add one.
+ */
+function fileUpdateSamples(field: SpecField, files: SmokeFiles): readonly SmokeUpdateSample[] {
+  return [
+    updateSample(field, files.created.key, files.created.expected),
+    updateSample(field, files.replacement.key, files.replacement.expected),
+    updateSample(field, FILE_CLEAR_VALUE, null),
+    updateSample(field, "", null),
+    updateSample(field, files.added.key, files.added.expected),
+  ];
+}
+
+function updateSample(
+  field: SpecField,
+  value: CapabilityInputValue | undefined,
+  expected: CapabilityDataColumnValue,
+): SmokeUpdateSample {
+  return {
+    field,
+    input: {
+      values: value === undefined ? {} : { [field.name]: value },
+      submittedFields: new Set([field.name]),
+    },
+    expected,
+  };
+}
+
+function requireSmokeFiles(field: SpecField, files: SmokeFiles | undefined): SmokeFiles {
+  if (!files) throw new Error(`Smoke file field "${field.name}" has no scratch files minted.`);
+  return files;
 }
 
 function sampleValue(
   field: SpecField,
   phase: "create" | "update",
+  files: SmokeFiles | undefined,
 ): { readonly input?: CapabilityInputValue; readonly expected: CapabilityDataColumnValue } {
   const prefix = phase === "create" ? "gate smoke" : "gate update";
   switch (field.type) {
@@ -91,9 +196,10 @@ function sampleValue(
       const expected = [`${prefix} first`, "literal,comma", `${prefix} last`];
       return { input: expected, expected };
     }
-    case "file":
-      // Empty, as every Gate value for one is (`formSubmitsField`, `builder/gate/gate-internal.ts`).
-      return { expected: null };
+    case "file": {
+      const { created } = requireSmokeFiles(field, files);
+      return { input: created.key, expected: created.expected };
+    }
   }
 }
 

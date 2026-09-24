@@ -12,6 +12,7 @@ import {
   type CapabilitySpec,
   choiceFieldOptions,
   isChoiceFieldType,
+  isFileFieldType,
   isSearchableTextType,
   PLATFORM_COLUMNS,
   type SpecField,
@@ -25,6 +26,7 @@ import {
 import type { CapabilityInput, CapabilityReadHandler } from "../../../../runtime/router/index.ts";
 import type { ScratchCatalogCapability } from "../../gate.ts";
 import { buildGateQueryPort } from "../../gate-internal.ts";
+import { scratchFileName, scratchStoredFile } from "../../gate-scratch-files.ts";
 import { SmokeActionFailure } from "./gate-smoke-repair.ts";
 import {
   assertIdsEqual,
@@ -357,12 +359,16 @@ function addExclusionCases(state: FixtureState): void {
   addNonTextExclusionCases(state, nonText);
 }
 
+/** The word the excluded row's file is named with: a name is the only text a file has. */
+const FILE_EXCLUSION_Q = "fileonly";
+
 /** One exclusion case per non-searchable type present, each keyed to its fixture value. */
 const NON_TEXT_EXCLUSIONS = [
   { type: "number", label: "number exclusion", q: "8675309" },
   { type: "boolean", label: "boolean exclusion", q: "true" },
   { type: "date", label: "date exclusion", q: "2042-02-03" },
   { type: "datetime", label: "datetime exclusion", q: "2042-02-03T04:05:06.000Z" },
+  { type: "file", label: "file exclusion", q: FILE_EXCLUSION_Q },
 ] as const;
 
 function addNonTextExclusionCases(state: FixtureState, nonText: readonly SpecField[]): void {
@@ -371,6 +377,16 @@ function addNonTextExclusionCases(state: FixtureState, nonText: readonly SpecFie
     const present = nonText.some((field) => field.type === exclusion.type);
     if (!present || matchable.has(exclusion.q)) continue;
     state.cases.push({ label: exclusion.label, q: exclusion.q, expectedIds: [] });
+  }
+  // A stored file's kind and type are text in its column too, in every row that holds one.
+  const kinds = new Set(
+    nonText.flatMap((field) =>
+      isFileFieldType(field.type) ? (field.accepts?.slice(0, 1) ?? []) : [],
+    ),
+  );
+  for (const kind of kinds) {
+    if (matchable.has(kind)) continue;
+    state.cases.push({ label: `file kind exclusion: ${kind}`, q: kind, expectedIds: [] });
   }
 }
 
@@ -398,6 +414,10 @@ function addBehaviorNeutralOrderRows(
   // free-text behavior; the platform's id-desc fallback stays independently provable.
   const tiedC = state.row("search_order_c", "2038-08-08T08:08:08.000Z");
   setText(tiedC, location, "stabledefaultordering");
+  // Each row mints its own file, so two tied rows holding one would still differ by key.
+  for (const field of state.spec.schema.fields) {
+    if (isFileFieldType(field.type)) tiedC.values[field.name] = null;
+  }
   const tiedA = state.row("search_order_a", "2038-08-08T08:08:08.000Z");
   const tiedB = state.row("search_order_b", "2038-08-08T08:08:08.000Z");
   Object.assign(tiedA.values, structuredClone(tiedC.values));
@@ -413,7 +433,8 @@ function addBehaviorNeutralOrderRows(
 
 /**
  * One neutral fixture value per pantry type. The return type is concrete, not `unknown`, so a
- * `switch` with no `default` makes the compiler refuse a new field type without a value.
+ * `switch` with no `default` makes the compiler refuse a new field type without a value. A file
+ * field's value is the name of the scratch file its row holds, on every other row.
  */
 export function fixtureFieldValue(
   field: SpecField,
@@ -439,8 +460,7 @@ export function fixtureFieldValue(
     case "datetime":
       return `2025-01-${String((seed % 27) + 1).padStart(2, "0")}T00:00:00.000Z`;
     case "file":
-      // Empty, as every Gate value for one is (`formSubmitsField`, `builder/gate/gate-internal.ts`).
-      return null;
+      return seed % 2 === 0 ? scratchFileName(`neutral${seed}`) : null;
   }
 }
 
@@ -465,7 +485,7 @@ function excludedNonTextValue(
     case "string[]":
       return fixtureFieldValue(field, 44);
     case "file":
-      return null;
+      return scratchFileName(FILE_EXCLUSION_Q);
   }
 }
 
@@ -495,15 +515,27 @@ function insertFixtureRow(
     row.id,
     row.createdAt,
     row.extra,
-    ...spec.schema.fields.map((field) =>
-      encodeCapabilityFieldForStorage(field, row.values[field.name]),
-    ),
+    ...spec.schema.fields.map((field) => fixtureColumn(spec, field, row, database)),
   ];
   database
     .query(
       `INSERT INTO ${sqlIdentifier(tableName)} (${columns.map(sqlIdentifier).join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`,
     )
     .run(...values);
+}
+
+/** A file's column holds a reference its row owns in the scratch ledger, minted row by row. */
+function fixtureColumn(
+  spec: CapabilitySpec,
+  field: SpecField,
+  row: FixtureRow,
+  database: Database,
+): string | number | null {
+  const value = row.values[field.name];
+  if (!isFileFieldType(field.type) || value === null) {
+    return encodeCapabilityFieldForStorage(field, value);
+  }
+  return scratchStoredFile(database, spec, field, row.id, String(value));
 }
 
 async function invokeRecordHandler(

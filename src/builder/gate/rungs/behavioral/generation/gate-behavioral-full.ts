@@ -1,9 +1,14 @@
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import { errorMessage } from "../../../../../platform/errors.ts";
+import { FILE_LEDGER_TABLE } from "../../../../../platform/files/ledger.ts";
 import { sqlIdentifier } from "../../../../../platform/persistence/sql-identifier.ts";
 import type { PresentationAdapter } from "../../../../../presentation/index.ts";
-import { activeSpecFields, type CapabilitySpec } from "../../../../../registry/index.ts";
+import {
+  activeSpecFields,
+  type CapabilitySpec,
+  isFileFieldType,
+} from "../../../../../registry/index.ts";
 import {
   createCapabilityDeleteMutationPort,
   createCapabilityMutationPort,
@@ -12,7 +17,7 @@ import {
   RecordNotFoundError,
   selectCapabilityRows,
 } from "../../../../../runtime/data/index.ts";
-import type { CapabilityInput } from "../../../../../runtime/router/index.ts";
+import type { CapabilityInput, CapabilitySaveInput } from "../../../../../runtime/router/index.ts";
 import type { HandlerUnitName } from "../../../../units/generation/units.ts";
 import type {
   BehavioralTestCaseOutcome,
@@ -23,7 +28,6 @@ import {
   assertFragment,
   buildGatePresent,
   buildGateQueryPort,
-  formSubmitsField,
   ItemRendererExecutionError,
   type LoadedHandlers,
   loadHandlers,
@@ -32,6 +36,7 @@ import {
   sameSnapshot,
   snapshotCapabilityTables,
 } from "../../../gate-internal.ts";
+import { SCRATCH_INCARNATION_ID, scratchSubmission } from "../../../gate-scratch-files.ts";
 import { selectedBehavioralCases } from "../freeze/behavioral-execution-plan.ts";
 import {
   ageSetupRows,
@@ -54,12 +59,14 @@ import {
   type BehavioralScalar,
   fieldValuesToRecord,
   inputValuesToHandlerInput,
+  scratchFormInput,
 } from "./gate-behavioral-input.ts";
 
 interface FullBehavioralCaseDiagnostic {
   readonly testCase: FullBehavioralTestCase;
   readonly setupRows: readonly Record<string, BehavioralScalar>[];
-  readonly actionInput?: CapabilityInput;
+  /** What the Handler received: a file field as its projection, or the case's tokens if it never ran. */
+  readonly actionInput?: CapabilitySaveInput;
   readonly scratchRows?: ReturnType<typeof selectCapabilityRows>;
   readonly fragment?: string;
   /** Where in the case's execution it failed — the input to runtime attribution. */
@@ -153,13 +160,12 @@ async function runFullBehavioralCase(
   );
   const submittedFields =
     testCase.action === "create"
-      ? activeSpecFields(input.spec.schema.fields)
-          .filter(formSubmitsField)
-          .map((field) => field.name)
+      ? activeSpecFields(input.spec.schema.fields).map((field) => field.name)
       : testCase.action === "update"
         ? [...new Set(testCase.input.map((entry) => entry.field))]
         : [];
   const actionInput = inputValuesToHandlerInput(input.spec, testCase.input, submittedFields);
+  const received: ReceivedInput = {};
   let fragment: string | undefined;
   let scratchRows: ReturnType<typeof selectCapabilityRows> | undefined;
   // Tagged as execution advances, never inferred from the message: attribution turns on which
@@ -177,6 +183,7 @@ async function runFullBehavioralCase(
       present,
       testCase,
       actionInput,
+      received,
       targetId,
       scratch.readwrite,
       scratch.readonly,
@@ -196,7 +203,7 @@ async function runFullBehavioralCase(
     throw new FullBehavioralCaseFailure(testCase.name, {
       testCase,
       setupRows,
-      actionInput,
+      actionInput: received.input ?? actionInput,
       scratchRows,
       fragment,
       // The item renderer runs *inside* the Handler call, so an unmarked throw would be tagged
@@ -218,20 +225,36 @@ function renderedThrough(error: unknown): boolean {
   return false;
 }
 
+/** Seed each row through the save a form makes, so a file token becomes a file the row owns. */
 function seedRows(
   spec: CapabilitySpec,
   tableName: string,
   rows: readonly Record<string, BehavioralScalar>[],
   database: Database,
 ): string[] {
-  const create = createCapabilityMutationPort(spec, database);
+  const fileFields = new Set(
+    activeSpecFields(spec.schema.fields)
+      .filter((field) => isFileFieldType(field.type))
+      .map((field) => field.name),
+  );
   return rows.map((row, index) => {
-    const generatedId = String(materializeCapabilityActionRecord(create.create(row)).id);
+    const values = Object.entries(row);
+    const tokens = Object.fromEntries(
+      values.filter(([name, value]) => fileFields.has(name) && typeof value === "string"),
+    ) as Record<string, string>;
+    const form = { values: tokens, submittedFields: new Set(Object.keys(tokens)) };
+    const { binding } = scratchSubmission(spec, scratchFormInput(spec, form, database), database);
+    const create = createCapabilityMutationPort(spec, database, undefined, binding);
+    const data = Object.fromEntries(values.filter(([name]) => !fileFields.has(name)));
+    const generatedId = String(materializeCapabilityActionRecord(create.create(data)).id);
     // Setup order is semantic input to the generated test. Stable ids ensure an
     // id-only Handler cannot pass or fail ordering assertions by random UUID luck.
     const deterministicId = `behavior_setup_${String(index).padStart(4, "0")}`;
     database
       .query(`UPDATE ${sqlIdentifier(tableName)} SET "id" = ? WHERE "id" = ?`)
+      .run(deterministicId, generatedId);
+    database
+      .query(`UPDATE ${FILE_LEDGER_TABLE} SET "record_id" = ? WHERE "record_id" = ?`)
       .run(deterministicId, generatedId);
     return deterministicId;
   });
@@ -249,6 +272,7 @@ async function invokeExpectedAction(
   present: PresentationAdapter,
   testCase: FullBehavioralTestCase,
   actionInput: CapabilityInput,
+  received: ReceivedInput,
   targetId: string | undefined,
   readwrite: Database,
   readonly: Database,
@@ -260,6 +284,7 @@ async function invokeExpectedAction(
       present,
       testCase.action,
       actionInput,
+      received,
       targetId,
       readwrite,
       readonly,
@@ -275,21 +300,30 @@ async function invokeExpectedAction(
   }
 }
 
+/** The input a case's Handler was handed, recorded for the failure it may explain. */
+interface ReceivedInput {
+  input?: CapabilitySaveInput;
+}
+
 async function invokeAction(
   input: CapabilityGateInput,
   handlers: LoadedHandlers,
   present: PresentationAdapter,
   action: HandlerUnitName,
   actionInput: CapabilityInput,
+  received: ReceivedInput,
   targetId: string | undefined,
   readwrite: Database,
   readonly: Database,
 ): Promise<string> {
   const query = buildGateQueryPort(input.spec, action, input.scratchCatalog, readonly);
   if (action === "create") {
+    const form = scratchFormInput(input.spec, actionInput, readwrite);
+    const { binding, input: saved } = scratchSubmission(input.spec, form, readwrite);
+    received.input = saved;
     return handlers.create({
-      input: actionInput,
-      mutation: createCapabilityMutationPort(input.spec, readwrite),
+      input: saved,
+      mutation: createCapabilityMutationPort(input.spec, readwrite, undefined, binding),
       query,
       present,
     });
@@ -302,13 +336,18 @@ async function invokeAction(
   if (!targetId) throw new Error(`Behavioral ${action} target is missing.`);
   if (action === "update") {
     if (!handlers.update) throw new Error("Behavioral update Handler is missing.");
+    const form = scratchFormInput(input.spec, actionInput, readwrite, targetId);
+    const { binding, input: saved } = scratchSubmission(input.spec, form, readwrite, targetId);
+    received.input = saved;
     return handlers.update({
-      input: actionInput,
+      input: saved,
       mutation: createCapabilityUpdateMutationPort(
         input.spec,
         targetId,
         actionInput.submittedFields,
         readwrite,
+        undefined,
+        binding,
       ),
       query,
       present,
@@ -317,7 +356,9 @@ async function invokeAction(
   if (!handlers.delete) throw new Error("Behavioral delete Handler is missing.");
   return handlers.delete({
     input: actionInput,
-    mutation: createCapabilityDeleteMutationPort(input.spec, targetId, readwrite),
+    mutation: createCapabilityDeleteMutationPort(input.spec, targetId, readwrite, undefined, {
+      incarnationId: SCRATCH_INCARNATION_ID,
+    }),
     query,
   });
 }

@@ -9,6 +9,7 @@ export {
   type SubmittedFiles,
   submittedFileKey,
   submittedFileProjection,
+  withFileProjections,
 } from "./access/file-claims.ts";
 export {
   type CapabilityCreateValues,
@@ -42,6 +43,7 @@ export {
   FILE_URL_PREFIX,
   fileKeyFromProjection,
   projectFileLedgerRow,
+  storedFileReference,
 } from "./schema/file-values.ts";
 export {
   assertScopedQuery,
