@@ -162,7 +162,7 @@ generate HTML, SQL, and TypeScript natively and reliably.
 | **Transport** | SSE (Server-Sent Events) | Native streaming, 3 lines of client code, perfect for "watch the UI build itself" |
 | **Client shell** | HTMX + Alpine.js | HTMX swaps server HTML into the DOM with no build step; Alpine handles local interactivity. Zero framework in the critical path |
 | **Persistence** | `bun:sqlite` + platform-owned SQLite extension bridge | In-process, microsecond queries. A separate read-only connection serves the read/query path. M4 search normalization adds one loadable scalar function compiled locally; it requires a C compiler and extension headers, plus extension-capable SQLite on macOS |
-| **File storage** | `Bun.file` / `Bun.write` (local FS), S3-shaped provider | No separate storage process (same "no dependency tax" logic as choosing SQLite over Postgres). Zero-copy `sendfile` streaming; swap to R2/S3/Garage on deploy by config |
+| **File storage** | Local filesystem through Bun (a `Bun.file` sink in, a descriptor the route opens out), S3-shaped provider | No separate storage process (same "no dependency tax" logic as choosing SQLite over Postgres). Streams both ways without holding a file in memory; the root is configurable, and an R2/S3/Garage adapter can take the same interface |
 | **AI** | Fast variants of flagship models — Claude Opus (fast mode), top GPT (fast tier), pluggable — behind the Vercel AI SDK as the in-process provider spine | Capability quality matters more than per-call cost; latency is part of the thesis. BYO-key keeps the open-sourced demo free. The SDK supplies streaming + structured output + a bounded tool-loop so we don't hand-build a streaming client; provider-agnosticism comes from targeting the Anthropic-/OpenAI-compatible wire shapes (see ADR-0003) |
 | **Spec format** | JSON (AG-UI–aligned shape) | Open, structured, diffable. Not invented from scratch |
 
@@ -901,8 +901,10 @@ rule, and both are absent on every row no read loop ran for.
 #### Object Store — user files on disk
 
 A platform-provided file store, never something the AI builds. The default local
-adapter uses `Bun.file` / `Bun.write`, addressed by opaque key under
-`storage/<key>`; an S3-shaped interface (`put` / `get` / `delete` / `url`) keeps
+adapter writes through a `Bun.file` sink and serves from a descriptor it opens under
+the read token (a `Bun.file(path)` body opens only as it is sent, after the token is
+gone), addressed by opaque key under `storage/<key>` (`OMNI_OBJECT_STORE_ROOT` moves
+the root); an S3-shaped interface (`put` / `get` / `delete` / `url`) keeps
 deployment swappable, and a cloud adapter is proxied through `/files/:key` so a
 file's address stays same-origin. Bytes live here; the reference lives in a
 capability table. The **file ledger**, a platform table in the same database, is
@@ -1044,8 +1046,7 @@ dependency. A cheap classifier may route or reject obvious non-queries early
 File storage is platform tooling. Building a storage system is out of scope,
 brittle, and pointless, so the AI never does it, and neither does generated
 behavior: the platform itself drives an S3-shaped store, backed by default by the
-local filesystem (`Bun.file` / `Bun.write`) and swappable to R2, S3, or Garage by
-config.
+local filesystem and built so an R2, S3 or Garage adapter can take its place.
 
 - **Upload = write = constrained.** A file travels ahead of the save, one
   request per file, read into staging the moment it arrives, so it is never held
@@ -1064,7 +1065,7 @@ config.
   abandoned upload is deleted by a confirmed leave or taken by the next desk-load
   sweep. The AI never touches bytes.
 - **Serve = read = free + infrastructure.** A platform-owned route `/files/:key`
-  streams bytes via `Bun.file`, looking the key up under a read token for its
+  streams bytes from a descriptor it opens under a read token for the key's
   incarnation like every other read, so a closing capability's files stop serving. Generated code
   is handed each file as `{ url, name, kind, mime, size }` and puts the `url`
   where it belongs (an `<img src>`, say); it never needs the key and never

@@ -14,6 +14,7 @@
 import type { Context, Hono } from "hono";
 import { errorDetail } from "../../platform/errors.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
+import { readActiveIncarnationCatalog } from "../../registry/index.ts";
 import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 import type {
   CapabilityIncarnation,
@@ -26,7 +27,6 @@ import {
 } from "../../server/http/index.ts";
 import {
   type CapabilityLogoAttemptOutcome,
-  readActiveIncarnationCatalog,
   readAttemptTarget,
   runCapabilityLogoAttempt,
 } from "./generation/attempt.ts";

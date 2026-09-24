@@ -12,8 +12,10 @@ import {
 import { seedFileLedgerRow } from "./ledger.test-support.ts";
 import {
   enqueueDisplacedFile,
+  enqueuePendingFile,
   enqueueRecordFiles,
   FILE_LEDGER_TABLE,
+  insertPendingFile,
   isFileKey,
   mintFileKey,
   promotePendingFile,
@@ -148,6 +150,43 @@ describe("giving up a key", () => {
       "owned",
       "pending",
     ]);
+  });
+});
+
+describe("an admitted upload's row", () => {
+  const admitted = (key: string) => ({
+    key,
+    capability_id: "photos",
+    incarnation_id: FIRST_INCARNATION_ID,
+    field: "photo",
+    kind: "image",
+    mime: "image/png",
+    size: 5000,
+    name: "tide.png",
+  });
+
+  test("goes in pending, with no record and exactly what admission verified", () => {
+    const key = mintFileKey();
+    insertPendingFile(env.conns.readwrite, admitted(key));
+    expect(readFileLedgerRow(env.conns.readwrite, key)).toMatchObject({
+      ...admitted(key),
+      record_id: null,
+      state: "pending",
+      encoding: null,
+    });
+    expect(() => insertPendingFile(env.conns.readwrite, admitted(key))).toThrow();
+  });
+
+  test("an unanswered key goes to cleanup once, and a claimed one never does", () => {
+    const unanswered = seed();
+    expect(enqueuePendingFile(env.conns.readwrite, unanswered)).toBe(true);
+    expect(enqueuePendingFile(env.conns.readwrite, unanswered)).toBe(false);
+    expect(readFileLedgerRow(env.conns.readwrite, unanswered)?.state).toBe("cleanup_enqueued");
+
+    const owned = seed({ state: "owned" });
+    expect(enqueuePendingFile(env.conns.readwrite, owned)).toBe(false);
+    expect(readFileLedgerRow(env.conns.readwrite, owned)?.state).toBe("owned");
+    expect(enqueuePendingFile(env.conns.readwrite, mintFileKey())).toBe(false);
   });
 });
 

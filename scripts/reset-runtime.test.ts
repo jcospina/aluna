@@ -4,7 +4,20 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
+import { mintFileKey } from "../src/platform/files/ledger.ts";
+import { OBJECT_STORE_ROOT_ENV_VAR } from "../src/platform/files/object-store-root.ts";
 import { resetRuntime } from "./reset-runtime.ts";
+
+/** A store under `storeRoot` holding a placed key, a staged one, and a file that is not the store's. */
+function fillStore(storeRoot: string): { placed: string; staged: string } {
+  const placed = mintFileKey();
+  const staged = mintFileKey();
+  mkdirSync(join(storeRoot, ".incoming"), { recursive: true });
+  writeFileSync(join(storeRoot, placed), "blob bytes");
+  writeFileSync(join(storeRoot, ".incoming", staged), "half an upload");
+  writeFileSync(join(storeRoot, "notes.txt"), "not the store's");
+  return { placed, staged };
+}
 
 describe("runtime reset script", () => {
   test("wipes runtime data while preserving the database file and migration ledger", async () => {
@@ -18,7 +31,7 @@ describe("runtime reset script", () => {
     writeFileSync(join(root, "capabilities", "README.md"), "tracked capability placeholder");
     writeFileSync(join(root, "storage", "README.md"), "tracked storage placeholder");
     writeFileSync(join(root, "capabilities", "notes", "v1", "read.ts"), "generated handler");
-    writeFileSync(join(root, "storage", "blob-key"), "blob bytes");
+    const { placed } = fillStore(join(root, "storage"));
 
     const databasePath = join(root, "data", "omni-crud.db");
     const database = new Database(databasePath, { create: true, readwrite: true });
@@ -42,7 +55,7 @@ describe("runtime reset script", () => {
     `);
     database.close();
 
-    const result = resetRuntime({ root });
+    const result = resetRuntime({ root, env: {} });
 
     expect(result.clearedTables).toEqual([
       "capability_registry",
@@ -55,12 +68,11 @@ describe("runtime reset script", () => {
     expect(result.droppedTables).toEqual(["cap_notes"]);
     // Naming the paths, not counting them: deleting two of the wrong things would
     // satisfy a length check just as well.
-    expect(result.deletedPaths.map((path: string) => relative(root, path)).sort()).toEqual([
-      join("capabilities", "notes"),
-      join("storage", "blob-key"),
-    ]);
+    expect(result.deletedPaths.map((path: string) => relative(root, path)).sort()).toEqual(
+      [join("capabilities", "notes"), join("storage", ".incoming"), join("storage", placed)].sort(),
+    );
     expect(readdirSync(join(root, "capabilities"))).toEqual(["README.md"]);
-    expect(readdirSync(join(root, "storage"))).toEqual(["README.md"]);
+    expect(readdirSync(join(root, "storage")).sort()).toEqual(["README.md", "notes.txt"]);
     expect(existsSync(databasePath)).toBe(true);
 
     const wipedDatabase = new Database(databasePath, { readonly: true });
@@ -85,5 +97,22 @@ describe("runtime reset script", () => {
         .get(),
     ).toBeNull();
     wipedDatabase.close();
+  });
+
+  test("empties the configured object store root, and only the store's own entries in it", async () => {
+    const root = await mkdtemp(join(tmpdir(), "omni-crud-reset-"));
+    const elsewhere = await mkdtemp(join(tmpdir(), "omni-crud-reset-store-"));
+    const defaultStore = fillStore(join(root, "storage"));
+    const { placed } = fillStore(elsewhere);
+
+    const result = resetRuntime({ root, env: { [OBJECT_STORE_ROOT_ENV_VAR]: elsewhere } });
+
+    expect(result.deletedPaths.filter((path) => path.startsWith(elsewhere)).sort()).toEqual(
+      [join(elsewhere, ".incoming"), join(elsewhere, placed)].sort(),
+    );
+    expect(readdirSync(elsewhere)).toEqual(["notes.txt"]);
+    expect(readdirSync(join(root, "storage")).sort()).toEqual(
+      [".incoming", "notes.txt", defaultStore.placed].sort(),
+    );
   });
 });

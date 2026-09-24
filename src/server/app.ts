@@ -43,6 +43,7 @@ import { type BuildJobQueue, createBuildJobQueue } from "../pipeline/jobs/build-
 import { captureRestorationDescriptor } from "../pipeline/jobs/restoration.ts";
 import { errorDetail } from "../platform/errors.ts";
 import { resolveMaxFileBytes } from "../platform/files/file-cap.ts";
+import { createLocalObjectStore, type ObjectStore } from "../platform/files/object-store.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../platform/persistence/db.ts";
 import { createProvider, type Provider } from "../platform/provider/index.ts";
 import { getCapability, listCapabilityDependents } from "../registry/index.ts";
@@ -55,6 +56,7 @@ import {
   type ReadGateCoordinator,
 } from "../runtime/concurrency/read-gates.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../runtime/router/index.ts";
+import { registerFileRoutes } from "./files/index.ts";
 import {
   BLANK_PROMPT_NOTICE,
   guardWritingRoute,
@@ -122,6 +124,8 @@ export interface AppDeps {
    * the route-walk test shrinks it so an upload route can be probed past its limit.
    */
   readonly maxFileBytes?: number;
+  /** Where uploaded bytes live. Defaults to the local store under `storage/`. */
+  readonly objectStore?: ObjectStore;
 }
 
 /** The fully-resolved dependency set every route group below is wired from. */
@@ -144,6 +148,7 @@ interface ResolvedAppDeps {
   readonly logoClaims: RunningLogoClaims;
   readonly logoClaimObservationMs?: number;
   readonly maxFileBytes: number;
+  readonly objectStore: ObjectStore;
 }
 
 function resolveRegistryDatabases(
@@ -204,6 +209,7 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     logoClaims: deps.logoClaims ?? createRunningLogoClaims(),
     logoClaimObservationMs: deps.logoClaimObservationMs,
     maxFileBytes: resolveFileCap(deps),
+    objectStore: resolveObjectStore(deps),
     deletionCleanup:
       deps.deletionCleanup ??
       createDeletionCleanupSupervisor({
@@ -216,6 +222,10 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
 
 function resolveFileCap(deps: AppDeps): number {
   return deps.maxFileBytes ?? resolveMaxFileBytes();
+}
+
+function resolveObjectStore(deps: AppDeps): ObjectStore {
+  return deps.objectStore ?? createLocalObjectStore();
 }
 
 /**
@@ -522,6 +532,14 @@ export function createApp(deps: AppDeps = {}): Hono {
     logoClaimObservationMs: ctx.logoClaimObservationMs,
   });
 
+  registerFileRoutes(app, {
+    databases: { readwrite: ctx.registryReadwrite, readonly: ctx.registryReadonly },
+    mutationCoordinator: ctx.mutationCoordinator,
+    readGates: ctx.readGates,
+    objectStore: ctx.objectStore,
+    maxFileBytes: ctx.maxFileBytes,
+  });
+
   // The deterministic capability router: the fixed `/capability/:id/:action` convention the
   // generated UI targets. Its own subsystem (src/router), so this file stays the wiring sheet.
   registerCapabilityRoutes(app, {
@@ -579,9 +597,12 @@ export const platformDeletionCleanup = createDeletionCleanupSupervisor({
  * the same registry the desk load consults; a boot pass with its own set would always be empty.
  */
 export const platformLogoClaims = createRunningLogoClaims();
+/** Exported so boot empties the staging of the store the upload route writes. */
+export const platformObjectStore = createLocalObjectStore();
 export const app = createApp({
   readGates: platformReadGates,
   mutationCoordinator: platformMutationCoordinator,
   deletionCleanup: platformDeletionCleanup,
   logoClaims: platformLogoClaims,
+  objectStore: platformObjectStore,
 });

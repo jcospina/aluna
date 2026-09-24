@@ -7,6 +7,11 @@ import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { DEFAULT_ARTIFACTS_ROOT } from "../src/builder/artifacts/artifacts-root.ts";
 import { errorMessage } from "../src/platform/errors.ts";
+import { isFileKey } from "../src/platform/files/ledger.ts";
+import {
+  resolveObjectStoreRoot,
+  STAGING_DIRECTORY,
+} from "../src/platform/files/object-store-root.ts";
 import { DB_PATH } from "../src/platform/persistence/db-path.ts";
 import { sqlIdentifier } from "../src/platform/persistence/sql-identifier.ts";
 import {
@@ -17,11 +22,10 @@ import {
   GENERATION_LIFECYCLE_TABLE,
   GENERATION_METRICS_TABLE,
   INTENT_RESOLUTION_METRICS_TABLE,
-  OBJECT_STORE_ROOT,
   REGISTRY_TABLE,
 } from "../src/platform/persistence/table-names.ts";
 
-const GENERATED_DIRS = [DEFAULT_ARTIFACTS_ROOT, OBJECT_STORE_ROOT] as const;
+const GENERATED_DIRS = [DEFAULT_ARTIFACTS_ROOT] as const;
 const TRACKED_PLACEHOLDER = "README.md";
 const PLATFORM_DATA_TABLES = [
   REGISTRY_TABLE,
@@ -40,6 +44,8 @@ const PLATFORM_DATA_TABLES = [
 
 export interface ResetRuntimeOptions {
   readonly root?: string;
+  /** Where `OMNI_OBJECT_STORE_ROOT` is read from. */
+  readonly env?: NodeJS.ProcessEnv;
 }
 
 export interface ResetRuntimeResult {
@@ -67,7 +73,13 @@ export function resetRuntime(options: ResetRuntimeOptions = {}): ResetRuntimeRes
     }
   }
 
-  const leftovers = generatedLeftovers(root);
+  const storeRoot = resolve(root, resolveObjectStoreRoot(options.env));
+  for (const path of objectStoreEntries(storeRoot)) {
+    rmSync(path, { force: true, recursive: true });
+    deletedPaths.push(path);
+  }
+
+  const leftovers = [...generatedLeftovers(root), ...objectStoreEntries(storeRoot)];
   if (leftovers.length > 0) {
     throw new Error(`Runtime reset left generated files behind: ${leftovers.join(", ")}`);
   }
@@ -124,6 +136,17 @@ function listTables(database: Database): Set<string> {
     .all() as { name: string }[];
 
   return new Set(rows.map((row) => row.name));
+}
+
+/**
+ * The store's own entries, its staging directory and its keys, and nothing else: its root is
+ * configurable, so it may be a directory that holds other things too.
+ */
+function objectStoreEntries(storeRoot: string): string[] {
+  if (!existsSync(storeRoot)) return [];
+  return readdirSync(storeRoot)
+    .filter((entry) => entry === STAGING_DIRECTORY || isFileKey(entry))
+    .map((entry) => join(storeRoot, entry));
 }
 
 function generatedLeftovers(root: string): string[] {

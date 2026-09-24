@@ -178,6 +178,7 @@ export {
   listCapabilities,
   listCapabilityDependents,
   REGISTRY_TABLE,
+  readActiveIncarnationCatalog,
   releaseLogoClaim,
   renameCapability,
   resolveActionReadDependencies,
