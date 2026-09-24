@@ -31,6 +31,36 @@ describe("a Handler's fragment cannot swap outside the region it was aimed at", 
     expect(neutralized).toBe(false);
   });
 
+  test("a script scheme hidden behind a character reference is removed", () => {
+    for (const href of ["javascript&colon;x()", "javascript&#58;x()", "&#106;avascript:x()"]) {
+      const { html, neutralized } = enforceHandlerFragment(`<a href="${href}">go</a>`);
+      expect(html, href).toBe("<a>go</a>");
+      expect(neutralized).toBe(true);
+    }
+    const query = '<a href="?q=a&amp;page=2">next</a>';
+    expect(enforceHandlerFragment(query).html).toBe(query);
+  });
+
+  test("a hostile second copy of a link cannot outlive the safe first one", () => {
+    for (const [tag, attribute] of [
+      ["a", "href"],
+      ["form", "action"],
+      ["iframe", "src"],
+    ] as const) {
+      const markup = `<${tag} ${attribute}="/ok" ${attribute}="javascript:alert(1)"></${tag}>`;
+      const once = enforceHandlerFragment(markup).html;
+      expect(once, markup).toBe(`<${tag} ${attribute}="/ok"></${tag}>`);
+      expect(enforceHandlerFragment(once).html).toBe(once);
+    }
+  });
+
+  test("a CDATA section after foreign content cannot hide an out-of-band swap", () => {
+    const hidden = '<svg/><![CDATA[><div hx-swap-oob="true" id="desk">x</div>]]>';
+    const { html, neutralized } = enforceHandlerFragment(hidden);
+    expect(html).not.toContain("hx-swap-oob");
+    expect(neutralized).toBe(true);
+  });
+
   test("enforcing twice changes nothing the first pass left", () => {
     // Idempotence is the guard that catches a scrub which turns inert text into live
     // markup: if a second pass finds more to remove, the first pass created it.

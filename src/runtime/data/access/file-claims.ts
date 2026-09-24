@@ -17,6 +17,11 @@ import {
   isFileFieldType,
   type SpecField,
 } from "../../../registry/index.ts";
+import type {
+  CapabilityInput,
+  CapabilitySaveInput,
+  CapabilitySaveInputValue,
+} from "../../router/contract.ts";
 import {
   type FileReferenceRefusal,
   InvalidFileReferenceError,
@@ -66,6 +71,16 @@ export function submittedFileKey(file: SubmittedFile): string | null {
 export function submittedFileProjection(file: SubmittedFile): CapabilityFileProjection | null {
   if (file.write === "claim") return projectFileLedgerRow(file.row);
   return file.write === "keep" ? file.held : null;
+}
+
+/** A Handler's input, with each submitted file field's wire value replaced by its projection. */
+export function withFileProjections(
+  input: CapabilityInput,
+  files: SubmittedFiles,
+): CapabilitySaveInput {
+  const values: Record<string, CapabilitySaveInputValue> = { ...input.values };
+  for (const [field, file] of files) values[field] = submittedFileProjection(file);
+  return { values: Object.freeze(values), submittedFields: input.submittedFields };
 }
 
 /**

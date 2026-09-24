@@ -32,6 +32,45 @@ export interface FileLedgerRow {
   readonly cleanup_error: string | null;
 }
 
+/**
+ * Build the ledger: migration `0016_file_ledger` runs it, and so does every Gate scratch database.
+ * `kind` carries no `IN (…)` CHECK for the reason a choice column has none: families grow, and
+ * SQLite cannot alter a column constraint. The save checks it against the field's `accepts`.
+ */
+export function createFileLedgerSchema(database: Database): void {
+  database.exec(
+    `CREATE TABLE IF NOT EXISTS ${FILE_LEDGER_TABLE} (
+       key              TEXT PRIMARY KEY,
+       capability_id    TEXT NOT NULL,
+       incarnation_id   TEXT NOT NULL,
+       field            TEXT NOT NULL,
+       record_id        TEXT,
+       state            TEXT NOT NULL
+         CHECK (state IN (${FILE_LEDGER_STATES.map((state) => `'${state}'`).join(", ")})),
+       kind             TEXT NOT NULL,
+       mime             TEXT NOT NULL CHECK (length(mime) > 0),
+       size             INTEGER NOT NULL CHECK (size BETWEEN 0 AND ${Number.MAX_SAFE_INTEGER}),
+       name             TEXT NOT NULL,
+       encoding         TEXT,
+       created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+       cleanup_attempts INTEGER NOT NULL DEFAULT 0 CHECK (cleanup_attempts >= 0),
+       cleanup_error    TEXT,
+       CHECK (
+         (state = 'pending' AND record_id IS NULL) OR
+         (state = 'owned' AND record_id IS NOT NULL) OR
+         state = 'cleanup_enqueued'
+       )
+     ) STRICT;`,
+  );
+  database.exec(
+    `CREATE INDEX IF NOT EXISTS ${FILE_LEDGER_TABLE}_record ON ${FILE_LEDGER_TABLE} (record_id);`,
+  );
+  database.exec(
+    `CREATE INDEX IF NOT EXISTS ${FILE_LEDGER_TABLE}_incarnation
+     ON ${FILE_LEDGER_TABLE} (incarnation_id);`,
+  );
+}
+
 const FILE_KEY_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** A new unguessable key, in the one shape {@link isFileKey} admits. */

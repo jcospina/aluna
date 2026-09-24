@@ -5,6 +5,7 @@ import { behavioralErrorMarkersSchema, capabilityToolSchema } from "../../../../
 import type { selectCapabilityRows } from "../../../../runtime/data/index.ts";
 import type { HandlerUnitName } from "../../../units/generation/units.ts";
 import { fieldValueMatches } from "../../gate-internal.ts";
+import { tokenFileName } from "../../gate-scratch-names.ts";
 import type { BehavioralScalar } from "./generation/gate-behavioral-input.ts";
 
 export const nonEmptyStringSchema = z.string().min(1);
@@ -19,9 +20,13 @@ export const behavioralFieldValueSchema = z.strictObject({
   field: nonEmptyStringSchema,
   value: behavioralScalarSchema,
 });
+/**
+ * One submitted field. `value` is required and nullable rather than a union of two entry shapes,
+ * whose `oneOf` OpenAI's strict mode refuses: `null` is a file field's token for none.
+ */
 export const behavioralInputValueSchema = z.strictObject({
   field: nonEmptyStringSchema,
-  value: z.string(),
+  value: z.string().nullable(),
 });
 export const behavioralRowSchema = z.strictObject({
   values: z.array(behavioralFieldValueSchema),
@@ -135,6 +140,11 @@ export function assertValidationErrorMarkers(
   }
 }
 
+/** What a stored file must be to match a row's token: of the family it names, or none at all. */
+function tokenFile(token: unknown): { readonly kind: string; readonly name: string } | null {
+  return typeof token === "string" ? { kind: token, name: tokenFileName(token) } : null;
+}
+
 export function rowMatches(
   fields: readonly SpecField[],
   row: ReturnType<typeof selectCapabilityRows>[number],
@@ -142,7 +152,8 @@ export function rowMatches(
 ): boolean {
   return Object.entries(expected).every(([field, value]) => {
     const type = fields.find((candidate) => candidate.name === field)?.type;
-    return type ? fieldValueMatches(type, row[field], value) : row[field] === value;
+    const wanted = type === "file" ? tokenFile(value) : value;
+    return type ? fieldValueMatches(type, row[field], wanted) : row[field] === value;
   });
 }
 

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
-import { enforceItemMarkup } from "./enforcer.ts";
+import { FILE_URL_PREFIX } from "../../platform/files/file-url.ts";
+import { mintFileKey } from "../../platform/files/ledger.ts";
+import { enforceItemMarkup, neutralizeItemMarkup } from "./enforcer.ts";
 
 // The runtime allow-list enforcer is the last line at render time. These tests cover the accept
 // path and each hostile category design-system.md "Forbidden absolutely" enumerates.
@@ -280,6 +282,127 @@ describe("enforcer — a record never reaches off this origin", () => {
     expect(enforceItemMarkup(relative)).toBe(relative);
     expect(enforceItemMarkup(bare)).toBe(bare);
   });
+
+  test("reads an address through its character references, as a browser does", () => {
+    for (const url of [
+      "https&#58;//evil.example/p.gif",
+      "https&#x3A;//evil.example/p.gif",
+      "&#x2F;&#47;evil.example/p.gif",
+      "https&colon;//evil.example/p.gif",
+      "java&Tab;script:alert(1)",
+      "\\\\evil.example/p.gif",
+      "/\\evil.example/p.gif",
+      "\\/evil.example/p.gif",
+      "&#92;&#92;evil.example/p.gif",
+      "&bsol;&sol;evil.example/p.gif",
+    ]) {
+      const output = enforceItemMarkup(`<img src="${url}" alt="x">`);
+      expect(output, url).toBe('<img alt="x">');
+    }
+    const srcset = enforceItemMarkup(
+      '<img srcset="/a.png 1x, https&#x3a;//evil.example/b.png 2x">',
+    );
+    expect(srcset).toBe("<img>");
+  });
+
+  test("keeps an address whose references spell nothing that leaves this origin", () => {
+    for (const markup of [
+      '<img src="/media/p.jpg?w=1&amp;h=2&#38;q=3&AMP;r=4" alt="x">',
+      "<img src=\"data:image/svg+xml;utf8,&lt;svg xmlns='http://www.w3.org/2000/svg'&gt;&lt;text&gt;caf&eacute;&lt;/text&gt;&lt;/svg&gt;\">",
+      '<img src="data:image/svg+xml,%3Csvg%3E%3Ctext%3Ea,b:c%3C/text%3E%3C/svg%3E">',
+      '<img src="https&constructor;//evil.example/p.gif" alt="x">',
+    ]) {
+      expect(enforceItemMarkup(markup), markup).toBe(markup);
+    }
+  });
+
+  test("reads a backslash as the slash a browser reads, in a srcset and a poster too", () => {
+    expect(enforceItemMarkup('<img srcset="/a.png 1x, \\\\evil.example/b.png 2x">')).toBe("<img>");
+    expect(enforceItemMarkup('<video poster="/\\evil.example/p.gif"></video>')).toBe(
+      "<video></video>",
+    );
+  });
+});
+
+describe("enforcer — a served file's image", () => {
+  const served = `${FILE_URL_PREFIX}${mintFileKey()}`;
+
+  test("always loads lazily and decodes asynchronously", () => {
+    expect(enforceItemMarkup(`<img src="${served}" alt="x">`)).toBe(
+      `<img src="${served}" alt="x" loading="lazy" decoding="async">`,
+    );
+    expect(enforceItemMarkup(`<img src="${served}" LOADING="eager" decoding="sync">`)).toBe(
+      `<img src="${served}" LOADING="lazy" decoding="async">`,
+    );
+  });
+
+  test("is found through a relative path, a backslash, or a picture's source", () => {
+    for (const src of [`.${served}`, served.slice(1), served.replaceAll("/", "\\")]) {
+      expect(enforceItemMarkup(`<img src="${src}">`), src).toContain('loading="lazy"');
+    }
+    expect(
+      enforceItemMarkup(`<picture><source srcset="${served}"><img src="/media/p.jpg"></picture>`),
+    ).toContain('<img src="/media/p.jpg" loading="lazy" decoding="async">');
+    expect(
+      enforceItemMarkup(
+        `<picture><source srcset="/media/p.jpg"><img src="/media/p.jpg"></picture>`,
+      ),
+    ).not.toContain("loading=");
+    expect(enforceItemMarkup(`<img src="data:image/png,${served}">`)).not.toContain("loading=");
+    expect(enforceItemMarkup(`<img src="/media/a.png,${served}">`)).not.toContain("loading=");
+  });
+
+  test("is found through a srcset or a character reference", () => {
+    expect(enforceItemMarkup(`<img srcset="${served} 1x">`)).toBe(
+      `<img srcset="${served} 1x" loading="lazy" decoding="async">`,
+    );
+    const encoded = `&#x2F;${served.slice(1)}`;
+    expect(enforceItemMarkup(`<img src="${encoded}">`)).toBe(
+      `<img src="${encoded}" loading="lazy" decoding="async">`,
+    );
+  });
+
+  test("already carrying both passes through unchanged", () => {
+    const complete = `<img src="${served}" alt="x" loading="lazy" decoding="async">`;
+    expect(enforceItemMarkup(complete)).toBe(complete);
+  });
+
+  test("is the only image given them", () => {
+    for (const markup of [
+      '<img src="/media/p.jpg" alt="x">',
+      '<img src="data:image/png;base64,iVBORw0KGgo=" alt="x">',
+      `<img src="https://evil.example${served}" alt="x">`,
+      `<span title="${served}">x</span>`,
+    ]) {
+      expect(enforceItemMarkup(markup), markup).not.toContain("loading=");
+    }
+  });
+
+  test("never throws on a picture that closes itself inside foreign content", () => {
+    for (const markup of [
+      "<svg><picture/></svg>",
+      "<math><PICTURE/></math>",
+      "x<svg><picture/></svg>",
+    ]) {
+      expect(() => enforceItemMarkup(markup), markup).not.toThrow();
+    }
+  });
+
+  test("counts a source only inside an open picture, the innermost one", () => {
+    const afterVideo = `<video><source src="${served}"></video><img src="/y.png">`;
+    expect(enforceItemMarkup(afterVideo)).not.toContain("loading=");
+    const videoInPicture = `<picture><video><source src="${served}"></video><img src="/y.png"></picture>`;
+    expect(enforceItemMarkup(videoInPicture)).not.toContain("loading=");
+    const nested = `<picture><source srcset="${served}"><picture></picture><img src="/y.png"></picture>`;
+    expect(enforceItemMarkup(nested)).toContain(
+      '<img src="/y.png" loading="lazy" decoding="async">',
+    );
+  });
+
+  test("gains nothing from neutralizing alone, which is what design lint diffs against", () => {
+    const bare = `<img src="${served}" alt="x">`;
+    expect(neutralizeItemMarkup(bare)).toBe(bare);
+  });
 });
 
 describe("enforcer — interactive descendants", () => {
@@ -406,6 +529,33 @@ describe("enforcer — a repeated attribute collapses to the copy a browser hono
 
 // A raw-text/RCDATA element's content is text, never markup, so unwrapping one re-emits that
 // text as markup and turns an inert payload live. They leave with their content instead.
+describe("enforcer — a CDATA section cannot hide markup from it", () => {
+  // lol-html reads CDATA as text after a self-closed <svg/>; a browser reads a bogus comment that
+  // ends at the first ">", and what follows it is live.
+  test("reads what a CDATA section hides after foreign content as the markup a browser sees", () => {
+    for (const lead of ["<svg/>", "<math/>", "<div><svg></div>", "<a><svg></a>"]) {
+      const markup = `${lead}<![CDATA[><div x-init="alert(1)" data-live="1">]]>`;
+      const output = enforceItemMarkup(markup);
+      expect(output, markup).not.toContain("x-init");
+      expect(output, markup).not.toContain("<![CDATA[");
+      expect(enforceItemMarkup(output), markup).toBe(output);
+    }
+  });
+});
+
+describe("enforcer — unwrapping keeps the end tag that closed a kept element", () => {
+  test("writes back the end tag an unwrapped element was handed, once", () => {
+    expect(enforceItemMarkup("<div><a></div><p>x</p>")).toBe("<div></div><p>x</p>");
+    expect(enforceItemMarkup("<p><a>t</p><div>q</div>")).toBe("<p>t</p><div>q</div>");
+    expect(enforceItemMarkup("<div><a><foo></div>x")).toBe("<div></div>x");
+  });
+
+  test("writes no end tag for an element that was itself unwrapped or removed", () => {
+    expect(enforceItemMarkup("<foo><a></foo><p>k</p>")).toBe("<p>k</p>");
+    expect(enforceItemMarkup("<svg><div><a></div></svg><p>ok</p>")).toBe("<p>ok</p>");
+  });
+});
+
 describe("enforcer — a raw-text element cannot launder its content into markup", () => {
   test("an RCDATA element is removed with everything inside it", () => {
     for (const markup of [
@@ -434,6 +584,16 @@ describe("enforcer — a raw-text element cannot launder its content into markup
       "<script>alert(1)</script>",
       "<svg><script>alert(1)</script></svg>",
       "<div class='stack'><p>ordinary</p></div>",
+      `<img src="${FILE_URL_PREFIX}${mintFileKey()}" loading=eager loading=lazy>`,
+      `<img srcset="${FILE_URL_PREFIX}k 1x, https&#58;//evil.example/b.png 2x">`,
+      '<img src="https&colon;//evil.example/p.gif" alt="x">',
+      `<picture><source srcset="${FILE_URL_PREFIX}a"><a></picture><img src="/x.png">`,
+      `<picture><source srcset="${FILE_URL_PREFIX}a"><button></picture><img src="/x.png">`,
+      "<svg><picture/></svg><math><picture/></math>",
+      "<div><a></div><p>x</p>",
+      "<p><a>t</p><div>q</div>",
+      "<div><a><foo></div>x",
+      '<svg/><![CDATA[><div x-init="alert(1)">]]>',
     ]) {
       const once = enforceItemMarkup(markup);
       expect(enforceItemMarkup(once), markup).toBe(once);

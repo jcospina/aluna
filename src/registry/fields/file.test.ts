@@ -164,10 +164,10 @@ describe("the provider schema", () => {
     );
   });
 
-  test("offers the builder's types and no file type", () => {
+  test("offers the builder's types, the file type among them", () => {
     const field = fieldSchemaOf() as { properties: { type: { enum: string[] } } };
     expect(field.properties.type.enum).toEqual([...GENERATION_FIELD_TYPES]);
-    for (const type of FILE_FIELD_TYPES) expect(field.properties.type.enum).not.toContain(type);
+    for (const type of FILE_FIELD_TYPES) expect(field.properties.type.enum).toContain(type);
   });
 
   test("turns a null accepts into absence, so a non-file field has one spelling", () => {
@@ -181,12 +181,14 @@ describe("the provider schema", () => {
     expect("accepts" in (parsed.schema.fields[0] as object)).toBe(false);
   });
 
-  test("refuses a file field the model was never offered", () => {
+  test("takes a file field with its families, and refuses one that names none", () => {
     const wire = photoSpec() as unknown as { schema: { fields: Record<string, unknown>[] } };
     for (const field of wire.schema.fields) {
       Object.assign(field, { values: null, groups: null, max_length: null, accepts: null });
     }
-    Object.assign(wire.schema.fields[1] ?? {}, { accepts: ["image"] });
     expect(promptCapabilitySpecSchema.safeParse(wire).success).toBe(false);
+    Object.assign(wire.schema.fields[1] ?? {}, { accepts: [...FILE_FAMILIES] });
+    const parsed = promptCapabilitySpecSchema.parse(wire);
+    expect(parsed.schema.fields[1]?.accepts).toEqual([...FILE_FAMILIES]);
   });
 });

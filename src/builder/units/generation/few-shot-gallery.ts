@@ -8,6 +8,7 @@
 // them now is `gate-design-lint-high-meadow.test.ts`, which composes each sample through
 // the real presentation adapter rather than serving it.
 
+import { FILE_URL_PREFIX } from "../../../platform/files/file-url.ts";
 import { ALLOWED_CLASSES } from "../../../presentation/safety/vocabulary.ts";
 import {
   PALETTE_COLOR_TOKENS,
@@ -46,6 +47,9 @@ export interface FewShotPreviewSample {
   readonly record: Readonly<Record<string, unknown>>;
   readonly previewInnerHtml: string;
 }
+
+/** The key the photo exemplar's preview names, served at `/files/<key>` like any stored photo. */
+const PREVIEW_PHOTO_KEY = "3f6c1a2e-8b4d-4e7a-9c1f-5d2b7a9e0c41";
 
 const ESCAPE_HELPER_SOURCE = [
   "function escapeHtml(value: unknown): string {",
@@ -151,12 +155,14 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
     id: "photo_grid_tile",
     title: "Media-forward grid tile",
     layout: "grid",
-    suitedFor: "Visual records where the image should carry the scan pattern.",
+    suitedFor: "Visual records where the picture should carry the scan pattern.",
     composition:
-      "Large square media frame, bold caption, and vivid metadata chips. The image owns the tile while the text still scans in a responsive grid.",
+      "Large square media frame, bold caption, and vivid metadata chips. The picture owns the tile while the text still scans in a responsive grid, and a record without one keeps its frame.",
     notes: [
       "Uses the media-frame primitive, whose own tinted fill gives the box presence without a boundary — the platform draws every line, and nothing inside a window casts a shadow.",
-      "Escapes the image URL and text values before interpolation.",
+      "A file field arrives as { url, name, kind, mime, size }, or null when the record holds no file. The picture's source is its url. Its alt text is empty because the title beside it already names the card, and a file name like IMG_4821.JPG describes nothing.",
+      "Draws the empty frame with a short note when the photo is null, so a record saved before its picture was added still reads as a tile.",
+      "Leaves loading and decoding out: the platform sets both on every picture it serves.",
     ],
     capability: {
       id: "photo_roll",
@@ -164,7 +170,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
       label: "Photo roll",
       schema: {
         fields: fields([
-          ["image_url", "string", true],
+          ["photo", "file", false],
           ["title", "string", true],
           ["place", "string", false],
           ["taken_on", "date", false],
@@ -176,8 +182,13 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
       {
         record: {
           id: "photo-1",
-          image_url:
-            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23f4c56f'/%3E%3Ccircle cx='78' cy='42' r='22' fill='%23d9825b'/%3E%3Cpath d='M0 94 L34 60 L58 82 L78 66 L120 104 V120 H0 Z' fill='%232f385c'/%3E%3C/svg%3E",
+          photo: {
+            url: `${FILE_URL_PREFIX}${PREVIEW_PHOTO_KEY}`,
+            name: "IMG_4821.JPG",
+            kind: "image",
+            mime: "image/jpeg",
+            size: 48213,
+          },
           title: "Morning market colors",
           place: "Valledupar",
           taken_on: "2026-07-08",
@@ -185,7 +196,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
         previewInnerHtml: [
           '<div class="stack gap-2">',
           '<figure class="media-frame media-frame--square w-full" style="margin: 0; aspect-ratio: 1 / 1; min-height: 12rem;">',
-          "<img src=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%23f4c56f'/%3E%3Ccircle cx='78' cy='42' r='22' fill='%23d9825b'/%3E%3Cpath d='M0 94 L34 60 L58 82 L78 66 L120 104 V120 H0 Z' fill='%232f385c'/%3E%3C/svg%3E\" alt=\"\" loading=\"lazy\" decoding=\"async\">",
+          `<img src="${FILE_URL_PREFIX}${PREVIEW_PHOTO_KEY}" alt="" loading="lazy" decoding="async">`,
           "</figure>",
           '<span class="text-xl text-bold line-clamp-2">Morning market colors</span>',
           '<div class="cluster gap-1 text-xs">',
@@ -198,8 +209,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
       {
         record: {
           id: "photo-2",
-          image_url:
-            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%2378c7c9'/%3E%3Ccircle cx='36' cy='34' r='18' fill='%23f4c56f'/%3E%3Cpath d='M0 82 L22 70 L46 92 L74 58 L120 86 V120 H0 Z' fill='%23d9825b'/%3E%3Cpath d='M0 105 L42 82 L76 100 L120 78 V120 H0 Z' fill='%232f385c'/%3E%3C/svg%3E",
+          photo: null,
           title: "Workshop wall before launch",
           place: "Bogota",
           taken_on: "2026-07-09",
@@ -207,7 +217,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
         previewInnerHtml: [
           '<div class="stack gap-2">',
           '<figure class="media-frame media-frame--square w-full" style="margin: 0; aspect-ratio: 1 / 1; min-height: 12rem;">',
-          "<img src=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' fill='%2378c7c9'/%3E%3Ccircle cx='36' cy='34' r='18' fill='%23f4c56f'/%3E%3Cpath d='M0 82 L22 70 L46 92 L74 58 L120 86 V120 H0 Z' fill='%23d9825b'/%3E%3Cpath d='M0 105 L42 82 L76 100 L120 78 V120 H0 Z' fill='%232f385c'/%3E%3C/svg%3E\" alt=\"\" loading=\"lazy\" decoding=\"async\">",
+          '<div class="flex items-center justify-center" style="height: 100%;"><span class="text-sm text-subtle">No photo yet</span></div>',
           "</figure>",
           '<span class="text-xl text-bold line-clamp-2">Workshop wall before launch</span>',
           '<div class="cluster gap-1 text-xs">',
@@ -220,15 +230,16 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
     ],
     rendererSource: [
       "export default function renderItem(record: Record<string, unknown>): string {",
-      '  const imageUrl = escapeHtml(record.image_url ?? "");',
+      "  const photo = record.photo as { url: string } | null;",
       "  const title = escapeHtml(record.title);",
       '  const place = escapeHtml(record.place ?? "Unplaced");',
       '  const takenOn = escapeHtml(record.taken_on ?? "");',
+      "  const media = photo",
+      '    ? `<img src="${escapeHtml(photo.url)}" alt="">`',
+      '    : \'<div class="flex items-center justify-center" style="height: 100%;"><span class="text-sm text-subtle">No photo yet</span></div>\';',
       "",
       '  return `<div class="stack gap-2">',
-      '    <figure class="media-frame media-frame--square w-full" style="margin: 0; aspect-ratio: 1 / 1; min-height: 12rem;">',
-      '      <img src="${imageUrl}" alt="" loading="lazy" decoding="async">',
-      "    </figure>",
+      '    <figure class="media-frame media-frame--square w-full" style="margin: 0; aspect-ratio: 1 / 1; min-height: 12rem;">${media}</figure>',
       '    <span class="text-xl text-bold line-clamp-2">${title}</span>',
       '    <div class="cluster gap-1 text-xs">',
       '      <span class="text-bold truncate" style="background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">${place}</span>',
@@ -388,5 +399,6 @@ function fields(
     type,
     required,
     lifecycle: "active",
+    ...(type === "file" ? { accepts: ["image" as const] } : {}),
   }));
 }
