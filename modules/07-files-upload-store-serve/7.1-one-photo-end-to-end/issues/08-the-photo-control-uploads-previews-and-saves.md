@@ -41,6 +41,13 @@ and 7.3 sweeps it.
 **The card shows the photo.** Photos' item renderer from 7.1/06 draws the saved photo
 through the projection's `url`.
 
+**The required rule lifts here.** 7.1/03 refuses `required: true` on a file field
+(`validateFileFields` in `src/registry/fields/file.ts`), because its stand-in
+(`src/presentation/controls/file-control.ts`) has nothing to fill. The drawn control can
+fill one, so this issue removes the refusal and proves that a required photo refuses a save
+without one. The stand-in carries `data-file-stand-in`, not the drawn control's
+`data-file-field` mount hook.
+
 ## Acceptance criteria
 
 - [ ] The control shows the empty, filled, progress and refusal states drawn in 7.1/02,

@@ -44,6 +44,14 @@ export {
   selectableChoiceValues,
 } from "./fields/choice.ts";
 export {
+  FILE_FAMILIES,
+  FILE_FIELD_TYPES,
+  type FileFamily,
+  type FileFieldType,
+  familiesSchema,
+  isFileFieldType,
+} from "./fields/file.ts";
+export {
   type FieldGuidance,
   fieldGuidanceSchema,
   fieldGuidanceText,
@@ -100,6 +108,7 @@ export {
   type FieldType,
   fieldLifecycleSchema,
   fieldTypeSchema,
+  GENERATION_FIELD_TYPES,
   isListFieldType,
   isSearchableTextType,
   LIST_FIELD_TYPES,

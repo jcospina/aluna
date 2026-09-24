@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
+import { CAPTION_FIELD, photoSpec } from "../../../../../registry/fields/file.test-support.ts";
 import type { SpecField } from "../../../../../registry/index.ts";
 import { rowMatches } from "../gate-behavioral-shared.ts";
-import { fieldValuesToRecord } from "./gate-behavioral-input.ts";
+import { fieldValuesToRecord, inputValuesToHandlerInput } from "./gate-behavioral-input.ts";
 
 const FIELDS: readonly SpecField[] = [
   { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
@@ -58,5 +59,12 @@ describe("fieldValuesToRecord — list-field normalization", () => {
     ]);
 
     expect(rowMatches(FIELDS, stored, expected)).toBe(true);
+  });
+});
+
+describe("inputValuesToHandlerInput — what the form submits", () => {
+  test("a file field is left out, as the form's stand-in submits nothing for one", () => {
+    const input = inputValuesToHandlerInput(photoSpec(), [{ field: "caption", value: "A day" }]);
+    expect([...input.submittedFields]).toEqual([CAPTION_FIELD.name]);
   });
 });

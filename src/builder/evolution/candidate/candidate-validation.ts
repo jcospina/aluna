@@ -16,6 +16,7 @@ import {
   capabilitySpecSchema,
   isChoiceFieldType,
   type SpecField,
+  sameOrderedStrings,
 } from "../../../registry/index.ts";
 import type { DependencyGenerationCatalogEntry } from "../dependency-catalog.ts";
 
@@ -81,6 +82,11 @@ export interface ValidateCandidateSpecInput {
   readonly candidate: unknown;
   /** The lease-frozen catalog; the only admissible dependency source. */
   readonly dependencyCatalog: readonly DependencyGenerationCatalogEntry[];
+  /**
+   * What the calling stage refuses besides the contract, read from the raw candidate so it is
+   * reported with the contract's issues in one rejection, a shape error's included.
+   */
+  readonly stageIssues?: (candidate: unknown) => readonly CandidateValidationIssue[];
 }
 
 /**
@@ -89,8 +95,9 @@ export interface ValidateCandidateSpecInput {
  */
 export function validateCandidateSpec(input: ValidateCandidateSpecInput): CapabilitySpec {
   const parsed = capabilitySpecSchema.safeParse(input.candidate);
+  const stageIssues = input.stageIssues?.(input.candidate) ?? [];
   if (!parsed.success) {
-    throw new CandidateValidationError(zodIssues(parsed.error));
+    throw new CandidateValidationError([...zodIssues(parsed.error), ...stageIssues]);
   }
 
   const candidate = parsed.data;
@@ -116,6 +123,7 @@ export function validateCandidateSpec(input: ValidateCandidateSpecInput): Capabi
 
   validateFieldLifecycleContract(committed, candidate, issues);
   validateDependenciesAgainstCatalog(candidate, input.dependencyCatalog, issues);
+  issues.push(...stageIssues);
 
   if (issues.length > 0) throw new CandidateValidationError(issues);
   return candidate;
@@ -260,6 +268,7 @@ function lifecycleTransitionIssue(
     // A hidden field keeps its column and values, so it keeps their bound: a hide that
     // tightened one would reveal values outside a limit nothing ever scanned for.
     returned.max_length === committedField.max_length &&
+    sameOrderedStrings(committedField.accepts ?? [], returned.accepts ?? []) &&
     sameChoiceOptions(committedField, returned)
   ) {
     return undefined;

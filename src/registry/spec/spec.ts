@@ -3,8 +3,8 @@
 // artifact that cannot be reconstructed from something else, so this shape is the single gate
 // every generated spec must clear, and the spec-gen stage maps its throw onto the failure path.
 //
-// The pantry is deliberately tiny: seven field types, each with `required`; no `file`, no
-// relations, and every object strict, so an extra key fails validation. `ui_intent` records only
+// The pantry is deliberately tiny: eight field types, each with `required`; no relations, and
+// every object strict, so an extra key fails validation. `ui_intent` records only
 // capability-specific presentation choices and never stores `views` or how a record opens. The
 // platform trio `id`/`created_at`/`extra` is never a spec field, which removes `auto` entirely.
 
@@ -25,6 +25,7 @@ import {
   validateChoiceFields,
   validateChoiceInputs,
 } from "../fields/choice.ts";
+import { acceptsSchema, FILE_FIELD_TYPES, validateFileFields } from "../fields/file.ts";
 import {
   fieldGuidanceSchema,
   longTextIntentSchema,
@@ -144,8 +145,13 @@ export const LIST_FIELD_TYPES = ["string[]"] as const;
  * The closed field pantry. `date` is a calendar day, distinct from the `datetime` instant; a new
  * type extends these arrays first, so every exhaustive consumer fails type-check until it lands.
  */
-export const fieldTypeSchema = z.enum([...SCALAR_FIELD_TYPES, ...LIST_FIELD_TYPES]);
+export const fieldTypeSchema = z.enum([
+  ...SCALAR_FIELD_TYPES,
+  ...LIST_FIELD_TYPES,
+  ...FILE_FIELD_TYPES,
+]);
 export type FieldType = z.infer<typeof fieldTypeSchema>;
+
 export type ListFieldType = (typeof LIST_FIELD_TYPES)[number];
 
 export function isListFieldType(type: string): type is ListFieldType {
@@ -153,13 +159,20 @@ export function isListFieldType(type: string): type is ListFieldType {
 }
 
 /**
- * Whether search reads a field as text. One rule, because four stages act on the same answer: the
- * freeze generates search inputs from it, the smoke rung fixtures them, the contract check admits
- * them, and the Diff Engine decides from it whether a change touches search.
+ * Whether search reads a field as text. One rule, because five stages act on the same answer: the
+ * search Handler is told which fields to read, the freeze generates search inputs, the smoke rung
+ * fixtures them, the contract check admits them, and the Diff Engine decides what touches search.
  */
 export function isSearchableTextType(type: FieldType): boolean {
   return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
 }
+
+/**
+ * The types the builder offers the model. `file` stays out until the Gate can mint scratch
+ * references for one (`modules/07-files-upload-store-serve/PLAN.md`, Epic 7.1's builder).
+ */
+export const GENERATION_FIELD_TYPES = [...SCALAR_FIELD_TYPES, ...LIST_FIELD_TYPES] as const;
+const generationFieldTypeSchema = z.enum(GENERATION_FIELD_TYPES);
 
 export const fieldLifecycleSchema = z.enum(["active", "inactive"]);
 export type FieldLifecycle = z.infer<typeof fieldLifecycleSchema>;
@@ -191,6 +204,7 @@ export const specFieldSchema = z.strictObject({
   values: z.array(choiceOptionSchema).optional(),
   groups: z.array(choiceGroupSchema).optional(),
   max_length: maxLengthSchema.optional(),
+  accepts: acceptsSchema.optional(),
 });
 export type SpecField = z.infer<typeof specFieldSchema>;
 
@@ -325,16 +339,19 @@ export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 const promptSpecFieldSchema = z
   .strictObject({
     ...specFieldShape,
+    type: generationFieldTypeSchema,
     values: z.array(promptChoiceOptionSchema).nullable(),
     groups: z.array(choiceGroupSchema).nullable(),
     max_length: maxLengthSchema.nullable(),
+    accepts: acceptsSchema.nullable(),
   })
   .transform(
-    ({ values, groups, max_length, ...field }): SpecField => ({
+    ({ values, groups, max_length, accepts, ...field }): SpecField => ({
       ...field,
       ...(values === null ? {} : { values }),
       ...(groups === null ? {} : { groups }),
       ...(max_length === null ? {} : { max_length }),
+      ...(accepts === null ? {} : { accepts }),
     }),
   );
 
@@ -451,6 +468,7 @@ function validateSpecSemantics(
   validateChoiceFields(spec, ctx);
   validateChoiceInputs(spec, ctx);
   validateMaxLength(spec, ctx);
+  validateFileFields(spec, ctx);
 }
 
 /**

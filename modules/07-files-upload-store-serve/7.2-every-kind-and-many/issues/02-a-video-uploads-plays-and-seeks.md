@@ -67,6 +67,14 @@ frame. The item-renderer guidance and a video few-shot example teach this. The b
 may declare `video`, behavioral tokens gain `video`, and the picker's `accept` includes
 the video family.
 
+**What 7.1/03 left for widening.** Until this issue maps a widening, the Diff's residual
+check keeps a committed field's `accepts`, so any change to it fails closed as an unmapped
+difference. Candidate validation already freezes `accepts` on a hide, as it freezes
+`max_length`, but nothing could test that with one family; prove it here once `video`
+exists. The create and update behavioral inputs carry `accepts`, so a widening moves those
+suites' digests. `familiesSchema` in `src/registry/fields/file.ts` puts `accepts` in the
+enum's order, and `file.test.ts` proves that over four families.
+
 ## Acceptance criteria
 
 - [ ] `accepts` can hold `video`, and a candidate that drops a committed family is

@@ -9,7 +9,7 @@
 
 import ts from "typescript";
 
-import { fieldTypeSchema } from "../registry/index.ts";
+import { QUERY_RESULT_TYPES } from "../runtime/data/query-result-types.ts";
 import type { HandlerUnitName } from "./units/generation/units.ts";
 
 /** The strict compiler every generated unit is checked under. */
@@ -33,12 +33,10 @@ export const STRICT_CHECK_OPTIONS: ts.CompilerOptions = {
 };
 
 /**
- * The query-result column types, derived from the registry pantry rather than restated: a mirror
- * missing a new field type would reject a projection the runtime accepts.
+ * The query-result column types, derived from the runtime's own list rather than restated: a mirror
+ * that drifted would reject a projection the runtime accepts, or admit one it refuses.
  */
-const QUERY_RESULT_TYPE_UNION = fieldTypeSchema.options
-  .map((type) => JSON.stringify(type))
-  .join(" | ");
+const QUERY_RESULT_TYPE_UNION = QUERY_RESULT_TYPES.map((type) => JSON.stringify(type)).join(" | ");
 
 /** Format TypeScript diagnostics with file:line:col positions for a stage's report. */
 export function formatDiagnostics(diagnostics: readonly ts.Diagnostic[]): string {

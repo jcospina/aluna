@@ -1,0 +1,71 @@
+// The file field type (ADR-0009; `modules/07-files-upload-store-serve/PLAN.md` decisions 5, 18,
+// 20 and 36).
+//
+// A file field's column holds one reference to a file the platform stores, as JSON in TEXT, the
+// way `string[]` stores its array. It is a kind of type of its own rather than a list type:
+// joining `LIST_FIELD_TYPES` would make it searchable, demand a list-input mode, comma-split its
+// values and let an empty submission clear it.
+//
+// `accepts` names the families a field takes. It is authored by the model and gated here before
+// anything downstream reads it.
+
+import { z } from "zod";
+
+import type { CapabilitySpec } from "../spec/spec.ts";
+import { allUnique } from "../spec/spec-text.ts";
+
+export const FILE_FIELD_TYPES = ["file"] as const;
+export type FileFieldType = (typeof FILE_FIELD_TYPES)[number];
+
+export function isFileFieldType(type: string): type is FileFieldType {
+  return (FILE_FIELD_TYPES as readonly string[]).includes(type);
+}
+
+/** The families a file field may take, in their canonical order. */
+export const FILE_FAMILIES = ["image"] as const;
+export type FileFamily = (typeof FILE_FAMILIES)[number];
+
+/**
+ * A family list over `order`, handed on in that order whatever order it was authored in, so a
+ * candidate that only reorders it makes no evolution fact. Exported so a suite can prove the rule
+ * over a longer order than the one family this epic admits.
+ */
+export function familiesSchema<const Order extends readonly [string, ...string[]]>(order: Order) {
+  return z
+    .array(z.enum(order))
+    .min(1, "a file field accepts at least one family")
+    .refine(allUnique, "a family appears in accepts at most once")
+    .transform((families): Order[number][] =>
+      order.filter((family) => (families as readonly string[]).includes(family)),
+    );
+}
+
+export const acceptsSchema = familiesSchema(FILE_FAMILIES);
+
+/**
+ * Every file field declares `accepts`, and only a file field does. None is required yet: the form's
+ * stand-in has nothing to fill, so a required one would refuse every save until 7.1/08's control.
+ */
+export function validateFileFields(
+  spec: Pick<CapabilitySpec, "schema">,
+  ctx: z.RefinementCtx,
+): void {
+  for (const [index, field] of spec.schema.fields.entries()) {
+    const path = ["schema", "fields", index, "accepts"];
+    if (!isFileFieldType(field.type)) {
+      if (field.accepts === undefined) continue;
+      ctx.addIssue({ code: "custom", message: "only a file field declares accepts", path });
+      continue;
+    }
+    if (field.accepts === undefined) {
+      ctx.addIssue({ code: "custom", message: "a file field must declare what it accepts", path });
+    }
+    if (field.required) {
+      ctx.addIssue({
+        code: "custom",
+        message: "a file field cannot be required until the form can take a file",
+        path: ["schema", "fields", index, "required"],
+      });
+    }
+  }
+}

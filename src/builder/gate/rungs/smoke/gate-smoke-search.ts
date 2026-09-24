@@ -438,6 +438,9 @@ export function fixtureFieldValue(
       return `2025-01-${String((seed % 27) + 1).padStart(2, "0")}`;
     case "datetime":
       return `2025-01-${String((seed % 27) + 1).padStart(2, "0")}T00:00:00.000Z`;
+    case "file":
+      // Empty, as every Gate value for one is (`formSubmitsField`, `builder/gate/gate-internal.ts`).
+      return null;
   }
 }
 
@@ -461,6 +464,8 @@ function excludedNonTextValue(
     case "choice":
     case "string[]":
       return fixtureFieldValue(field, 44);
+    case "file":
+      return null;
   }
 }
 

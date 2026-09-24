@@ -14,6 +14,7 @@ import {
 } from "../../../../registry/index.ts";
 import type { CapabilityDataColumnValue } from "../../../../runtime/data/index.ts";
 import type { CapabilityInput, CapabilityInputValue } from "../../../../runtime/router/index.ts";
+import { formSubmitsField } from "../../gate-internal.ts";
 
 export interface SmokeInput {
   readonly input: CapabilityInput;
@@ -30,7 +31,10 @@ export function buildSmokeInput(spec: CapabilitySpec): SmokeInput {
     expectedValues[field.name] = sample.expected;
   }
   return {
-    input: { values, submittedFields: new Set(fields.map((field) => field.name)) },
+    input: {
+      values,
+      submittedFields: new Set(fields.filter(formSubmitsField).map((field) => field.name)),
+    },
     expectedValues,
   };
 }
@@ -48,7 +52,7 @@ export function buildUpdateInputs(spec: CapabilitySpec): readonly {
       field,
       input: {
         values: sample.input === undefined ? {} : { [field.name]: sample.input },
-        submittedFields: new Set([field.name]),
+        submittedFields: new Set(formSubmitsField(field) ? [field.name] : []),
       },
       expected: sample.expected,
     };
@@ -87,6 +91,9 @@ function sampleValue(
       const expected = [`${prefix} first`, "literal,comma", `${prefix} last`];
       return { input: expected, expected };
     }
+    case "file":
+      // Empty, as every Gate value for one is (`formSubmitsField`, `builder/gate/gate-internal.ts`).
+      return { expected: null };
   }
 }
 

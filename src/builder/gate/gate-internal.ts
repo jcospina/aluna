@@ -24,8 +24,10 @@ import {
   type CapabilitySpec,
   type CapabilityTool,
   type FieldType,
+  isFileFieldType,
   LOGO_BIRTH_STATUS,
   type ReadDependency,
+  type SpecField,
 } from "../../registry/index.ts";
 import type { CapabilityCreateValues, CapabilityTableDdl } from "../../runtime/data/index.ts";
 import {
@@ -109,6 +111,15 @@ export function openScratchDatabasePair(): ScratchDatabasePair {
   const readwrite = new Database(uri, { create: true, readwrite: true });
   const readonly = new Database(uri, { readonly: true });
   return { readwrite, readonly };
+}
+
+/**
+ * Whether the platform form submits a field, which every scratch submission mirrors. A file
+ * field's stand-in submits nothing, and until 7.1/06 mints scratch references every Gate value
+ * for one is `null`: the smoke's samples, the search fixture's rows and design lint's probes.
+ */
+export function formSubmitsField(field: SpecField): boolean {
+  return !isFileFieldType(field.type);
 }
 
 /** Apply the migration stage's exact DDL statements to a scratch connection. */

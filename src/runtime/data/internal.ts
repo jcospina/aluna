@@ -12,6 +12,18 @@ export class CapabilityDataValidationError extends Error {
   override readonly name: string = "CapabilityDataValidationError";
 }
 
+/**
+ * A write to a file field from anything but the platform's own save. No control submits one, so
+ * it is not a refusal a person can act on: it carries no code and answers as a failure.
+ */
+export class FileFieldWriteError extends CapabilityDataValidationError {
+  override readonly name = "FileFieldWriteError";
+
+  constructor(field: string) {
+    super(`Field "${field}" holds a file reference, which only the platform writes.`);
+  }
+}
+
 export class MissingRequiredFieldsError extends CapabilityDataValidationError {
   override readonly name = "MissingRequiredFieldsError";
   readonly action: "create" | "update";

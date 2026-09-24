@@ -18,7 +18,7 @@ import {
   CHOICE_PRESENTATIONS,
   capabilitySpecSchema,
   FULL_CAPABILITY_TOOLS,
-  fieldTypeSchema,
+  GENERATION_FIELD_TYPES,
   LIST_INPUT_MODES,
   LOGO_HUE_FAMILIES,
   MAX_CAPABILITY_NOUN_LENGTH,
@@ -37,6 +37,7 @@ import {
   promptCapabilitySpecSchema,
   uiCollectionLayoutSchema,
 } from "../../registry/index.ts";
+import { unofferedFieldTypeIssues } from "./unoffered-field-types.ts";
 
 export interface GenerateSpecInput {
   readonly provider: Provider;
@@ -64,7 +65,7 @@ export interface SpecGenResult {
  * engineering language is fine; the pantry lists come off the registry's own enums.
  */
 export function buildSpecPrompt(input: GenerateSpecInput): string {
-  const fieldTypes = fieldTypeSchema.options.join(" | ");
+  const fieldTypes = GENERATION_FIELD_TYPES.join(" | ");
   const collectionLayouts = uiCollectionLayoutSchema.options.join(" | ");
   const choicePresentations = CHOICE_PRESENTATIONS.join(" | ");
   const tools = FULL_CAPABILITY_TOOLS.join(", ");
@@ -90,6 +91,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "- an option's disabled is true for an option that existing records may still hold but nobody may newly choose. A capability being built for the first time has retired nothing, so send null for every option.",
     `- a choice field also declares groups: an ordered array of { id, heading }, where heading is at most ${MAX_CHOICE_GROUP_HEADING_LENGTH} characters. Declare groups only when the options fall into named sets a person would look for by heading — currencies by continent, statuses by open and closed. A short flat list needs none, and [] is the ordinary answer. Every declared group must be named by at least one option, and every option's group must be an id declared on its own field.`,
     `- a field declares max_length only when its type is string. It is a positive integer between ${MIN_DECLARED_MAX_LENGTH} and ${MAX_DECLARED_MAX_LENGTH}, and it is the number of characters that field holds — it drives the character counter under the control, the browser's own stop on typing, and Aluna's own refusal of anything longer. Declare it where a real bound is part of what the field is (a summary that must stay short, a headline, a one-line note); omit it (send null) everywhere else, including on every non-string field.`,
+    "- every field sends accepts as null. accepts belongs to a file field, and the type list above offers none.",
     "- field names and the capability id are lowercase letters, digits, and underscores, starting with a letter.",
     `- ${platformColumns} are platform-owned columns Aluna adds automatically. Never include them as fields.`,
     '- created_at may appear only in item shows; its platform descriptor is fixed as name "created_at", label "Created", type "datetime", read-only.',
@@ -163,7 +165,10 @@ export async function generateSpec(input: GenerateSpecInput): Promise<SpecGenRes
   const result = input.provider.generate(buildSpecPrompt(input), promptCapabilitySpecSchema);
   // The gate. `await result.object` already rejects non-conformance; re-parsing makes the
   // refusal this stage's own, whatever the provider does.
-  const spec = capabilitySpecSchema.parse(await result.object);
+  const authored = await result.object;
+  const unoffered = unofferedFieldTypeIssues(authored).map((issue) => issue.message);
+  if (unoffered.length > 0) throw new Error(`Generated spec refused: ${unoffered.join("; ")}.`);
+  const spec = capabilitySpecSchema.parse(authored);
   const usage = await result.usage;
 
   const durationMs = performance.now() - startedAt;

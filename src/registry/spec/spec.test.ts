@@ -8,6 +8,7 @@
 // live in `spec.behavior.test.ts`. The shared `validSpec` fixture lives in `spec.test-support.ts`.
 
 import { describe, expect, test } from "bun:test";
+import { FILE_FAMILIES, isFileFieldType } from "../fields/file.ts";
 import { validSpec } from "./spec.test-support.ts";
 import {
   type CapabilitySpec,
@@ -22,7 +23,7 @@ import {
 } from "./spec.ts";
 import { MAX_SQL_NAME_LENGTH } from "./spec-text.ts";
 
-/** One well-formed field of any pantry type; a choice arrives carrying its options. */
+/** One well-formed field of any pantry type; a choice carries its options, a file its families. */
 function pantryField(type: CapabilitySpec["schema"]["fields"][number]["type"], required: boolean) {
   return {
     name: "value",
@@ -31,6 +32,7 @@ function pantryField(type: CapabilitySpec["schema"]["fields"][number]["type"], r
     required,
     lifecycle: "active" as const,
     ...(type === "choice" ? { values: [{ value: "one", label: "One" }], groups: [] } : {}),
+    ...(type === "file" ? { accepts: [...FILE_FAMILIES] } : {}),
   };
 }
 
@@ -40,7 +42,7 @@ describe("capability spec shape — valid shapes & pantry types", () => {
     expect(capabilitySpecSchema.parse(spec)).toEqual(spec);
   });
 
-  test("accepts the scalar pantry plus string[], each with required", () => {
+  test("accepts the scalar pantry plus string[] and file, each required or not where it may be", () => {
     expect(fieldTypeSchema.options).toEqual([
       "string",
       "number",
@@ -49,6 +51,7 @@ describe("capability spec shape — valid shapes & pantry types", () => {
       "date",
       "choice",
       "string[]",
+      "file",
     ]);
     expect(LIST_FIELD_TYPES).toEqual(["string[]"]);
     expect(isListFieldType("string[]")).toBe(true);
@@ -57,7 +60,8 @@ describe("capability spec shape — valid shapes & pantry types", () => {
     expect(isChoiceFieldType("string")).toBe(false);
 
     for (const type of fieldTypeSchema.options) {
-      for (const required of [true, false]) {
+      // A file field cannot be required until the form can take a file (7.1/08).
+      for (const required of isFileFieldType(type) ? [false] : [true, false]) {
         const spec = validSpec({
           schema: { fields: [pantryField(type, required)] },
         });

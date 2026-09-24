@@ -4,6 +4,7 @@ import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import {
   activeSpecFields,
   type CapabilitySpec,
+  type FieldType,
   PLATFORM_COLUMNS,
 } from "../../../registry/index.ts";
 import { CapabilityDataValidationError } from "../internal.ts";
@@ -31,7 +32,7 @@ type ProjectedQuery = (
 
 type NormalizeQueryValue = (
   alias: string,
-  type: CapabilityQueryResultColumn["type"],
+  type: FieldType,
   value: unknown,
 ) => CapabilityDataColumnValue;
 

@@ -1,4 +1,9 @@
-import { activeSpecFields, type CapabilitySpec, isListFieldType } from "../../../registry/index.ts";
+import {
+  activeSpecFields,
+  type CapabilitySpec,
+  isFileFieldType,
+  isListFieldType,
+} from "../../../registry/index.ts";
 import { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from "../../data/index.ts";
 import { listInputModeForField, normalizeListInputValues } from "../../field-types/list-input.ts";
 import type { CapabilityInput, CapabilityInputValue } from "../contract.ts";
@@ -113,11 +118,16 @@ function collectSubmittedFields(
   markers: readonly string[],
   activeFields: ReturnType<typeof activeSpecFields>,
 ): ReadonlySet<string> {
-  const activeNames = new Set(activeFields.map((field) => field.name));
+  const activeByName = new Map(activeFields.map((field) => [field.name, field]));
   const submitted = new Set<string>();
   for (const fieldName of markers) {
-    if (fieldName.trim().length === 0 || !activeNames.has(fieldName)) {
+    const field = activeByName.get(fieldName);
+    if (fieldName.trim().length === 0 || !field) {
       throw new WireProtocolError(`Invalid submitted field marker "${fieldName}".`);
+    }
+    // The form's file stand-in submits nothing, so a marker for one did not come from the form.
+    if (isFileFieldType(field.type)) {
+      throw new WireProtocolError(`File field "${fieldName}" is not submitted by this protocol.`);
     }
     if (submitted.has(fieldName)) {
       throw new WireProtocolError(`Duplicate submitted field marker "${fieldName}".`);
@@ -132,6 +142,7 @@ function requireAllCreateFields(
   submitted: ReadonlySet<string>,
 ): void {
   const missing = activeFields
+    .filter((field) => !isFileFieldType(field.type))
     .map((field) => field.name)
     .filter((fieldName) => !submitted.has(fieldName));
   if (missing.length > 0) {

@@ -1,6 +1,7 @@
-// Shared fixtures for the choice-evolution suites: one committed capability carrying an
-// active choice field, and the three ways a candidate is put to the platform — validated,
-// refused, or reduced to the facts the Diff reads out of it.
+// Shared fixtures for the evolution suites: one committed capability carrying an active choice
+// field, and the three ways a candidate is put to the platform — validated, refused, or reduced to
+// the facts the Diff reads out of it. The choice suites use every helper; the file suite uses
+// the four that work on any committed row.
 
 import {
   type CapabilityRow,

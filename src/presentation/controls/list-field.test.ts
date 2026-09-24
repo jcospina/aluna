@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { LIST_FIELD_TYPES, SCALAR_FIELD_TYPES } from "../../registry/index.ts";
 import { normalizeListInputValues } from "../../runtime/field-types/list-input.ts";
 import { renderCreateForm } from "../fields/field-renderer.ts";
 import { codeOf, readSource } from "../safety/source.test-support.ts";
@@ -472,19 +471,5 @@ describe("finishing with a form", () => {
 
     expect(rowsOf(field)).toHaveLength(1);
     expect(labelsOf(field)).toEqual(["Tags 1"]);
-  });
-});
-
-/**
- * A file field has nowhere to live until Files arrives in Module 7, so nothing is built for one.
- * A standing rule rather than a behaviour: this asserts four traces are absent, and no more.
- */
-describe("file fields", () => {
-  test("are not a type, and no trace of one reaches the form renderer", () => {
-    expect([...SCALAR_FIELD_TYPES, ...LIST_FIELD_TYPES]).not.toContain("file");
-    const renderer = codeOf("src/presentation/fields/field-renderer.ts");
-    for (const trace of ['type="file"', "FileList", "multipart/form-data", "enctype"]) {
-      expect(renderer, `the field renderer names ${trace}`).not.toContain(trace);
-    }
   });
 });

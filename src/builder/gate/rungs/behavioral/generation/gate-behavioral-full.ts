@@ -23,6 +23,7 @@ import {
   assertFragment,
   buildGatePresent,
   buildGateQueryPort,
+  formSubmitsField,
   ItemRendererExecutionError,
   type LoadedHandlers,
   loadHandlers,
@@ -152,7 +153,9 @@ async function runFullBehavioralCase(
   );
   const submittedFields =
     testCase.action === "create"
-      ? activeSpecFields(input.spec.schema.fields).map((field) => field.name)
+      ? activeSpecFields(input.spec.schema.fields)
+          .filter(formSubmitsField)
+          .map((field) => field.name)
       : testCase.action === "update"
         ? [...new Set(testCase.input.map((entry) => entry.field))]
         : [];

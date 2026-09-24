@@ -19,7 +19,7 @@ import {
   type CapabilitySpec,
   CHOICE_PRESENTATIONS,
   FULL_CAPABILITY_TOOLS,
-  fieldTypeSchema,
+  GENERATION_FIELD_TYPES,
   LIST_INPUT_MODES,
   MAX_CHOICE_GROUP_HEADING_LENGTH,
   MAX_CHOICE_GROUPS,
@@ -35,6 +35,7 @@ import {
   promptCapabilitySpecSchema,
   uiCollectionLayoutSchema,
 } from "../../../registry/index.ts";
+import { unofferedFieldTypeIssues } from "../../spec/unoffered-field-types.ts";
 import type { DependencyGenerationCatalogEntry } from "../dependency-catalog.ts";
 import { committedSpecView, validateCandidateSpec } from "./candidate-validation.ts";
 
@@ -63,7 +64,7 @@ export interface CandidateSpecGenResult {
  */
 export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): string {
   const committed = committedSpecView(input.committed);
-  const fieldTypes = fieldTypeSchema.options.join(" | ");
+  const fieldTypes = GENERATION_FIELD_TYPES.join(" | ");
   const collectionLayouts = uiCollectionLayoutSchema.options.join(" | ");
   const listInputModes = LIST_INPUT_MODES.join(" | ");
   const choicePresentations = CHOICE_PRESENTATIONS.join(" | ");
@@ -101,6 +102,7 @@ export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): str
     `- a choice field declares at most ${MAX_CHOICE_OPTIONS} options and at most ${MAX_CHOICE_GROUPS} groups. Every option is written into the generated code's own instructions, so a set that large is a sign the thing being tracked is a record of its own rather than one pick.`,
     `- a choice field also declares groups: an ordered array of { id, heading }, where heading is at most ${MAX_CHOICE_GROUP_HEADING_LENGTH} characters. Declare groups only when the options fall into named sets a person would look for by heading; [] is the ordinary answer. Every declared group must be named by at least one option, and every option's group must be an id declared on its own field.`,
     `- a field declares max_length only when its type is string. It is a positive integer between ${MIN_DECLARED_MAX_LENGTH} and ${MAX_DECLARED_MAX_LENGTH}, and it is the number of characters that field holds — it drives the character counter under the control, the browser's own stop on typing, and Aluna's own refusal of anything longer. Declare it where a real bound is part of what the field is (a summary that must stay short, a headline, a one-line note); omit it (send null) everywhere else, including on every non-string field. Preserve a hidden field's max_length exactly; only a reactivation may change it. Adding a limit, or lowering one, is refused when any record already holds a longer value, so never tighten a limit the committed data cannot fit.`,
+    "- every field sends accepts as null. accepts belongs to a file field, and the type list above offers none.",
     "- field names and the capability id are lowercase letters, digits, and underscores, starting with a letter. Never use the __aluna_ prefix.",
     `- ${platformColumns} are platform-owned columns Aluna adds automatically. Never include them as fields.`,
     "",
@@ -171,6 +173,7 @@ export async function generateCandidateSpec(
     committed: input.committed,
     candidate: await result.object,
     dependencyCatalog: input.dependencyCatalog,
+    stageIssues: unofferedFieldTypeIssues,
   });
   const usage = await result.usage;
 

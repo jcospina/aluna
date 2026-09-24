@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { fieldTypeSchema } from "../../registry/index.ts";
+import { fieldTypeSchema, isFileFieldType } from "../../registry/index.ts";
 import { ADDING_LABEL, busyLabelAttribute } from "../controls/busy-label.ts";
 import { oneField, probeField, SAMPLE, sampleFieldValue } from "./field-renderer.test-support.ts";
 import {
@@ -291,19 +291,25 @@ describe("create form — one control per pantry type — labels, lifecycle, and
 
 describe("centralization — exhaustive over the admitted pantry", () => {
   // Drives straight off the registry enum: a new pantry type is rendered in both modes here and
-  // fails loudly unless the renderer's two total switches handle it.
-  test("every fieldTypeSchema option renders a create control and an edit control", () => {
+  // fails loudly unless the renderer's two total switches handle it. A file field has no control
+  // until 7.1/08, so its stand-in shows the label and names the field nowhere a form submits.
+  test("every fieldTypeSchema option renders in both modes, and all but a file as a control", () => {
     for (const type of fieldTypeSchema.options) {
       const probe = oneField(probeField(type));
       const capability = { ...probe, actions: [...probe.actions, "update"] as const };
-
       const create = renderCreateForm(capability);
-      expect(create).toMatch(/<(?:input|select|textarea)\b/);
-      expect(create).toContain('name="value"');
-
       const edit = renderEditForm(capability, { id: "probe-1", value: sampleFieldValue(type) });
-      expect(edit).toMatch(/<(?:input|select|textarea)\b/);
-      expect(edit).toContain('name="value"');
+
+      for (const form of [create, edit]) {
+        if (isFileFieldType(type)) {
+          expect(form).toContain('<span class="field__label caps"');
+          expect(form).not.toContain('name="value"');
+          expect(form).not.toContain('value="value"');
+        } else {
+          expect(form).toMatch(/<(?:input|select|textarea)\b/);
+          expect(form).toContain('name="value"');
+        }
+      }
     }
   });
 });

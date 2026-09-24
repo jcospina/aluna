@@ -1,7 +1,12 @@
 // Shared fixtures for the field-renderer test files. One capability fixture plus the
 // single-field probe and value sampler drive the create-form and edit-form suites.
 
-import type { ChoicePresentation, FieldType, SpecField } from "../../registry/index.ts";
+import {
+  type ChoicePresentation,
+  FILE_FAMILIES,
+  type FieldType,
+  type SpecField,
+} from "../../registry/index.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
 
 export const SAMPLE: RenderableCapability = {
@@ -33,7 +38,7 @@ export const PROBE_CHOICE_OPTIONS = [
   { value: "second", label: "Second" },
 ] as const;
 
-/** A well-formed field of any pantry type; a choice arrives carrying its declared options. */
+/** A well-formed field of any pantry type; a choice carries its options, a file its families. */
 export function probeField(type: FieldType, overrides: Partial<SpecField> = {}): SpecField {
   return {
     name: "value",
@@ -42,6 +47,7 @@ export function probeField(type: FieldType, overrides: Partial<SpecField> = {}):
     required: true,
     lifecycle: "active",
     ...(type === "choice" ? { values: [...PROBE_CHOICE_OPTIONS], groups: [] } : {}),
+    ...(type === "file" ? { accepts: [...FILE_FAMILIES], required: false } : {}),
     ...overrides,
   };
 }
@@ -75,7 +81,9 @@ export function oneField(
   };
 }
 
-export function sampleFieldValue(type: FieldType): string | number | boolean | readonly string[] {
+export function sampleFieldValue(
+  type: FieldType,
+): string | number | boolean | readonly string[] | null {
   switch (type) {
     case "string":
       return "a value";
@@ -91,5 +99,7 @@ export function sampleFieldValue(type: FieldType): string | number | boolean | r
       return PROBE_CHOICE_OPTIONS[0].value;
     case "string[]":
       return ["first", "second"];
+    case "file":
+      return null;
   }
 }

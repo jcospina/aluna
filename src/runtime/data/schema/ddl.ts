@@ -27,6 +27,7 @@ export const SQLITE_TYPE_BY_FIELD_TYPE = {
   date: "TEXT",
   choice: "TEXT",
   "string[]": "TEXT",
+  file: "TEXT",
 } as const satisfies Record<FieldType, "TEXT" | "REAL" | "INTEGER">;
 
 export interface CapabilityTableDdl {
@@ -131,12 +132,30 @@ function columnDefinition(name: string, fieldType: FieldType): string {
   if (fieldType === "boolean") {
     parts.push(`CHECK (${sqlIdentifier(name)} IS NULL OR ${sqlIdentifier(name)} IN (0, 1))`);
   }
-  if (fieldType === "string[]") {
-    parts.push(
-      `CHECK (${sqlIdentifier(name)} IS NULL OR (json_valid(${sqlIdentifier(name)}) AND json_type(${sqlIdentifier(name)}) = 'array'))`,
-    );
-  }
+  const shape = JSON_SHAPE_BY_FIELD_TYPE[fieldType];
+  if (shape !== null) parts.push(jsonShapeCheck(name, shape));
   // A choice gets plain TEXT and deliberately no `IN (…)` CHECK: option values are append-only
   // and SQLite cannot alter a column constraint, so a CHECK at birth would freeze the vocabulary.
   return parts.join(" ");
+}
+
+/**
+ * The JSON a TEXT column holding structured data must parse as. A file reference is the object
+ * `{key, kind, mime, size, name}` (PLAN decision 20), held the way a `string[]` column holds its
+ * array. Total over the pantry, so a new type states its shape or states that it has none.
+ */
+const JSON_SHAPE_BY_FIELD_TYPE = {
+  string: null,
+  number: null,
+  boolean: null,
+  datetime: null,
+  date: null,
+  choice: null,
+  "string[]": "array",
+  file: "object",
+} as const satisfies Record<FieldType, "array" | "object" | null>;
+
+function jsonShapeCheck(name: string, shape: "array" | "object"): string {
+  const column = sqlIdentifier(name);
+  return `CHECK (${column} IS NULL OR (json_valid(${column}) AND json_type(${column}) = '${shape}'))`;
 }

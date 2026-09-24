@@ -12,7 +12,6 @@ import {
   type CapabilitySpec,
   capabilitySpecSchema,
   type FieldType,
-  fieldTypeSchema,
   type SpecField,
 } from "../../registry/index.ts";
 import {
@@ -21,7 +20,12 @@ import {
   materializeCapabilityActionRecord,
 } from "./access/query-runtime.ts";
 import { assertReadOwnership } from "./access/read-ownership.ts";
-import { CapabilityDataValidationError, MissingRequiredFieldsError } from "./internal.ts";
+import {
+  CapabilityDataValidationError,
+  FileFieldWriteError,
+  MissingRequiredFieldsError,
+} from "./internal.ts";
+import { type CapabilityQueryResultType, QUERY_RESULT_TYPES } from "./query-result-types.ts";
 import { assertAdmittedChoiceValues, normalizeChoiceValue } from "./schema/choice-values.ts";
 import { deriveCapabilityTableDdl } from "./schema/ddl.ts";
 import { assertAdmittedStringLengths } from "./schema/string-lengths.ts";
@@ -51,7 +55,7 @@ export interface CapabilityDataRow {
 }
 
 export type CapabilityQueryParameter = string | number | bigint | boolean | null | Uint8Array;
-export type CapabilityQueryResultType = FieldType;
+export type { CapabilityQueryResultType };
 
 export interface CapabilityQueryResultColumn {
   readonly alias: string;
@@ -178,7 +182,7 @@ function validateResultDescriptor(result: readonly CapabilityQueryResultColumn[]
     if (seen.has(column.alias)) {
       throw new CapabilityDataValidationError(`Duplicate query result alias "${column.alias}".`);
     }
-    if (!fieldTypeSchema.safeParse(column.type).success) {
+    if (!(QUERY_RESULT_TYPES as readonly string[]).includes(column.type)) {
       throw new CapabilityDataValidationError(
         `Invalid query result type "${String(column.type)}" for alias "${column.alias}".`,
       );
@@ -233,7 +237,7 @@ function projectQueryRow(
 
 function normalizeQueryValue(
   alias: string,
-  type: CapabilityQueryResultType,
+  type: FieldType,
   value: unknown,
 ): CapabilityDataColumnValue {
   if (value === null) return null;
@@ -318,6 +322,9 @@ function isMissingRequiredValue(field: SpecField, value: unknown): boolean {
       return typeof value !== "string" || value.trim().length === 0;
     case "string[]":
       return !Array.isArray(value) || !value.some(isNonBlankString);
+    case "file":
+      // Something is there, so nothing is missing; `normalizeFieldValue` refuses it next.
+      return false;
   }
 }
 
@@ -341,6 +348,8 @@ function normalizeFieldValue(
       return normalizeChoiceValue(field, value);
     case "string[]":
       return JSON.stringify(normalizeStringList(name, value));
+    case "file":
+      throw new FileFieldWriteError(name);
   }
 }
 
@@ -489,6 +498,9 @@ function normalizeStoredFieldValue(
       return value === 1;
     case "string[]":
       return parseStoredStringList(name, value);
+    case "file":
+      // Nothing writes a reference until the save that claims one (7.1/04).
+      throw new Error(`Expected file column "${name}" to be empty.`);
   }
 }
 

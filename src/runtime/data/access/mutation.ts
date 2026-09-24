@@ -5,9 +5,11 @@ import {
   activeSpecFields,
   type CapabilitySpec,
   capabilitySpecSchema,
+  isFileFieldType,
   PLATFORM_COLUMNS,
   type SpecField,
 } from "../../../registry/index.ts";
+import { FileFieldWriteError } from "../internal.ts";
 import { deriveCapabilityTableDdl } from "../schema/ddl.ts";
 import {
   type CapabilityActionRecord,
@@ -242,11 +244,14 @@ function validateBoundSubmittedFields(
   submittedFields: ReadonlySet<string>,
 ): void {
   for (const name of submittedFields) {
-    if (fieldsByName.get(name)?.lifecycle !== "active") {
+    const field = fieldsByName.get(name);
+    if (field?.lifecycle !== "active") {
       throw new CapabilityDataValidationError(
         `Submitted field "${name}" is not active for capability "${capabilityId}".`,
       );
     }
+    // Submitting one would clear it: nothing but the platform's own control may (7.1/05).
+    if (isFileFieldType(field.type)) throw new FileFieldWriteError(name);
   }
 }
 

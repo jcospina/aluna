@@ -115,6 +115,7 @@ describe("the wire spelling round-trips to the domain one", () => {
       field.values = null;
       field.groups = null;
       field.max_length = null;
+      field.accepts = null;
     }
     const parsed = promptCapabilitySpecSchema.parse(wire);
     expect("max_length" in (parsed.schema.fields[0] as object)).toBe(false);
@@ -128,6 +129,7 @@ describe("the wire spelling round-trips to the domain one", () => {
       field.values = null;
       field.groups = null;
       field.max_length ??= null;
+      field.accepts = null;
     }
     expect(promptCapabilitySpecSchema.parse(wire).schema.fields[0]?.max_length).toBe(240);
   });

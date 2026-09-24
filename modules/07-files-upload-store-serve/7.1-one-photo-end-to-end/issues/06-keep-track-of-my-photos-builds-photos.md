@@ -47,6 +47,29 @@ so a generated search that reads a file field fails the Gate.
 address gets `loading="lazy"` and `decoding="async"` from the platform filter, so a
 generated template cannot forget them.
 
+**What 7.1/03 left here.** Every Gate-side sample, fixture and probe gives a file field
+`null`. `formSubmitsField` in `builder/gate/gate-internal.ts` keeps the field out of what the
+smoke and the behavioral rung submit, as the stand-in does. With only `null` in hand,
+several checks cannot bite on a file field yet:
+
+- the search exclusion in `gate-smoke-search.ts`
+- the merge-preservation check for a hidden file field in `gate-smoke.ts`
+- the hostile design-lint probes, and the contrast probe design lint skips for a shown
+  file field, because `null` against `null` cannot move
+- `fieldValueMatches` in `gate-internal.ts`, which compares with `===`
+- `gate-behavioral-input.ts`, which treats a file input as a scalar string
+
+Generated code cannot write a file field: `normalizeFieldValue` in `runtime/data/tool.ts`
+refuses any value for one on create, including a behavioral case's setup rows, and the update
+port in `runtime/data/access/mutation.ts` refuses a submitted one. 7.1/04 and 7.1/05 relax
+those two for real references. To lift the refusal of generated `file` fields, add `file` to
+`GENERATION_FIELD_TYPES` in `registry/spec/spec.ts`, which also makes
+`unofferedFieldTypeIssues` in `builder/spec/unoffered-field-types.ts` find nothing to refuse.
+Then change the line both builder prompts carry, "every field sends accepts as null". A file
+field cannot be `required` until 7.1/08, so the builder must not mark one required. No
+evolution-matrix row adds a file field yet; the choice battery in
+`evolution-matrix.choice.test.ts` is the model for one.
+
 ## Acceptance criteria
 
 - [ ] Spec and candidate generation can declare a `file` field with `accepts: ["image"]`,
