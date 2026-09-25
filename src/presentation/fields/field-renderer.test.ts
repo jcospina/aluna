@@ -1,12 +1,13 @@
 import { describe, expect, test } from "bun:test";
+
+import { FILE_FIELD_HOOKS } from "#design/file-field.js";
+import { CREATE_CANCELLED_EVENT } from "#shell/shell-dom.js";
 import { fieldTypeSchema, isFileFieldType } from "../../registry/index.ts";
 import { ADDING_LABEL, busyLabelAttribute } from "../controls/busy-label.ts";
 import { oneField, probeField, SAMPLE, sampleFieldValue } from "./field-renderer.test-support.ts";
 import {
-  CREATE_CANCELLED_EVENT,
   capabilityCreateErrorId,
   capabilityRecordsRegionId,
-  RECORD_CREATED_EVENT,
   type RenderableCapability,
   renderCreateForm,
   renderEditForm,
@@ -40,7 +41,6 @@ describe("create form — platform wiring + close-on-success", () => {
 
   test("exposes the capability id used by post-refresh close-on-success", () => {
     expect(form).toContain('data-capability-id="tasks"');
-    expect(RECORD_CREATED_EVENT).toBe("aluna:record-created");
   });
 
   test("reserves an aria-live target for structured create errors", () => {
@@ -302,7 +302,7 @@ describe("centralization — exhaustive over the admitted pantry", () => {
 
       for (const form of [create, edit]) {
         expect(form).toContain('name="value"');
-        if (isFileFieldType(type)) expect(form).toContain("data-file-field");
+        if (isFileFieldType(type)) expect(form).toContain(FILE_FIELD_HOOKS.field);
         else expect(form).toMatch(/<(?:input|select|textarea)\b[^>]*name="value"/);
       }
     }

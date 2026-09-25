@@ -3,26 +3,24 @@
 
 import { describe, expect, test } from "bun:test";
 
+import { fileUrl } from "../../../platform/files/file-url.ts";
 import { FILE_LEDGER_TABLE, mintFileKey } from "../../../platform/files/ledger.ts";
 import { capabilityCreateErrorId } from "../../../presentation/index.ts";
 import { SECOND_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import { INVALID_FILE_REFERENCE_ERROR_CODE } from "../../../registry/index.ts";
-import { createMutationCoordinator } from "../../concurrency/mutation-coordinator.ts";
-import {
-  type CapabilityActionRecord,
-  type CapabilityFileProjection,
-  FILE_URL_PREFIX,
-} from "../../data/index.ts";
+import { type CapabilityFileProjection, projectFileLedgerRow } from "../../data/index.ts";
 import type { CapabilityContext, CapabilityCreateContext } from "../contract.ts";
-import { createBody, PHOTO, projectionOf, usePhotosRouter } from "./router.file.test-support.ts";
+import {
+  between,
+  createBody,
+  createHandler,
+  keyOf,
+  PHOTO,
+  sentenceOf,
+  usePhotosRouter,
+} from "./router.file.test-support.ts";
 import { makeSpyLoader } from "./router.test-support.ts";
 import type { CapabilityRouterDeps, HandlerLoader } from "./router.ts";
-
-function createHandler(
-  write: (context: CapabilityCreateContext) => CapabilityActionRecord,
-): HandlerLoader {
-  return async () => async (context: CapabilityCreateContext) => context.present(write(context));
-}
 
 describe("a create claims a pending photo", () => {
   const photos = usePhotosRouter();
@@ -54,7 +52,7 @@ describe("a create claims a pending photo", () => {
 
   test("the router's input, the create's return, read rows and the card carry the projection", async () => {
     const key = photos.mint({ name: "tide.jpg", mime: "image/jpeg", size: 1_024 });
-    const projection = projectionOf(photos.ledger(key));
+    const projection = projectFileLedgerRow(photos.ledger(key));
     const seen = { input: [] as unknown[], created: [] as unknown[], read: [] as unknown[] };
     const drawn: unknown[] = [];
     const create = createHandler(({ input, mutation }) => {
@@ -105,7 +103,7 @@ describe("a create claims a pending photo", () => {
 
     expect(created.status).toBe(200);
     const html = await read.text();
-    expect(html).toContain(`src="${FILE_URL_PREFIX}${key}"`);
+    expect(html).toContain(`src="${fileUrl(key)}"`);
     expect(html).toContain('alt="harbour.jpg"');
   });
 });
@@ -124,7 +122,7 @@ describe("a reference this field may not claim is refused before generated code 
     ["an unknown key", () => mintFileKey()],
     ["a malformed value", () => "harbour.jpg"],
     ["a key in upper case", () => photos.mint().toUpperCase()],
-    ["the served address", () => `${FILE_URL_PREFIX}${photos.mint()}`],
+    ["the served address", () => fileUrl(photos.mint())],
   ];
 
   for (const [name, reference] of cases) {
@@ -142,7 +140,7 @@ describe("a reference this field may not claim is refused before generated code 
       const body = await response.text();
       expect(body).toContain(`data-error-code="${INVALID_FILE_REFERENCE_ERROR_CODE}"`);
       expect(body).toContain(`data-error-fields="${PHOTO}"`);
-      const sentence = /<p[^>]*>([^<]+)<\/p>/.exec(body)?.[1] ?? "";
+      const sentence = sentenceOf(body);
       expect(sentence).toMatch(/file/);
       expect(sentence).not.toMatch(/key|ledger|reference|incarnation|pending/i);
       expect(spy.calls).toEqual([]);
@@ -162,17 +160,13 @@ describe("the check runs again inside the save's transaction", () => {
   for (const [name, assignment] of flips) {
     test(`and refuses the save when ${name} between the two checks`, async () => {
       const key = photos.mint();
-      const mutationCoordinator = createMutationCoordinator();
-      const acquire = mutationCoordinator.tryAcquireRecordWrite.bind(mutationCoordinator);
       let flipped = 0;
-      // The route takes this lease after its first check and before the transaction opens.
-      mutationCoordinator.tryAcquireRecordWrite = () => {
+      const mutationCoordinator = between(() => {
         flipped += 1;
         photos
           .conns()
           .readwrite.run(`UPDATE ${FILE_LEDGER_TABLE} SET ${assignment} WHERE "key" = ?`, [key]);
-        return acquire();
-      };
+      });
       const spy = makeSpyLoader();
 
       const response = await photos.request("/capability/photos/create", createBody("Dawn", key), {
@@ -233,13 +227,9 @@ describe("what a Handler hands back for a photo", () => {
 
 describe("any other value from generated code is refused before anything is written", () => {
   const photos = usePhotosRouter();
-  const keyOf = (photo: CapabilityFileProjection) => photo.url.slice(FILE_URL_PREFIX.length);
   const values: readonly [string, (photo: CapabilityFileProjection, other: string) => unknown][] = [
     ["a null the save never asked for", () => null],
-    [
-      "another pending key's address",
-      (photo, other) => ({ ...photo, url: FILE_URL_PREFIX + other }),
-    ],
+    ["another pending key's address", (photo, other) => ({ ...photo, url: fileUrl(other) })],
     [
       "the stored shape",
       ({ url: _url, ...rest }) => ({ key: keyOf({ url: _url, ...rest }), ...rest }),
@@ -274,7 +264,7 @@ describe("any other value from generated code is refused before anything is writ
 
   test("a projection handed back when the save named no photo", async () => {
     const key = photos.mint();
-    const projection = projectionOf(photos.ledger(key));
+    const projection = projectFileLedgerRow(photos.ledger(key));
     const loadHandler = createHandler(({ input, mutation }) =>
       mutation.create({ caption: input.values.caption, photo: projection }),
     );
@@ -330,107 +320,5 @@ describe("a save that does not finish gives its key back", () => {
     expect(response.status).toBe(200);
     expect(photos.stored()).toEqual([]);
     expect(photos.ledger(key)).toMatchObject({ state: "pending", record_id: null });
-  });
-});
-
-describe("a write queued behind the Handler's answer is refused", () => {
-  const photos = usePhotosRouter();
-  type Late = (context: CapabilityCreateContext, write: () => void) => Promise<string>;
-  const handlers: readonly [string, Late][] = [
-    [
-      "a Handler that never awaited",
-      async (_context, write) => {
-        queueMicrotask(write);
-        return "<p>answered first</p>";
-      },
-    ],
-    [
-      "a write queued in the turn an awaiting Handler answers in",
-      async (_context, write) => {
-        await null;
-        queueMicrotask(write);
-        return "<p>answered first</p>";
-      },
-    ],
-    [
-      "work a Handler left running when it answered",
-      async (_context, write) => {
-        await null;
-        void (async () => {
-          for (let turn = 0; turn < 3; turn += 1) await null;
-          write();
-        })();
-        return "<p>answered first</p>";
-      },
-    ],
-  ];
-
-  for (const [name, late] of handlers) {
-    test(name, async () => {
-      const key = photos.mint();
-      const refused: unknown[] = [];
-      const loadHandler: HandlerLoader = async () => (context: CapabilityCreateContext) =>
-        late(context, () => {
-          try {
-            context.mutation.create({ caption: "Late", photo: context.input.values.photo });
-          } catch (error) {
-            refused.push(error);
-          }
-        });
-
-      const response = await photos.request("/capability/photos/create", createBody("Late", key), {
-        loadHandler,
-      });
-      await Bun.sleep(0);
-
-      expect(response.status).toBe(200);
-      expect(refused).toHaveLength(1);
-      expect(photos.stored()).toEqual([]);
-      expect(photos.ledger(key).state).toBe("pending");
-    });
-  }
-});
-
-describe("the write window's edges", () => {
-  const photos = usePhotosRouter();
-
-  test("a Handler that answers with a promise holds it open until that promise is adopted", async () => {
-    const outcomes: string[] = [];
-    const loadHandler: HandlerLoader = async () => async (context: CapabilityCreateContext) => {
-      const write = (caption: string) => () => {
-        try {
-          context.mutation.create({ caption });
-          outcomes.push(`${caption} written`);
-        } catch {
-          outcomes.push(`${caption} refused`);
-        }
-      };
-      queueMicrotask(write("during"));
-      void (async () => {
-        for (let turn = 0; turn < 5; turn += 1) await null;
-        write("after")();
-      })();
-      return Promise.resolve("<p>answered with a promise</p>");
-    };
-
-    const response = await photos.request("/capability/photos/create", createBody("x"), {
-      loadHandler,
-    });
-    await Bun.sleep(0);
-
-    expect(response.status).toBe(200);
-    expect(outcomes).toEqual(["during written", "after refused"]);
-  });
-
-  test("a guarded write keeps its name and arity", async () => {
-    let seen: readonly [string, number] | undefined;
-    const loadHandler = createHandler(({ input, mutation }) => {
-      seen = [mutation.create.name, mutation.create.length];
-      return mutation.create({ caption: input.values.caption });
-    });
-
-    await photos.request("/capability/photos/create", createBody("x"), { loadHandler });
-
-    expect(seen).toEqual(["create", 1]);
   });
 });

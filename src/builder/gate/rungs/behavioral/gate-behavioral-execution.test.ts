@@ -206,7 +206,7 @@ describe("capability gate — behavioral violations", () => {
 });
 
 describe("capability gate — behavioral scratch catalog", () => {
-  test("behavioral execution receives declared synthetic dependency schemas and compatibility rows", async () => {
+  test("behavioral execution receives every declared dependency schema, inactive columns included", async () => {
     const dependencyIncarnation = THIRD_INCARNATION_ID;
     const dependencySpec = notesSpec({
       id: "behavior_catalog",
@@ -253,8 +253,7 @@ describe("capability gate — behavioral scratch catalog", () => {
       read: [
         "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
         "  return query.records({",
-        '    sql: \'SELECT target."id" AS "target_id" FROM "cap_notes" AS target CROSS JOIN "cap_behavior_catalog" AS catalog WHERE catalog."text" = ? AND catalog."retired_note" = ? ORDER BY target."created_at" DESC, target."id" DESC\',',
-        '    parameters: ["synthetic behavior", "compatible hidden value"],',
+        '    sql: \'SELECT target."id" AS "target_id" FROM "cap_notes" AS target WHERE NOT EXISTS (SELECT catalog."retired_note" FROM "cap_behavior_catalog" AS catalog) ORDER BY target."created_at" DESC, target."id" DESC\',',
         '  }).map(({ record }) => present(record)).join("");',
         "}",
       ].join("\n"),
@@ -279,18 +278,7 @@ describe("capability gate — behavioral scratch catalog", () => {
           ddl: deriveCapabilityTableDdl(spec),
           handlers,
           itemRenderer,
-          scratchCatalog: [
-            {
-              spec: dependencySpec,
-              incarnationId: dependencyIncarnation,
-              rows: [
-                {
-                  text: "synthetic behavior",
-                  retired_note: "compatible hidden value",
-                },
-              ],
-            },
-          ],
+          scratchCatalog: [{ spec: dependencySpec, incarnationId: dependencyIncarnation }],
         },
         suite,
       ),

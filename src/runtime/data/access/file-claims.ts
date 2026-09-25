@@ -14,20 +14,17 @@ import {
 import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import {
   ALUNA_RESERVED_FIELD_PREFIX,
+  type CapabilitySpec,
   isFileFieldType,
   type SpecField,
 } from "../../../registry/index.ts";
-import type {
-  CapabilityInput,
-  CapabilitySaveInput,
-  CapabilitySaveInputValue,
-} from "../../router/contract.ts";
 import {
   type FileReferenceRefusal,
   InvalidFileReferenceError,
   RecordChangedError,
   RecordNotFoundError,
 } from "../internal.ts";
+import { deriveCapabilityTableDdl } from "../schema/ddl.ts";
 import {
   type CapabilityFileProjection,
   fileKeyFromProjection,
@@ -49,6 +46,23 @@ export interface FileClaimScope {
   readonly record?: { readonly table: string; readonly id: string };
 }
 
+/** The scope of `spec`'s incarnation, naming the record an update or a delete acts on. */
+export function fileClaimScope(
+  database: Database,
+  spec: CapabilitySpec,
+  incarnationId: string,
+  recordId?: string,
+): FileClaimScope {
+  return {
+    database,
+    capabilityId: spec.id,
+    incarnationId,
+    ...(recordId === undefined
+      ? {}
+      : { record: { table: deriveCapabilityTableDdl(spec).tableName, id: recordId } }),
+  };
+}
+
 /**
  * What a save writes to one submitted file field: a pending row it claims, what the record's field
  * holds now (`null` when it holds nothing, as a create's field does), or the control's clear.
@@ -60,27 +74,21 @@ export type SubmittedFile =
 
 export type SubmittedFiles = ReadonlyMap<string, SubmittedFile>;
 
+/** The key a field holding the projection `held` holds, or `null` when it holds nothing. */
+export function heldFileKey(held: unknown): string | null {
+  return held === null || held === undefined ? null : (fileKeyFromProjection(held) ?? null);
+}
+
 /** The key a submitted file field leaves in its column, or `null` for none. */
 export function submittedFileKey(file: SubmittedFile): string | null {
   if (file.write === "claim") return file.row.key;
-  if (file.write === "clear" || file.held === null) return null;
-  return fileKeyFromProjection(file.held) ?? null;
+  return file.write === "keep" ? heldFileKey(file.held) : null;
 }
 
 /** What generated code is handed for a submitted file field: what the save will store. */
 export function submittedFileProjection(file: SubmittedFile): CapabilityFileProjection | null {
   if (file.write === "claim") return projectFileLedgerRow(file.row);
   return file.write === "keep" ? file.held : null;
-}
-
-/** A Handler's input, with each submitted file field's wire value replaced by its projection. */
-export function withFileProjections(
-  input: CapabilityInput,
-  files: SubmittedFiles,
-): CapabilitySaveInput {
-  const values: Record<string, CapabilitySaveInputValue> = { ...input.values };
-  for (const [field, file] of files) values[field] = submittedFileProjection(file);
-  return { values: Object.freeze(values), submittedFields: input.submittedFields };
 }
 
 /**
@@ -130,7 +138,7 @@ function resolveSubmittedFile(
   if (holding !== undefined && value === FILE_CLEAR_VALUE) return { write: "clear" };
   if (value === "") return holding ? "changed" : { write: "keep", held: null };
   if (!isFileKey(value)) return "malformed";
-  if (holding && fileKeyFromProjection(holding) === value) return { write: "keep", held: holding };
+  if (holding && heldFileKey(holding) === value) return { write: "keep", held: holding };
   return resolveSubmittedKey(field, value, holding !== undefined, scope);
 }
 

@@ -1,12 +1,40 @@
-// Boot is a script rather than a function, so the order it runs in is read from its source.
-
-import { expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { afterEach, beforeEach, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { waitForLog } from "./platform/async.test-support.ts";
+import {
+  OBJECT_STORE_ROOT_ENV_VAR,
+  STAGING_DIRECTORY,
+} from "./platform/files/object-store-root.ts";
 
-test("boot empties the upload staging directory before the server listens", () => {
-  const boot = readFileSync(join(import.meta.dir, "index.ts"), "utf8");
-  const clears = boot.indexOf("platformObjectStore.clearStaging()");
-  expect(clears).toBeGreaterThan(-1);
-  expect(clears).toBeLessThan(boot.indexOf("Bun.serve("));
+let dir: string;
+
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), "omni-crud-boot-"));
 });
+
+afterEach(() => {
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("boot empties the upload staging directory before the server listens", async () => {
+  const root = join(dir, "objects");
+  const staging = join(root, STAGING_DIRECTORY);
+  mkdirSync(staging, { recursive: true });
+  writeFileSync(join(staging, "unfinished-upload"), "bytes a previous process never finished");
+
+  const proc = Bun.spawn(["bun", join(import.meta.dir, "index.ts")], {
+    cwd: dir,
+    env: { ...process.env, PORT: "0", [OBJECT_STORE_ROOT_ENV_VAR]: root },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  try {
+    await waitForLog(proc.stdout, "listening", 15_000);
+    expect(readdirSync(staging)).toEqual([]);
+  } finally {
+    proc.kill();
+    await proc.exited;
+  }
+}, 20_000);

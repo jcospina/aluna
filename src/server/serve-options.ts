@@ -1,7 +1,11 @@
 // What `src/index.ts` hands `Bun.serve`, resolved apart from the boot so a test can read it. A leaf
-// but for the file cap, which is itself one.
+// but for the file cap and the number parse, which are themselves leaves.
 
 import { resolveMaxFileBytes } from "../platform/files/file-cap.ts";
+import { parseWholeNumber } from "../platform/whole-number.ts";
+
+/** Loopback only: the platform runs locally for one person, and no other machine may write to it. */
+const LOOPBACK_HOSTNAME = "127.0.0.1";
 
 const DEFAULT_PORT = 3030;
 const MAX_PORT = 65535;
@@ -11,6 +15,7 @@ const MAX_PORT = 65535;
 const STREAM_IDLE_TIMEOUT_SECONDS = 120;
 
 export interface ServeOptions {
+  readonly hostname: string;
   readonly port: number;
   readonly idleTimeout: number;
   /** The file cap: Bun refuses a larger declared body, and every writing route counts its own. */
@@ -24,8 +29,9 @@ export interface ServeOptions {
  */
 export function resolveServeOptions(env: NodeJS.ProcessEnv = process.env): ServeOptions {
   const requested = env.PORT?.trim() ?? "";
-  const port = /^\d+$/.test(requested) ? Number(requested) : Number.NaN;
+  const port = parseWholeNumber(requested);
   return {
+    hostname: LOOPBACK_HOSTNAME,
     port: port <= MAX_PORT ? port : DEFAULT_PORT,
     idleTimeout: STREAM_IDLE_TIMEOUT_SECONDS,
     maxRequestBodySize: resolveMaxFileBytes(env),

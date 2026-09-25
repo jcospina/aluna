@@ -19,6 +19,11 @@ import {
 
 export { CAPABILITY_TABLE_PREFIX } from "../../../platform/persistence/table-names.ts";
 
+/** The data table of the capability `id`. */
+export function capabilityTableName(id: string): string {
+  return `${CAPABILITY_TABLE_PREFIX}${id}`;
+}
+
 export const SQLITE_TYPE_BY_FIELD_TYPE = {
   string: "TEXT",
   number: "REAL",
@@ -37,7 +42,7 @@ export interface CapabilityTableDdl {
 
 export function deriveCapabilityTableDdl(spec: CapabilitySpec): CapabilityTableDdl {
   const parsed = capabilitySpecSchema.parse(spec);
-  const tableName = `${CAPABILITY_TABLE_PREFIX}${parsed.id}`;
+  const tableName = capabilityTableName(parsed.id);
   const columns = [
     ...platformColumnDefinitions(),
     ...parsed.schema.fields.map((field) => columnDefinition(field.name, field.type)),
@@ -82,7 +87,7 @@ export function deriveAdditiveCapabilityMigration(
   if (parsed.id !== committed.id) {
     throw new Error("Additive migration requires a stable capability id.");
   }
-  const tableName = `${CAPABILITY_TABLE_PREFIX}${parsed.id}`;
+  const tableName = capabilityTableName(parsed.id);
   const committedTypes = new Map(committed.schema.fields.map((field) => [field.name, field.type]));
 
   // Defense in depth: every committed column must survive unchanged, though validation should

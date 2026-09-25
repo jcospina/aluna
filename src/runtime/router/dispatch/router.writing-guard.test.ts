@@ -69,8 +69,9 @@ describe("the record router refuses at its door", () => {
   test("over a real socket, where Bun's own cap let a chunked body through", async () => {
     const app = createApp({ capabilityRouter: { databases: conns } });
     const server = Bun.serve({ ...resolveServeOptions({ PORT: "0" }), fetch: app.fetch });
-    // Each request on its own connection: Bun's `fetch` stops sending a refused body and reuses
-    // the connection, so the server reads the next request as the rest of the old body.
+    // Each request on its own connection: Bun's `fetch` client abandons a refused chunked body
+    // unfinished and sends the next request down the same connection, which the server then
+    // rightly reads as the rest of the old body. The server drains a refused body itself.
     const send = (init: RequestInit) =>
       fetch(`http://localhost:${server.port}/capability/notes/create`, {
         ...init,

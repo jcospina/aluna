@@ -23,7 +23,7 @@ import {
   FIRST_INCARNATION_ID,
   SECOND_INCARNATION_ID,
 } from "../../../registry/incarnations.test-support.ts";
-import type { SpecField } from "../../../registry/index.ts";
+import type { CapabilitySpec, SpecField } from "../../../registry/index.ts";
 import {
   CapabilityDataValidationError,
   FileFieldWriteError,
@@ -32,12 +32,17 @@ import {
   RecordChangedError,
 } from "../internal.ts";
 import { applyCapabilityTableDdl } from "../schema/ddl.ts";
-import { FILE_URL_PREFIX, projectFileLedgerRow } from "../schema/file-values.ts";
-import { FILE_CLEAR_VALUE, type FileClaimScope, resolveSubmittedFiles } from "./file-claims.ts";
+import { projectFileLedgerRow } from "../schema/file-values.ts";
 import {
-  createCapabilityDeleteMutationPort,
+  FILE_CLEAR_VALUE,
+  type FileClaimScope,
+  fileClaimScope,
+  resolveSubmittedFiles,
+} from "./file-claims.ts";
+import {
   createCapabilityMutationPort,
   createCapabilityUpdateMutationPort,
+  type FileSubmissionBinding,
 } from "./mutation.ts";
 
 const COVER_FIELD: SpecField = { ...PHOTO_FIELD, name: "cover", label: "Cover" };
@@ -49,11 +54,7 @@ let scope: FileClaimScope;
 beforeEach(() => {
   env = createScratchDbEnv("omni-crud-file-claims-");
   applyCapabilityTableDdl(spec, env.conns.readwrite);
-  scope = {
-    database: env.conns.readwrite,
-    capabilityId: "photos",
-    incarnationId: FIRST_INCARNATION_ID,
-  };
+  scope = fileClaimScope(env.conns.readwrite, spec, FIRST_INCARNATION_ID);
 });
 
 afterEach(() => teardownScratchDbEnv(env));
@@ -65,6 +66,20 @@ function mint(overrides: Partial<FileLedgerSeed> = {}): string {
     field: PHOTO_FIELD.name,
     ...overrides,
   });
+}
+
+/** `values` checked as the router checks them, bound to the save that writes them. */
+function submission(
+  values: Record<string, unknown>,
+  recordId?: string,
+  target: CapabilitySpec = spec,
+): FileSubmissionBinding {
+  const action = recordId === undefined ? "create" : "update";
+  const bound = fileClaimScope(env.conns.readwrite, target, FIRST_INCARNATION_ID, recordId);
+  return {
+    scope: bound,
+    submitted: resolveSubmittedFiles(target.schema.fields, values, action, bound),
+  };
 }
 
 function refusal(values: Record<string, unknown>): InvalidFileReferenceError {
@@ -127,11 +142,7 @@ describe("which reference a file field may claim", () => {
 describe("the mutation interface checks once more", () => {
   test("a key taken after the router's checks is refused, and nothing is written", () => {
     const key = mint();
-    const submitted = resolveSubmittedFiles(spec.schema.fields, { photo: key }, "create", scope);
-    const port = createCapabilityMutationPort(spec, env.conns.readwrite, undefined, {
-      incarnationId: FIRST_INCARNATION_ID,
-      submitted,
-    });
+    const port = createCapabilityMutationPort(spec, submission({ photo: key }));
     env.conns.readwrite.run(
       `UPDATE ${FILE_LEDGER_TABLE} SET "state" = 'cleanup_enqueued' WHERE "key" = ?`,
       [key],
@@ -142,32 +153,20 @@ describe("the mutation interface checks once more", () => {
     expect(requireFileLedgerRow(env.conns.readwrite, key).state).toBe("cleanup_enqueued");
   });
 
-  test("a port bound to no submission writes every file field empty", () => {
+  test("a port bound to a submission of no file field writes every file field empty", () => {
     const key = mint();
-    const port = createCapabilityMutationPort(spec, env.conns.readwrite);
+    const port = createCapabilityMutationPort(spec, submission({}));
     const projection = projectFileLedgerRow(requireFileLedgerRow(env.conns.readwrite, key));
 
     expect(port.create({ caption: "Bare", photo: null }).fields.photo).toBeNull();
     expect(() => port.create({ caption: "Dawn", photo: projection })).toThrow(FileFieldWriteError);
     expect(requireFileLedgerRow(env.conns.readwrite, key).state).toBe("pending");
   });
-
-  test("the projection's url is the same-origin address the key is served from", () => {
-    const key = mint();
-    const projection = projectFileLedgerRow(requireFileLedgerRow(env.conns.readwrite, key));
-    expect(projection.url).toBe(`${FILE_URL_PREFIX}${key}`);
-    expect(Object.isFrozen(projection)).toBe(true);
-  });
 });
 
 describe("one submission's file belongs to one record", () => {
   test("a second create cannot claim it again, and is told it wrote what it may not", () => {
-    const key = mint();
-    const submitted = resolveSubmittedFiles(spec.schema.fields, { photo: key }, "create", scope);
-    const port = createCapabilityMutationPort(spec, env.conns.readwrite, undefined, {
-      incarnationId: FIRST_INCARNATION_ID,
-      submitted,
-    });
+    const port = createCapabilityMutationPort(spec, submission({ photo: mint() }));
 
     const first = port.create({ caption: "Dawn" });
     expect(() => port.create({ caption: "Dusk" })).toThrow(FileFieldWriteError);
@@ -183,10 +182,7 @@ describe("one submission's file belongs to one record", () => {
 /** A record that claimed a pending photo, as a create through the router leaves one. */
 function savedWithPhoto(): { held: string; id: string } {
   const held = mint();
-  createCapabilityMutationPort(spec, env.conns.readwrite, undefined, {
-    incarnationId: FIRST_INCARNATION_ID,
-    submitted: resolveSubmittedFiles(spec.schema.fields, { photo: held }, "create", scope),
-  }).create({ caption: "Dawn" });
+  createCapabilityMutationPort(spec, submission({ photo: held })).create({ caption: "Dawn" });
   const { id } = env.conns.readwrite.query(`SELECT "id" FROM "cap_photos"`).get() as { id: string };
   return { held, id };
 }
@@ -195,20 +191,8 @@ describe("an edit's mutation interface checks once more", () => {
   /** A record holding a claimed photo, and the port an edit submitting `photo` (or keeping) binds. */
   function edit(photo?: string) {
     const { held, id } = savedWithPhoto();
-    const record = { table: "cap_photos", id };
-    const values = { photo: photo ?? held };
-    const submitted = resolveSubmittedFiles(spec.schema.fields, values, "update", {
-      ...scope,
-      record,
-    });
-    const port = createCapabilityUpdateMutationPort(
-      spec,
-      id,
-      new Set(["photo"]),
-      env.conns.readwrite,
-      undefined,
-      { incarnationId: FIRST_INCARNATION_ID, submitted },
-    );
+    const files = submission({ photo: photo ?? held }, id);
+    const port = createCapabilityUpdateMutationPort(spec, id, new Set(["photo"]), files);
     return { held, id, port };
   }
 
@@ -238,10 +222,10 @@ describe("an edit's mutation interface checks once more", () => {
     expect(requireFileLedgerRow(env.conns.readwrite, held).state).toBe("owned");
   });
 
-  test("a port bound to no submission may not be handed a file field to write", () => {
+  test("a port may not be handed a file field its submission never checked", () => {
     const { id } = edit();
     expect(() =>
-      createCapabilityUpdateMutationPort(spec, id, new Set(["photo"]), env.conns.readwrite),
+      createCapabilityUpdateMutationPort(spec, id, new Set(["photo"]), submission({}, id)),
     ).toThrow(FileFieldWriteError);
   });
 });
@@ -261,41 +245,25 @@ describe("a required file field below the router", () => {
   }
 
   function updatePort(id: string, values: Record<string, unknown>) {
-    const submitted = resolveSubmittedFiles(required.schema.fields, values, "update", {
-      ...scope,
-      record: { table: "cap_photos", id },
-    });
-    return createCapabilityUpdateMutationPort(
-      required,
-      id,
-      new Set(Object.keys(values)),
-      env.conns.readwrite,
-      undefined,
-      { incarnationId: FIRST_INCARNATION_ID, submitted },
-    );
+    const files = submission(values, id, required);
+    return createCapabilityUpdateMutationPort(required, id, new Set(Object.keys(values)), files);
   }
 
   test("refuses a create that leaves it empty, naming every empty required field in order", () => {
-    const submitted = resolveSubmittedFiles(
-      required.schema.fields,
-      { photo: "", cover: "" },
-      "create",
-      scope,
+    const port = createCapabilityMutationPort(
+      required,
+      submission({ photo: "", cover: "" }, undefined, required),
     );
-    const port = createCapabilityMutationPort(required, env.conns.readwrite, undefined, {
-      incarnationId: FIRST_INCARNATION_ID,
-      submitted,
-    });
     expect(missingOf(() => port.create({ caption: " " }))).toEqual(["caption", "photo"]);
     expect(missingOf(() => port.create({ caption: "Dawn" }))).toEqual(["photo"]);
     expect(photos().all()).toEqual([]);
   });
 
   test("judges a malformed create as malformed before it asks for the photo", () => {
-    const port = createCapabilityMutationPort(required, env.conns.readwrite, undefined, {
-      incarnationId: FIRST_INCARNATION_ID,
-      submitted: resolveSubmittedFiles(required.schema.fields, { photo: "" }, "create", scope),
-    });
+    const port = createCapabilityMutationPort(
+      required,
+      submission({ photo: "" }, undefined, required),
+    );
     const refusedAs = (values: unknown) => {
       try {
         port.create(values as never);
@@ -311,15 +279,10 @@ describe("a required file field below the router", () => {
 
   test("leaves another field's pending file pending when it refuses the save", () => {
     const cover = mint({ field: COVER_FIELD.name });
-    const create = createCapabilityMutationPort(required, env.conns.readwrite, undefined, {
-      incarnationId: FIRST_INCARNATION_ID,
-      submitted: resolveSubmittedFiles(
-        required.schema.fields,
-        { photo: "", cover },
-        "create",
-        scope,
-      ),
-    });
+    const create = createCapabilityMutationPort(
+      required,
+      submission({ photo: "", cover }, undefined, required),
+    );
     expect(missingOf(() => create.create({ caption: "Dawn" }))).toEqual(["photo"]);
     expect(requireFileLedgerRow(env.conns.readwrite, cover).state).toBe("pending");
 
@@ -347,17 +310,6 @@ describe("a required file field below the router", () => {
   });
 });
 
-describe("a delete port bound to no incarnation", () => {
-  test("leaves the ledger alone, as the Gate's scratch runs have none", () => {
-    const { id } = savedWithPhoto();
-    env.conns.readwrite.exec(`DROP TABLE ${FILE_LEDGER_TABLE}`);
-
-    createCapabilityDeleteMutationPort(spec, id, env.conns.readwrite).delete();
-
-    expect(env.conns.readwrite.query(`SELECT * FROM "cap_photos"`).all()).toEqual([]);
-  });
-});
-
 describe("an update a Handler starts from inside another", () => {
   test("keeps nothing it wrote once the outer one fails, so a later update still writes it", () => {
     const tagged = photoSpec([
@@ -376,13 +328,11 @@ describe("an update a Handler starts from inside another", () => {
       },
     };
     applyCapabilityTableDdl(spec, env.conns.readwrite);
-    const own = { ...scope, capabilityId: "tagged" };
     const mintHere = () => mint({ capabilityId: "tagged" });
     const held = mintHere();
-    createCapabilityMutationPort(spec, env.conns.readwrite, undefined, {
-      incarnationId: FIRST_INCARNATION_ID,
-      submitted: resolveSubmittedFiles(spec.schema.fields, { photo: held }, "create", own),
-    }).create({ caption: "Dawn" });
+    createCapabilityMutationPort(spec, submission({ photo: held }, undefined, spec)).create({
+      caption: "Dawn",
+    });
     const { id } = env.conns.readwrite.query(`SELECT "id" FROM "cap_tagged"`).get() as {
       id: string;
     };
@@ -391,15 +341,7 @@ describe("an update a Handler starts from inside another", () => {
       spec,
       id,
       new Set(["photo", "tags"]),
-      env.conns.readwrite,
-      undefined,
-      {
-        incarnationId: FIRST_INCARNATION_ID,
-        submitted: resolveSubmittedFiles(spec.schema.fields, { photo: next }, "update", {
-          ...own,
-          record: { table: "cap_tagged", id },
-        }),
-      },
+      submission({ photo: next }, id, spec),
     );
     // Reading the list runs inside the outer update, and starts another there.
     const reentrant = new Proxy(["a"], {

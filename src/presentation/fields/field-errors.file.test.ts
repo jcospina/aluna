@@ -4,14 +4,16 @@
 
 import { describe, expect, test } from "bun:test";
 
-import { FILE_FIELD_CHANGE } from "#design/file-field.js";
+import { FILE_FIELD_HOOKS, FileRefusal, pickInto } from "#design/file-field.js";
 import { NOT_ADMITTED_SENTENCES } from "../../platform/files/refusal-copy.ts";
 import { installDomGlobals } from "../controls/choice-picker.fixture.test-support.ts";
-import { type El, parseHtml } from "../controls/choice-picker.test-support.ts";
+import type { El } from "../controls/choice-picker.test-support.ts";
+import { drawnFileFields, refusing } from "../controls/file-field.test-support.ts";
 import { capabilityOf, requiredRefusal, scene, tick } from "./field-errors.test-support.ts";
 import { probeField } from "./field-renderer.test-support.ts";
 
 installDomGlobals();
+const mountFileFields = drawnFileFields();
 
 const REFUSAL = NOT_ADMITTED_SENTENCES.image;
 
@@ -23,26 +25,23 @@ async function photoAndCaption() {
       probeField("string", { name: "caption", label: "Caption" }),
     ]),
   );
+  mountFileFields(one.doc, refusing(new FileRefusal("signature", REFUSAL)));
   const host = one.fieldNamed("photo");
-  parseHtml(
-    '<button type="button" data-file-pick data-file-focus>Choose a photo</button>',
-    host.querySelector("[data-file-body]") as El,
-  );
-  return { ...one, host, pick: host.querySelector("[data-file-focus]") as El };
+  const pick = host.querySelector(`[${FILE_FIELD_HOOKS.focus}]`);
+  expect(pick?.tag).toBe("button");
+  return { ...one, host, pick: pick as El };
 }
 
-/** What the control does to its field when it refuses a pick into an empty field. */
-function refusePick(host: El, slot: El) {
-  host.classList.add("is-invalid");
-  slot.textContent = REFUSAL;
-  slot.hidden = false;
-  slot.classList.add("field__guidance--error");
+/** A pick into the empty field, which the control refuses in the field's own slot. */
+async function refusePick(host: El) {
+  pickInto(host as never, { name: "leaf.heic", type: "image/heic", size: 3 });
+  await tick();
 }
 
 describe("a photo field's guidance, which the control also writes", () => {
   test("keeps the control's refusal through a save's answer about another field", async () => {
     const one = await photoAndCaption();
-    refusePick(one.host, one.slotOf("photo"));
+    await refusePick(one.host);
     one.landRefusal(requiredRefusal(["caption"]));
     expect(one.saidIn("photo")).toBe(REFUSAL);
     expect(one.isInvalid("photo")).toBe(true);
@@ -51,7 +50,7 @@ describe("a photo field's guidance, which the control also writes", () => {
 
   test("gives the control's refusal back, as it was, once a save's verdict on the photo goes", async () => {
     const one = await photoAndCaption();
-    refusePick(one.host, one.slotOf("photo"));
+    await refusePick(one.host);
     one.landRefusal(requiredRefusal(["photo"]));
     expect(one.saidIn("photo")).not.toBe(REFUSAL);
     expect(one.isInvalid("photo")).toBe(true);
@@ -64,17 +63,14 @@ describe("a photo field's guidance, which the control also writes", () => {
   test("lets a verdict go without putting anything back once the control says itself again", async () => {
     const one = await photoAndCaption();
     one.landRefusal(requiredRefusal(["photo"]));
-    const slot = one.slotOf("photo");
-    slot.textContent = "A picture of the whole plant.";
-    one.doc.fire(FILE_FIELD_CHANGE, one.host);
-    one.doc.fire("change", one.pick);
+    await refusePick(one.host);
     one.doc.fire("reset", one.form);
-    expect(one.saidIn("photo")).toBe("A picture of the whole plant.");
+    expect(one.saidIn("photo")).toBe(REFUSAL);
   });
 
   test("never counts the control's own refusal as a field the browser's check marked", async () => {
     const one = await photoAndCaption();
-    refusePick(one.host, one.slotOf("photo"));
+    await refusePick(one.host);
     one.reportMissing("caption");
     await tick();
     expect(one.doc.activeElement).toBe(one.doc.querySelector('[name="caption"]'));

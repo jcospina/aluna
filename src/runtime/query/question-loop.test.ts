@@ -75,13 +75,8 @@ describe("the loop runs the model's chosen steps in sequence", () => {
     expect(result.steps[0]?.result).toEqual({
       outcome: "rows",
       rows: [{ text: "groceries" }, { text: "rent" }],
-      fileKeys: new Set(),
     });
-    expect(result.steps[1]?.result).toEqual({
-      outcome: "rows",
-      rows: [{ spent: 12.5 }],
-      fileKeys: new Set(),
-    });
+    expect(result.steps[1]?.result).toEqual({ outcome: "rows", rows: [{ spent: 12.5 }] });
 
     // Three generations for two reads: the third is the one that decided to stop.
     expect(prompts).toHaveLength(3);
@@ -366,12 +361,8 @@ describe("an empty result and a failed statement are ordinary turns", () => {
 
     expect(result.ending).toBe("answered");
     expect(steps).toHaveLength(2);
-    expect(steps[0]?.result).toEqual({ outcome: "rows", rows: [], fileKeys: new Set() });
-    expect(steps[1]?.result).toEqual({
-      outcome: "rows",
-      rows: [{ total: 3 }],
-      fileKeys: new Set(),
-    });
+    expect(steps[0]?.result).toEqual({ outcome: "rows", rows: [] });
+    expect(steps[1]?.result).toEqual({ outcome: "rows", rows: [{ total: 3 }] });
   });
 
   test("a failed statement does not end the loop, and the model reads why", async () => {
@@ -494,11 +485,7 @@ describe("a decision that will not parse is a turn, not an ending", () => {
     expect(result.ending).toBe("answered");
     expect(steps).toHaveLength(2);
     expect(steps[0]).toEqual(UNREADABLE_STEP);
-    expect(steps[1]?.result).toEqual({
-      outcome: "rows",
-      rows: [{ total: 3 }],
-      fileKeys: new Set(),
-    });
+    expect(steps[1]?.result).toEqual({ outcome: "rows", rows: [{ total: 3 }] });
     expect(scratch.readerCounts()).toEqual([0, 0]);
   });
 

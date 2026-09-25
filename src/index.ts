@@ -36,8 +36,7 @@ if (applied.length > 0) {
   console.log(`omni-crud applied ${applied.length} migration(s): ${applied.join(", ")}`);
 }
 // Nothing can be streaming before the server listens, so staging holds only uploads a previous
-// process never finished. One that died after its row committed leaves that row to the desk-load
-// sweep, which finds its bytes gone.
+// process never finished.
 try {
   await platformObjectStore.clearStaging();
 } catch (error) {

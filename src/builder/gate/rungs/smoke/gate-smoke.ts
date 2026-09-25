@@ -37,11 +37,11 @@ import {
   snapshotCapabilityTables,
 } from "../../gate-internal.ts";
 import {
-  SCRATCH_INCARNATION_ID,
-  scratchFileName,
+  scratchFileScope,
   scratchStoredFile,
   scratchSubmission,
 } from "../../gate-scratch-files.ts";
+import { scratchFileName } from "../../gate-scratch-names.ts";
 import { runSmokeRepairLoop, SmokeActionFailure, type SmokeRungRun } from "./gate-smoke-repair.ts";
 import {
   buildSmokeInput,
@@ -49,6 +49,7 @@ import {
   leftOutCreate,
   mintSmokeFiles,
   type SmokeFiles,
+  type SmokeInput,
 } from "./gate-smoke-samples.ts";
 import {
   fixtureFieldValue,
@@ -124,8 +125,6 @@ async function executeSmokeCycle(
           input.spec,
           insertedRow.id,
           updateSample.input.submittedFields,
-          readwrite,
-          undefined,
           submission.binding,
         ),
         query: buildGateQueryPort(input.spec, "update", input.scratchCatalog, readonly),
@@ -213,33 +212,19 @@ async function executeCreateRead(
   readonly: Database,
 ): Promise<CreateReadResult> {
   await assertInitialEmptyRead(input, handlers, recorder, readonly);
-  const smokeInput = buildSmokeInput(input.spec, files);
-  const submission = scratchSubmission(input.spec, smokeInput.input, readwrite);
-  const createFragment = await runAction("create", async () => {
-    recorder.clear();
-    const fragment = await handlers.create({
-      input: submission.input,
-      mutation: createCapabilityMutationPort(input.spec, readwrite, undefined, submission.binding),
-      query: buildGateQueryPort(input.spec, "create", input.scratchCatalog, readonly),
-      present: recorder.present,
-    });
-    assertFragment("create", fragment);
-    assertPresentedFragmentsReturned("create", fragment, recorder.fragments());
-    return fragment;
-  });
-  const initialRows = selectCapabilityRows(
-    input.spec,
-    buildGateQueryPort(input.spec, "read", input.scratchCatalog, readonly),
+  const created = await runSmokeCreate(
+    input,
+    handlers,
+    recorder,
+    buildSmokeInput(input.spec, files),
+    readwrite,
+    readonly,
   );
-  await runAction("create", () => {
-    assertSmokeRows(input.spec, initialRows, smokeInput.expectedValues);
-    assertObservedRows(input.spec, recorder.rows(), initialRows);
-  });
-  const insertedRow = initialRows[0];
+  const insertedRow = created.rows[0];
   if (!insertedRow) throw new SmokeActionFailure("create", "scratch insert produced no row");
   seedProtectedUpdateState(input.spec, input.ddl.tableName, insertedRow.id, readwrite);
   const readFragment = await runRead(input, handlers, recorder, readonly);
-  return { createFragment, initialRows, insertedRow, readFragment };
+  return { createFragment: created.fragment, initialRows: created.rows, insertedRow, readFragment };
 }
 
 /** A create that leaves its optional file fields out, which the router takes (`leftOutCreate`). */
@@ -252,26 +237,42 @@ async function executeLeftOutCreate(
   readonly: Database,
 ): Promise<void> {
   const leftOut = leftOutCreate(input.spec, files);
-  if (!leftOut) return;
-  const submission = scratchSubmission(input.spec, leftOut.input, readwrite);
+  if (leftOut) await runSmokeCreate(input, handlers, recorder, leftOut, readwrite, readonly);
+}
+
+/**
+ * One create, checked as the router checks its submission, that must write exactly the one row
+ * `sample` expects and present that row alone.
+ */
+async function runSmokeCreate(
+  input: CapabilityGateInput,
+  handlers: LoadedHandlers,
+  recorder: RecordingPresentation,
+  sample: SmokeInput,
+  readwrite: Database,
+  readonly: Database,
+): Promise<{ readonly fragment: string; readonly rows: readonly CapabilityDataRow[] }> {
+  const submission = scratchSubmission(input.spec, sample.input, readwrite);
   const rows = () =>
     selectCapabilityRows(
       input.spec,
       buildGateQueryPort(input.spec, "read", input.scratchCatalog, readonly),
     );
   const before = new Set(rows().map((row) => row.id));
-  await runAction("create", async () => {
+  return runAction("create", async () => {
     recorder.clear();
     const fragment = await handlers.create({
       input: submission.input,
-      mutation: createCapabilityMutationPort(input.spec, readwrite, undefined, submission.binding),
+      mutation: createCapabilityMutationPort(input.spec, submission.binding),
       query: buildGateQueryPort(input.spec, "create", input.scratchCatalog, readonly),
       present: recorder.present,
     });
     assertFragment("create", fragment);
     assertPresentedFragmentsReturned("create", fragment, recorder.fragments());
     const created = rows().filter((row) => !before.has(row.id));
-    assertSmokeRows(input.spec, created, leftOut.expectedValues);
+    assertSmokeRows(input.spec, created, sample.expectedValues);
+    assertObservedRows(input.spec, recorder.rows(), created);
+    return { fragment, rows: created };
   });
 }
 
@@ -330,9 +331,11 @@ async function executeDelete(
   return runAction("delete", async () => {
     const fragment = await handler({
       input: emptyInput(),
-      mutation: createCapabilityDeleteMutationPort(input.spec, targetId, readwrite, undefined, {
-        incarnationId: SCRATCH_INCARNATION_ID,
-      }),
+      mutation: createCapabilityDeleteMutationPort(
+        input.spec,
+        targetId,
+        scratchFileScope(input.spec, readwrite),
+      ),
       query: buildGateQueryPort(input.spec, "delete", input.scratchCatalog, readonly),
     });
     if (typeof fragment !== "string") throw new Error("delete Handler did not return a string");

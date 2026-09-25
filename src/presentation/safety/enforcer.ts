@@ -11,9 +11,11 @@
 // is given.
 
 import { isOffOriginUrl, namesServedFile } from "./attribute-urls.ts";
+import { rewriteAttributes } from "./attribute-verdicts.ts";
 import { escapeCdataOpeners } from "./cdata.ts";
-import { collapseRepeatedAttributes } from "./repeated-attributes.ts";
+import { escapeTextOpeners } from "./stray-openers.ts";
 import { sanitizeStyle } from "./style-discipline.ts";
+import { closeTrailingTag } from "./trailing-tag.ts";
 import {
   ALLOWED_CLASSES,
   ALLOWED_ELEMENTS,
@@ -38,8 +40,8 @@ export function neutralizeItemMarkup(innerHtml: string): string {
   const endTags = impliedEndTags();
   return new HTMLRewriter()
     .on("*", { element: (element) => enforceElement(element, endTags) })
-    .onDocument({ comments: dropComment })
-    .transform(escapeCdataOpeners(innerHtml));
+    .onDocument({ comments: dropComment, text: escapeTextOpeners })
+    .transform(closeTrailingTag(escapeCdataOpeners(innerHtml)));
 }
 
 function enforceElement(element: HTMLRewriterTypes.Element, endTags: ImpliedEndTags): void {
@@ -48,8 +50,11 @@ function enforceElement(element: HTMLRewriterTypes.Element, endTags: ImpliedEndT
     element.remove(); // drops the element and its (code / non-data) content
   } else if (!ALLOWED_ELEMENTS.has(tag)) {
     endTags.unwrap(element, tag); // unwrap interactive/unknown; keep the record text
+  } else if (
+    rewriteAttributes(element, (lower, value) => keptValue(tag, lower, value)) === undefined
+  ) {
+    endTags.unwrap(element, tag);
   } else {
-    cleanAttributes(element, tag);
     endTags.keep(element, tag);
   }
 }
@@ -66,14 +71,22 @@ interface ImpliedEndTags {
  * markup never had is written.
  */
 function impliedEndTags(): ImpliedEndTags {
-  const open: { readonly name: string; taken: boolean }[] = [];
+  // Kept elements still open, per name, innermost last. A closed one is only marked, and popped
+  // once it surfaces, so every lookup and close is amortized constant time.
+  const open = new Map<string, { taken: boolean; closed: boolean }[]>();
+  const stackOf = (name: string): { taken: boolean; closed: boolean }[] => {
+    const stack = open.get(name) ?? [];
+    open.set(name, stack);
+    while (stack.at(-1)?.closed) stack.pop();
+    return stack;
+  };
   return {
     keep(element, tag) {
       if (!element.canHaveContent) return;
-      const entry = { name: tag, taken: false };
-      open.push(entry);
+      const entry = { taken: false, closed: false };
+      stackOf(tag).push(entry);
       element.onEndTag((end) => {
-        open.splice(open.lastIndexOf(entry), 1);
+        entry.closed = true;
         if (entry.taken) end.after(`</${tag}>`, { html: true });
       });
     },
@@ -81,8 +94,8 @@ function impliedEndTags(): ImpliedEndTags {
       if (element.canHaveContent) {
         element.onEndTag((end) => {
           const name = end.name.toLowerCase();
-          const owner = open.findLast((entry) => entry.name === name);
-          if (name !== tag && owner) owner.taken = true;
+          const owner = name === tag ? undefined : stackOf(name).at(-1);
+          if (owner) owner.taken = true;
         });
       }
       element.removeAndKeepContent();
@@ -147,30 +160,27 @@ function namesServedSource(element: HTMLRewriterTypes.Element): boolean {
   });
 }
 
-function cleanAttributes(element: HTMLRewriterTypes.Element, tag: string): void {
-  for (const [lower, value] of collapseRepeatedAttributes(element)) {
-    if (lower === "class") filterClass(element, value);
-    else if (lower === "style") filterStyle(element, value);
-    else if (!isSafeAttr(tag, lower)) element.removeAttribute(lower);
-    else if (URL_ATTRS.has(lower) && isOffOriginUrl(value, lower)) element.removeAttribute(lower);
-  }
+/** The value an allowed element keeps for one attribute, or `null` to remove it. */
+function keptValue(tag: string, lower: string, value: string): string | null {
+  if (lower === "class") return keptClass(value);
+  if (lower === "style") return keptStyle(value);
+  if (!isSafeAttr(tag, lower)) return null;
+  return URL_ATTRS.has(lower) && isOffOriginUrl(value, lower) ? null : value;
 }
 
-/** Keep only allow-listed class tokens; leave a fully-conforming attribute untouched. */
-function filterClass(element: HTMLRewriterTypes.Element, value: string): void {
+/** Keep only allow-listed class tokens; a fully-conforming attribute is kept as written. */
+function keptClass(value: string): string | null {
   const tokens = value.split(/\s+/).filter((token) => token.length > 0);
   const kept = tokens.filter((token) => ALLOWED_CLASSES.has(token));
-  if (kept.length === tokens.length) return;
-  if (kept.length === 0) element.removeAttribute("class");
-  else element.setAttribute("class", kept.join(" "));
+  if (kept.length === tokens.length) return value;
+  return kept.length === 0 ? null : kept.join(" ");
 }
 
-/** Sanitize `style` to token discipline; leave a fully-conforming attribute untouched. */
-function filterStyle(element: HTMLRewriterTypes.Element, value: string): void {
+/** Sanitize `style` to token discipline; a fully-conforming attribute is kept as written. */
+function keptStyle(value: string): string | null {
   const safe = sanitizeStyle(value);
-  if (safe === value) return;
-  if (safe.length === 0) element.removeAttribute("style");
-  else element.setAttribute("style", safe);
+  if (safe === value) return value;
+  return safe.length === 0 ? null : safe;
 }
 
 function dropComment(comment: HTMLRewriterTypes.Comment): void {

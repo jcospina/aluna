@@ -42,7 +42,6 @@ export {
 export {
   CapabilityDataValidationError,
   ChoiceDisabledError,
-  type FileReferenceRefusal,
   InvalidChoiceError,
   InvalidFileReferenceError,
   MaxLengthExceededError,

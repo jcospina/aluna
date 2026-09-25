@@ -1,15 +1,12 @@
 // Capability data-table infrastructure.
 
 export {
-  claimPendingFile,
   FILE_CLEAR_VALUE,
   type FileClaimScope,
+  fileClaimScope,
   resolveSubmittedFiles,
-  type SubmittedFile,
   type SubmittedFiles,
-  submittedFileKey,
   submittedFileProjection,
-  withFileProjections,
 } from "./access/file-claims.ts";
 export {
   type CapabilityCreateValues,
@@ -66,7 +63,6 @@ export {
   createCapabilityActionRecord,
   createCapabilityQueryPort,
   encodeCapabilityFieldForStorage,
-  type FileReferenceRefusal,
   InvalidChoiceError,
   InvalidFileReferenceError,
   isCapabilityActionRecord,

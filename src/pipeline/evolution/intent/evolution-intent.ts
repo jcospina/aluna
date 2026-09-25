@@ -9,9 +9,9 @@ export type EvolutionIntentClassification = IntentClassification & {
 
 const UI_CHANGE_FACTS = new Set([
   "capability_label",
-  // The word a capability calls one of its records is platform copy, exactly like its
-  // name — and a rename that changes what the thing *is* moves both together.
-  "empty_state_noun",
+  // The words a capability calls one record and many are platform copy, exactly like its
+  // name — and a rename that changes what the thing *is* moves them together.
+  "capability_nouns",
   "field_label",
   "list_input_mode",
   // Which control a string field draws, and the line it says about itself: like `list_input_mode`,

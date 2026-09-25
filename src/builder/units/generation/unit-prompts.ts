@@ -24,6 +24,7 @@ import {
   type SpecField,
 } from "../../../registry/index.ts";
 import { deriveCapabilityTableDdl } from "../../../runtime/data/index.ts";
+import { FILE_PROJECTION_SHAPE } from "../../generated-code-check.ts";
 import { buildItemRendererDesignInjection } from "./few-shot-gallery.ts";
 import type { HandlerUnitName, UnitDescriptor, UnitGenerationFailure } from "./units.ts";
 
@@ -207,7 +208,7 @@ function fileInputRules(action: "create" | "update", spec: CapabilitySpec): stri
       ? "`input.values[name]` is `null` or `undefined`"
       : "`input.submittedFields.has(name)` and `input.values[name]` is `null` or `undefined`";
   return [
-    `- A file field arrives as the projection \`{ url, name, kind, mime, size }\` of what the save will store, ${arrives}. Pass \`input.values[name]\` to \`mutation.${action}\` unchanged or leave the field out; never run it through the scalar extractor, and never build, edit, replace or \`null\` one yourself.`,
+    `- A file field arrives as the projection \`${FILE_PROJECTION_SHAPE}\` of what the save will store, ${arrives}. Pass \`input.values[name]\` to \`mutation.${action}\` unchanged or leave the field out; never run it through the scalar extractor, and never build, edit, replace or \`null\` one yourself.`,
     ...(required
       ? [
           `- A required file field is missing when ${presence}. Test that value itself, never through the scalar extractor, which reads a file that is there as \`""\`.`,
@@ -378,8 +379,7 @@ function buildItemRendererPrompt(spec: CapabilitySpec): string {
 }
 
 /** What the item renderer is told about a file field its card shows. */
-export const ITEM_FILE_FIELD_RULE =
-  "- A file field's record value is `{ url, name, kind, mime, size }`, or `null` when the record holds no file. Draw the picture from `url` inside a `media-frame`, and draw the empty frame with a short note when the value is `null`. Never build a file address yourself. The card is announced by its own text, so when it also shows the field that describes the picture, such as a title, give the picture `alt=\"\"` and a screen reader reads that text once. `name` is the file's name as uploaded, often something like IMG_4821.JPG, and describes nothing.";
+export const ITEM_FILE_FIELD_RULE = `- A file field's record value is \`${FILE_PROJECTION_SHAPE}\`, or \`null\` when the record holds no file. Draw the picture from \`url\` inside a \`media-frame\`, and draw the empty frame with a short note when the value is \`null\`. Never build a file address yourself. The card is announced by its own text, so when it also shows the field that describes the picture, such as a title, give the picture \`alt=""\` and a screen reader reads that text once. \`name\` is the file's name as uploaded, often something like IMG_4821.JPG, and describes nothing.`;
 
 function showsFileField(spec: CapabilitySpec): boolean {
   return spec.schema.fields.some(

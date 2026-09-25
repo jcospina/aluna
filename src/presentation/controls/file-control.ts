@@ -7,6 +7,8 @@
 // The field posts its presence marker and one value, kept in step by the browser: the key it was
 // drawn holding, a pending key it took since, `""` for nothing, or the clear.
 
+import { FILE_FIELD_HOOKS as HOOKS } from "#design/file-field.js";
+import { FILE_FIELD_ATTRIBUTES as WIRE } from "#shell/shell-dom.js";
 import { admittedTypes } from "../../platform/files/admission.ts";
 import { resolveMaxFileBytes } from "../../platform/files/file-cap.ts";
 import { oversizeSentence } from "../../platform/files/refusal-copy.ts";
@@ -35,8 +37,8 @@ function heldAttributes(value: unknown): { attributes: string; key: string } {
   }
   return {
     attributes:
-      ` data-holds-name="${escapeHtml(name)}" data-holds-size="${escapeHtml(String(size))}"` +
-      ` data-holds-src="${escapeHtml(String(url))}"`,
+      ` ${HOOKS.holdsName}="${escapeHtml(name)}" ${HOOKS.holdsSize}="${escapeHtml(String(size))}"` +
+      ` ${HOOKS.holdsSrc}="${escapeHtml(String(url))}"`,
     key,
   };
 }
@@ -50,12 +52,12 @@ function uploadAttributes(target: FileFieldTarget, field: SpecField, kind: strin
   const address =
     target.incarnationId === undefined
       ? ""
-      : ` data-file-upload="${escapeHtml(fileUploadPath(target.id, target.incarnationId, field.name))}"`;
+      : ` ${WIRE.upload}="${escapeHtml(fileUploadPath(target.id, target.incarnationId, field.name))}"`;
   const types = admittedTypes(kind);
-  const accept = types.length === 0 ? "" : ` data-file-accept="${escapeHtml(types.join(","))}"`;
+  const accept = types.length === 0 ? "" : ` ${HOOKS.accept}="${escapeHtml(types.join(","))}"`;
   return (
     `${address}${accept}` +
-    ` data-file-cap="${cap}" data-file-oversize="${escapeHtml(oversizeSentence(cap))}"`
+    ` ${WIRE.cap}="${cap}" ${WIRE.oversize}="${escapeHtml(oversizeSentence(cap))}"`
   );
 }
 
@@ -76,15 +78,15 @@ export function renderFileField(
   const held = heldAttributes(value);
   const key = escapeHtml(held.key);
   return (
-    `<div class="field file" id="${inputId}" data-file-field data-kind="${escapeHtml(kind)}"` +
+    `<div class="field file" id="${inputId}" ${HOOKS.field} ${HOOKS.kind}="${escapeHtml(kind)}"` +
     `${held.attributes}${uploadAttributes(target, field, kind)}>` +
     `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${name}">` +
-    `<input type="hidden" name="${name}" value="${key}" data-file-value` +
-    ` data-file-held-key="${key}" data-file-clear-value="${escapeHtml(FILE_CLEAR_VALUE)}"` +
-    `${field.required ? " data-file-required" : ""}>` +
+    `<input type="hidden" name="${name}" value="${key}" ${WIRE.value}` +
+    ` ${WIRE.heldKey}="${key}" ${WIRE.clearValue}="${escapeHtml(FILE_CLEAR_VALUE)}"` +
+    `${field.required ? ` ${WIRE.required}` : ""}>` +
     `<span class="field__label caps" id="${inputId}-label">` +
     `${escapeHtml(field.label)}${chrome.labelSuffix}</span>` +
-    `<div data-file-body></div>` +
+    `<div ${HOOKS.body}></div>` +
     chrome.trailing +
     `</div>`
   );

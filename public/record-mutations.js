@@ -5,12 +5,13 @@
  * surface, and this module owns only request feedback — pending labels and disabled controls.
  */
 
+import { FILE_FIELD_HOOKS } from "../design/scripts/file-field.js";
 import { leavingIsBeingAsked } from "./leaving-a-run.js";
 import { PROMPT_BAR_MESSAGE_EVENT } from "./prompt-bar.js";
 import { leaveRecordView } from "./record-view.js";
 import { refreshCommittedRecordsForMutation } from "./records-refresh.js";
 import { registerRegionRelease } from "./region-scope.js";
-import { BUSY_LABEL_ATTRIBUTE, IDLE_LABEL_ATTRIBUTE } from "./shell-dom.js";
+import { BUSY_LABEL_ATTRIBUTE, IDLE_LABEL_ATTRIBUTE, RECORD_CREATED_EVENT } from "./shell-dom.js";
 
 const EDIT_FORM_SELECTOR = "[data-record-edit-form]";
 const CREATE_FORM_SELECTOR = '[data-post-mutation-refresh][data-mutation-kind="create"]';
@@ -24,9 +25,8 @@ const EDIT_ACTIONS_SELECTOR = ".capability-edit-form__actions";
 const BACK_SELECTOR = "[data-record-form-back]";
 const RECORD_VIEW_SELECTOR = "[data-record-view]";
 const SUBMIT_BUTTON_SELECTOR = 'button[type="submit"]';
-const HELD_SAVE_LABEL_SELECTOR = "[data-held-save-label]";
-const FILE_FIELD_SELECTOR = "[data-file-field]";
-const RECORD_CREATED_EVENT = "aluna:record-created";
+const HELD_SAVE_LABEL_SELECTOR = `[${FILE_FIELD_HOOKS.saveLabel}]`;
+const FILE_FIELD_SELECTOR = `[${FILE_FIELD_HOOKS.field}]`;
 
 /**
  * @param {Event} event

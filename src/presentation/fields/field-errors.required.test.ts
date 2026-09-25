@@ -3,6 +3,8 @@
 // says so on, and the paint all of it depends on.
 
 import { describe, expect, test } from "bun:test";
+
+import { FILE_FIELD_ATTRIBUTES } from "#shell/shell-dom.js";
 import { FILE_URL_PREFIX } from "../../platform/files/file-url.ts";
 import { mintFileKey } from "../../platform/files/ledger.ts";
 import { installDomGlobals } from "../controls/choice-picker.fixture.test-support.ts";
@@ -188,9 +190,9 @@ describe("a required photo is refused in the browser", () => {
     const photoHeld = { url: `${FILE_URL_PREFIX}${key}`, name: "a.jpg", kind: "image" };
     const record = { id: "r1", photo: { ...photoHeld, mime: "image/jpeg", size: 3 } };
     const cleared = await scene(photo, { record });
-    const carrier = cleared.doc.querySelector("[data-file-value]") as El;
+    const carrier = cleared.doc.querySelector(`[${FILE_FIELD_ATTRIBUTES.value}]`) as El;
     expect(carrier.value).toBe(key);
-    carrier.value = carrier.getAttribute("data-file-clear-value") ?? "";
+    carrier.value = carrier.getAttribute(FILE_FIELD_ATTRIBUTES.clearValue) ?? "";
     expect(carrier.value).not.toBe("");
     expect(cleared.submit().prevented).toBe(true);
     expect(cleared.saidIn("photo")).toBe(REQUIRED_FIELD_SENTENCE);
@@ -198,7 +200,7 @@ describe("a required photo is refused in the browser", () => {
 
   test("a photo holding a key lets the submission go, and an optional one is never asked for", async () => {
     const held = await scene(capabilityOf([probeField("file", { name: "photo" })]));
-    (held.doc.querySelector("[data-file-value]") as El).value = "a-pending-key";
+    (held.doc.querySelector(`[${FILE_FIELD_ATTRIBUTES.value}]`) as El).value = "a-pending-key";
     expect(held.submit().prevented).toBe(false);
 
     const optional = await scene(

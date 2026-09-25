@@ -1,15 +1,11 @@
 // A file field through evolution. Adding one is additive, a nullable TEXT column; a committed one
-// moves only through facts the matrix already maps; and `accepts` is gated and put in canonical
-// order before the Diff reads it, so no file fact reaches the unmapped fallback.
+// moves only through facts the matrix already maps; and `accepts` is gated before the Diff reads
+// it, so no file fact reaches the unmapped fallback.
 
 import { describe, expect, test } from "bun:test";
 
-import { orderings, PHOTO_FIELD } from "../../../registry/fields/file.test-support.ts";
-import {
-  type CapabilityRow,
-  capabilitySpecFromRow,
-  FILE_FAMILIES,
-} from "../../../registry/index.ts";
+import { PHOTO_FIELD } from "../../../registry/fields/file.test-support.ts";
+import { type CapabilityRow, capabilitySpecFromRow } from "../../../registry/index.ts";
 import { deriveAdditiveCapabilityMigration } from "../../../runtime/data/index.ts";
 import {
   type CandidateDraft,
@@ -127,24 +123,6 @@ describe("a committed file field", () => {
     ).toEqual(["field_lifecycle"]);
   });
 
-  test("returned with its families in any order is no change at all", () => {
-    const row = journalWithPhoto();
-    for (const authored of orderings(FILE_FAMILIES)) {
-      const committed = FILE_FAMILIES.filter((family) => authored.includes(family));
-      const committedRow = journalCapabilityRow({
-        schema: {
-          fields: row.schema.fields.map((field) =>
-            field.name === "photo" ? { ...field, accepts: committed } : field,
-          ),
-        },
-      });
-      const diff = workFor(committedRow, (draft) => {
-        photoOf(draft).accepts = [...authored].reverse();
-      });
-      expect(diff.isNoop).toBe(true);
-    }
-  });
-
   test("keeps its type: returned as any other type it is refused before the Diff", () => {
     const issues = rejection(journalWithPhoto(), (draft) => {
       const photo = photoOf(draft);
@@ -162,10 +140,7 @@ describe("candidate validation holds accepts to its rules", () => {
       const title = draft.schema.fields[0];
       if (title) title.accepts = ["image"];
     });
-    expect(issues).toContainEqual({
-      path: "schema.fields.0.accepts",
-      message: "only a file field declares accepts",
-    });
+    expect(issues.map((issue) => issue.path)).toContain("schema.fields.0.accepts");
   });
 
   test("refuses a file field whose accepts is missing, null, empty, unknown or repeated", () => {

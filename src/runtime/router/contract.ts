@@ -19,8 +19,8 @@ import type {
  * apart from values (an unchecked checkbox has presence, no value). Reserved markers enter neither.
  */
 export type CapabilityInputValue = string | readonly string[];
-export interface CapabilityInput {
-  readonly values: Readonly<Record<string, CapabilityInputValue>>;
+export interface CapabilityInput<Value = CapabilityInputValue> {
+  readonly values: Readonly<Record<string, Value>>;
   readonly submittedFields: ReadonlySet<string>;
 }
 
@@ -29,10 +29,7 @@ export interface CapabilityInput {
  * `null` for an empty field or an edit's clear.
  */
 export type CapabilitySaveInputValue = CapabilityInputValue | CapabilityFileProjection | null;
-export interface CapabilitySaveInput {
-  readonly values: Readonly<Record<string, CapabilitySaveInputValue>>;
-  readonly submittedFields: ReadonlySet<string>;
-}
+export type CapabilitySaveInput = CapabilityInput<CapabilitySaveInputValue>;
 
 /**
  * The platform-built contexts keep write authority apart from free reads: create is
@@ -44,17 +41,13 @@ export interface CapabilityContext {
   readonly present: PresentationAdapter;
 }
 
-export interface CapabilityCreateContext {
+export interface CapabilityCreateContext extends Omit<CapabilityContext, "input"> {
   readonly input: CapabilitySaveInput;
-  readonly query: CapabilityQueryPort;
-  readonly present: PresentationAdapter;
   readonly mutation: CapabilityMutationPort;
 }
 
-export interface CapabilityUpdateContext {
+export interface CapabilityUpdateContext extends Omit<CapabilityContext, "input"> {
   readonly input: CapabilitySaveInput;
-  readonly query: CapabilityQueryPort;
-  readonly present: PresentationAdapter;
   readonly mutation: CapabilityUpdateMutationPort;
 }
 

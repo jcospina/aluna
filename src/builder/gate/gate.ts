@@ -13,7 +13,7 @@ import type { GateRungName, GateRungStatus } from "../../platform/gate-rungs.ts"
 import type { Provider, TokenUsage } from "../../platform/provider/index.ts";
 import { addTokenUsage, ZERO_TOKEN_USAGE } from "../../platform/provider/usage.ts";
 import type { CapabilitySpec, CapabilityTool } from "../../registry/index.ts";
-import type { CapabilityCreateValues, CapabilityTableDdl } from "../../runtime/data/index.ts";
+import type { CapabilityTableDdl } from "../../runtime/data/index.ts";
 import type { HandlerUnitName } from "../units/generation/units.ts";
 import {
   CapabilityGateError,
@@ -269,15 +269,14 @@ export interface CapabilityGateInput {
   // Optional assertion hook for the real db: the gate snapshots capability tables
   // before and after smoke and fails if they changed.
   readonly realDatabase?: Database;
-  // Synthetic schemas and rows for every declared read dependency, seeded into the Gate's
-  // fresh in-memory catalog. Live registry rows and capability data never enter scratch.
+  // The full physical schema of every declared read dependency, applied to the Gate's fresh
+  // in-memory catalog. Live registry rows and capability data never enter scratch.
   readonly scratchCatalog?: readonly ScratchCatalogCapability[];
 }
 
 export interface ScratchCatalogCapability {
   readonly spec: CapabilitySpec;
   readonly incarnationId: string;
-  readonly rows: readonly CapabilityCreateValues[];
 }
 
 export interface CapabilityGateResult {

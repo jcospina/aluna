@@ -47,11 +47,11 @@ export {
   selectableChoiceValues,
 } from "./fields/choice.ts";
 export {
+  activeFileFields,
   FILE_FAMILIES,
   FILE_FIELD_TYPES,
   type FileFamily,
   type FileFieldType,
-  familiesSchema,
   hasActiveFileField,
   INVALID_FILE_REFERENCE_ERROR_CODE,
   isFileFieldType,
@@ -115,7 +115,6 @@ export {
   type FieldType,
   fieldLifecycleSchema,
   fieldTypeSchema,
-  GENERATION_FIELD_TYPES,
   isListFieldType,
   isSearchableTextType,
   LIST_FIELD_TYPES,
@@ -174,7 +173,6 @@ export {
   isCapabilityIdAvailable,
   isRegistryInitialized,
   type LogoGenerationClaim,
-  listActiveIncarnations,
   listCapabilities,
   listCapabilityDependents,
   REGISTRY_TABLE,

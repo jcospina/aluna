@@ -5,6 +5,7 @@
 
 // biome-ignore-all lint/nursery/noExcessiveLinesPerFile: the shared Gate fixture builders remain one test-only contract surface.
 
+import type { Database } from "bun:sqlite";
 import { expect } from "bun:test";
 import { type ZodType, z } from "zod";
 import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
@@ -28,6 +29,7 @@ import {
   type FrozenBehavioralTestsInput,
   runCapabilityGate,
 } from "./gate.ts";
+import { openScratchDatabasePair, prepareScratchCatalog } from "./gate-internal.ts";
 import {
   actionTestInputDigest,
   actionTestInputs,
@@ -760,4 +762,16 @@ export async function notesFixtureGate(
       ...(behavioralTier && { behavioralTier }),
     }),
   );
+}
+
+/** Run `run` against a fresh scratch database prepared for `spec`, and close it after. */
+export function withScratch<T>(spec: CapabilitySpec, run: (database: Database) => T): T {
+  const scratch = openScratchDatabasePair();
+  try {
+    prepareScratchCatalog(spec, deriveCapabilityTableDdl(spec), [], scratch);
+    return run(scratch.readwrite);
+  } finally {
+    scratch.readonly.close();
+    scratch.readwrite.close();
+  }
 }

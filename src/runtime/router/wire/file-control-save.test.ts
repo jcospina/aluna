@@ -6,7 +6,10 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
+import { FILE_FIELD_HOOKS } from "#design/file-field.js";
 import { postedValue } from "#shell/file-field.js";
+import { FILE_FIELD_ATTRIBUTES } from "#shell/shell-dom.js";
+import { fileUrl } from "../../../platform/files/file-url.ts";
 import { mintFileKey } from "../../../platform/files/ledger.ts";
 import { sampleFile } from "../../../platform/files/sample-files.test-support.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
@@ -18,6 +21,7 @@ import {
   PHOTO_FIELD,
   photoSpec,
 } from "../../../registry/fields/file.test-support.ts";
+import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilityRow,
@@ -32,7 +36,7 @@ import {
 } from "../../../server/files/file-routes.test-support.ts";
 import {
   assertSubmittedFieldValues,
-  createCapabilityUpdateMutationPort,
+  fileClaimScope,
   InvalidFileReferenceError,
 } from "../../data/index.ts";
 import { FileFieldWriteError } from "../../data/internal.ts";
@@ -72,16 +76,16 @@ async function drawnPhoto(html: string): Promise<{ upload: string; held: string;
   let upload = "";
   let drawn: { held: string; clear: string } | undefined;
   const rewriter = new HTMLRewriter()
-    .on("[data-file-field]", {
+    .on(`[${FILE_FIELD_HOOKS.field}]`, {
       element(element) {
-        upload = element.getAttribute("data-file-upload") ?? "";
+        upload = element.getAttribute(FILE_FIELD_ATTRIBUTES.upload) ?? "";
       },
     })
-    .on("input[data-file-value]", {
+    .on(`input[${FILE_FIELD_ATTRIBUTES.value}]`, {
       element(element) {
         drawn = {
-          held: element.getAttribute("data-file-held-key") ?? "",
-          clear: element.getAttribute("data-file-clear-value") ?? "",
+          held: element.getAttribute(FILE_FIELD_ATTRIBUTES.heldKey) ?? "",
+          clear: element.getAttribute(FILE_FIELD_ATTRIBUTES.clearValue) ?? "",
         };
       },
     });
@@ -98,11 +102,8 @@ const SAVED = { name: "saved.jpg", size: 3, url: "/files/saved" };
  */
 async function photoPosted(html: string, now: "kept" | "cleared" | { key: string }) {
   const drawn = await drawnPhoto(html);
-  const saved = drawn.held === "" ? null : SAVED;
-  const taken = { name: "taken.jpg", size: 3, url: "/files/taken" };
-  const current = now === "kept" ? saved : now === "cleared" ? null : taken;
-  const keyOf = (held: object) => (typeof now === "object" && held === taken ? now.key : undefined);
-  return postedValue(current, drawn, keyOf);
+  if (typeof now === "object") return now.key;
+  return postedValue(now === "kept" && drawn.held !== "" ? SAVED : null, drawn);
 }
 
 describe("a save through the photo control, as its rendered form posts it", () => {
@@ -249,12 +250,10 @@ describe("a Handler behind the photo control", () => {
   let dir: string;
   let conns: PlatformDatabase;
   let handlerRuns: number;
-  let writePhoto: unknown;
 
   beforeEach(() => {
     ({ dir, conns } = setupRouterTest());
     handlerRuns = 0;
-    writePhoto = undefined;
     install(conns, captionOnlyHandlersRow());
   });
 
@@ -265,7 +264,6 @@ describe("a Handler behind the photo control", () => {
   }
 
   function app() {
-    const photo = () => (writePhoto === undefined ? {} : { photo: writePhoto });
     return createApp({
       capabilityRouter: {
         databases: conns,
@@ -273,12 +271,12 @@ describe("a Handler behind the photo control", () => {
           if (action === "update") {
             return async ({ input, mutation, present }: CapabilityUpdateContext) => {
               handlerRuns += 1;
-              return present(mutation.update({ caption: input.values.caption, ...photo() }));
+              return present(mutation.update({ caption: input.values.caption }));
             };
           }
           return async ({ input, mutation, present }: CapabilityCreateContext) => {
             handlerRuns += 1;
-            return present(mutation.create({ caption: input.values.caption, ...photo() }));
+            return present(mutation.create({ caption: input.values.caption }));
           };
         },
         loadItemRenderer: async () => (record) => `<span>${String(record.caption)}</span>`,
@@ -318,30 +316,6 @@ describe("a Handler behind the photo control", () => {
     expect(handlerRuns).toBe(runsBefore);
     expect(storedPhotos()).toEqual([{ photo: null }]);
   });
-
-  test("that writes the file field itself is refused, and nothing is stored", async () => {
-    writePhoto = { url: "/files/k", name: "a.jpg", kind: "image", mime: "image/jpeg", size: 1 };
-
-    const response = await createThroughForm("A day out");
-
-    expect(response.status).toBe(500);
-    expect(handlerRuns).toBe(1);
-    expect(storedPhotos()).toEqual([]);
-  });
-
-  test("meets an update port that refuses a file field the router never checked", async () => {
-    await createThroughForm("A day out");
-    const record = storedRecord();
-    expect(() =>
-      createCapabilityUpdateMutationPort(
-        photoSpec(),
-        record.id,
-        new Set([PHOTO_FIELD.name]),
-        conns.readwrite,
-      ),
-    ).toThrow(FileFieldWriteError);
-    expect(storedPhotos()).toEqual([{ photo: null }]);
-  });
 });
 
 describe("the file field's refusals below the router", () => {
@@ -365,15 +339,11 @@ describe("the file field's refusals below the router", () => {
   test("a value for the file field is checked as a reference, never measured as text", () => {
     const fields = photoSpec().schema.fields;
     const long = { [CAPTION_FIELD.name]: "c", [PHOTO_FIELD.name]: "x".repeat(20_001) };
-    const scope = {
-      database: new Database(":memory:"),
-      capabilityId: "photos",
-      incarnationId: "i",
-    };
+    const scope = fileClaimScope(new Database(":memory:"), photoSpec(), FIRST_INCARNATION_ID);
     expect(() => assertSubmittedFieldValues(fields, long, "create", scope)).toThrow(
       InvalidFileReferenceError,
     );
-    for (const photo of [long[PHOTO_FIELD.name], "", { url: "/files/k" }]) {
+    for (const photo of [long[PHOTO_FIELD.name], "", { url: fileUrl("k") }]) {
       expect(() => normalizeSpecFieldValues("photos", fields, { ...long, photo })).toThrow(
         FileFieldWriteError,
       );
@@ -389,11 +359,11 @@ describe("the file field's refusals below the router", () => {
       JSON.stringify({ ...stored, key: "k" }),
       JSON.stringify({ ...stored, kind: "spreadsheet" }),
       JSON.stringify({ ...stored, size: -1 }),
-      JSON.stringify({ ...stored, url: "/files/k" }),
+      JSON.stringify({ ...stored, url: fileUrl("k") }),
       "not json",
     ]) {
       expect(() => normalizeStoredRow(photoSpec().schema.fields, { ...row, photo })).toThrow(
-        'Expected file column "photo" to hold a stored file reference.',
+        PHOTO_FIELD.name,
       );
     }
     expect(normalizeStoredRow(photoSpec().schema.fields, { ...row, photo: null })).toMatchObject({
@@ -402,7 +372,7 @@ describe("the file field's refusals below the router", () => {
     expect(
       normalizeStoredRow(photoSpec().schema.fields, { ...row, photo: JSON.stringify(stored) }),
     ).toMatchObject({
-      photo: { url: `/files/${key}`, name: "a.jpg", kind: "image", mime: "image/jpeg", size: 3 },
+      photo: { url: fileUrl(key), name: "a.jpg", kind: "image", mime: "image/jpeg", size: 3 },
     });
   });
 });

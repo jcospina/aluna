@@ -9,16 +9,17 @@ import {
   requireFileLedgerRow,
   seedFileLedgerRow,
 } from "../../../platform/files/ledger.test-support.ts";
-import { FILE_LEDGER_TABLE, type FileLedgerRow } from "../../../platform/files/ledger.ts";
+import { FILE_LEDGER_TABLE } from "../../../platform/files/ledger.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { CapabilityRow } from "../../../registry/index.ts";
 import { createApp } from "../../../server/app.ts";
+import { createMutationCoordinator } from "../../concurrency/mutation-coordinator.ts";
 import {
   type CapabilityActionRecord,
   type CapabilityFileProjection,
-  FILE_URL_PREFIX,
+  fileKeyFromProjection,
 } from "../../data/index.ts";
-import type { CapabilityUpdateContext } from "../contract.ts";
+import type { CapabilityCreateContext, CapabilityUpdateContext } from "../contract.ts";
 import { ALUNA_PRESENT_MARKER, ALUNA_RECORD_ID_MARKER } from "../wire/wire-protocol.ts";
 import {
   install,
@@ -62,6 +63,13 @@ export function editBody(recordId: string, fields: Readonly<Record<string, strin
   return formPost(body);
 }
 
+/** A create Handler that answers with the card of the record `write` saves. */
+export function createHandler(
+  write: (context: CapabilityCreateContext) => CapabilityActionRecord,
+): HandlerLoader {
+  return async () => async (context: CapabilityCreateContext) => context.present(write(context));
+}
+
 /** An update Handler that answers with the card of the record `write` saves. */
 export function updateHandler(
   write: (context: CapabilityUpdateContext) => CapabilityActionRecord,
@@ -69,14 +77,27 @@ export function updateHandler(
   return async () => async (context: CapabilityUpdateContext) => context.present(write(context));
 }
 
-export function projectionOf(row: FileLedgerRow): CapabilityFileProjection {
-  return {
-    url: `${FILE_URL_PREFIX}${row.key}`,
-    name: row.name,
-    kind: row.kind as CapabilityFileProjection["kind"],
-    mime: row.mime,
-    size: row.size,
+/** The key a projection's address names. */
+export function keyOf(photo: CapabilityFileProjection): string {
+  const key = fileKeyFromProjection(photo);
+  if (key === undefined) throw new Error("not a file projection");
+  return key;
+}
+
+/** The first line of a refusal, which is all a person reads of it. */
+export function sentenceOf(html: string): string {
+  return /<p[^>]*>([^<]+)<\/p>/.exec(html)?.[1] ?? "";
+}
+
+/** A coordinator that runs `flip` after the route's first check and before its transaction opens. */
+export function between(flip: () => void) {
+  const mutationCoordinator = createMutationCoordinator();
+  const acquire = mutationCoordinator.tryAcquireRecordWrite.bind(mutationCoordinator);
+  mutationCoordinator.tryAcquireRecordWrite = () => {
+    flip();
+    return acquire();
   };
+  return mutationCoordinator;
 }
 
 /** A scratch database with the photos fixture (or `row`) installed, fresh for every case. */

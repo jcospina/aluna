@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+
+import { CREATE_CANCELLED_EVENT, RECORD_CREATED_EVENT } from "#shell/shell-dom.js";
 import { normalizeListInputValues } from "../../runtime/field-types/list-input.ts";
 import { renderCreateForm } from "../fields/field-renderer.ts";
 import { codeOf, readSource } from "../safety/source.test-support.ts";
@@ -35,8 +37,6 @@ describe("the rows a list field is typed into", () => {
   });
 
   test("it answers every way a row is added, moved, removed, or put back", () => {
-    expect(MODULE).toContain('root.addEventListener?.("aluna:record-created"');
-    expect(MODULE).toContain('root.addEventListener?.("aluna:create-cancelled"');
     expect(MODULE).toContain("collapseListFieldRows(form)");
     // Delegated on the document, because these forms are swapped in long after load and
     // a per-form script tag would have to be written into every one of them.
@@ -385,8 +385,8 @@ describe("finishing with a form", () => {
     // assertion about them passing, because the fake root delivered nothing but clicks.
     const { addListRow, startListFields } = await import("#shell/list-field.js");
     for (const [event, target] of [
-      ["aluna:record-created", "form"],
-      ["aluna:create-cancelled", "button"],
+      [RECORD_CREATED_EVENT, "form"],
+      [CREATE_CANCELLED_EVENT, "button"],
     ] as const) {
       const { root, fire } = fakeRoot();
       startListFields(root);

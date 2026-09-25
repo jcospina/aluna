@@ -42,16 +42,10 @@ describe("a generated Handler compiled against the file projection", () => {
       capability_id: "photos",
       incarnation_id: "i",
       field: "photo",
-      record_id: null,
-      state: "pending",
       kind: "image",
       mime: "image/jpeg",
       size: 1,
       name: "a.jpg",
-      encoding: null,
-      created_at: "2026-09-24 00:00:00",
-      cleanup_attempts: 0,
-      cleanup_error: null,
     });
     expect(keys).toEqual(Object.keys(projection));
   });
@@ -201,9 +195,7 @@ describe("the item renderer's prompt", () => {
   });
 
   test("says nothing of files to a card that shows none", () => {
-    expect(buildUnitPrompt(showing(["caption"]), item)).not.toContain(
-      "A file field's record value",
-    );
-    expect(buildUnitPrompt(notesSpec(), item)).not.toContain("A file field's record value");
+    expect(buildUnitPrompt(showing(["caption"]), item)).not.toContain(ITEM_FILE_FIELD_RULE);
+    expect(buildUnitPrompt(notesSpec(), item)).not.toContain(ITEM_FILE_FIELD_RULE);
   });
 });

@@ -25,9 +25,9 @@ import {
   itemRendererFor,
   readHandlerFor,
   updateHandlerFor,
+  withScratch,
 } from "../../gate.test-support.ts";
 import type { CapabilityGateInput } from "../../gate.ts";
-import { openScratchDatabasePair, prepareScratchCatalog } from "../../gate-internal.ts";
 import { tokenFileName } from "../../gate-scratch-names.ts";
 import { actionFixtureVocabulary } from "./freeze/behavioral-test-inputs.ts";
 import { rowMatches } from "./gate-behavioral-shared.ts";
@@ -155,12 +155,20 @@ describe("the behavioral case shape", () => {
     expect(JSON.stringify(json)).not.toContain('"oneOf"');
   });
 
-  test("tells the model which families a row's file field takes", () => {
-    const photo = actionFixtureVocabulary(photoSpec()).row_fields.find(
-      ({ name }) => name === PHOTO_FIELD.name,
-    );
-    const { name, type, required, accepts } = PHOTO_FIELD;
-    expect(photo).toEqual({ name, type, required, accepts });
+  test("tells the model a row file field's families and whether a saved record must fill it", () => {
+    for (const photo of [PHOTO_FIELD, { ...PHOTO_FIELD, required: true }]) {
+      const rowFields = actionFixtureVocabulary(photoSpec([CAPTION_FIELD, photo])).row_fields;
+      const { name, type, required, accepts } = photo;
+      expect(rowFields.find((field) => field.name === name)).toEqual({
+        name,
+        type,
+        required,
+        accepts,
+      });
+      expect(rowFields.find((field) => field.name === CAPTION_FIELD.name)?.required).toBe(
+        CAPTION_FIELD.required,
+      );
+    }
   });
 });
 
@@ -358,36 +366,23 @@ describe("the contract over a required photo", () => {
       'setupRows[0] leaves required field "caption" empty',
     );
   });
-
-  test("tells the model which row fields a saved record must fill", () => {
-    const fields = actionFixtureVocabulary(spec).row_fields;
-    expect(fields.find(({ name }) => name === PHOTO_FIELD.name)?.required).toBe(true);
-    expect(fields.find(({ name }) => name === CAPTION_FIELD.name)?.required).toBe(
-      CAPTION_FIELD.required,
-    );
-  });
 });
 
 describe("the harness", () => {
   test("posts a token as a pending scratch file of that family, named for it", () => {
-    const scratch = openScratchDatabasePair();
-    try {
+    withScratch(photoSpec(), (database) => {
       const input = inputValuesToHandlerInput(photoSpec(), [
         { field: "caption", value: "A day" },
         { field: "photo", value: "image" },
       ]);
-      const form = scratchFormInput(photoSpec(), input, scratch.readwrite);
-      const row = requireFileLedgerRow(scratch.readwrite, String(form.values.photo));
+      const form = scratchFormInput(photoSpec(), input, database);
+      const row = requireFileLedgerRow(database, String(form.values.photo));
       expect(row).toMatchObject({ state: "pending", kind: "image", name: tokenFileName("image") });
-    } finally {
-      scratch.readonly.close();
-      scratch.readwrite.close();
-    }
+    });
   });
 
   test("posts none as an empty field, and a create's missing file field as one too", () => {
-    const scratch = openScratchDatabasePair();
-    try {
+    withScratch(photoSpec(), (database) => {
       for (const values of [
         [{ field: "photo", value: null }],
         [{ field: "caption", value: "A day" }],
@@ -395,34 +390,24 @@ describe("the harness", () => {
         const input = inputValuesToHandlerInput(photoSpec(), values);
         expect(input.values.photo).toBe("");
         expect(input.submittedFields.has(PHOTO_FIELD.name)).toBe(true);
-        expect(scratchFormInput(photoSpec(), input, scratch.readwrite).values.photo).toBe("");
+        expect(scratchFormInput(photoSpec(), input, database).values.photo).toBe("");
       }
-    } finally {
-      scratch.readonly.close();
-      scratch.readwrite.close();
-    }
+    });
   });
 
   test("posts none on an edit as the clear when the record holds a file, and empty when not", () => {
     const spec = photoSpec();
-    const scratch = openScratchDatabasePair();
-    try {
-      prepareScratchCatalog(spec, deriveCapabilityTableDdl(spec), [], scratch);
+    withScratch(spec, (database) => {
       const { tableName } = deriveCapabilityTableDdl(spec);
-      scratch.readwrite
+      database
         .query(
           `INSERT INTO "${tableName}" ("id", "caption", "photo") VALUES (?, ?, ?), (?, ?, NULL)`,
         )
         .run("holds", "A day", '{"placeholder":true}', "empty", "A night");
       const none = inputValuesToHandlerInput(spec, [{ field: "photo", value: null }], ["photo"]);
-      expect(scratchFormInput(spec, none, scratch.readwrite, "holds").values.photo).toBe(
-        FILE_CLEAR_VALUE,
-      );
-      expect(scratchFormInput(spec, none, scratch.readwrite, "empty").values.photo).toBe("");
-    } finally {
-      scratch.readonly.close();
-      scratch.readwrite.close();
-    }
+      expect(scratchFormInput(spec, none, database, "holds").values.photo).toBe(FILE_CLEAR_VALUE);
+      expect(scratchFormInput(spec, none, database, "empty").values.photo).toBe("");
+    });
   });
 });
 

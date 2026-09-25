@@ -5,33 +5,15 @@
 import { expect, test } from "bun:test";
 import { statSync } from "node:fs";
 import { join } from "node:path";
+import { FILE_NAME_HEADER } from "#shell/shell-dom.js";
 import { resolveMaxFileBytes } from "../../platform/files/file-cap.ts";
 import { SAMPLE_HEADS } from "../../platform/files/sample-files.test-support.ts";
+import { probeBody } from "../http/writing-route-guard.test-support.ts";
 import { answeredReference, PHOTO_UPLOAD_PATH, useFileRoutes } from "./file-routes.test-support.ts";
-import { FILE_NAME_HEADER } from "./index.ts";
 
 const files = useFileRoutes();
 
 const FILE_BYTES = 400 * 1024 * 1024;
-const CHUNK_BYTES = 256 * 1024;
-
-/** A JPEG of `total` bytes made only as the sender reads it, so the sender holds one chunk. */
-function jpegProducedAsRead(total: number): ReadableStream<Uint8Array> {
-  const filler = new Uint8Array(CHUNK_BYTES).fill(0x5a);
-  const head = new Uint8Array(CHUNK_BYTES).fill(0x5a);
-  head.set(SAMPLE_HEADS.jpeg);
-  let sent = 0;
-  return new ReadableStream<Uint8Array>(
-    {
-      pull(controller) {
-        if (sent >= total) return controller.close();
-        controller.enqueue(sent === 0 ? head : filler);
-        sent += CHUNK_BYTES;
-      },
-    },
-    { highWaterMark: 0 },
-  );
-}
 
 test("a 400 MB upload streams to disk without the process ever holding its body", async () => {
   const app = files.app();
@@ -49,7 +31,7 @@ test("a 400 MB upload streams to disk without the process ever holding its body"
     }, 5);
     const response = await fetch(new URL(PHOTO_UPLOAD_PATH, server.url), {
       method: "POST",
-      body: jpegProducedAsRead(FILE_BYTES),
+      body: probeBody(FILE_BYTES, SAMPLE_HEADS.jpeg).stream,
       headers: { [FILE_NAME_HEADER]: "long exposure.jpg", "sec-fetch-site": "same-origin" },
       duplex: "half",
     } as RequestInit);

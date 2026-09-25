@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
+import { FIRST_INCARNATION_ID } from "../../registry/incarnations.test-support.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
@@ -18,14 +19,27 @@ import { notesSpec } from "../../registry/spec/spec.test-support.ts";
 import {
   createCapabilityMutationPort,
   createCapabilityQueryPort,
+  type FileClaimScope,
+  type FileSubmissionBinding,
+  fileClaimScope,
   materializeCapabilityActionRecord,
   selectCapabilityRows,
 } from "./index.ts";
 
 export { notesSpec };
 
+/** Where a test port's files are kept: `spec`'s first incarnation, in `database`. */
+export function testFileScope(spec: CapabilitySpec, database: Database): FileClaimScope {
+  return fileClaimScope(database, spec, FIRST_INCARNATION_ID);
+}
+
+/** A save that submitted no file field, as every save of a capability without one does. */
+export function noFiles(spec: CapabilitySpec, database: Database): FileSubmissionBinding {
+  return { scope: testFileScope(spec, database), submitted: new Map() };
+}
+
 export function createCapabilityDataTool(spec: CapabilitySpec, databases: PlatformDatabase) {
-  const mutation = createCapabilityMutationPort(spec, databases.readwrite);
+  const mutation = createCapabilityMutationPort(spec, noFiles(spec, databases.readwrite));
   const query = createCapabilityQueryPort(databases.readonly, { target: spec });
   return {
     insert: (values: Record<string, unknown>) =>

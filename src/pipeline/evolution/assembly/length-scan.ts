@@ -18,7 +18,7 @@ import {
   maxLengthsByField,
   SQL_NAME_PATTERN,
 } from "../../../registry/index.ts";
-import { CAPABILITY_TABLE_PREFIX } from "../../../runtime/data/index.ts";
+import { capabilityTableName } from "../../../runtime/data/schema/ddl.ts";
 
 /**
  * One field whose declared limit the committed column already breaks, and the worst case
@@ -56,7 +56,7 @@ export function assertStoredValuesFitMaxLengths(
   if (narrowed.size === 0) return;
 
   assertSqlName(candidate.id, "capability id");
-  const table = `${CAPABILITY_TABLE_PREFIX}${candidate.id}`;
+  const table = capabilityTableName(candidate.id);
   const oversized: OversizedStoredField[] = [];
   for (const [field, limit] of narrowed) {
     assertSqlName(field, "field name");

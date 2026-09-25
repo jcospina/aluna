@@ -70,7 +70,6 @@ import {
   renderCachedCapabilitySurface,
   renderPromptNotice,
   renderRehydratedShellPage,
-  TEXT_BODY_LIMIT_BYTES,
 } from "./http/index.ts";
 import { DEFAULT_SSE_HEARTBEAT_MS, sseTransport, withSseHeartbeat } from "./sse/index.ts";
 
@@ -361,7 +360,7 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
 
   // Prompt submission enters the build-job lifecycle. The POST creates the ephemeral job and
   // returns the subscriber fragment; resolution and builder stages run from `/build/:id/stream`.
-  app.post("/prompt", guardWritingRoute(TEXT_BODY_LIMIT_BYTES), async (c) => {
+  app.post("/prompt", guardWritingRoute(), async (c) => {
     const submission = await readPromptSubmission(c);
 
     // Nothing meaningful typed, nothing to build: an empty-looking prompt must not reach
@@ -388,7 +387,7 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
     });
   });
 
-  app.post("/build/:id/cancel", guardWritingRoute(TEXT_BODY_LIMIT_BYTES), (c) =>
+  app.post("/build/:id/cancel", guardWritingRoute(), (c) =>
     buildJobs.cancel(c.req.param("id")) ? c.body(null, 202) : c.body(null, 404),
   );
 
@@ -479,7 +478,7 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
     );
   });
 
-  app.post("/capability-deletion/:id/confirm", guardWritingRoute(TEXT_BODY_LIMIT_BYTES), (c) =>
+  app.post("/capability-deletion/:id/confirm", guardWritingRoute(), (c) =>
     handleCapabilityDeletionConfirmation(c, ctx),
   );
 }
@@ -489,9 +488,7 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
  * are: no Handler, no resolver and no provider, so menu to registry is zero-AI end to end.
  */
 function registerCapabilityRenameRoutes(app: Hono, ctx: ResolvedAppDeps): void {
-  app.post("/capability-rename/:id", guardWritingRoute(TEXT_BODY_LIMIT_BYTES), (c) =>
-    handleCapabilityRename(c, ctx),
-  );
+  app.post("/capability-rename/:id", guardWritingRoute(), (c) => handleCapabilityRename(c, ctx));
 }
 
 /**

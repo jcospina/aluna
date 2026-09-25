@@ -12,8 +12,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileUrl } from "./file-url.ts";
 import { mintFileKey } from "./ledger.ts";
 import { createLocalObjectStore, type ObjectStore } from "./object-store.ts";
+import { STAGING_DIRECTORY } from "./object-store-root.ts";
 import { openRegularFiles, sampleFile } from "./sample-files.test-support.ts";
 
 async function* chunksOf(bytes: Uint8Array, size = 1024): AsyncGenerator<Uint8Array> {
@@ -34,7 +36,7 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-const staging = () => readdirSync(join(root, ".incoming"));
+const staging = () => readdirSync(join(root, STAGING_DIRECTORY));
 
 describe("the local object store's bytes", () => {
   test("streams a put into staging, and only a place puts the bytes where get finds them", async () => {
@@ -57,15 +59,15 @@ describe("the local object store's bytes", () => {
     const staged = await store.put(mintFileKey(), chunksOf(sampleFile("png")));
     await store.delete(staged.key);
     expect(await staged.place()).toBe(false);
-    expect(readdirSync(root).sort()).toEqual([".incoming"]);
+    expect(readdirSync(root).sort()).toEqual([STAGING_DIRECTORY]);
   });
 
   test("leaves another upload's staged file alone when its key is taken", async () => {
     const key = mintFileKey();
-    mkdirSync(join(root, ".incoming"), { recursive: true });
-    writeFileSync(join(root, ".incoming", key), "another upload");
+    mkdirSync(join(root, STAGING_DIRECTORY), { recursive: true });
+    writeFileSync(join(root, STAGING_DIRECTORY, key), "another upload");
     await expect(store.put(key, chunksOf(sampleFile("png")))).rejects.toThrow();
-    expect(readFileSync(join(root, ".incoming", key), "utf8")).toBe("another upload");
+    expect(readFileSync(join(root, STAGING_DIRECTORY, key), "utf8")).toBe("another upload");
   });
 
   test("errors a body whose file ends before the size it was opened with", async () => {
@@ -148,7 +150,7 @@ describe("the local object store's keys", () => {
     await store.delete(placed.key);
     await store.delete(stagedOnly.key);
     await store.delete(mintFileKey());
-    expect(readdirSync(root).sort()).toEqual([".incoming"]);
+    expect(readdirSync(root).sort()).toEqual([STAGING_DIRECTORY]);
     expect(staging()).toEqual([]);
   });
 
@@ -184,7 +186,7 @@ describe("the local object store's keys", () => {
 
   test("addresses every object at the same origin", () => {
     const key = mintFileKey();
-    expect(store.url(key)).toBe(`/files/${key}`);
+    expect(store.url(key)).toBe(fileUrl(key));
   });
 
   test("empties staging and keeps what was placed", async () => {
@@ -199,7 +201,7 @@ describe("the local object store's keys", () => {
   });
 
   test("refuses anything that is not a key it mints, before touching the disk", async () => {
-    for (const key of ["../escape", "", ".incoming", "a/b", `${mintFileKey()}/..`]) {
+    for (const key of ["../escape", "", STAGING_DIRECTORY, "a/b", `${mintFileKey()}/..`]) {
       await expect(store.put(key, chunksOf(sampleFile("png")))).rejects.toThrow();
       await expect(store.get(key)).rejects.toThrow();
       await expect(store.delete(key)).rejects.toThrow();

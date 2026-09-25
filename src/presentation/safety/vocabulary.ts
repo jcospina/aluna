@@ -238,5 +238,3 @@ export function isSafeAttr(tag: string, name: string): boolean {
   if (name.startsWith("aria-")) return !REMOVED_ARIA_ATTRS.has(name);
   return ELEMENT_ATTRS[tag]?.has(name) ?? false;
 }
-
-export { isDangerousUrl, isOffOriginUrl, namesServedFile } from "./attribute-urls.ts";

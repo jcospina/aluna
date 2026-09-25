@@ -18,7 +18,7 @@ import {
   CHOICE_PRESENTATIONS,
   capabilitySpecSchema,
   FULL_CAPABILITY_TOOLS,
-  GENERATION_FIELD_TYPES,
+  fieldTypeSchema,
   LIST_INPUT_MODES,
   LOGO_HUE_FAMILIES,
   MAX_CAPABILITY_NOUN_LENGTH,
@@ -39,7 +39,6 @@ import {
   uiCollectionLayoutSchema,
 } from "../../registry/index.ts";
 import { FILE_FIELD_PROMPT_LINES } from "./file-field-guidance.ts";
-import { unofferedFieldTypeIssues } from "./unoffered-field-types.ts";
 
 export interface GenerateSpecInput {
   readonly provider: Provider;
@@ -67,7 +66,7 @@ export interface SpecGenResult {
  * engineering language is fine; the pantry lists come off the registry's own enums.
  */
 export function buildSpecPrompt(input: GenerateSpecInput): string {
-  const fieldTypes = GENERATION_FIELD_TYPES.join(" | ");
+  const fieldTypes = fieldTypeSchema.options.join(" | ");
   const collectionLayouts = uiCollectionLayoutSchema.options.join(" | ");
   const choicePresentations = CHOICE_PRESENTATIONS.join(" | ");
   const tools = FULL_CAPABILITY_TOOLS.join(", ");
@@ -168,10 +167,7 @@ export async function generateSpec(input: GenerateSpecInput): Promise<SpecGenRes
   const result = input.provider.generate(buildSpecPrompt(input), promptCapabilitySpecSchema);
   // The gate. `await result.object` already rejects non-conformance; re-parsing makes the
   // refusal this stage's own, whatever the provider does.
-  const authored = await result.object;
-  const unoffered = unofferedFieldTypeIssues(authored).map((issue) => issue.message);
-  if (unoffered.length > 0) throw new Error(`Generated spec refused: ${unoffered.join("; ")}.`);
-  const spec = capabilitySpecSchema.parse(authored);
+  const spec = capabilitySpecSchema.parse(await result.object);
   const usage = await result.usage;
 
   const durationMs = performance.now() - startedAt;

@@ -15,9 +15,3 @@ export const FILE_LEDGER_TABLE = "file_ledger";
 
 /** Every generated capability's data table is `cap_<id>`; nothing else in the file carries it. */
 export const CAPABILITY_TABLE_PREFIX = "cap_";
-
-/**
- * The object store's default root. `OMNI_OBJECT_STORE_ROOT` moves it
- * (`src/platform/files/object-store-root.ts`).
- */
-export const OBJECT_STORE_ROOT = "storage";

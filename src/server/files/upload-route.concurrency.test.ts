@@ -2,8 +2,11 @@ import { describe, expect, spyOn, test } from "bun:test";
 import { existsSync, statSync } from "node:fs";
 import { open } from "node:fs/promises";
 import { join } from "node:path";
+import { FILE_NAME_HEADER } from "#shell/shell-dom.js";
+import { until } from "../../platform/async.test-support.ts";
 import { readFileLedgerRow } from "../../platform/files/ledger.ts";
 import type { ObjectStore } from "../../platform/files/object-store.ts";
+import { STAGING_DIRECTORY } from "../../platform/files/object-store-root.ts";
 import { ADD_FILE_AGAIN_SENTENCE } from "../../platform/files/refusal-copy.ts";
 import { sampleFile } from "../../platform/files/sample-files.test-support.ts";
 import { REGISTRY_TABLE } from "../../platform/persistence/table-names.ts";
@@ -18,7 +21,6 @@ import {
   heldBody,
   PHOTO_UPLOAD_PATH,
   PHOTOS,
-  until,
   uploadInit,
   useFileRoutes,
 } from "./file-routes.test-support.ts";
@@ -53,7 +55,9 @@ describe("an upload while a build runs", () => {
 
     await until(() => queuedPlatformWrites(mutationCoordinator) === 1);
     const [staged] = files.staged();
-    expect(statSync(join(files.root(), ".incoming", staged ?? "")).size).toBe(bytes.byteLength);
+    expect(statSync(join(files.root(), STAGING_DIRECTORY, staged ?? "")).size).toBe(
+      bytes.byteLength,
+    );
     expect(files.ledgerRows()).toEqual([]);
     expect(readersOnPhotos(readGates)).toBe(0);
 
@@ -154,7 +158,7 @@ describe("the order an upload lands in", () => {
     mutationCoordinator.withPlatformWrite = (body, options) =>
       write((lease) => {
         const [key = ""] = files.staged();
-        events.push(`writing, staged ${existsSync(join(files.root(), ".incoming", key))}`);
+        events.push(`writing, staged ${existsSync(join(files.root(), STAGING_DIRECTORY, key))}`);
         return body(lease);
       }, options);
 
@@ -267,7 +271,7 @@ function serveOnSocket(fetch: (request: Request) => Response | Promise<Response>
 
 function chunkedHead(): string {
   return (
-    `POST ${PHOTO_UPLOAD_PATH} HTTP/1.1\r\nHost: localhost\r\nx-file-name: harbour.jpg\r\n` +
+    `POST ${PHOTO_UPLOAD_PATH} HTTP/1.1\r\nHost: localhost\r\n${FILE_NAME_HEADER}: harbour.jpg\r\n` +
     "Sec-Fetch-Site: same-origin\r\nTransfer-Encoding: chunked\r\n\r\n"
   );
 }
@@ -339,6 +343,7 @@ describe("a client that hangs up", () => {
 
   test("while its bytes fail to move is still a failure, logged, not a hang-up", async () => {
     const leaving = new AbortController();
+    const diskFailure = Object.assign(new Error("the disk failed"), { code: "EIO" });
     const inner = files.store();
     const store: ObjectStore = {
       ...inner,
@@ -348,7 +353,7 @@ describe("a client that hangs up", () => {
           ...staged,
           async place() {
             leaving.abort();
-            throw Object.assign(new Error("the disk failed"), { code: "EIO" });
+            throw diskFailure;
           },
         };
       },
@@ -361,7 +366,7 @@ describe("a client that hangs up", () => {
       );
       expect(response.status).toBe(500);
     });
-    expect(errors.map(([message]) => message)).toEqual(["omni-crud request failed:"]);
+    expect(errors.map((call) => call.includes(diskFailure))).toEqual([true]);
     expect(files.ledgerRows()).toEqual([expect.objectContaining({ state: "cleanup_enqueued" })]);
     expect(files.staged()).toEqual([]);
   });

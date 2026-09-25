@@ -3,6 +3,7 @@
 
 import { describe, expect, test } from "bun:test";
 
+import { fileUrl } from "../../../platform/files/file-url.ts";
 import { FILE_LEDGER_TABLE } from "../../../platform/files/ledger.ts";
 import { capabilityEditErrorId } from "../../../presentation/index.ts";
 import {
@@ -11,7 +12,7 @@ import {
 } from "../../../registry/index.ts";
 import {
   FILE_CLEAR_VALUE,
-  FILE_URL_PREFIX,
+  projectFileLedgerRow,
   RECORD_NOT_FOUND_ERROR_CODE,
 } from "../../data/index.ts";
 import type { CapabilityUpdateContext } from "../contract.ts";
@@ -19,7 +20,7 @@ import {
   createBody,
   editBody,
   PHOTO,
-  projectionOf,
+  sentenceOf,
   updateHandler,
   usePhotosRouter,
 } from "./router.file.test-support.ts";
@@ -27,11 +28,6 @@ import { makeSpyLoader } from "./router.test-support.ts";
 import type { HandlerLoader } from "./router.ts";
 
 type Photos = ReturnType<typeof usePhotosRouter>;
-
-/** The first line of a refusal, which is all a person reads of it. */
-async function sentenceOf(response: Response): Promise<string> {
-  return /<p[^>]*>([^<]+)<\/p>/.exec(await response.text())?.[1] ?? "";
-}
 
 /** Aborts any UPDATE whose SET names the photo column, so "kept" is proved, not inferred. */
 function forbidPhotoWrites(photos: Photos): void {
@@ -63,7 +59,7 @@ describe("an edit keeps the photo its record holds", () => {
     );
 
     expect(response.status).toBe(200);
-    const projection = projectionOf(photos.ledger(key));
+    const projection = projectFileLedgerRow(photos.ledger(key));
     expect(seen).toEqual([projection, projection]);
     expect(photos.photoOf(id)).toMatchObject({ key, name: "harbour.jpg" });
     expect(photos.ledger(key)).toMatchObject({ state: "owned", record_id: id });
@@ -80,7 +76,7 @@ describe("an edit keeps the photo its record holds", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain(`src="${FILE_URL_PREFIX}${key}"`);
+    expect(await response.text()).toContain(`src="${fileUrl(key)}"`);
     expect(photos.photoOf(id)).toMatchObject({ key });
     expect(photos.ledger(key)).toMatchObject({ state: "owned", record_id: id });
   });
@@ -150,7 +146,7 @@ describe("a kept key the record no longer holds is refused before generated code
       const body = await response.clone().text();
       expect(body).toContain(`data-error-code="${RECORD_CHANGED_ERROR_CODE}"`);
       expect(body).toContain(`data-error-fields="${PHOTO}"`);
-      const sentence = await sentenceOf(response);
+      const sentence = sentenceOf(await response.text());
       expect(sentence).toMatch(/another window/);
       expect(sentence).not.toMatch(/key|ledger|reference|incarnation|pending|record|file/i);
       expect(spy.calls).toEqual([]);
@@ -211,7 +207,7 @@ describe("replacing a photo", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(seen).toEqual([projectionOf(photos.ledger(next))]);
+    expect(seen).toEqual([projectFileLedgerRow(photos.ledger(next))]);
     expect(photos.photoOf(id)).toEqual({
       key: next,
       kind: "image",
@@ -234,7 +230,7 @@ describe("replacing a photo", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain(`src="${FILE_URL_PREFIX}${next}"`);
+    expect(await response.text()).toContain(`src="${fileUrl(next)}"`);
     expect(photos.ledger(old).state).toBe("cleanup_enqueued");
   });
 

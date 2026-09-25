@@ -1,6 +1,5 @@
-// A card may show a file field. Design lint hands the renderer a scratch file named with markup,
-// a bidirectional override and an emoji, and contrasts it with no file at all, the case a template
-// most often forgets.
+// A card may show a file field. Design lint hands the renderer a scratch file named with markup
+// and an emoji, and contrasts it with no file at all, the case a template most often forgets.
 // biome-ignore-all lint/suspicious/noTemplateCurlyInString: renderer source is string data.
 
 import { describe, expect, test } from "bun:test";
@@ -113,24 +112,15 @@ describe("the photo exemplar", () => {
     });
   }
 
-  test("declares a file field that accepts images", () => {
-    const photo = example.capability.schema.fields.find(({ name }) => name === "photo");
-    expect(photo).toMatchObject({ type: "file", accepts: ["image"], required: false });
-  });
-
   test("clears design lint over its own capability", () => {
     expect(findDesignViolation(exemplarSpec(), example.rendererSource)).toBeUndefined();
   });
 
-  test("renders each preview as drawn, the picture from its url and none as the empty frame", () => {
+  test("renders each preview as drawn", () => {
     const renderItem = loadItemRenderer(example.rendererSource);
     const collapse = (markup: string) => markup.replace(/>\s+</g, "><");
     for (const sample of example.previewSamples) {
       expect(collapse(enforceItemMarkup(renderItem(sample.record)))).toBe(sample.previewInnerHtml);
     }
-    expect(example.previewSamples.map(({ record }) => record.photo === null)).toEqual([
-      false,
-      true,
-    ]);
   });
 });

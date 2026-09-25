@@ -1,7 +1,6 @@
 // A field may be named `constructor`, a name every plain object inherits. A submission that leaves
 // such a field out must read as leaving it out, at the router's checks and at the mutation port.
 
-import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import {
@@ -14,9 +13,9 @@ import {
   PHOTO_FIELD,
   photoSpec,
 } from "../../../registry/fields/file.test-support.ts";
-import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import type { SpecField } from "../../../registry/index.ts";
 import { applyCapabilityTableDdl } from "../schema/ddl.ts";
+import { noFiles } from "../tool.test-support.ts";
 import { createCapabilityMutationPort } from "./mutation.ts";
 import { assertSubmittedFieldValues } from "./submitted-values.ts";
 
@@ -58,18 +57,12 @@ describe("a field named constructor, left out of the submission", () => {
     test(`is ${name} the router's checks and the create port both read as empty`, () => {
       const spec = specWith(field);
       applyCapabilityTableDdl(spec, env.conns.readwrite);
-      const scope = {
-        database: new Database(":memory:"),
-        capabilityId: spec.id,
-        incarnationId: FIRST_INCARNATION_ID,
-      };
+      const files = noFiles(spec, env.conns.readwrite);
 
       expect(() =>
-        assertSubmittedFieldValues(spec.schema.fields, { caption: "c" }, "create", scope),
+        assertSubmittedFieldValues(spec.schema.fields, { caption: "c" }, "create", files.scope),
       ).not.toThrow();
-      const record = createCapabilityMutationPort(spec, env.conns.readwrite).create({
-        caption: "c",
-      });
+      const record = createCapabilityMutationPort(spec, files).create({ caption: "c" });
       expect(record.fields[NAME]).toBeNull();
     });
   }

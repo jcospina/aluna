@@ -26,7 +26,6 @@ import {
   NOT_FOUND_NOTICE,
   renderCachedCapabilitySurface,
   renderRehydratedShellPage,
-  TEXT_BODY_LIMIT_BYTES,
 } from "../../../server/http/index.ts";
 import {
   createMutationCoordinator,
@@ -41,6 +40,7 @@ import {
 import {
   assertSubmittedFieldValues,
   ChoiceDisabledError,
+  fileClaimScope,
   InvalidChoiceError,
   InvalidFileReferenceError,
   MaxLengthExceededError,
@@ -90,7 +90,7 @@ import {
   type WireProtocolAction,
   WireProtocolError,
 } from "../wire/wire-protocol.ts";
-import { fileClaimScope, invokeCapabilityHandler } from "./handler-invocation.ts";
+import { invokeCapabilityHandler } from "./handler-invocation.ts";
 
 /**
  * Registry lookup seam. Production uses the validated registry store; route tests
@@ -159,7 +159,7 @@ export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps =
   app.get(CAPABILITY_VIEW_TRAILING_SLASH_ROUTE, view);
   // Catch every HTTP method here so a wrong pair receives the same warm product
   // boundary instead of falling through to Hono's generic 404 response.
-  app.all(CAPABILITY_ROUTE, guardWritingRoute(TEXT_BODY_LIMIT_BYTES), (c) =>
+  app.all(CAPABILITY_ROUTE, guardWritingRoute(), (c) =>
     handleCapabilityRequest(
       c,
       databases,
@@ -345,7 +345,7 @@ function platformRefusal(
       activeSpecFields(spec.schema.fields),
       parsedRequest.input.values,
       action,
-      fileClaimScope(databases.readonly, row, spec, parsedRequest.recordTarget),
+      fileClaimScope(databases.readonly, spec, row.incarnation_id, parsedRequest.recordTarget),
     );
     return undefined;
   } catch (error) {

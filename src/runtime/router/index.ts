@@ -36,7 +36,6 @@ export { READ_UNAVAILABLE_FRAGMENT } from "./wire/failure-responses.ts";
 export {
   ALUNA_PRESENT_MARKER,
   ALUNA_RECORD_ID_MARKER,
-  ALUNA_RESERVED_PREFIX,
   type ParsedCapabilityRequest,
   parseCapabilityRequest,
   type WireProtocolAction,

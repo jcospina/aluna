@@ -337,7 +337,7 @@ describe("capability gate — Action-scoped catalog and connection isolation", (
       ddl: deriveCapabilityTableDdl(spec),
       handlers: { ...handlers, read: declaredRead },
       itemRenderer,
-      scratchCatalog: [{ spec: dependency, incarnationId: dependencyIncarnation, rows: [] }],
+      scratchCatalog: [{ spec: dependency, incarnationId: dependencyIncarnation }],
     });
 
     expect(() => runStructuralRung(input)).not.toThrow();

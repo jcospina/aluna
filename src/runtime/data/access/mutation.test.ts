@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 
+import { createFileLedgerSchema } from "../../../platform/files/ledger.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
@@ -16,7 +17,7 @@ import {
   RECORD_NOT_FOUND_ERROR_CODE,
   RecordNotFoundError,
 } from "../index.ts";
-import { withFileDatabase } from "../tool.test-support.ts";
+import { noFiles, testFileScope, withFileDatabase } from "../tool.test-support.ts";
 
 function mutationSpec(): CapabilitySpec {
   const requiredError: Omit<CapabilitySpec["behavioral_errors"][number], "action"> = {
@@ -111,7 +112,7 @@ describe("target-bound capability update preservation", () => {
         spec,
         "target",
         new Set(["note"]),
-        databases.readwrite,
+        noFiles(spec, databases.readwrite),
       );
       expect(Object.keys(mutation)).toEqual(["update"]);
       expect(mutation.update.length).toBe(1);
@@ -156,7 +157,7 @@ describe("target-bound capability update clears and validates", () => {
         spec,
         "target",
         new Set(["note"]),
-        databases.readwrite,
+        noFiles(spec, databases.readwrite),
       );
       const before = databases.readwrite
         .query('SELECT * FROM "cap_notes" WHERE "id" = ?')
@@ -179,7 +180,7 @@ describe("target-bound capability update clears and validates", () => {
   });
 });
 
-describe("target-bound capability mutation failures and delete", () => {
+describe("target-bound capability update failures", () => {
   test("submitted empty values clear by type while omitted active values remain preserved", () => {
     withFileDatabase((databases) => {
       const spec = mutationSpec();
@@ -191,7 +192,7 @@ describe("target-bound capability mutation failures and delete", () => {
           spec,
           "target",
           new Set(["note", "pinned", "tags"]),
-          databases.readwrite,
+          noFiles(spec, databases.readwrite),
         ).update({ note: "" }),
       );
       expect(cleared).toMatchObject({
@@ -207,7 +208,7 @@ describe("target-bound capability mutation failures and delete", () => {
             spec,
             "target",
             new Set(["note"]),
-            databases.readwrite,
+            noFiles(spec, databases.readwrite),
           ).update({ note: null }),
         ),
       ).toMatchObject({ note: null });
@@ -217,7 +218,7 @@ describe("target-bound capability mutation failures and delete", () => {
           spec,
           "target",
           new Set(["title"]),
-          databases.readwrite,
+          noFiles(spec, databases.readwrite),
         ).update({ title: null }),
       ).toThrow(MissingRequiredFieldsError);
       expect(
@@ -236,7 +237,7 @@ describe("target-bound capability mutation failures and delete", () => {
         spec,
         "historical",
         new Set(["note"]),
-        databases.readwrite,
+        noFiles(spec, databases.readwrite),
       );
       try {
         mutation.update({ note: "Should roll back" });
@@ -256,11 +257,14 @@ describe("target-bound capability mutation failures and delete", () => {
       ).toEqual({ note: "Original note" });
     });
   });
+});
 
+describe("a missing record and a delete's bound target", () => {
   test("missing update/delete share record_not_found and exact delete cannot substitute its target", () => {
     withFileDatabase((databases) => {
       const spec = mutationSpec();
       applyCapabilityTableDdl(spec, databases.readwrite);
+      createFileLedgerSchema(databases.readwrite);
       seedRecord(databases.readwrite, "target");
       seedRecord(databases.readwrite, "survivor");
 
@@ -272,12 +276,17 @@ describe("target-bound capability mutation failures and delete", () => {
               spec,
               "missing",
               new Set(["note"]),
-              databases.readwrite,
+              noFiles(spec, databases.readwrite),
             ).update({ note: "Nope" }),
         ],
         [
           "delete",
-          () => createCapabilityDeleteMutationPort(spec, "missing", databases.readwrite).delete(),
+          () =>
+            createCapabilityDeleteMutationPort(
+              spec,
+              "missing",
+              testFileScope(spec, databases.readwrite),
+            ).delete(),
         ],
       ] as const) {
         try {
@@ -289,7 +298,11 @@ describe("target-bound capability mutation failures and delete", () => {
         }
       }
 
-      const remove = createCapabilityDeleteMutationPort(spec, "target", databases.readwrite);
+      const remove = createCapabilityDeleteMutationPort(
+        spec,
+        "target",
+        testFileScope(spec, databases.readwrite),
+      );
       expect(Object.keys(remove)).toEqual(["delete"]);
       expect(remove.delete.length).toBe(0);
       (remove.delete as (...args: string[]) => void)("survivor");

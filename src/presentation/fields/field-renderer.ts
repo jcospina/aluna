@@ -11,6 +11,7 @@
 // name and record value is escaped, and the form is platform chrome, so the enforcer never runs.
 
 import { capabilityActionUrl } from "#shell/routes.js";
+import { CREATE_CANCELLED_EVENT } from "#shell/shell-dom.js";
 import { assertNever } from "../../platform/errors.ts";
 import {
   activeSpecFields,
@@ -63,18 +64,6 @@ export interface RenderableCapability {
   readonly actions: readonly WireProtocolAction[];
   readonly item?: { readonly shows: readonly string[] };
 }
-
-/**
- * The DOM event a successful create dispatches, bubbling, once the form's close-on-success
- * wiring fires. Exported so the list container keys on one constant rather than the string.
- */
-export const RECORD_CREATED_EVENT = "aluna:record-created";
-
-/**
- * The local DOM event the create form dispatches when Cancel resets the draft. The owning list
- * container listens on the nearest collection to close the disclosure and restore focus.
- */
-export const CREATE_CANCELLED_EVENT = "aluna:create-cancelled";
 
 /**
  * The id of a capability's live records region — the create form's `hx-target`. Derived from the

@@ -8,7 +8,7 @@
 // them now is `gate-design-lint-high-meadow.test.ts`, which composes each sample through
 // the real presentation adapter rather than serving it.
 
-import { FILE_URL_PREFIX } from "../../../platform/files/file-url.ts";
+import { fileUrl } from "../../../platform/files/file-url.ts";
 import { ALLOWED_CLASSES } from "../../../presentation/safety/vocabulary.ts";
 import {
   PALETTE_COLOR_TOKENS,
@@ -16,11 +16,13 @@ import {
   TYPE_SIZE_TOKENS,
   tokenList,
 } from "../../../presentation/tokens/design-tokens.ts";
-import type {
-  FieldType,
-  SpecField,
-  UiCollectionLayout,
-  UiFormIntent,
+import {
+  FILE_FAMILIES,
+  type FieldType,
+  isFileFieldType,
+  type SpecField,
+  type UiCollectionLayout,
+  type UiFormIntent,
 } from "../../../registry/index.ts";
 
 export interface FewShotPreviewCapability {
@@ -160,7 +162,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
       "Large square media frame, bold caption, and vivid metadata chips. The picture owns the tile while the text still scans in a responsive grid, and a record without one keeps its frame.",
     notes: [
       "Uses the media-frame primitive, whose own tinted fill gives the box presence without a boundary — the platform draws every line, and nothing inside a window casts a shadow.",
-      "A file field arrives as { url, name, kind, mime, size }, or null when the record holds no file. The picture's source is its url. Its alt text is empty because the title beside it already names the card, and a file name like IMG_4821.JPG describes nothing.",
+      "Draws the picture from its url with empty alt text, because the title beside it already names the card.",
       "Draws the empty frame with a short note when the photo is null, so a record saved before its picture was added still reads as a tile.",
       "Leaves loading and decoding out: the platform sets both on every picture it serves.",
     ],
@@ -183,7 +185,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
         record: {
           id: "photo-1",
           photo: {
-            url: `${FILE_URL_PREFIX}${PREVIEW_PHOTO_KEY}`,
+            url: fileUrl(PREVIEW_PHOTO_KEY),
             name: "IMG_4821.JPG",
             kind: "image",
             mime: "image/jpeg",
@@ -196,7 +198,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
         previewInnerHtml: [
           '<div class="stack gap-2">',
           '<figure class="media-frame media-frame--square w-full" style="margin: 0; aspect-ratio: 1 / 1; min-height: 12rem;">',
-          `<img src="${FILE_URL_PREFIX}${PREVIEW_PHOTO_KEY}" alt="" loading="lazy" decoding="async">`,
+          `<img src="${fileUrl(PREVIEW_PHOTO_KEY)}" alt="" loading="lazy" decoding="async">`,
           "</figure>",
           '<span class="text-xl text-bold line-clamp-2">Morning market colors</span>',
           '<div class="cluster gap-1 text-xs">',
@@ -399,6 +401,6 @@ function fields(
     type,
     required,
     lifecycle: "active",
-    ...(type === "file" ? { accepts: ["image" as const] } : {}),
+    ...(isFileFieldType(type) ? { accepts: [...FILE_FAMILIES] } : {}),
   }));
 }
