@@ -8,6 +8,7 @@
 
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { REGISTRY_TABLE } from "../../platform/persistence/table-names.ts";
 import { THIRD_INCARNATION_ID } from "../../registry/incarnations.test-support.ts";
 import { readActiveRegistryCatalog } from "../../registry/index.ts";
 import {
@@ -15,14 +16,14 @@ import {
   ReadGateReleasedError,
   ReadGateUnavailableError,
 } from "../concurrency/read-gates.ts";
-import { CAPABILITY_TABLE_PREFIX } from "../data/index.ts";
-import { NO_SHADOW } from "./query-worker.test-support.ts";
+import { NO_SHADOW, wholeTables } from "./query-worker.test-support.ts";
 import {
   createQueryWorker,
   type QueryShadow,
   type QueryWorker,
   QueryWorkerClosedError,
 } from "./query-worker.ts";
+import { QUESTION_DESK_SCHEMA } from "./question-views.ts";
 import {
   addCapability,
   createScratchPlatforms,
@@ -393,14 +394,14 @@ describe("what a whole-catalog read scope hands the worker, and what it leaves b
       {
         readGates,
         database: database.readonly,
-        createWorker: () => createQueryWorker(path, NO_SHADOW),
+        createWorker: () => createQueryWorker(path, wholeTables(REGISTRY_TABLE)),
       },
       async (scope) => {
-        await scope.read("SELECT count(*) AS total FROM capability_registry");
+        await scope.read(`SELECT count(*) AS total FROM ${REGISTRY_TABLE}`);
         await expect(
-          scope.read("INSERT INTO capability_registry (id) VALUES ('x')"),
+          scope.read(`INSERT INTO ${QUESTION_DESK_SCHEMA}.${REGISTRY_TABLE} (id) VALUES ('x')`),
         ).rejects.toThrow(/attempt to write a readonly database/);
-        await scope.read("SELECT id FROM capability_registry ORDER BY id");
+        await scope.read(`SELECT id FROM ${REGISTRY_TABLE} ORDER BY id`);
       },
     );
     const after = sweepPlatformStores(database.readonly, join(path, ".."));
@@ -433,13 +434,13 @@ describe("what a whole-catalog read scope hands the worker, and what it leaves b
       },
     );
 
-    // What it is told at birth is table and column names and how to read each: no token.
+    // What it is told at birth is a view for each capability: no token, and no incarnation.
     const [[shadow]] = log.factoryArguments as [[QueryShadow]];
     const catalog = readActiveRegistryCatalog(database.readonly);
-    expect(shadow.tables.map(({ table }) => table)).toEqual(
-      catalog.capabilities.map(({ id }) => `${CAPABILITY_TABLE_PREFIX}${id}`),
-    );
-    expect(JSON.stringify(shadow)).not.toMatch(/incarnation|token/i);
+    expect(shadow.views).toHaveLength(catalog.capabilities.length);
+    const told = JSON.stringify(shadow);
+    expect(told).not.toMatch(/token/i);
+    for (const { incarnationId } of [NOTES, TASKS]) expect(told).not.toContain(incarnationId);
     expect(log.calls).toEqual([
       {
         sql: "SELECT count(*) AS total FROM capability_registry WHERE id = ?",

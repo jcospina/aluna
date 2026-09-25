@@ -5,8 +5,11 @@
 import { afterEach, beforeEach } from "bun:test";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { FILE_NAME_HEADER } from "#shell/shell-dom.js";
 import { FILE_LEDGER_TABLE, type FileLedgerRow } from "../../platform/files/ledger.ts";
 import { createLocalObjectStore, type ObjectStore } from "../../platform/files/object-store.ts";
+import { STAGING_DIRECTORY } from "../../platform/files/object-store-root.ts";
+import { fileUploadPath } from "../../platform/files/upload-path.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import {
   install,
@@ -15,7 +18,6 @@ import {
   teardownRouterTest,
 } from "../../runtime/router/dispatch/router.test-support.ts";
 import { type AppDeps, createApp } from "../app.ts";
-import { FILE_NAME_HEADER, fileUploadPath } from "./index.ts";
 
 const photos = photosRow();
 export const PHOTOS = { capabilityId: photos.id, incarnationId: photos.incarnation_id } as const;
@@ -96,22 +98,13 @@ export function useFileRoutes() {
       options: UploadOptions = {},
       deps: AppDeps = {},
     ) => app(deps).request(PHOTO_UPLOAD_PATH, uploadInit(body, options)),
-    /** What sits in `.incoming/`. */
-    staged: () => entries(join(root(), ".incoming")),
-    /** What sits in place, beside `.incoming/`. */
-    stored: () => entries(root()).filter((entry) => entry !== ".incoming"),
+    /** What sits in staging. */
+    staged: () => entries(join(root(), STAGING_DIRECTORY)),
+    /** What sits in place, beside staging. */
+    stored: () => entries(root()).filter((entry) => entry !== STAGING_DIRECTORY),
     ledgerRows: () =>
       conns().readonly.query(`SELECT * FROM ${FILE_LEDGER_TABLE}`).all() as FileLedgerRow[],
   };
-}
-
-/** Resolves once `condition` holds, polling; fails the case after `timeoutMs`. */
-export async function until(condition: () => boolean, timeoutMs = 5000): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (!condition()) {
-    if (Date.now() > deadline) throw new Error("the awaited condition never held");
-    await Bun.sleep(5);
-  }
 }
 
 /** A body the test pushes by hand, so a case can hold an upload mid-stream. */

@@ -2,7 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { FIRST_FIELD_SELECTOR } from "#shell/shell-dom.js";
+import {
+  CREATE_CANCELLED_EVENT,
+  FIRST_FIELD_SELECTOR,
+  RECORD_CREATED_EVENT,
+} from "#shell/shell-dom.js";
 
 import { Doc, parseHtml } from "../controls/choice-picker.test-support.ts";
 import { capabilityRecordsRegionId, type RenderableCapability } from "../fields/field-renderer.ts";
@@ -201,7 +205,7 @@ describe("container scaffolding", () => {
     // The success path used to close the view and leave focus on a control that had
     // gone, which drops a keyboard user at the top of the desk.
     expect(feed).toContain(
-      "@aluna:record-created.window=\"if ($event.detail?.capabilityId === 'tasks') " +
+      `@${RECORD_CREATED_EVENT}.window="if ($event.detail?.capabilityId === 'tasks') ` +
         '{ createOpen = false; $nextTick(() => $refs.createTrigger.focus()) }"',
     );
   });
@@ -209,7 +213,7 @@ describe("container scaffolding", () => {
   test("Cancel is the same exit from the other end, and both return focus to New", () => {
     expect(feed).toContain('x-ref="createTrigger"');
     expect(feed).toContain(
-      `@aluna:create-cancelled="createOpen = false; $nextTick(() => $refs.createTrigger.focus())"`,
+      `@${CREATE_CANCELLED_EVENT}="createOpen = false; $nextTick(() => $refs.createTrigger.focus())"`,
     );
     expect(feed).toContain("data-create-cancel");
   });
@@ -266,7 +270,7 @@ describe("container scaffolding", () => {
   });
 
   test("closes the create disclosure only when THIS capability reports a created record", () => {
-    expect(feed).toContain("@aluna:record-created.window=");
+    expect(feed).toContain(`@${RECORD_CREATED_EVENT}.window=`);
     expect(feed).toContain("$event.detail?.capabilityId === 'tasks'");
   });
 

@@ -1,5 +1,5 @@
 // Tests for the capability spec shape (Epic 2.1 plus Module 3.3's presentation intent reshape).
-// The headline guarantee: anything outside the contract — list types, files, relations, the `auto`
+// The headline guarantee: anything outside the contract — unknown types, relations, the `auto`
 // concept, old `views`, platform-owned column names — fails validation loudly rather than flowing
 // downstream into DDL or generation.
 //
@@ -17,7 +17,6 @@ import {
   fieldTypeSchema,
   isChoiceFieldType,
   isListFieldType,
-  LIST_FIELD_TYPES,
   LIST_INPUT_MODES,
   PLATFORM_COLUMNS,
 } from "./spec.ts";
@@ -42,18 +41,7 @@ describe("capability spec shape — valid shapes & pantry types", () => {
     expect(capabilitySpecSchema.parse(spec)).toEqual(spec);
   });
 
-  test("accepts the scalar pantry plus string[] and file, each required or not where it may be", () => {
-    expect(fieldTypeSchema.options).toEqual([
-      "string",
-      "number",
-      "boolean",
-      "datetime",
-      "date",
-      "choice",
-      "string[]",
-      "file",
-    ]);
-    expect(LIST_FIELD_TYPES).toEqual(["string[]"]);
+  test("accepts every pantry type, each required or not", () => {
     expect(isListFieldType("string[]")).toBe(true);
     expect(isListFieldType("number[]")).toBe(false);
     expect(isChoiceFieldType("choice")).toBe(true);

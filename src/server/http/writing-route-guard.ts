@@ -4,6 +4,8 @@
 // body at all, so the count here is what bounds one.
 
 import type { Context, MiddlewareHandler } from "hono";
+import { parseWholeNumber } from "../../platform/whole-number.ts";
+import { NO_STORE } from "./cache-headers.ts";
 
 /** What a route taking text accepts: the global cap every route lived under before files. */
 export const TEXT_BODY_LIMIT_BYTES = 1024 * 1024;
@@ -18,8 +20,6 @@ export interface WritingRouteGuard {
   /** The body reaches the route as a counted stream instead of buffered. */
   readonly streams: boolean;
 }
-
-const NO_STORE = { "cache-control": "no-store" } as const;
 
 const guards = new WeakMap<object, WritingRouteGuard>();
 const passThroughs = new WeakSet<object>();
@@ -37,8 +37,7 @@ function isCrossSiteRequest(c: Context): boolean {
 }
 
 function declaredLength(request: Request): number {
-  const declared = request.headers.get("content-length");
-  return declared !== null && /^\d+$/.test(declared) ? Number(declared) : 0;
+  return parseWholeNumber(request.headers.get("content-length") ?? "") || 0;
 }
 
 /** The whole body, or null the moment it passes `limit`; never holds more than `limit` bytes. */
@@ -144,14 +143,15 @@ function registered(guard: MiddlewareHandler, description: WritingRouteGuard): M
 }
 
 /**
- * Refuse a cross-site request with 403, then a body over `maxBodyBytes` with 413, whether its
- * length was declared or found by counting. An admitted body is buffered (a text route parses the
- * whole of it anyway) and handed on intact. GET and HEAD pass: they carry no body.
+ * Refuse a cross-site request with 403, then a body over {@link TEXT_BODY_LIMIT_BYTES} with 413,
+ * whether its length was declared or found by counting. An admitted body is buffered (a text route
+ * parses the whole of it anyway) and handed on intact. GET and HEAD pass: they carry no body.
  *
  * The route receives a rebuilt `Request`: its abort signal follows the socket, but Bun's
  * `server.requestIP` and `server.timeout` do not recognize it.
  */
-export function guardWritingRoute(maxBodyBytes: number): MiddlewareHandler {
+export function guardWritingRoute(): MiddlewareHandler {
+  const maxBodyBytes = TEXT_BODY_LIMIT_BYTES;
   return registered(
     async (c, next) => {
       if (c.req.method === "GET" || c.req.method === "HEAD") return next();

@@ -31,6 +31,7 @@ import {
 import {
   type CapabilitySpec,
   choiceFieldOptions,
+  isFileFieldType,
   type SpecField,
 } from "../../../../registry/index.ts";
 import { normalizeMaxAttempts } from "../../../attempts.ts";
@@ -45,7 +46,8 @@ import {
 import { checkGeneratedUnit } from "../../../units/safety/unit-checks.ts";
 import type { CapabilityGateInput, DesignLintAttempt, DesignLintGateResult } from "../../gate.ts";
 import { loadItemRenderer } from "../../gate-internal.ts";
-import { scratchFileName, scratchFileProjection } from "../../gate-scratch-files.ts";
+import { scratchFileProjection } from "../../gate-scratch-files.ts";
+import { scratchFileName } from "../../gate-scratch-names.ts";
 import { observableItemRecordContent } from "./gate-item-content.ts";
 import { findInlineStyleViolation } from "./inline-style-scan.ts";
 
@@ -317,7 +319,7 @@ function buildProbeRecords(spec: CapabilitySpec): readonly DesignProbe[] {
       kind: "baseline",
       record: recordWith(spec, (field) => syntheticValue(spec, field)),
     },
-    ...contrastedFields(spec).map((fieldName) => ({
+    ...spec.ui_intent.item.shows.map((fieldName) => ({
       label: `synthetic contrast for ${fieldName}`,
       kind: "contrast" as const,
       record: contrastingRecord(spec, fieldName),
@@ -334,17 +336,13 @@ function buildProbeRecords(spec: CapabilitySpec): readonly DesignProbe[] {
   return probes;
 }
 
-/** The shown fields a contrast probe varies, one probe each. */
-function contrastedFields(spec: CapabilitySpec): readonly string[] {
-  return spec.ui_intent.item.shows;
-}
-
 /**
  * A hostile payload wherever a field holds text. A file's only text is its name, so a file field
  * holds one named with the payload (PLAN decision 38).
  */
 function hostileValue(spec: CapabilitySpec, field: SpecField, payload: string): unknown {
-  if (field.type === "file") return scratchFileProjection(spec, field, scratchFileName(payload));
+  if (isFileFieldType(field.type))
+    return scratchFileProjection(spec, field, scratchFileName(payload));
   return field.type === "string[]" ? [payload] : payload;
 }
 
@@ -444,7 +442,7 @@ function findRecordContentViolation(
   // unwritten contract that silently compared the wrong records and blamed the wrong field.
   const baseline = rendered.find(({ probe }) => probe.kind === "baseline");
   const contrasts = rendered.filter(({ probe }) => probe.kind === "contrast");
-  if (!baseline || contrasts.length !== contrastedFields(spec).length) {
+  if (!baseline || contrasts.length !== spec.ui_intent.item.shows.length) {
     return "The design-lint record-dependency probes could not be assembled.";
   }
   const baselineContent = observableItemRecordContent(baseline.inner);
@@ -484,7 +482,7 @@ function contrastViolation(
 }
 
 function isFileField(spec: CapabilitySpec, name: string): boolean {
-  return spec.schema.fields.some((field) => field.name === name && field.type === "file");
+  return spec.schema.fields.some((field) => field.name === name && isFileFieldType(field.type));
 }
 
 /**

@@ -209,3 +209,21 @@ export function enqueueRecordFiles(
     )
     .run(recordId, owner.capabilityId, owner.incarnationId);
 }
+
+/**
+ * Move every key `recordId` owns to `nextRecordId`, for a record whose id changed after its save:
+ * the Gate gives each seeded record a stable id once the save that claimed its files commits.
+ */
+export function reassignRecordFiles(
+  database: Database,
+  owner: FileLedgerOwner,
+  recordId: string,
+  nextRecordId: string,
+): void {
+  database
+    .query(
+      `UPDATE ${FILE_LEDGER_TABLE} SET "record_id" = ?
+       WHERE "record_id" = ? AND "capability_id" = ? AND "incarnation_id" = ? AND "state" = 'owned'`,
+    )
+    .run(nextRecordId, recordId, owner.capabilityId, owner.incarnationId);
+}

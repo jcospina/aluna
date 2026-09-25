@@ -44,6 +44,21 @@ export const IDLE_LABEL_ATTRIBUTE = "data-idle-label";
 /** The header an upload names its file in, percent-encoded: a header cannot carry `日本.jpg`. */
 export const FILE_NAME_HEADER = "x-file-name";
 
+/**
+ * What the server draws on a file field for the product's half of it (`file-field.js`): where its
+ * upload goes, the cap and the sentence a file over it earns, and the one input it posts, with the
+ * key it was drawn holding, the value that clears it, and whether it may be left empty.
+ */
+export const FILE_FIELD_ATTRIBUTES = Object.freeze({
+  upload: "data-file-upload",
+  cap: "data-file-cap",
+  oversize: "data-file-oversize",
+  value: "data-file-value",
+  heldKey: "data-file-held-key",
+  clearValue: "data-file-clear-value",
+  required: "data-file-required",
+});
+
 /** How long the collection search waits after a keystroke before it asks the server. */
 export const DEFAULT_SEARCH_DEBOUNCE_MS = 300;
 
@@ -63,3 +78,28 @@ export const COLLECTION_COUNT_SIDECAR_SUFFIX = "-->";
 
 /** The attribute the shell finds the collection's count label by. */
 export const COLLECTION_COUNT_LABEL_ATTR = "data-capability-count-label";
+
+/** Said, bubbling, by a create form once its record is saved. */
+export const RECORD_CREATED_EVENT = "aluna:record-created";
+
+/** Said, bubbling, by a create form's Cancel once the draft is put down. */
+export const CREATE_CANCELLED_EVENT = "aluna:create-cancelled";
+
+/**
+ * Hand `reset` the create form each time one finishes, saved or put down. Cancel is said by the
+ * control that was pressed, so both are read up to the form; the prototype's `closest`, because a
+ * form's own is clobbered by a control named `closest`.
+ *
+ * @param {{ addEventListener(type: string, listener: (event: Event) => void): void }} root
+ * @param {(form: HTMLFormElement) => void} reset
+ */
+export function onCreateFinished(root, reset) {
+  for (const finished of [RECORD_CREATED_EVENT, CREATE_CANCELLED_EVENT]) {
+    root.addEventListener(finished, (event) => {
+      const { target } = event;
+      const form =
+        target instanceof Element ? Element.prototype.closest.call(target, "form") : null;
+      if (form instanceof HTMLFormElement) reset(form);
+    });
+  }
+}

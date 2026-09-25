@@ -1,7 +1,11 @@
 // `/files/:key` (Module 7 PLAN decisions 23, 24, 26 and 27; ADR-0009). The read token covers the
 // open and is back before the body streams. A row admission could not have written, or bytes that
 // no longer match their row, answer as absent. Bun sends a stream body chunked, whatever length the
-// route states, so only a HEAD carries one. Range requests are 7.2/02's.
+// route states, so only a HEAD carries one. Range requests are 7.2/02's. `nosniff` is the app's,
+// on every answer (`app.ts`). A cors-mode request — every fetch and XHR htmx makes — is refused:
+// htmx swaps any 2xx, so a Handler's `hx-get` would put a polyglot's markup in the page unjudged.
+// The answer varies on the mode, or the copy an `<img>` cached would answer htmx instead. A client
+// sending no `Sec-Fetch-Mode` is served, as the writing-route guard treats it.
 
 import type { Context, Hono } from "hono";
 import { isAdmittedType } from "../../platform/files/admission.ts";
@@ -13,28 +17,35 @@ import {
   isFileKey,
   readFileLedgerRow,
 } from "../../platform/files/ledger.ts";
-import type { OpenedObject } from "../../platform/files/object-store.ts";
+import type { ObjectStore, OpenedObject } from "../../platform/files/object-store.ts";
+import type { PlatformDatabase } from "../../platform/persistence/db.ts";
+import type { ReadGateCoordinator } from "../../runtime/concurrency/read-gates.ts";
+import { IMMUTABLE, NO_STORE } from "../http/cache-headers.ts";
 import { tryReadToken } from "./read-token.ts";
-import type { FileRouteDeps } from "./upload-route.ts";
 
 const FILE_SERVE_ROUTE = `${FILE_URL_PREFIX}:key`;
 
-type FileServeDeps = Pick<FileRouteDeps, "databases" | "readGates" | "objectStore">;
+interface FileServeDeps {
+  readonly databases: PlatformDatabase;
+  readonly readGates: ReadGateCoordinator;
+  readonly objectStore: ObjectStore;
+}
 
 const SERVED_STATES: ReadonlySet<FileLedgerState> = new Set(["pending", "owned"]);
 
-/** What a family's bytes may do opened as a document: nothing, as the logo route's may not. */
-const POLICY_BY_KIND: ReadonlyMap<string, string> = new Map([
-  ["image", "default-src 'none'; sandbox"],
-]);
+/**
+ * Modes whose answer a page can read: fetch and XHR, and an element load marked `crossorigin`,
+ * which no photo is drawn with. A plain `<img>`, `<video>` or navigation is `no-cors`/`navigate`.
+ */
+export const READABLE_FETCH_MODES: ReadonlySet<string> = new Set(["cors", "same-origin"]);
 
-const NOSNIFF = { "x-content-type-options": "nosniff" } as const;
+/** What an image's bytes may do opened as a document: nothing, as the logo route's may not. */
+export const INERT_IMAGE_POLICY = "default-src 'none'; sandbox";
 
-/** A random key's bytes never change, so a year and `immutable`, as the logo route's. */
-const IMMUTABLE = "public, max-age=31536000, immutable";
+const POLICY_BY_KIND: ReadonlyMap<string, string> = new Map([["image", INERT_IMAGE_POLICY]]);
 
 function absent(c: Context): Response {
-  return c.body(null, 404, { ...NOSNIFF, "cache-control": "no-store" });
+  return c.body(null, 404, NO_STORE);
 }
 
 /** The policy a row's bytes are served under, or undefined for a row that must not serve. */
@@ -91,16 +102,17 @@ async function answerWith(
 }
 
 async function serveFile(c: Context, deps: FileServeDeps): Promise<Response> {
+  if (READABLE_FETCH_MODES.has(c.req.header("sec-fetch-mode") ?? "")) return absent(c);
   const key = c.req.param("key") ?? "";
   const row = isFileKey(key) ? readFileLedgerRow(deps.databases.readonly, key) : null;
   const policy = servedPolicy(row);
   if (!row || !policy) return absent(c);
   const headers = {
-    ...NOSNIFF,
     "content-type": row.mime,
     "content-security-policy": policy,
     "content-disposition": inlineContentDisposition(row.name),
-    "cache-control": IMMUTABLE,
+    vary: "sec-fetch-mode",
+    ...IMMUTABLE,
   };
   const opened = await openUnderReadToken(deps, row);
   return opened ? answerWith(c, opened, row, headers) : absent(c);

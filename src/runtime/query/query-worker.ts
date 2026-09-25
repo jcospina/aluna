@@ -19,12 +19,7 @@ import type {
   QueryWorkerValue,
 } from "./query-worker-thread.ts";
 
-export type {
-  QueryColumnReading,
-  QueryShadow,
-  QueryShadowTable,
-} from "./query-worker-thread.ts";
-export type { QueryWorkerRow, QueryWorkerValue };
+export type { QueryShadow, QueryWorkerRow, QueryWorkerValue };
 
 export class QueryWorkerError extends Error {
   override readonly name: string = "QueryWorkerError";
@@ -75,9 +70,8 @@ interface PendingRequest {
 }
 
 /**
- * Start a query worker against `path`, defaulting to the one documented database file, reading its
- * tables through `shadow`'s views. The path is a parameter for the reason `openDatabase`'s is: tests
- * drive it against a throwaway file.
+ * Start a query worker against `path`, reading its tables through `shadow`'s views. The path is a
+ * parameter for the reason `openDatabase`'s is: tests drive it against a throwaway file.
  */
 export function createQueryWorker(path: string, shadow: QueryShadow): QueryWorker {
   // Bun's bundler emits this specifier as written, so `scripts/build.ts` copies the thread beside

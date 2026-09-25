@@ -128,7 +128,7 @@ unlinking the staging path before the final one.
 **`/files/:key` is platform-owned and reads through a read token**: an
 unguessable UUID checked against the ledger, served only while `pending` or
 `owned`, and refused once its incarnation starts closing, as ARCH §8 requires of
-every file serve; the token covers the lookup, not the stream. Range requests are
+every file serve; the token covers the open, not the stream. Range requests are
 built by hand, because Bun serves a `Bun.file` whole whatever the request asks.
 The verified type goes out with `nosniff` and a per-family policy, immutable
 caching for a 200 or 206 because a key's bytes never change, and `no-store` for

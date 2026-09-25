@@ -21,7 +21,6 @@ import {
   renderableFromSpec,
 } from "../../presentation/index.ts";
 import {
-  activeSpecFields,
   type CapabilityRow,
   type CapabilitySpec,
   type CapabilityTool,
@@ -30,18 +29,11 @@ import {
   LOGO_BIRTH_STATUS,
   type ReadDependency,
 } from "../../registry/index.ts";
-import type {
-  CapabilityCreateValues,
-  CapabilityTableDdl,
-  FileSubmissionBinding,
-} from "../../runtime/data/index.ts";
 import {
   type CapabilityQueryPort,
-  createCapabilityMutationPort,
+  type CapabilityTableDdl,
   createCapabilityQueryPort,
   deriveCapabilityTableDdl,
-  encodeCapabilityFieldForStorage,
-  materializeCapabilityActionRecord,
 } from "../../runtime/data/index.ts";
 import type {
   CapabilityCreateHandler,
@@ -52,7 +44,6 @@ import type {
 import { formatDiagnostics } from "../generated-code-check.ts";
 import type { HandlerUnitName } from "../units/generation/units.ts";
 import type { ScratchCatalogCapability } from "./gate.ts";
-import { mintScratchFile, scratchFileName, scratchSubmission } from "./gate-scratch-files.ts";
 
 /** The complete steady-state Handler inventory exercised by the full smoke cycle. */
 export const SMOKE_HANDLER_NAMES = [
@@ -181,11 +172,7 @@ export function prepareScratchCatalog(
     if (!declaredKeys.has(key)) {
       throw new Error(`Scratch catalog fixture ${key} is not declared by the candidate spec.`);
     }
-    const dependencyDdl = deriveCapabilityTableDdl(fixture.spec);
-    applyDdl(dependencyDdl, databases.readwrite);
-    for (const row of fixture.rows) {
-      seedCompatibilityRow(fixture.spec, dependencyDdl.tableName, row, databases.readwrite);
-    }
+    applyDdl(deriveCapabilityTableDdl(fixture.spec), databases.readwrite);
   }
 }
 
@@ -213,62 +200,6 @@ export function buildGateQueryPort(
     return fixture.spec;
   });
   return createCapabilityQueryPort(database, { target: spec, dependencies });
-}
-
-/**
- * A dependency's seeded row is a saved record, and a save refuses one without its required files,
- * so each gets a scratch file of its own as the form's upload would have given it.
- */
-function requiredFilesBinding(spec: CapabilitySpec, database: Database): FileSubmissionBinding {
-  const required = activeSpecFields(spec.schema.fields).filter(
-    (field) => field.required && isFileFieldType(field.type),
-  );
-  const values = Object.fromEntries(
-    required.map((field) => {
-      const name = scratchFileName(`${spec.id} ${field.name}`);
-      return [field.name, mintScratchFile(database, spec, field, name).key];
-    }),
-  );
-  const input = { values, submittedFields: new Set(Object.keys(values)) };
-  return scratchSubmission(spec, input, database).binding;
-}
-
-function seedCompatibilityRow(
-  spec: CapabilitySpec,
-  tableName: string,
-  row: CapabilityCreateValues,
-  database: Database,
-): void {
-  const fieldsByName = new Map(spec.schema.fields.map((field) => [field.name, field]));
-  const activeValues: CapabilityCreateValues = {};
-  const inactiveValues: Array<readonly [string, string | number | null]> = [];
-
-  for (const [name, value] of Object.entries(row)) {
-    const field = fieldsByName.get(name);
-    if (!field) {
-      throw new Error(`Synthetic scratch row references unknown field "${name}" in ${spec.id}.`);
-    }
-    if (field.lifecycle === "active") {
-      activeValues[name] = value;
-    } else {
-      inactiveValues.push([name, encodeCapabilityFieldForStorage(field, value)]);
-    }
-  }
-
-  const created = materializeCapabilityActionRecord(
-    createCapabilityMutationPort(
-      spec,
-      database,
-      undefined,
-      requiredFilesBinding(spec, database),
-    ).create(activeValues),
-  );
-  if (inactiveValues.length === 0) return;
-
-  const assignments = inactiveValues.map(([name]) => `${sqlIdentifier(name)} = ?`).join(", ");
-  database
-    .query(`UPDATE ${sqlIdentifier(tableName)} SET ${assignments} WHERE "id" = ?`)
-    .run(...inactiveValues.map(([, value]) => value), created.id);
 }
 
 /** Transpile + load the generated handler strings into live callable functions. */
@@ -367,7 +298,7 @@ export function assertFragment(
 export function fieldValueMatches(type: FieldType, stored: unknown, expected: unknown): boolean {
   if (type === "datetime") return sameInstant(stored, expected);
   if (type === "string[]") return JSON.stringify(stored) === JSON.stringify(expected);
-  if (type === "file") return sameFile(stored, expected);
+  if (isFileFieldType(type)) return sameFile(stored, expected);
   // A choice stores the exact declared wire value it was admitted as — no canonicalization
   // is possible or permitted — so it compares exactly, like a string.
   return stored === expected;

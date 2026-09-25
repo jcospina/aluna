@@ -16,7 +16,6 @@ import {
   type CapabilityTool,
   type FieldType,
   FULL_CAPABILITY_TOOLS,
-  hasActiveFileField,
   isChoiceFieldType,
   isListFieldType,
   isSearchableTextType,
@@ -24,6 +23,7 @@ import {
   sameOrderedStrings,
 } from "../../../registry/index.ts";
 import { canonicalCapabilityLabel } from "../../../registry/labels.ts";
+import { handlersWithMovedFileContract } from "../../generated-code-check.ts";
 import { detectChoiceFacts } from "./diff-choice.ts";
 import { detectFormIntentFacts } from "./diff-form-intent.ts";
 import { assertTotalCoverage } from "./diff-totality.ts";
@@ -35,7 +35,7 @@ export { UnmappedChangeFactError } from "./diff-totality.ts";
 
 export type ChangeFact =
   | { readonly kind: "capability_label" }
-  | { readonly kind: "empty_state_noun" }
+  | { readonly kind: "capability_nouns" }
   | { readonly kind: "prompt_context" }
   | { readonly kind: "field_order" }
   | { readonly kind: "new_active_field"; readonly field: string; readonly fieldType: FieldType }
@@ -69,7 +69,7 @@ export type ChangeFactKind = ChangeFact["kind"];
 // behavior. Deterministic, so two runs over the same difference emit byte-identical facts.
 const FACT_KIND_ORDER: readonly ChangeFactKind[] = [
   "capability_label",
-  "empty_state_noun",
+  "capability_nouns",
   "prompt_context",
   "field_order",
   "new_active_field",
@@ -109,7 +109,7 @@ export type GeneratedUnitName = (typeof GENERATED_UNITS)[number];
  */
 export const PLATFORM_WORK_KINDS = [
   "registry_and_view_copy", // capability label → registry row + logo/View copy
-  "platform_empty_state_copy", // empty-state noun → the platform collection's empty state
+  "platform_noun_copy", // noun or plural → the platform collection's empty state and count
   "resolver_catalog", // prompt_context → intent-resolver catalog
   "platform_field_order", // field order → platform form order + list-input entry order
   "add_column", // new active field → nullable ADD COLUMN
@@ -197,7 +197,7 @@ function detectFacts(committed: CapabilitySpec, candidate: CapabilitySpec): read
   // `noun` and `plural_noun` move platform copy only. `subject`, `ground` and `companion` are birth
   // facts: validation rejects a candidate that moved one, and the residual check catches it.
   if (committed.noun !== candidate.noun || committed.plural_noun !== candidate.plural_noun) {
-    facts.push({ kind: "empty_state_noun" });
+    facts.push({ kind: "capability_nouns" });
   }
   if (committed.prompt_context !== candidate.prompt_context) {
     facts.push({ kind: "prompt_context" });
@@ -366,13 +366,9 @@ function projectWorkPlan(
     fullSuite: false,
   };
   for (const fact of facts) contributeFact(fact, candidate, sink);
-  // Whether a record can carry a file is part of the contract every Handler holding `query` is
-  // compiled against (`handlerContractDeclarations`), so a copy written before would not compile.
-  if (hasActiveFileField(committed.schema.fields) !== hasActiveFileField(candidate.schema.fields)) {
-    for (const action of ["read", "delete", "search"] as const) {
-      sink.units.add(action);
-      sink.tests.add(action);
-    }
+  for (const action of handlersWithMovedFileContract(committed, candidate)) {
+    sink.units.add(action);
+    sink.tests.add(action);
   }
 
   const regeneratedUnits = orderBy(sink.units, GENERATED_UNITS);
@@ -486,10 +482,10 @@ function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
     case "capability_label":
       sink.platform.add("registry_and_view_copy");
       return;
-    case "empty_state_noun":
-      // Platform copy rendered from the row. No generated unit reads the noun — a handler
-      // never emits its own empty state — so every unit is copied.
-      sink.platform.add("platform_empty_state_copy");
+    case "capability_nouns":
+      // Platform copy rendered from the row. No generated unit reads a noun — a handler never
+      // emits its own empty state or count — so every unit is copied.
+      sink.platform.add("platform_noun_copy");
       return;
     case "prompt_context":
       sink.platform.add("resolver_catalog");

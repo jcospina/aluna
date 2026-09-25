@@ -6,6 +6,7 @@
  */
 
 import { watchArrivals } from "./dom-arrivals.js";
+import { onCreateFinished } from "./shell-dom.js";
 
 /** The field a picker is drawn on, which is what both mounting and the arrival watch look for. */
 const PICKER_SELECTOR = '[data-choice-presentation="picker"]';
@@ -766,18 +767,7 @@ export function startChoiceControls(root) {
     }
   });
 
-  for (const finished of ["aluna:record-created", "aluna:create-cancelled"]) {
-    root.addEventListener(finished, (event) => {
-      const trigger = event.target;
-      const form =
-        trigger instanceof HTMLFormElement
-          ? trigger
-          : trigger instanceof Element
-            ? Element.prototype.closest.call(trigger, "form")
-            : null;
-      if (form instanceof HTMLFormElement) resetChoiceControls(form, mounted);
-    });
-  }
+  onCreateFinished(root, (form) => resetChoiceControls(form, mounted));
 }
 
 if (typeof document !== "undefined") startChoiceControls(document);

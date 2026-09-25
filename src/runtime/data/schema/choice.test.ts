@@ -25,7 +25,7 @@ import {
   SQLITE_TYPE_BY_FIELD_TYPE,
   selectCapabilityRows,
 } from "../index.ts";
-import { withFileDatabase } from "../tool.test-support.ts";
+import { noFiles, withFileDatabase } from "../tool.test-support.ts";
 
 const STATUS_OPTIONS = [
   { value: "draft", label: "Draft" },
@@ -94,7 +94,7 @@ function withInvoices(
 ): void {
   withFileDatabase((databases) => {
     applyCapabilityTableDdl(spec, databases.readwrite);
-    const mutation = createCapabilityMutationPort(spec, databases.readwrite);
+    const mutation = createCapabilityMutationPort(spec, noFiles(spec, databases.readwrite));
     const query = createCapabilityQueryPort(databases.readonly, { target: spec });
     run({
       create: (values) =>
@@ -105,7 +105,7 @@ function withInvoices(
           spec,
           id,
           new Set(submitted),
-          databases.readwrite,
+          noFiles(spec, databases.readwrite),
         ).update(values);
       },
     });
@@ -230,7 +230,7 @@ describe("an option taken out of use", () => {
       const before = invoicesSpec();
       applyCapabilityTableDdl(before, databases.readwrite);
       const created = materializeCapabilityActionRecord(
-        createCapabilityMutationPort(before, databases.readwrite).create({
+        createCapabilityMutationPort(before, noFiles(before, databases.readwrite)).create({
           title: "March",
           status: "sent",
         }),
@@ -241,7 +241,7 @@ describe("an option taken out of use", () => {
         RETIRED_STATUS,
         String(created.id),
         new Set(["title"]),
-        databases.readwrite,
+        noFiles(RETIRED_STATUS, databases.readwrite),
       ).update({ title: "March, revised" });
 
       const query = createCapabilityQueryPort(databases.readonly, { target: RETIRED_STATUS });
@@ -262,7 +262,7 @@ describe("an option taken out of use", () => {
       applyCapabilityTableDdl(twoChoices, databases.readwrite);
       let raised: unknown;
       try {
-        createCapabilityMutationPort(twoChoices, databases.readwrite).create({
+        createCapabilityMutationPort(twoChoices, noFiles(twoChoices, databases.readwrite)).create({
           title: "March",
           status: "paid",
         });
@@ -278,7 +278,7 @@ describe("an option taken out of use", () => {
     withFileDatabase((databases) => {
       const before = invoicesSpec();
       applyCapabilityTableDdl(before, databases.readwrite);
-      const mutation = createCapabilityMutationPort(before, databases.readwrite);
+      const mutation = createCapabilityMutationPort(before, noFiles(before, databases.readwrite));
       const onSent = materializeCapabilityActionRecord(
         mutation.create({ title: "March", status: "sent" }),
       ) as Record<string, unknown>;
@@ -291,7 +291,7 @@ describe("an option taken out of use", () => {
           RETIRED_STATUS,
           id,
           new Set(Object.keys(values)),
-          databases.readwrite,
+          noFiles(RETIRED_STATUS, databases.readwrite),
         ).update(values);
 
       // The record standing on the retired option may say so again — that is not a move.

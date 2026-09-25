@@ -9,6 +9,7 @@
 
 import type { Database } from "bun:sqlite";
 import {
+  activeFileFields,
   activeSpecFields,
   type CapabilitySpec,
   isFileFieldType,
@@ -22,7 +23,8 @@ import {
   projectFileLedgerRow,
 } from "../../../../runtime/data/index.ts";
 import type { CapabilityInput, CapabilityInputValue } from "../../../../runtime/router/index.ts";
-import { mintScratchFile, scratchFileName } from "../../gate-scratch-files.ts";
+import { mintScratchFile } from "../../gate-scratch-files.ts";
+import { scratchFileName } from "../../gate-scratch-names.ts";
 
 export interface SmokeInput {
   readonly input: CapabilityInput;
@@ -51,9 +53,7 @@ export function mintSmokeFiles(
   spec: CapabilitySpec,
   database: Database,
 ): ReadonlyMap<string, SmokeFiles> {
-  const fileFields = activeSpecFields(spec.schema.fields).filter((field) =>
-    isFileFieldType(field.type),
-  );
+  const fileFields = activeFileFields(spec.schema.fields);
   return new Map(
     fileFields.map((field) => {
       const mint = (label: string): SmokeFile => {
@@ -99,9 +99,7 @@ export function leftOutCreate(
   spec: CapabilitySpec,
   files: ReadonlyMap<string, SmokeFiles>,
 ): SmokeInput | undefined {
-  const fileFields = activeSpecFields(spec.schema.fields).filter((field) =>
-    isFileFieldType(field.type),
-  );
+  const fileFields = activeFileFields(spec.schema.fields);
   const leftOut = new Set(fileFields.filter((field) => !field.required).map(({ name }) => name));
   if (leftOut.size === 0) return undefined;
   const smoke = buildSmokeInput(spec, files);

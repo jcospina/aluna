@@ -10,15 +10,14 @@
 // shapes both sides pass around are `question-step.ts`.
 
 import { assertNever } from "../../platform/errors.ts";
-import { readFileLedgerKeys, readFileLedgerSignature } from "../../platform/files/ledger.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import { abortableProvider, type Provider } from "../../platform/provider/index.ts";
 import type { CapabilitySpec } from "../../registry/index.ts";
 import type { QueryWorkerRow } from "./query-worker.ts";
 import {
   type QuestionLedger,
-  questionFileKeysIn,
-  questionLedger,
+  readQuestionLedger,
+  scrubQuestionRows,
   scrubQuestionText,
   scrubQuestionValues,
 } from "./question-file-scrub.ts";
@@ -110,13 +109,16 @@ function toldToLookFirst(step: QuestionStep): boolean {
   return step.result.outcome === "failed" && step.result.message === LOOK_BEFORE_NO_HOME;
 }
 
+const NOTHING_READ = Object.freeze({ outcome: "rows", rows: [] } as const);
+
 function refused(call: QuestionToolCall, facts: StatementFacts, message: string): QuestionTurn {
   return { kind: "step", step: { call, ...facts, result: { outcome: "failed", message } } };
 }
 
 /**
  * The question's two weighings of one step (decision 12): `beforeReading` weighs the statement and
- * its bound values alone, `afterReading` the step the worker produced. The words are the payload's.
+ * its bound values alone, `afterReading` the step the worker produced, its rows scrubbed first so
+ * what is weighed is what every later prompt carries. The words are the payload's.
  */
 function payloadRefusal(
   steps: readonly QuestionStep[],
@@ -135,22 +137,18 @@ function payloadRefusal(
   };
 } {
   const spent = questionPayloadSpent(steps);
-  const asked: QuestionStep = {
-    call,
-    ...facts,
-    result: { outcome: "rows", rows: [], fileKeys: new Set() },
-  };
+  const asked: QuestionStep = { call, ...facts, result: NOTHING_READ };
   const askedBytes = questionStepBytes(asked, steps.length);
   return {
     statement: questionStatementRefusal(askedBytes),
     beforeReading: questionPayloadRefusal(0, askedBytes, spent),
     afterReading(rows, ledger) {
-      const result = { outcome: "rows", rows, fileKeys: questionFileKeysIn(rows, ledger) } as const;
-      const step: QuestionStep = { call, ...facts, result };
+      const scrubbed = scrubQuestionRows(rows, ledger);
+      const step: QuestionStep = { call, ...facts, result: { outcome: "rows", rows: scrubbed } };
       return {
         step,
         refusal: questionPayloadRefusal(
-          questionPayloadBytes(result),
+          questionPayloadBytes(scrubbed),
           questionStepBytes(step, steps.length),
           spent,
         ),
@@ -237,7 +235,7 @@ export async function runQuestionTurn(
   // scrub reads it, keeping no call. A key saved while the statement runs is not in this ledger
   // read; the worker's views check the ledger as they read.
   const written: QuestionStep = { call, ...NO_STATEMENT_FACTS, result: NOTHING_READ };
-  const ledger = ledgerOf(deps.database);
+  const ledger = readQuestionLedger(deps.database);
   const shown: QuestionToolCall | null =
     questionStatementRefusal(questionStepBytes(written, steps.length)) === null
       ? {
@@ -250,27 +248,6 @@ export async function runQuestionTurn(
   if (ran.kind !== "step" || ran.step.result.outcome !== "failed") return ran;
   const message = scrubQuestionText(ran.step.result.message, ledger);
   return { kind: "step", step: { ...ran.step, result: { outcome: "failed", message } } };
-}
-
-const NOTHING_READ = Object.freeze({
-  outcome: "rows",
-  rows: [],
-  fileKeys: new Set<string>(),
-} as const);
-
-/** The last ledger read, kept until a key is added or removed: its fragments cost the most. */
-const ledgers = new WeakMap<
-  object,
-  { readonly signature: string; readonly ledger: QuestionLedger }
->();
-
-function ledgerOf(database: PlatformDatabase["readonly"]): QuestionLedger {
-  const signature = JSON.stringify(readFileLedgerSignature(database));
-  const kept = ledgers.get(database);
-  if (kept?.signature === signature) return kept.ledger;
-  const ledger = questionLedger(readFileLedgerKeys(database));
-  ledgers.set(database, { signature, ledger });
-  return ledger;
 }
 
 interface StatementToRun {

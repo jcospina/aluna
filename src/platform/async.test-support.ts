@@ -1,4 +1,4 @@
-// The two ways a test waits: on the clock, and on a spawned process's log.
+// The ways a test waits: on the clock, on a condition, and on a spawned process's log.
 //
 // `waitForLog` reads the stream rather than sleeping, because a sleep is either slower than the
 // boot or shorter than it. Its reader lock is released in a `finally`: without that a timeout
@@ -7,6 +7,15 @@
 /** Sleep, for a test that has nothing better to wait on. */
 export function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Resolves once `condition` holds, polling; rejects after `timeoutMs` of wall-clock time. */
+export async function until(condition: () => boolean, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error("the awaited condition never held");
+    await wait(1);
+  }
 }
 
 /** Reads a piped stream until `needle` appears, or rejects once `timeoutMs` elapses. */

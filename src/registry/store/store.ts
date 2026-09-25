@@ -384,32 +384,20 @@ export function isCapabilityIdAvailable(id: string, database: Database = dbReado
 }
 
 /**
- * The identities of every active capability incarnation, and nothing else. A read gate needs no
- * spec, and {@link listCapabilities} re-parses every row — a cost a cold desk paid once per tile.
+ * The active registry as a read gate takes it, one identity per capability: the catalog every
+ * token that reads a single incarnation is acquired against. It reads no spec, since
+ * {@link listCapabilities} re-parses every row — a cost a cold desk paid once per tile.
  */
-export function listActiveIncarnations(
-  database: Database = dbReadonly,
-): { readonly id: string; readonly incarnation_id: string }[] {
+export function readActiveIncarnationCatalog(
+  database: Database,
+): { readonly capabilityId: string; readonly incarnationId: string }[] {
   return database
     .query(
-      `SELECT id, incarnation_id FROM ${REGISTRY_TABLE}
+      `SELECT id AS capabilityId, incarnation_id AS incarnationId FROM ${REGISTRY_TABLE}
        WHERE lifecycle_state = 'active'
        ORDER BY id`,
     )
-    .all() as { id: string; incarnation_id: string }[];
-}
-
-/**
- * The active registry as a read gate takes it, one identity per capability: the catalog every
- * token that reads a single incarnation is acquired against.
- */
-export function readActiveIncarnationCatalog(
-  database: Database = dbReadonly,
-): { readonly capabilityId: string; readonly incarnationId: string }[] {
-  return listActiveIncarnations(database).map((row) => ({
-    capabilityId: row.id,
-    incarnationId: row.incarnation_id,
-  }));
+    .all() as { capabilityId: string; incarnationId: string }[];
 }
 
 /**

@@ -2,9 +2,7 @@
 // 20 and 36).
 //
 // A file field's column holds one reference to a file the platform stores, as JSON in TEXT, the
-// way `string[]` stores its array. It is a kind of type of its own rather than a list type:
-// joining `LIST_FIELD_TYPES` would make it searchable, demand a list-input mode, comma-split its
-// values and let an empty submission clear it.
+// way `string[]` stores its array. It is a type of its own, not a list type (decision 18).
 //
 // `accepts` names the families a field takes. It is authored by the model and gated here before
 // anything downstream reads it.
@@ -26,11 +24,22 @@ export function isFileFieldType(type: string): type is FileFieldType {
   return (FILE_FIELD_TYPES as readonly string[]).includes(type);
 }
 
+function isActiveFileField(field: Pick<SpecField, "type" | "lifecycle">): boolean {
+  return field.lifecycle === "active" && isFileFieldType(field.type);
+}
+
+/** The active fields that hold a file, in spec order. */
+export function activeFileFields<Field extends Pick<SpecField, "type" | "lifecycle">>(
+  fields: readonly Field[],
+): Field[] {
+  return fields.filter(isActiveFileField);
+}
+
 /** Whether any active field holds a file, so records and inputs can carry its projection. */
 export function hasActiveFileField(
   fields: readonly Pick<SpecField, "type" | "lifecycle">[],
 ): boolean {
-  return fields.some((field) => field.lifecycle === "active" && isFileFieldType(field.type));
+  return fields.some(isActiveFileField);
 }
 
 /** The families a file field may take, in their canonical order. */
@@ -39,8 +48,8 @@ export type FileFamily = (typeof FILE_FAMILIES)[number];
 
 /**
  * A family list over `order`, handed on in that order whatever order it was authored in, so a
- * candidate that only reorders it makes no evolution fact. Exported so a suite can prove the rule
- * over a longer order than the one family this epic admits.
+ * candidate that only reorders it makes no evolution fact. Exported so its suite can prove the rule
+ * over an order longer than `FILE_FAMILIES`.
  */
 export function familiesSchema<const Order extends readonly [string, ...string[]]>(order: Order) {
   return z

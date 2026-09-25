@@ -1,8 +1,8 @@
 // The upload route (Module 7 PLAN decisions 8, 11 and 13 to 15; ADR-0009). Nothing is awaited
 // before the body is read but the store opening its staging file. The read token goes back the
 // moment the last byte is read and admitted, before the fsync, so deletion's drain never waits on
-// the disk. Every refusal the route writes is JSON naming its stage and the field's sentence; a 413
-// can also come from Bun, with no body, when the declared length is over the cap.
+// the disk. A 409 or 415 is JSON naming its stage and the field's sentence. A 413 is the guard's
+// or Bun's and carries no sentence, and neither does a 400 or a 404.
 
 import type { Context, Hono } from "hono";
 import { FILE_NAME_HEADER } from "#shell/shell-dom.js";
@@ -23,16 +23,10 @@ import type { ObjectStore, StagedObject } from "../../platform/files/object-stor
 import {
   ADD_FILE_AGAIN_SENTENCE,
   NOT_ADMITTED_SENTENCES,
-  oversizeSentence,
 } from "../../platform/files/refusal-copy.ts";
 import { FILE_UPLOAD_ROUTE } from "../../platform/files/upload-path.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
-import {
-  type CapabilityRow,
-  getCapability,
-  isFileFieldType,
-  type SpecField,
-} from "../../registry/index.ts";
+import { activeFileFields, type FileFamily, getCapability } from "../../registry/index.ts";
 import {
   type MutationCoordinator,
   MutationReservationCancelledError,
@@ -42,10 +36,11 @@ import type {
   ReadGateCoordinator,
   ReadTokenSet,
 } from "../../runtime/concurrency/read-gates.ts";
-import { BodyTooLargeError, guardStreamingRoute, isSendersDoing } from "../http/index.ts";
+import { NO_STORE } from "../http/cache-headers.ts";
+import { guardStreamingRoute } from "../http/index.ts";
 import { tryReadToken } from "./read-token.ts";
 
-export interface FileRouteDeps {
+export interface FileUploadDeps {
   readonly databases: PlatformDatabase;
   readonly mutationCoordinator: MutationCoordinator;
   readonly readGates: ReadGateCoordinator;
@@ -54,22 +49,32 @@ export interface FileRouteDeps {
   readonly maxFileBytes: number;
 }
 
-const NO_STORE = { "cache-control": "no-store" } as const;
-
 /** Deletion's drain closed the incarnation's gate while the body streamed. */
 class IncarnationClosedError extends Error {
   override readonly name = "IncarnationClosedError";
 }
 
-interface UploadTarget {
-  readonly incarnation: CapabilityIncarnation;
-  readonly field: SpecField;
+/** An active file field of the incarnation's registry row: the families it takes, never none. */
+interface UploadField {
+  readonly name: string;
+  readonly accepts: readonly [FileFamily, ...FileFamily[]];
 }
 
-function uploadField(row: CapabilityRow, name: string): SpecField | undefined {
-  return row.schema.fields.find(
-    (field) => field.name === name && field.lifecycle === "active" && isFileFieldType(field.type),
-  );
+interface UploadTarget {
+  readonly incarnation: CapabilityIncarnation;
+  readonly field: UploadField;
+}
+
+function findUploadField(
+  database: PlatformDatabase["readonly"],
+  incarnation: CapabilityIncarnation,
+  name: string,
+): UploadField | undefined {
+  const row = getCapability(incarnation.capabilityId, database);
+  if (row?.incarnation_id !== incarnation.incarnationId) return undefined;
+  const field = activeFileFields(row.schema.fields).find((candidate) => candidate.name === name);
+  const [first, ...rest] = field?.accepts ?? [];
+  return first === undefined ? undefined : { name, accepts: [first, ...rest] };
 }
 
 function readUploadTarget(
@@ -80,30 +85,27 @@ function readUploadTarget(
     capabilityId: c.req.param("id") ?? "",
     incarnationId: c.req.param("incarnation_id") ?? "",
   };
-  const row = getCapability(incarnation.capabilityId, readonly);
-  if (!row || row.incarnation_id !== incarnation.incarnationId) return undefined;
-  const field = uploadField(row, c.req.param("field") ?? "");
+  const field = findUploadField(readonly, incarnation, c.req.param("field") ?? "");
   return field ? { incarnation, field } : undefined;
 }
 
-function refuse(c: Context, status: 409 | 413 | 415, refusal: string, message: string) {
+function refuse(c: Context, status: 409 | 415, refusal: string, message: string) {
   return c.json({ refusal, message }, status, NO_STORE);
 }
 
-function notAdmitted(c: Context, field: SpecField, error: FileAdmissionRefusal): Response {
-  const [family = "image"] = field.accepts ?? [];
-  return refuse(c, 415, error.reason, NOT_ADMITTED_SENTENCES[family]);
+function notAdmitted(c: Context, field: UploadField, error: FileAdmissionRefusal): Response {
+  return refuse(c, 415, error.reason, NOT_ADMITTED_SENTENCES[field.accepts[0]]);
 }
 
 /** The name to keep and the family its extension names, or the refusal owed before a byte is read. */
 function admitBeforeReading(
   c: Context,
-  field: SpecField,
-): { name: string; kind: string } | Response {
+  field: UploadField,
+): { name: string; kind: FileFamily } | Response {
   const decoded = decodeFileName(c.req.header(FILE_NAME_HEADER) ?? "");
   if (decoded === undefined) return c.body(null, 400, NO_STORE);
   try {
-    const kind = admitClaims(decoded, c.req.header("content-type"), field.accepts ?? []);
+    const kind = admitClaims(decoded, c.req.header("content-type"), field.accepts);
     return { name: capFileName(decoded), kind };
   } catch (error) {
     if (error instanceof FileAdmissionRefusal) return notAdmitted(c, field, error);
@@ -156,8 +158,8 @@ async function* admittedChunks(
 /** Stream into staging holding the read token, and give it back once the whole body is in. */
 async function stageUnderReadToken(
   c: Context,
-  deps: FileRouteDeps,
-  kind: string,
+  deps: FileUploadDeps,
+  kind: FileFamily,
   tokens: ReadTokenSet,
 ): Promise<{ staged: StagedObject; admitted: AdmittedType }> {
   const check = new SignatureCheck(kind);
@@ -180,21 +182,21 @@ async function stageUnderReadToken(
   }
 }
 
+type AdmittedFile = PendingFile & AdmittedType;
+
 /** The one platform write: the incarnation and field still take this file, and the row goes in. */
-function recordPendingFile(database: PlatformDatabase["readwrite"], file: PendingFile): boolean {
+function recordPendingFile(database: PlatformDatabase["readwrite"], file: AdmittedFile): boolean {
   return database.transaction(() => {
-    const row = getCapability(file.capability_id, database);
-    const field = row?.incarnation_id === file.incarnation_id && uploadField(row, file.field);
-    if (!(field && (field.accepts as readonly string[] | undefined)?.includes(file.kind))) {
-      return false;
-    }
+    const incarnation = { capabilityId: file.capability_id, incarnationId: file.incarnation_id };
+    const field = findUploadField(database, incarnation, file.field);
+    if (!field?.accepts.includes(file.kind)) return false;
     insertPendingFile(database, file);
     return true;
   })();
 }
 
 /** The key an upload minted and never handed back goes to cleanup. */
-function abandon(deps: FileRouteDeps, key: string): Promise<boolean> {
+function abandon(deps: FileUploadDeps, key: string): Promise<boolean> {
   return deps.mutationCoordinator.withPlatformWrite(() =>
     enqueuePendingFile(deps.databases.readwrite, key),
   );
@@ -202,8 +204,8 @@ function abandon(deps: FileRouteDeps, key: string): Promise<boolean> {
 
 async function recordAndPlace(
   c: Context,
-  deps: FileRouteDeps,
-  file: PendingFile,
+  deps: FileUploadDeps,
+  file: AdmittedFile,
   staged: StagedObject,
 ): Promise<Response> {
   const recorded = await deps.mutationCoordinator.withPlatformWrite(
@@ -230,30 +232,26 @@ async function recordAndPlace(
   return c.json({ key, url: deps.objectStore.url(key), name, kind, mime, size }, 201, NO_STORE);
 }
 
-/** The client left, and this error is only how its leaving surfaced. */
+/**
+ * The client left and this error is only how the route saw it go. The socket's own errors and an
+ * overflow are the streaming guard's to answer, so they escape.
+ */
 function isHangUp(c: Context, error: unknown): boolean {
   const { signal } = c.req.raw;
   if (!signal.aborted) return false;
-  return (
-    error === signal.reason ||
-    error instanceof MutationReservationCancelledError ||
-    isSendersDoing(error)
-  );
+  return error === signal.reason || error instanceof MutationReservationCancelledError;
 }
 
-/** The answer an upload that stopped short earns, or undefined for a failure that is ours. */
-function stoppedShort(c: Context, deps: FileRouteDeps, field: SpecField, error: unknown) {
+/** The answer an upload that stopped short earns, or undefined for a failure it does not own. */
+function stoppedShort(c: Context, field: UploadField, error: unknown) {
   // Nobody reads this one; answering it keeps a hang-up from being logged as a failure.
   if (isHangUp(c, error)) return c.body(null, 400, NO_STORE);
   if (error instanceof FileAdmissionRefusal) return notAdmitted(c, field, error);
-  if (error instanceof BodyTooLargeError) {
-    return refuse(c, 413, "too_large", oversizeSentence(deps.maxFileBytes));
-  }
   if (error instanceof IncarnationClosedError) return c.body(null, 404, NO_STORE);
   return undefined;
 }
 
-async function upload(c: Context, deps: FileRouteDeps): Promise<Response> {
+async function upload(c: Context, deps: FileUploadDeps): Promise<Response> {
   const target = readUploadTarget(c, deps.databases.readonly);
   if (!target) return c.body(null, 404, NO_STORE);
   const claims = admitBeforeReading(c, target.field);
@@ -266,7 +264,7 @@ async function upload(c: Context, deps: FileRouteDeps): Promise<Response> {
     const stage = await stageUnderReadToken(c, deps, claims.kind, tokens);
     staged = stage.staged;
     const { capabilityId, incarnationId } = target.incarnation;
-    const file: PendingFile = {
+    const file: AdmittedFile = {
       key: staged.key,
       capability_id: capabilityId,
       incarnation_id: incarnationId,
@@ -277,7 +275,7 @@ async function upload(c: Context, deps: FileRouteDeps): Promise<Response> {
     };
     return await recordAndPlace(c, deps, file, staged);
   } catch (error) {
-    const answer = stoppedShort(c, deps, target.field, error);
+    const answer = stoppedShort(c, target.field, error);
     if (answer) return answer;
     throw error;
   } finally {
@@ -285,6 +283,6 @@ async function upload(c: Context, deps: FileRouteDeps): Promise<Response> {
   }
 }
 
-export function registerFileUploadRoute(app: Hono, deps: FileRouteDeps): void {
+export function registerFileUploadRoute(app: Hono, deps: FileUploadDeps): void {
   app.post(FILE_UPLOAD_ROUTE, guardStreamingRoute(deps.maxFileBytes), (c) => upload(c, deps));
 }

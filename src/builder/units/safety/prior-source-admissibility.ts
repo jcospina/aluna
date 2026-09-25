@@ -10,6 +10,7 @@
 // reaches every prompt and read/search authorize SQL over the target table.
 
 import ts from "typescript";
+import { escapeRegExp } from "../../../platform/escape-regexp.ts";
 import {
   activeSpecFields,
   type CapabilityRow,
@@ -358,8 +359,4 @@ function decodeSourceEscapes(source: string): string {
     .replace(/\\x([0-9a-f]{2})/gi, (_match, hex: string) =>
       String.fromCodePoint(Number.parseInt(hex, 16)),
     );
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

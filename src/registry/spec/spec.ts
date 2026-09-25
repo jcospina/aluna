@@ -3,8 +3,8 @@
 // artifact that cannot be reconstructed from something else, so this shape is the single gate
 // every generated spec must clear, and the spec-gen stage maps its throw onto the failure path.
 //
-// The pantry is deliberately tiny: eight field types, each with `required`; no relations, and
-// every object strict, so an extra key fails validation. `ui_intent` records only
+// The pantry is deliberately tiny: the few field types of `fieldTypeSchema`, each with `required`;
+// no relations, and every object strict, so an extra key fails validation. `ui_intent` records only
 // capability-specific presentation choices and never stores `views` or how a record opens. The
 // platform trio `id`/`created_at`/`extra` is never a spec field, which removes `auto` entirely.
 
@@ -166,17 +166,6 @@ export function isListFieldType(type: string): type is ListFieldType {
 export function isSearchableTextType(type: FieldType): boolean {
   return type === "string" || isChoiceFieldType(type) || isListFieldType(type);
 }
-
-/**
- * The types the builder offers the model: the whole pantry since 7.1/06. A type that joins the
- * pantry before the Gate can test it stays out of this list until it can.
- */
-export const GENERATION_FIELD_TYPES = [
-  ...SCALAR_FIELD_TYPES,
-  ...LIST_FIELD_TYPES,
-  ...FILE_FIELD_TYPES,
-] as const;
-const generationFieldTypeSchema = z.enum(GENERATION_FIELD_TYPES);
 
 export const fieldLifecycleSchema = z.enum(["active", "inactive"]);
 export type FieldLifecycle = z.infer<typeof fieldLifecycleSchema>;
@@ -345,7 +334,7 @@ export type CapabilitySpec = z.infer<typeof capabilitySpecSchema>;
 const promptSpecFieldSchema = z
   .strictObject({
     ...specFieldShape,
-    type: generationFieldTypeSchema,
+    type: fieldTypeSchema,
     values: z.array(promptChoiceOptionSchema).nullable(),
     groups: z.array(choiceGroupSchema).nullable(),
     max_length: maxLengthSchema.nullable(),

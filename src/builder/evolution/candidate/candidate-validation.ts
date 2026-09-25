@@ -83,11 +83,6 @@ export interface ValidateCandidateSpecInput {
   readonly candidate: unknown;
   /** The lease-frozen catalog; the only admissible dependency source. */
   readonly dependencyCatalog: readonly DependencyGenerationCatalogEntry[];
-  /**
-   * What the calling stage refuses besides the contract, read from the raw candidate so it is
-   * reported with the contract's issues in one rejection, a shape error's included.
-   */
-  readonly stageIssues?: (candidate: unknown) => readonly CandidateValidationIssue[];
 }
 
 /**
@@ -96,9 +91,8 @@ export interface ValidateCandidateSpecInput {
  */
 export function validateCandidateSpec(input: ValidateCandidateSpecInput): CapabilitySpec {
   const parsed = capabilitySpecSchema.safeParse(input.candidate);
-  const stageIssues = input.stageIssues?.(input.candidate) ?? [];
   if (!parsed.success) {
-    throw new CandidateValidationError([...zodIssues(parsed.error), ...stageIssues]);
+    throw new CandidateValidationError(zodIssues(parsed.error));
   }
 
   const candidate = parsed.data;
@@ -124,7 +118,6 @@ export function validateCandidateSpec(input: ValidateCandidateSpecInput): Capabi
 
   validateFieldLifecycleContract(committed, candidate, issues);
   validateDependenciesAgainstCatalog(candidate, input.dependencyCatalog, issues);
-  issues.push(...stageIssues);
 
   if (issues.length > 0) throw new CandidateValidationError(issues);
   return candidate;

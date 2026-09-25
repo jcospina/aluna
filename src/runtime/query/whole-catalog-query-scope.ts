@@ -3,10 +3,11 @@
 // This is the other half of the word *scope* on this path, and it is not ownership.
 // `whole-catalog-read-scope.ts` owns the read tokens for the length of a question; this bounds
 // the tables one statement may read, by enumerating what an `EXPLAIN` says it opens rather than
-// by matching strings. It is a table bound, never the safety seam: a mutation passes straight
-// through and fails in the worker, at `mode=ro` or at a view. Three other things do rest on it, though —
-// the `?` arity check, the collection names the answer's prompt carries, and the plan 6.4/04's
-// zero-rows ending is read from — so removing it costs those, not only the table bound.
+// by matching strings. A mutation passes straight through and fails in the worker, at `mode=ro`
+// or at a view, but a read naming the worker's schema would reach a table under its view: this
+// bound refuses it, preparing on a connection with no such schema (ADR-0008, amended 2026-09-25).
+// The `?` arity check, the collection names the answer's prompt carries, and the plan 6.4/04's
+// zero-rows ending is read from rest on it too.
 //
 // What is reused is `assertScopedQuery`, not `CapabilityQueryPort.all()`, which executes on the
 // main-thread `Database` epic 6.2 moved away from. So the worker's connection has no

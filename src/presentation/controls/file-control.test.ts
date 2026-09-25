@@ -4,6 +4,8 @@
 
 import { describe, expect, test } from "bun:test";
 
+import { FILE_FIELD_HOOKS as HOOKS } from "#design/file-field.js";
+import { FILE_FIELD_ATTRIBUTES as WIRE } from "#shell/shell-dom.js";
 import { admittedTypes } from "../../platform/files/admission.ts";
 import { resolveMaxFileBytes } from "../../platform/files/file-cap.ts";
 import { FILE_URL_PREFIX } from "../../platform/files/file-url.ts";
@@ -11,19 +13,15 @@ import { mintFileKey } from "../../platform/files/ledger.ts";
 import { oversizeSentence } from "../../platform/files/refusal-copy.ts";
 import { fileUploadPath } from "../../platform/files/upload-path.ts";
 import { CAPTION_FIELD, PHOTO_FIELD, photoSpec } from "../../registry/fields/file.test-support.ts";
-import {
-  FILE_FIELD_TYPES,
-  LIST_FIELD_TYPES,
-  SCALAR_FIELD_TYPES,
-  type SpecField,
-} from "../../registry/index.ts";
+import type { SpecField } from "../../registry/index.ts";
 import { FILE_CLEAR_VALUE } from "../../runtime/data/index.ts";
 import { ALUNA_PRESENT_MARKER } from "../../runtime/router/wire/wire-protocol.ts";
-import { escapeHtml } from "../../server/http/html.ts";
 import { renderCreateForm, renderEditForm } from "../fields/field-renderer.ts";
 import { submittedInputs } from "../fields/form-submission.test-support.ts";
 import { renderableFromSpec } from "../fields/renderable-capability.ts";
 import { codeOf } from "../safety/source.test-support.ts";
+import { El, parseHtml } from "./choice-picker.test-support.ts";
+import { hooked } from "./file-field.test-support.ts";
 
 const HINT = "A picture of the whole plant.";
 const INCARNATION = "inc-7";
@@ -44,12 +42,14 @@ function projection(key: string, name = "dawn.jpg") {
   return { url: `${FILE_URL_PREFIX}${key}`, name, kind: KIND, mime: "image/jpeg", size: 2048 };
 }
 
-/** The host element's opening tag, which carries everything the browser reads. */
-function hostTag(html: string): string {
-  const start = html.indexOf('<div class="field file"');
-  expect(start).toBeGreaterThanOrEqual(0);
-  return html.slice(start, html.indexOf(">", start) + 1);
+/** The form parsed, and the host element in it that carries everything the browser reads. */
+function hostOf(html: string): El {
+  const host = parseHtml(html, new El("div")).querySelector(hooked(HOOKS.field));
+  expect(host).not.toBeNull();
+  return host as El;
 }
+
+const postedInput = (host: El) => host.querySelector(hooked(WIRE.value)) as El;
 
 async function photoValue(html: string): Promise<string | undefined> {
   return (await submittedInputs(html)).find(([name]) => name === PHOTO_FIELD.name)?.[1];
@@ -57,26 +57,26 @@ async function photoValue(html: string): Promise<string | undefined> {
 
 describe("the photo control's host", () => {
   test("is the drawn control's mount, for the kind the field accepts, in the create form", () => {
-    const tag = hostTag(renderCreateForm(photos()));
-    expect(tag).toContain(`id="${CREATE_ID}" data-file-field data-kind="${KIND}"`);
-    expect(renderCreateForm(photos())).toContain(
-      `<span class="field__label caps" id="${CREATE_ID}-label">${PHOTO_FIELD.label}` +
-        ` <span class="field__optional">optional</span></span><div data-file-body></div>`,
-    );
+    const host = hostOf(renderCreateForm(photos()));
+    expect(host.id).toBe(CREATE_ID);
+    expect(host.getAttribute(HOOKS.kind)).toBe(KIND);
+    const label = host.querySelector(`[id="${host.id}-label"]`);
+    expect(label?.textContent).toStartWith(PHOTO_FIELD.label);
+    expect(host.querySelector(hooked(HOOKS.body))?.children).toEqual([]);
   });
 
   test("names where its upload goes, the cap, and the sentence a file over the cap earns", () => {
-    const tag = hostTag(renderCreateForm(photos()));
+    const host = hostOf(renderCreateForm(photos()));
     const cap = resolveMaxFileBytes();
-    expect(tag).toContain(
-      `data-file-upload="${fileUploadPath(CAPABILITY, INCARNATION, PHOTO_FIELD.name)}"`,
+    expect(host.getAttribute(WIRE.upload)).toBe(
+      fileUploadPath(CAPABILITY, INCARNATION, PHOTO_FIELD.name),
     );
-    expect(tag).toContain(`data-file-cap="${cap}"`);
-    expect(tag).toContain(`data-file-oversize="${escapeHtml(oversizeSentence(cap))}"`);
+    expect(host.getAttribute(WIRE.cap)).toBe(String(cap));
+    expect(host.getAttribute(WIRE.oversize)).toBe(oversizeSentence(cap));
   });
 
   test("offers every type admission takes a photo as, and no HEIC or HEIF", () => {
-    const offered = /data-file-accept="([^"]*)"/.exec(hostTag(renderCreateForm(photos())))?.[1];
+    const offered = hostOf(renderCreateForm(photos())).getAttribute(HOOKS.accept);
     expect(offered?.split(",")).toEqual([...admittedTypes(KIND)]);
     expect(offered).not.toContain("heic");
     expect(offered).not.toContain("heif");
@@ -84,7 +84,7 @@ describe("the photo control's host", () => {
 
   test("has nowhere to send a file when the capability has no incarnation to receive it", () => {
     const { incarnationId: _, ...inspected } = photos();
-    expect(hostTag(renderCreateForm(inspected))).not.toContain("data-file-upload");
+    expect(hostOf(renderCreateForm(inspected)).hasAttribute(WIRE.upload)).toBe(false);
   });
 
   test("posts its presence and an empty value on a create, and carries the clear", async () => {
@@ -92,35 +92,35 @@ describe("the photo control's host", () => {
     const inputs = await submittedInputs(form);
     expect(inputs).toContainEqual([ALUNA_PRESENT_MARKER, PHOTO_FIELD.name]);
     expect(await photoValue(form)).toBe("");
-    expect(form).toContain(
-      `data-file-value data-file-held-key="" data-file-clear-value="${FILE_CLEAR_VALUE}">`,
-    );
+    const value = postedInput(hostOf(form));
+    expect(value.getAttribute(WIRE.heldKey)).toBe("");
+    expect(value.getAttribute(WIRE.clearValue)).toBe(FILE_CLEAR_VALUE);
   });
 
   test("opens an edit holding the record's photo, and posts its key to keep it", async () => {
     const key = mintFileKey();
     const form = renderEditForm(photos(), { id: "r1", caption: "Dawn", photo: projection(key) });
-    const tag = hostTag(form);
-    expect(tag).toContain(`id="edit-${CAPABILITY}-${PHOTO_FIELD.name}"`);
-    expect(tag).toContain(
-      `data-holds-name="dawn.jpg" data-holds-size="2048" data-holds-src="${FILE_URL_PREFIX}${key}"`,
-    );
+    const host = hostOf(form);
+    expect(host.id).toBe(`edit-${CAPABILITY}-${PHOTO_FIELD.name}`);
+    expect(host.getAttribute(HOOKS.holdsName)).toBe("dawn.jpg");
+    expect(host.getAttribute(HOOKS.holdsSize)).toBe("2048");
+    expect(host.getAttribute(HOOKS.holdsSrc)).toBe(`${FILE_URL_PREFIX}${key}`);
     expect(await photoValue(form)).toBe(key);
-    expect(form).toContain(`data-file-held-key="${key}"`);
+    expect(postedInput(host).getAttribute(WIRE.heldKey)).toBe(key);
   });
 
   test("opens an edit whose record holds no photo as an empty field posting nothing kept", async () => {
     const form = renderEditForm(photos(), { id: "r1", caption: "Dawn", photo: null });
-    expect(hostTag(form)).not.toContain("data-holds-");
+    expect(hostOf(form).hasAttribute(HOOKS.holdsName)).toBe(false);
     expect(await photoValue(form)).toBe("");
   });
 
   test("marks a required field, which the browser then refuses empty, and drops 'optional'", () => {
     const required = { ...PHOTO_FIELD, required: true };
-    const form = renderCreateForm(photos({ fields: [CAPTION_FIELD, required] }));
-    expect(form).toContain("data-file-required>");
-    expect(form).toContain(`id="${CREATE_ID}-label">${PHOTO_FIELD.label}</span>`);
-    expect(renderCreateForm(photos())).not.toContain("data-file-required");
+    const host = hostOf(renderCreateForm(photos({ fields: [CAPTION_FIELD, required] })));
+    expect(postedInput(host).hasAttribute(WIRE.required)).toBe(true);
+    expect(host.querySelector(`[id="${host.id}-label"]`)?.textContent).toBe(PHOTO_FIELD.label);
+    expect(postedInput(hostOf(renderCreateForm(photos()))).hasAttribute(WIRE.required)).toBe(false);
   });
 
   test("shows the field's declared hint in the slot every field carries", () => {
@@ -135,15 +135,16 @@ describe("the photo control's host", () => {
   test("draws a held value that is not a whole projection as an empty field", async () => {
     const key = mintFileKey();
     const forged = [
-      { ...projection(key), size: '1" data-file-upload="/elsewhere' },
+      { ...projection(key), size: `1" ${WIRE.upload}="/elsewhere` },
       { ...projection(key), name: 7 },
       { ...projection(key), name: "" },
       { ...projection(key), extra: true },
     ];
     for (const photo of forged) {
       const form = renderEditForm(photos(), { id: "r1", caption: "Dawn", photo });
-      expect(hostTag(form)).not.toContain("data-holds-");
-      expect(hostTag(form)).not.toContain("/elsewhere");
+      const host = hostOf(form);
+      expect(host.hasAttribute(HOOKS.holdsName)).toBe(false);
+      expect(form).not.toContain("/elsewhere");
       expect(await photoValue(form)).toBe("");
     }
   });
@@ -166,40 +167,27 @@ describe("a form holding a photo", () => {
       [renderCreateForm(photos()), "Add"],
       [renderEditForm(photos(), record), "Save"],
     ] as const) {
-      expect(form).toMatch(
-        new RegExp(`type="submit"[^>]* data-held-save><span data-held-save-label>${words}</span>`),
-      );
+      const save = parseHtml(form, new El("div")).querySelector('button[type="submit"]');
+      expect(save?.hasAttribute(HOOKS.save)).toBe(true);
+      expect(save?.querySelector(hooked(HOOKS.saveLabel))?.textContent).toBe(words);
     }
   });
 
   test("is the only form whose save is held", () => {
     const textOnly = photos({ fields: [CAPTION_FIELD] });
-    expect(renderCreateForm(textOnly)).not.toContain("data-held-save");
-    expect(renderEditForm(textOnly, { id: "r1", caption: "Dawn" })).not.toContain("data-held-save");
+    expect(renderCreateForm(textOnly)).not.toContain(HOOKS.save);
+    expect(renderEditForm(textOnly, { id: "r1", caption: "Dawn" })).not.toContain(HOOKS.save);
   });
 });
 
-/**
- * A file field is its own kind of type, never a list or a scalar (PLAN decision 18), and a save
- * never carries bytes: an upload travels ahead of it (decision 8), so no form is ever multipart.
- */
+/** A save never carries bytes: an upload travels ahead of it (decision 8), so no form is multipart. */
 describe("file fields in the form renderer", () => {
-  test("stay apart from the list and scalar types", () => {
-    for (const type of FILE_FIELD_TYPES) {
-      expect([...SCALAR_FIELD_TYPES, ...LIST_FIELD_TYPES] as readonly string[]).not.toContain(type);
-    }
-  });
-
   test("never make a form carry a file's bytes", () => {
-    const renderer = codeOf("src/presentation/fields/field-renderer.ts");
-    for (const trace of ['type="file"', "FileList"]) {
-      expect(renderer, `the field renderer names ${trace}`).not.toContain(trace);
-    }
     for (const path of [
       "src/presentation/fields/field-renderer.ts",
       "src/presentation/controls/file-control.ts",
     ]) {
-      for (const trace of ["multipart/form-data", "enctype", 'type="file"']) {
+      for (const trace of ["multipart/form-data", "enctype", 'type="file"', "FileList"]) {
         expect(codeOf(path), `${path} names ${trace}`).not.toContain(trace);
       }
     }

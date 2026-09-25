@@ -1,3 +1,4 @@
+import { FILE_FIELD_HOOKS } from "#design/file-field.js";
 import { escapeHtml } from "../../server/http/html.ts";
 import { busyLabelAttribute } from "./busy-label.ts";
 
@@ -7,7 +8,7 @@ import { busyLabelAttribute } from "./busy-label.ts";
  */
 export function submitButton(label: string, busy: string, holdsFiles: boolean): string {
   const words = escapeHtml(label);
-  const held = holdsFiles ? " data-held-save" : "";
-  const text = holdsFiles ? `<span data-held-save-label>${words}</span>` : words;
+  const held = holdsFiles ? ` ${FILE_FIELD_HOOKS.save}` : "";
+  const text = holdsFiles ? `<span ${FILE_FIELD_HOOKS.saveLabel}>${words}</span>` : words;
   return `<button class="btn btn--primary" type="submit"${busyLabelAttribute(busy)}${held}>${text}</button>`;
 }

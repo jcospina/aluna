@@ -19,7 +19,7 @@ import {
   type CapabilitySpec,
   CHOICE_PRESENTATIONS,
   FULL_CAPABILITY_TOOLS,
-  GENERATION_FIELD_TYPES,
+  fieldTypeSchema,
   LIST_INPUT_MODES,
   MAX_CHOICE_GROUP_HEADING_LENGTH,
   MAX_CHOICE_GROUPS,
@@ -37,7 +37,6 @@ import {
   uiCollectionLayoutSchema,
 } from "../../../registry/index.ts";
 import { FILE_FIELD_PROMPT_LINES } from "../../spec/file-field-guidance.ts";
-import { unofferedFieldTypeIssues } from "../../spec/unoffered-field-types.ts";
 import type { DependencyGenerationCatalogEntry } from "../dependency-catalog.ts";
 import { committedSpecView, validateCandidateSpec } from "./candidate-validation.ts";
 
@@ -66,7 +65,7 @@ export interface CandidateSpecGenResult {
  */
 export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): string {
   const committed = committedSpecView(input.committed);
-  const fieldTypes = GENERATION_FIELD_TYPES.join(" | ");
+  const fieldTypes = fieldTypeSchema.options.join(" | ");
   const collectionLayouts = uiCollectionLayoutSchema.options.join(" | ");
   const listInputModes = LIST_INPUT_MODES.join(" | ");
   const choicePresentations = CHOICE_PRESENTATIONS.join(" | ");
@@ -176,7 +175,6 @@ export async function generateCandidateSpec(
     committed: input.committed,
     candidate: await result.object,
     dependencyCatalog: input.dependencyCatalog,
-    stageIssues: unofferedFieldTypeIssues,
   });
   const usage = await result.usage;
 

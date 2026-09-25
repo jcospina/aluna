@@ -20,11 +20,8 @@ import type {
   CapabilityIncarnation,
   ReadGateCoordinator,
 } from "../../runtime/concurrency/read-gates.ts";
-import {
-  guardWritingRoute,
-  renderCapabilityLogoFace,
-  TEXT_BODY_LIMIT_BYTES,
-} from "../../server/http/index.ts";
+import { IMMUTABLE, NO_STORE } from "../../server/http/cache-headers.ts";
+import { guardWritingRoute, renderCapabilityLogoFace } from "../../server/http/index.ts";
 import {
   type CapabilityLogoAttemptOutcome,
   readAttemptTarget,
@@ -51,19 +48,11 @@ export interface CapabilityLogoRouteDeps {
   readonly logoClaimObservationMs?: number;
 }
 
-const NO_STORE = { "cache-control": "no-store" } as const;
-
 /**
  * How long a claim loser watches the winner: ADR-0007 gives a loser a bounded observation, not a
  * poll, and the winner's own wall-clock bound plus install time is the longest it can run.
  */
 const LOGO_CLAIM_OBSERVATION_MS = DEFAULT_LOGO_GENERATION_TIMEOUT_MS + 5_000;
-
-/**
- * A year is the longest age HTTP defines, and `immutable` stops even a reload revalidating. Safe
- * only because of L7 and the incarnation: a rebuild mints a new address sharing no cache entry.
- */
-const IMMUTABLE = { "cache-control": "public, max-age=31536000, immutable" } as const;
 
 /**
  * The stored bytes go out untouched (L8), so the response makes the address inert when it is opened
@@ -171,35 +160,31 @@ export function registerCapabilityLogoRoutes(app: Hono, deps: CapabilityLogoRout
     return provider;
   };
 
-  app.post(
-    "/capability/:id/:incarnation_id/logo-attempt",
-    guardWritingRoute(TEXT_BODY_LIMIT_BYTES),
-    async (c) => {
-      const target = {
-        capabilityId: c.req.param("id"),
-        incarnationId: c.req.param("incarnation_id"),
-      };
+  app.post("/capability/:id/:incarnation_id/logo-attempt", guardWritingRoute(), async (c) => {
+    const target = {
+      capabilityId: c.req.param("id"),
+      incarnationId: c.req.param("incarnation_id"),
+    };
 
-      // Only the desk's own tile asks: a navigation or a plain form cannot set `HX-Request`, and a
-      // cross-origin fetch that does needs a preflight this route never answers.
-      if (c.req.header("HX-Request") !== "true") {
-        return c.body(null, 404, NO_STORE);
-      }
+    // Only the desk's own tile asks: a navigation or a plain form cannot set `HX-Request`, and a
+    // cross-origin fetch that does needs a preflight this route never answers.
+    if (c.req.header("HX-Request") !== "true") {
+      return c.body(null, 404, NO_STORE);
+    }
 
-      await spendOrObserve(target, deps, resolveProvider(), c.req.raw.signal);
+    await spendOrObserve(target, deps, resolveProvider(), c.req.raw.signal);
 
-      // Re-read rather than infer from the outcome: the tile states what the registry now
-      // holds, which is also the right answer when this request lost the claim to another.
-      const row = readAttemptTarget(target, deps.registryDatabases);
-      // The face, not the slot: this swap is the only one nobody asked for, and the menu and rename
-      // editor beside it are the user's own state (5.9/01). An empty body takes a deleted tile away.
-      return c.html(
-        row ? renderCapabilityLogoFace(row, { armLogoAttempt: false }) : "",
-        200,
-        NO_STORE,
-      );
-    },
-  );
+    // Re-read rather than infer from the outcome: the tile states what the registry now
+    // holds, which is also the right answer when this request lost the claim to another.
+    const row = readAttemptTarget(target, deps.registryDatabases);
+    // The face, not the slot: this swap is the only one nobody asked for, and the menu and rename
+    // editor beside it are the user's own state (5.9/01). An empty body takes a deleted tile away.
+    return c.html(
+      row ? renderCapabilityLogoFace(row, { armLogoAttempt: false }) : "",
+      200,
+      NO_STORE,
+    );
+  });
 
   app.get("/capability/:id/:incarnation_id/logo.svg", (c) => {
     const capabilityId = c.req.param("id");

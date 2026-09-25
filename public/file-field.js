@@ -9,13 +9,15 @@
 
 import {
   FILE_FIELD_CHANGE,
+  FILE_FIELD_HOOKS,
   FileRefusal,
   mountFileFields,
   settleFileFields,
+  uploadingIn,
 } from "../design/scripts/file-field.js";
 import { watchArrivals } from "./dom-arrivals.js";
 import { registerRegionRelease } from "./region-scope.js";
-import { FILE_NAME_HEADER } from "./shell-dom.js";
+import { FILE_NAME_HEADER, onCreateFinished, FILE_FIELD_ATTRIBUTES as WIRE } from "./shell-dom.js";
 
 /**
  * @typedef {import("../design/scripts/file-field.js").Held} Held
@@ -31,10 +33,9 @@ import { FILE_NAME_HEADER } from "./shell-dom.js";
  * }} UploadRequest
  */
 
-const FIELD = "[data-file-field]";
-const VALUE = "[data-file-value]";
-const IN_FLIGHT = `${FIELD} [data-file-progress]`;
-const HELD_SAVE = "[data-held-save]";
+const FIELD = `[${FILE_FIELD_HOOKS.field}]`;
+const VALUE = `[${WIRE.value}]`;
+const HELD_SAVE = `[${FILE_FIELD_HOOKS.save}]`;
 
 /** The key the route answered each admitted file with, by the file as the field holds it. */
 const KEYS = new WeakMap();
@@ -49,11 +50,10 @@ export const admittedKey = (held) => KEYS.get(held);
  *
  * @param {Held | null} current
  * @param {{ held: string, clear: string }} drawn
- * @param {(held: Held) => string | undefined} keyOf
  */
-export function postedValue(current, drawn, keyOf) {
+export function postedValue(current, drawn) {
   if (current === null) return drawn.held === "" ? "" : drawn.clear;
-  return keyOf(current) ?? drawn.held;
+  return admittedKey(current) ?? drawn.held;
 }
 
 /** @param {string} body @returns {Record<string, unknown>} */
@@ -68,16 +68,15 @@ function parsed(body) {
 
 /**
  * What the upload route's answer means for the field: the file it admitted, or a refusal carrying
- * the sentence to say. A 413 and a severed send of a file over the cap are Bun's, with no body, so
- * the field says the size sentence the server drew for it. Anything else is a failure of ours.
+ * the sentence to say. A 413 is the writing-route guard's or Bun's and carries no sentence, so the
+ * field says the size sentence the server drew for it. Anything else is a failure of ours.
  *
  * @param {number} status
  * @param {string} body
- * @param {number} size the picked file's size
  * @param {Limits} limits
  * @returns {Admitted}
  */
-export function settleUpload(status, body, size, limits) {
+export function settleUpload(status, body, limits) {
   const answer = parsed(body);
   const admitted = status === 201 ? admittedFrom(answer) : undefined;
   if (admitted) return admitted;
@@ -86,8 +85,8 @@ export function settleUpload(status, body, size, limits) {
   if ((status === 409 || status === 415) && typeof refusal === "string" && sentence) {
     throw new FileRefusal(refusal, sentence);
   }
-  if (status === 413 || (status === 0 && size > limits.cap)) {
-    throw new FileRefusal("too_large", sentence ?? limits.oversize);
+  if (status === 413) {
+    throw new FileRefusal("too_large", limits.oversize);
   }
   throw new Error(`The upload failed with status ${status}.`);
 }
@@ -113,8 +112,8 @@ function sentenceIn({ message }) {
  * @returns {Limits}
  */
 function limitsOf(host) {
-  const cap = Number(host.dataset.fileCap);
-  const oversize = host.dataset.fileOversize ?? "";
+  const cap = Number(host.getAttribute(WIRE.cap));
+  const oversize = host.getAttribute(WIRE.oversize) ?? "";
   if (!Number.isSafeInteger(cap) || cap <= 0 || oversize === "") {
     throw new Error(`The file field "${host.id}" carries no cap to hold its files to.`);
   }
@@ -131,7 +130,7 @@ function limitsOf(host) {
 export function uploadTransfer(open) {
   return (picked, _kind, onProgress, host) => {
     const limits = limitsOf(host);
-    const address = host.dataset.fileUpload;
+    const address = host.getAttribute(WIRE.upload);
     if (picked.size > limits.cap) {
       return {
         done: Promise.reject(new FileRefusal("too_large", limits.oversize)),
@@ -149,7 +148,7 @@ export function uploadTransfer(open) {
     const done = new Promise((resolve, reject) => {
       const settle = () => {
         try {
-          const admitted = settleUpload(request.status, request.responseText, picked.size, limits);
+          const admitted = settleUpload(request.status, request.responseText, limits);
           KEYS.set(admitted.held, admitted.key);
           resolve(admitted.held);
         } catch (error) {
@@ -181,10 +180,10 @@ function keepValueInStep(event) {
   if (!(input instanceof HTMLInputElement)) return;
   const change = /** @type {CustomEvent<FileFieldChange>} */ (event).detail;
   const drawn = {
-    held: input.dataset.fileHeldKey ?? "",
-    clear: input.dataset.fileClearValue ?? "",
+    held: input.getAttribute(WIRE.heldKey) ?? "",
+    clear: input.getAttribute(WIRE.clearValue) ?? "",
   };
-  input.value = postedValue(change.current, drawn, admittedKey);
+  input.value = postedValue(change.current, drawn);
 }
 
 /**
@@ -197,17 +196,12 @@ function keepValueInStep(event) {
  */
 export function wireFileFields(root, settle = settleFileFields) {
   root.addEventListener(FILE_FIELD_CHANGE, keepValueInStep);
-  for (const finished of ["aluna:record-created", "aluna:create-cancelled"]) {
-    root.addEventListener(finished, (event) => {
-      const form = event.target instanceof Element ? event.target.closest("form") : null;
-      if (form) settle(form, "revert");
-    });
-  }
+  onCreateFinished(root, (form) => settle(form, "revert"));
   root.addEventListener(
     "submit",
     (event) => {
       const form = event.target;
-      if (!(form instanceof HTMLFormElement) || !form.querySelector(IN_FLIGHT)) return;
+      if (!(form instanceof HTMLFormElement) || !uploadingIn(form)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       const save = form.querySelector(HELD_SAVE);

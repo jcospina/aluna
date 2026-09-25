@@ -29,7 +29,6 @@ import {
   providerResolving,
   reads,
   registeredSpecs,
-  rowsRead,
   scriptedProvider,
   UNREADABLE_STEP,
 } from "./question.test-support.ts";
@@ -120,7 +119,7 @@ describe("one turn", () => {
     );
 
     expect(step.call?.tool).toBe(READ_ONLY_QUERY_TOOL);
-    expect(step.result).toEqual(rowsRead([{ total: 3 }]));
+    expect(step.result).toEqual({ outcome: "rows", rows: [{ total: 3 }] });
     expect(prompts).toHaveLength(1);
     expect(prompts[0]).toStartWith(QUESTION_TURN_PROMPT_PREFIX);
     // The prompt is where the offer is made, so this counts the tool headings it renders rather
@@ -150,12 +149,13 @@ describe("one turn", () => {
       ),
     );
 
-    expect(step.result).toEqual(
-      rowsRead([
+    expect(step.result).toEqual({
+      outcome: "rows",
+      rows: [
         { label: "groceries", spends: 2 },
         { label: "rent", spends: 1 },
-      ]),
-    );
+      ],
+    });
   });
 
   test("refuses a statement that reads a table outside the scope", async () => {
@@ -205,7 +205,7 @@ describe("one turn", () => {
 
     // And the same read, written the way the prompt asks for it, is admitted.
     const rewritten = await desk().run(call(`SELECT count(*) AS total FROM ${NOTES_TABLE}`));
-    expect(rewritten.step.result).toEqual(rowsRead([{ total: 3 }]));
+    expect(rewritten.step.result).toEqual({ outcome: "rows", rows: [{ total: 3 }] });
   });
 });
 
@@ -216,7 +216,7 @@ describe("values are bound, never interpolated", () => {
     );
 
     // Three notes exist. Pasted, this predicate returns all of them; bound, it returns none.
-    expect(step.result).toEqual(rowsRead([{ total: 0 }]));
+    expect(step.result).toEqual({ outcome: "rows", rows: [{ total: 0 }] });
   });
 
   test("the statement keeps its placeholder and the value travels beside it", async () => {
@@ -227,7 +227,7 @@ describe("values are bound, never interpolated", () => {
     expect(step.call?.sql).toContain("?");
     expect(step.call?.sql).not.toContain("rent");
     expect(step.call?.parameters).toEqual(["rent"]);
-    expect(step.result).toEqual(rowsRead([{ text: "rent" }]));
+    expect(step.result).toEqual({ outcome: "rows", rows: [{ text: "rent" }] });
   });
 });
 
@@ -368,7 +368,7 @@ describe("the result reaches the model", () => {
       call: call(`SELECT DISTINCT text FROM ${NOTES_TABLE}`),
       collections: [NOTES_CAPABILITY.label],
       plan: { empty: "no rows" },
-      result: rowsRead([{ text: "groceries" }]),
+      result: { outcome: "rows", rows: [{ text: "groceries" }] },
     };
     const { prompts } = await desk().run(
       call(`SELECT sum(amount) AS total FROM ${EXPENSES_TABLE} WHERE text = ?`, ["groceries"]),
@@ -400,7 +400,7 @@ describe("the worker reads the same desk the catalog came from", () => {
         ),
     );
 
-    expect(step.result).toEqual(rowsRead([{ total: 3 }]));
+    expect(step.result).toEqual({ outcome: "rows", rows: [{ total: 3 }] });
   });
 });
 

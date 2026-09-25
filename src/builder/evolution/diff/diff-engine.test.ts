@@ -71,16 +71,16 @@ describe("capability label → registry/View copy, no units, no tests", () => {
   });
 });
 
-describe("empty-state noun → platform copy only; the birth facts never diff", () => {
+describe("the nouns → platform copy only; the birth facts never diff", () => {
   test("a changed noun is one View fact that selects no generated unit", () => {
-    // The empty state is platform copy rendered from the row — no handler emits one —
-    // so nothing regenerates and every unit is copied byte-for-byte.
+    // The empty state and the count are platform copy rendered from the row — no handler emits
+    // either — so nothing regenerates and every unit is copied byte-for-byte.
     const diff = diffOf((draft) => {
       draft.noun = "diary entry";
       draft.plural_noun = "diary entries";
     });
-    expect(factKinds(diff)).toEqual(["empty_state_noun"]);
-    expect(diff.workPlan.platformWork).toEqual(["platform_empty_state_copy"]);
+    expect(factKinds(diff)).toEqual(["capability_nouns"]);
+    expect(diff.workPlan.platformWork).toEqual(["platform_noun_copy"]);
     expect(diff.workPlan.regeneratedUnits).toEqual([]);
     expect(diff.workPlan.gate.behavioral).toEqual({ actions: [], fullSuite: false });
   });
@@ -89,7 +89,7 @@ describe("empty-state noun → platform copy only; the birth facts never diff", 
     const diff = diffOf((draft) => {
       draft.plural_noun = "notas";
     });
-    expect(factKinds(diff)).toEqual(["empty_state_noun"]);
+    expect(factKinds(diff)).toEqual(["capability_nouns"]);
     expect(diff.workPlan.regeneratedUnits).toEqual([]);
   });
 

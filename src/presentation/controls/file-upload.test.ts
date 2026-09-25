@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from "bun:test";
 
-import { FILE_FIELD_CHANGE, FileRefusal } from "#design/file-field.js";
+import { FILE_FIELD_CHANGE, FILE_FIELD_HOOKS, FileRefusal, pickInto } from "#design/file-field.js";
 import {
   admittedKey,
   postedValue,
@@ -14,7 +14,13 @@ import {
 } from "#shell/file-field.js";
 import { setPending, thawFileFields } from "#shell/record-mutations.js";
 import { regionScopeReport, releaseRegionContent } from "#shell/region-scope.js";
-import { BUSY_LABEL_ATTRIBUTE, FILE_NAME_HEADER } from "#shell/shell-dom.js";
+import {
+  BUSY_LABEL_ATTRIBUTE,
+  CREATE_CANCELLED_EVENT,
+  FILE_FIELD_ATTRIBUTES,
+  FILE_NAME_HEADER,
+  RECORD_CREATED_EVENT,
+} from "#shell/shell-dom.js";
 import { FILE_URL_PREFIX } from "../../platform/files/file-url.ts";
 import { mintFileKey } from "../../platform/files/ledger.ts";
 import {
@@ -27,31 +33,24 @@ import { renderCreateForm, renderEditForm } from "../fields/field-renderer.ts";
 import { renderableFromSpec } from "../fields/renderable-capability.ts";
 import { installDomGlobals } from "./choice-picker.fixture.test-support.ts";
 import { Doc, El, parseHtml } from "./choice-picker.test-support.ts";
+import { drawnFileFields, hooked, travelling } from "./file-field.test-support.ts";
 
 const CAP = 1024;
 const LIMITS = { cap: CAP, oversize: oversizeSentence(CAP) };
 const KEPT = { name: "kept.jpg", size: 3, url: "/files/kept" };
-const TAKEN = { name: "taken.jpg", size: 3, url: "/files/taken" };
 const DRAWN = { held: "kept-key", clear: "__clear" };
 
-const keyOf = (held: object) => (held === TAKEN ? "taken-key" : undefined);
-
 describe("what a photo field posts", () => {
-  test("on a create: nothing until it takes a photo, then that photo's key, and nothing again", () => {
+  test("on a create: nothing until it takes a photo, then that photo's key", async () => {
     const create = { held: "", clear: DRAWN.clear };
-    expect(postedValue(null, create, keyOf)).toBe("");
-    expect(postedValue(TAKEN, create, keyOf)).toBe("taken-key");
+    expect(postedValue(null, create)).toBe("");
+    expect(postedValue(await answeredHeld("taken-key"), create)).toBe("taken-key");
   });
 
-  test("on an edit: the key it was drawn with, a replacement's, or the clear", () => {
-    expect(postedValue(KEPT, DRAWN, keyOf)).toBe(DRAWN.held);
-    expect(postedValue(TAKEN, DRAWN, keyOf)).toBe("taken-key");
-    expect(postedValue(null, DRAWN, keyOf)).toBe(DRAWN.clear);
-  });
-
-  test("a file an upload answered for posts its key whatever the field was drawn holding", () => {
-    expect(postedValue(TAKEN, { held: "", clear: DRAWN.clear }, keyOf)).toBe("taken-key");
-    expect(postedValue(TAKEN, DRAWN, keyOf)).not.toBe(DRAWN.held);
+  test("on an edit: the key it was drawn with, a replacement's, or the clear", async () => {
+    expect(postedValue(KEPT, DRAWN)).toBe(DRAWN.held);
+    expect(postedValue(await answeredHeld("taken-key"), DRAWN)).toBe("taken-key");
+    expect(postedValue(null, DRAWN)).toBe(DRAWN.clear);
   });
 });
 
@@ -68,7 +67,7 @@ function refusalOf(run: () => unknown): FileRefusal {
 describe("what the upload route's answer means", () => {
   test("an admitted file is held at the address it answered with, under its key", () => {
     const body = JSON.stringify({ key: "k1", url: "/files/k1", name: "dawn.jpg", size: 9 });
-    expect(settleUpload(201, body, 9, LIMITS)).toEqual({
+    expect(settleUpload(201, body, LIMITS)).toEqual({
       held: { name: "dawn.jpg", size: 9, url: "/files/k1" },
       key: "k1",
     });
@@ -79,19 +78,18 @@ describe("what the upload route's answer means", () => {
       refusal: "signature",
       message: NOT_ADMITTED_SENTENCES.image,
     });
-    expect(refusalOf(() => settleUpload(415, notAPhoto, 9, LIMITS)).sentence).toBe(
+    expect(refusalOf(() => settleUpload(415, notAPhoto, LIMITS)).sentence).toBe(
       NOT_ADMITTED_SENTENCES.image,
     );
     const gone = JSON.stringify({ refusal: "gone", message: ADD_FILE_AGAIN_SENTENCE });
-    expect(refusalOf(() => settleUpload(409, gone, 9, LIMITS))).toMatchObject({
+    expect(refusalOf(() => settleUpload(409, gone, LIMITS))).toMatchObject({
       code: "gone",
       sentence: ADD_FILE_AGAIN_SENTENCE,
     });
   });
 
-  test("Bun's bare 413, and a severed send of a file over the cap, say the size sentence", () => {
-    expect(refusalOf(() => settleUpload(413, "", 9, LIMITS)).sentence).toBe(LIMITS.oversize);
-    expect(refusalOf(() => settleUpload(0, "", CAP + 1, LIMITS)).sentence).toBe(LIMITS.oversize);
+  test("a 413 says the size sentence", () => {
+    expect(refusalOf(() => settleUpload(413, "", LIMITS)).sentence).toBe(LIMITS.oversize);
   });
 
   test("anything else is a failure, which the control says in its own sentence", () => {
@@ -102,8 +100,8 @@ describe("what the upload route's answer means", () => {
       [201, JSON.stringify({ key: "k1" })],
       [415, JSON.stringify({ refusal: "signature" })],
     ] as const) {
-      expect(() => settleUpload(status, body, 9, LIMITS)).toThrow(/status/);
-      expect(() => settleUpload(status, body, 9, LIMITS)).not.toThrow(FileRefusal);
+      expect(() => settleUpload(status, body, LIMITS)).toThrow(/status/);
+      expect(() => settleUpload(status, body, LIMITS)).not.toThrow(FileRefusal);
     }
   });
 });
@@ -154,12 +152,13 @@ class RequestDouble {
 type Host = Parameters<ReturnType<typeof uploadTransfer>>[3];
 
 function host(upload: string | null = "/capability/photos/inc/upload/photo"): Host {
+  const attributes = new Map<string, string>([
+    ...(upload === null ? [] : [[FILE_FIELD_ATTRIBUTES.upload, upload] as const]),
+    [FILE_FIELD_ATTRIBUTES.cap, String(CAP)],
+    [FILE_FIELD_ATTRIBUTES.oversize, LIMITS.oversize],
+  ]);
   const element = {
-    dataset: {
-      ...(upload === null ? {} : { fileUpload: upload }),
-      fileCap: String(CAP),
-      fileOversize: LIMITS.oversize,
-    },
+    getAttribute: (name: string) => attributes.get(name) ?? null,
     isConnected: true,
     contains: (other: unknown) => other === element,
     closest: () => null,
@@ -257,6 +256,7 @@ describe("the transfer", () => {
 /* ── the wiring around the drawn control ───────────────────────────────────── */
 
 installDomGlobals();
+const mountFileFields = drawnFileFields();
 
 function formScene(record?: Readonly<Record<string, unknown>>) {
   const doc = new Doc();
@@ -268,10 +268,11 @@ function formScene(record?: Readonly<Record<string, unknown>>) {
   const settle = (form: unknown, how: string) => settled.push([form, how]);
   wireFileFields(doc as never, settle as never);
   const one = (selector: string) => doc.querySelector(selector) as El;
-  const host = one("[data-file-field]");
+  const host = one(hooked(FILE_FIELD_HOOKS.field));
   const change = (current: object | null) =>
     doc.fire(FILE_FIELD_CHANGE, host, { detail: { saved: null, current, uploading: false } });
-  return { doc, host, form: one("form"), value: one("[data-file-value]"), one, settled, change };
+  const value = one(hooked(FILE_FIELD_ATTRIBUTES.value));
+  return { doc, host, form: one("form"), value, one, settled, change };
 }
 
 async function answeredHeld(key: string) {
@@ -301,15 +302,17 @@ describe("the form around a photo field", () => {
     const scene = formScene({ id: "r1", caption: "Dawn", photo });
     expect(scene.value.value).toBe(key);
     scene.change(null);
-    expect(scene.value.value).toBe(scene.value.getAttribute("data-file-clear-value") ?? "absent");
+    expect(scene.value.value).toBe(
+      scene.value.getAttribute(FILE_FIELD_ATTRIBUTES.clearValue) ?? "absent",
+    );
     scene.change({ ...KEPT });
     expect(scene.value.value).toBe(key);
   });
 
   test("puts the field back when a create is saved or put down", () => {
     const scene = formScene();
-    scene.doc.fire("aluna:record-created", scene.form);
-    scene.doc.fire("aluna:create-cancelled", scene.one("[data-create-cancel]"));
+    scene.doc.fire(RECORD_CREATED_EVENT, scene.form);
+    scene.doc.fire(CREATE_CANCELLED_EVENT, scene.one("[data-create-cancel]"));
     expect(scene.settled).toEqual([
       [scene.form, "revert"],
       [scene.form, "revert"],
@@ -322,21 +325,22 @@ describe("the form around a photo field", () => {
     scene.form.addEventListener("submit", (event) => posted.push(event));
     expect(scene.doc.fire("submit", scene.form).prevented).toBe(false);
 
-    parseHtml("<span data-file-progress></span>", scene.one("[data-file-body]"));
+    mountFileFields(scene.doc, travelling);
+    pickInto(scene.host as never, { name: "dawn.jpg", type: "image/jpeg", size: 10 });
     const refused = scene.doc.fire("submit", scene.form);
     expect(refused).toEqual({ prevented: true, stopped: true });
     expect(posted).toHaveLength(1);
-    expect(scene.doc.activeElement).toBe(scene.one("[data-held-save]"));
+    expect(scene.doc.activeElement).toBe(scene.one(hooked(FILE_FIELD_HOOKS.save)));
   });
 
   test("while a save is out, says so in the save's own label and takes no pick until refused", () => {
     const scene = formScene();
-    const save = scene.one("[data-held-save]");
-    const label = scene.one("[data-held-save-label]");
+    const save = scene.one(hooked(FILE_FIELD_HOOKS.save));
+    const label = scene.one(hooked(FILE_FIELD_HOOKS.saveLabel));
     const idle = label.textContent;
     setPending(scene.form as never, true, "[data-create-cancel]");
     expect(label.textContent).toBe(save.getAttribute(BUSY_LABEL_ATTRIBUTE) ?? "absent");
-    expect(scene.one("[data-held-save-label]")).toBe(label);
+    expect(scene.one(hooked(FILE_FIELD_HOOKS.saveLabel))).toBe(label);
     expect((scene.host as unknown as { inert: boolean }).inert).toBe(true);
 
     thawFileFields({ detail: { elt: scene.form, xhr: { status: 200 } } } as never);

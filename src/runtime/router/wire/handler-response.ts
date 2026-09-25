@@ -2,7 +2,7 @@
 //
 // It is scrubbed. The enforcer runs on the item renderer's output inside `present()`, and nothing
 // looked at the wrapper markup a Handler composes around those items, which htmx swaps into a live
-// page with `allowScriptTags` on. `enforceHandlerFragment` is that wrapper's render-time last line.
+// page where Alpine evaluates what it finds. `enforceHandlerFragment` is that wrapper's last line.
 //
 // And a declared refusal is read as one. A Handler signals a `behavioral_errors` refusal by
 // returning a fragment carrying the spec's markers; answered as a bare 200 under `hx-swap="none"`,

@@ -27,6 +27,7 @@ import {
   materializeCapabilityActionRecord,
   selectCapabilityRows,
 } from "../../../runtime/data/index.ts";
+import { noFiles } from "../../../runtime/data/tool.test-support.ts";
 import {
   activated,
   committedGate,
@@ -112,7 +113,10 @@ describe("the option set a choice admits", () => {
 
   test("a record committed before the append is still valid after it", async () => {
     const spec = stagedSpec(COMMITTED_STAGES);
-    const before = createCapabilityMutationPort(spec, stagedEnv.conns.readwrite).create({
+    const before = createCapabilityMutationPort(
+      spec,
+      noFiles(spec, stagedEnv.conns.readwrite),
+    ).create({
       text: "Filed last week",
       pinned: false,
       stage: "draft",
@@ -162,7 +166,10 @@ describe("the wording, the arrangement and the control", () => {
 describe("an option taken out of use", () => {
   test("retiring an option is validation work, and the row already holding it keeps it", async () => {
     const spec = stagedSpec(COMMITTED_STAGES);
-    const before = createCapabilityMutationPort(spec, stagedEnv.conns.readwrite).create({
+    const before = createCapabilityMutationPort(
+      spec,
+      noFiles(spec, stagedEnv.conns.readwrite),
+    ).create({
       text: "Filed last week",
       pinned: false,
       stage: "sent",
@@ -194,7 +201,7 @@ describe("an option taken out of use", () => {
     );
     // But nobody may arrive at it again.
     expect(() =>
-      createCapabilityMutationPort(retired, stagedEnv.conns.readwrite).create({
+      createCapabilityMutationPort(retired, noFiles(retired, stagedEnv.conns.readwrite)).create({
         text: "A new one",
         pinned: false,
         stage: "sent",

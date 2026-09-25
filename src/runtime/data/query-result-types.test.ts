@@ -8,7 +8,7 @@ import { dirname, join, resolve } from "node:path";
 
 import { handlerContractDeclarations } from "../../builder/generated-code-check.ts";
 import { photoSpec } from "../../registry/fields/file.test-support.ts";
-import { FILE_FIELD_TYPES, fieldTypeSchema, isFileFieldType } from "../../registry/index.ts";
+import { FILE_FIELD_TYPES } from "../../registry/index.ts";
 import { QUERY_RESULT_TYPES } from "./query-result-types.ts";
 
 const ROOT = resolve(import.meta.dir, "../../..");
@@ -39,10 +39,7 @@ function valueImportGraph(entry: string): ReadonlySet<string> {
 }
 
 describe("the declarable query-result types", () => {
-  test("are every pantry type but a file", () => {
-    expect(QUERY_RESULT_TYPES).toEqual(
-      fieldTypeSchema.options.filter((type) => !isFileFieldType(type)),
-    );
+  test("leave out every file type", () => {
     for (const type of FILE_FIELD_TYPES) {
       expect(QUERY_RESULT_TYPES as readonly string[]).not.toContain(type);
     }

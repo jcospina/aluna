@@ -20,12 +20,7 @@ import { type CapabilitySpec, readActiveRegistryCatalog } from "../../registry/i
 import { validSpec } from "../../registry/spec/spec.test-support.ts";
 import { insertCapability } from "../../registry/store/store.ts";
 import { applyCapabilityTableDdl } from "../data/index.ts";
-import {
-  createQueryWorker,
-  type QueryShadow,
-  type QueryWorkerRow,
-  type QueryWorkerValue,
-} from "./query-worker.ts";
+import { createQueryWorker, type QueryShadow, type QueryWorkerValue } from "./query-worker.ts";
 import {
   QUESTION_ANSWER_PROMPT_PREFIX,
   type QuestionAnswerWritten,
@@ -33,7 +28,7 @@ import {
 } from "./question-answer.ts";
 import { QUESTION_STEP_BUDGET, type QuestionLoopResult, runQuestionLoop } from "./question-loop.ts";
 import { QUESTION_NO_HOME_PROMPT_PREFIX } from "./question-no-home.ts";
-import type { QuestionRowsResult, QuestionStep } from "./question-step.ts";
+import type { QuestionStep } from "./question-step.ts";
 import { NO_PLAN } from "./question-step.ts";
 import {
   QUESTION_STEP_FALLBACK_LABEL,
@@ -144,11 +139,6 @@ export function catalogueWithRecords(database: Database): readonly CapabilitySpe
   expense.finalize();
 
   return specs;
-}
-
-/** What a step that read `rows` holding no ledger key records. */
-export function rowsRead(rows: readonly QueryWorkerRow[]): QuestionRowsResult {
-  return { outcome: "rows", rows, fileKeys: new Set() };
 }
 
 /** The specs the registry holds, in the order `readActiveRegistryCatalog` returns them. */

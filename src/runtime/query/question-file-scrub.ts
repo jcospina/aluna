@@ -2,9 +2,9 @@
 //
 // The worker's views show a file column without its key, and withhold text or a file's name that
 // may hold an address: a `/files/` path, a NUL, or a ledger key in any case once the separators
-// they list are dropped (`query-worker-thread.ts`). This is the second layer, for a copy stored in
-// a form the views cannot read and for the statement, its bound values and SQLite's messages. A
-// value that is or contains a ledger key or an address is replaced.
+// they list are dropped (`question-views.ts`). This is the second layer, run once on a step's rows
+// before it is weighed, for a copy stored in a form the views cannot read, and on the statement,
+// its bound values and SQLite's messages. A value that is or contains a key or an address goes.
 //
 // A key is matched against the ledger rather than the UUID shape, which a record's id shares, by
 // any twelve of its digits in a row, forwards or backwards, after NFKC: in any case, with
@@ -13,7 +13,10 @@
 // Handler stored in a form the views cannot read can still be cut up and reordered by a statement
 // past both layers; nothing a scrub reads of the result can undo that.
 
+import { escapeRegExp } from "../../platform/escape-regexp.ts";
 import { FILE_URL_PREFIX } from "../../platform/files/file-url.ts";
+import { readFileLedgerKeys, readFileLedgerSignature } from "../../platform/files/ledger.ts";
+import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import { keylessStoredFileReference } from "../data/schema/file-values.ts";
 import type { QueryWorkerRow, QueryWorkerValue } from "./query-worker.ts";
 
@@ -30,9 +33,7 @@ const HEX_RUN = /[0-9a-f]{24,}/gi;
 const KEY_CHARACTER = /^[0-9a-f-]$/i;
 const INVISIBLE = /\p{Default_Ignorable_Code_Point}/gu;
 /** A `/files/` path with the first eight digits of a key after it. */
-const ADDRESS = new RegExp(
-  `${FILE_URL_PREFIX.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}[0-9a-fA-F]{8}`,
-);
+const ADDRESS = new RegExp(`${escapeRegExp(FILE_URL_PREFIX)}[0-9a-fA-F]{8}`);
 /** Text that holds none of these has no escaped or disguised path to undo. */
 const MAY_HIDE_A_PATH = /[/%&\\]|[^\x20-\x7e]/;
 const LARGEST_CODE_POINT = 0x10ffff;
@@ -49,27 +50,43 @@ export function fileKeyDigits(text: string): string {
 /** The ledger's keys, and every run of twelve digits of each, forwards and backwards. */
 export interface QuestionLedger {
   readonly keys: ReadonlySet<string>;
-  readonly fragments: ReadonlyMap<string, string>;
+  readonly fragments: ReadonlySet<string>;
 }
 
 export function questionLedger(keys: Iterable<string>): QuestionLedger {
   const digits = new Set([...keys].map(fileKeyDigits));
-  const fragments = new Map<string, string>();
+  const fragments = new Set<string>();
   for (const key of digits) {
     for (const run of [key, [...key].reverse().join("")]) {
       for (let at = 0; at + FRAGMENT <= run.length; at += 1) {
-        fragments.set(run.slice(at, at + FRAGMENT), key);
+        fragments.add(run.slice(at, at + FRAGMENT));
       }
     }
   }
   return { keys: digits, fragments };
 }
 
+/** The last ledger read, kept until a key is added or removed: its fragments cost the most. */
+const ledgers = new WeakMap<
+  object,
+  { readonly signature: string; readonly ledger: QuestionLedger }
+>();
+
+/** The ledger `database` holds now, as the scrub reads it. */
+export function readQuestionLedger(database: PlatformDatabase["readonly"]): QuestionLedger {
+  const signature = JSON.stringify(readFileLedgerSignature(database));
+  const kept = ledgers.get(database);
+  if (kept?.signature === signature) return kept.ledger;
+  const ledger = questionLedger(readFileLedgerKeys(database));
+  ledgers.set(database, { signature, ledger });
+  return ledger;
+}
+
 function hexToText(hex: string): string {
   return utf8.decode(Buffer.from(hex.slice(0, hex.length - (hex.length % 2)), "hex"));
 }
 
-/** A text's numbers read as the character codes of a key's characters; any other number is skipped. */
+/** A text's numbers read as the codes of a key's characters; any other number is skipped. */
 function characterCodes(text: string): string {
   return [...text.matchAll(/\d{1,7}/g)]
     .map(([code]) => String.fromCharCode(Number(code) % 0x10000).normalize("NFKC"))
@@ -166,8 +183,7 @@ function lastStartAtOrBefore(starts: readonly number[], at: number): number {
  */
 function scanLine(
   texts: readonly string[],
-  fragments: ReadonlyMap<string, string>,
-  found: Set<string>,
+  fragments: ReadonlySet<string>,
   marked: Set<number>,
 ): void {
   let line = "";
@@ -181,9 +197,7 @@ function scanLine(
     line += digits;
   });
   for (let at = 0; at + FRAGMENT <= line.length; at += 1) {
-    const key = fragments.get(line.slice(at, at + FRAGMENT));
-    if (key === undefined) continue;
-    found.add(key);
+    if (!fragments.has(line.slice(at, at + FRAGMENT))) continue;
     const first = lastStartAtOrBefore(starts, at);
     for (
       let cell = first;
@@ -205,7 +219,6 @@ function holdsAnAddress(cell: Cell): boolean {
 function scan(rows: readonly QueryWorkerRow[], ledger: QuestionLedger) {
   const cells = rows.map((row) => Object.entries(row).map(([name, raw]) => cellOf(name, raw)));
   const flat = cells.flat();
-  const found = new Set<string>();
   const marked = new Set<number>();
   if (ledger.keys.size > 0) {
     // A number's digits stay off the line: one beside a piece of key would be taken for more of
@@ -214,23 +227,19 @@ function scan(rows: readonly QueryWorkerRow[], ledger: QuestionLedger) {
       flat.map((cell) => (cell.isNumber ? "" : cell.text)),
       flat.map((cell) => cell.decoded),
     ];
-    for (const line of lines) scanLine(line, ledger.fragments, found, marked);
+    for (const line of lines) scanLine(line, ledger.fragments, marked);
   }
   flat.forEach((cell, index) => {
     if (holdsAnAddress(cell)) marked.add(index);
   });
-  return { cells, found, marked };
+  return { cells, marked };
 }
 
-/** Which of the ledger's keys, written as {@link fileKeyDigits} writes them, `rows` hold. */
-export function questionFileKeysIn(
+/** `rows` as the model may read them. */
+export function scrubQuestionRows(
   rows: readonly QueryWorkerRow[],
   ledger: QuestionLedger,
-): ReadonlySet<string> {
-  return scan(rows, ledger).found;
-}
-
-function scrubbed(rows: readonly QueryWorkerRow[], ledger: QuestionLedger): QueryWorkerRow[] {
+): QueryWorkerRow[] {
   const { cells, marked } = scan(rows, ledger);
   let index = 0;
   return cells.map((row) =>
@@ -240,17 +249,9 @@ function scrubbed(rows: readonly QueryWorkerRow[], ledger: QuestionLedger): Quer
   );
 }
 
-/** `rows` as the model may read them, given the keys {@link questionFileKeysIn} found in them. */
-export function scrubQuestionRows(
-  rows: readonly QueryWorkerRow[],
-  fileKeys: ReadonlySet<string>,
-): QueryWorkerRow[] {
-  return scrubbed(rows, questionLedger(fileKeys));
-}
-
 /** One text the model reads beside the rows — a statement, or what SQLite said about one. */
 export function scrubQuestionText(text: string, ledger: QuestionLedger): string {
-  const [row] = scrubbed([{ text }], ledger);
+  const [row] = scrubQuestionRows([{ text }], ledger);
   return String(row?.text);
 }
 
@@ -259,6 +260,6 @@ export function scrubQuestionValues<T extends QueryWorkerValue>(
   values: readonly T[],
   ledger: QuestionLedger,
 ): (T | string)[] {
-  const [row] = scrubbed([Object.fromEntries(values.entries())], ledger);
+  const [row] = scrubQuestionRows([Object.fromEntries(values.entries())], ledger);
   return values.map((value, index) => (row?.[index] ?? value) as T | string);
 }

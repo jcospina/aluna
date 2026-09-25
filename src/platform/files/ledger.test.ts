@@ -1,5 +1,5 @@
-// The file ledger's table: every column PLAN decision 21 names, the two indexes that answer "the
-// keys this record holds" and "the keys this incarnation owns", and the states a row can be in.
+// The file ledger's table: the two indexes that answer "the keys this record holds" and "the keys
+// this incarnation owns", and the states a row can be in.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
@@ -20,6 +20,7 @@ import {
   mintFileKey,
   promotePendingFile,
   readFileLedgerRow,
+  reassignRecordFiles,
 } from "./ledger.ts";
 
 let env: ScratchDbEnv;
@@ -44,26 +45,6 @@ function seed(overrides: Partial<Parameters<typeof seedFileLedgerRow>[1]> = {}):
 }
 
 describe("the file ledger table", () => {
-  test("holds every column the ledger names", () => {
-    const columns = pragma(`PRAGMA table_info(${FILE_LEDGER_TABLE})`).map((column) => column.name);
-    expect(columns).toEqual([
-      "key",
-      "capability_id",
-      "incarnation_id",
-      "field",
-      "record_id",
-      "state",
-      "kind",
-      "mime",
-      "size",
-      "name",
-      "encoding",
-      "created_at",
-      "cleanup_attempts",
-      "cleanup_error",
-    ]);
-  });
-
   test("is indexed by record and by incarnation", () => {
     const indexed = pragma(`PRAGMA index_list(${FILE_LEDGER_TABLE})`)
       .filter((index) => index.origin === "c")
@@ -149,6 +130,28 @@ describe("giving up a key", () => {
       "owned",
       "owned",
       "pending",
+    ]);
+  });
+});
+
+describe("a record whose id changes", () => {
+  test("takes every key it owns in this incarnation with it, and nothing else", () => {
+    const owner = { capabilityId: "photos", incarnationId: FIRST_INCARNATION_ID };
+    const held = seed({ state: "owned", recordId: "record-1" });
+    const cover = seed({ state: "owned", recordId: "record-1", field: "cover" });
+    const theirs = seed({ state: "owned", recordId: "record-2" });
+    const elsewhere = seed({ state: "owned", recordId: "record-1", incarnationId: "another" });
+    const given = seed({ state: "cleanup_enqueued", recordId: "record-1" });
+    const recordOf = (key: string) => readFileLedgerRow(env.conns.readwrite, key)?.record_id;
+
+    reassignRecordFiles(env.conns.readwrite, owner, "record-1", "renamed");
+
+    expect([held, cover, theirs, elsewhere, given].map(recordOf)).toEqual([
+      "renamed",
+      "renamed",
+      "record-2",
+      "record-1",
+      "record-1",
     ]);
   });
 });

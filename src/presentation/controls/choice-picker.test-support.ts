@@ -48,6 +48,7 @@ export const ELEMENT_CLASSES = {
   HTMLTextAreaElement: ["textarea"],
   HTMLButtonElement: ["button"],
   HTMLFormElement: ["form"],
+  HTMLMediaElement: ["video", "audio"],
 } as const;
 
 /**
@@ -388,6 +389,12 @@ export class El {
     this.ownText = words;
   }
 
+  /** What a control that redraws itself writes, read by the double's own parser. */
+  set innerHTML(html: string) {
+    this.textContent = "";
+    parseHtml(html, this);
+  }
+
   /* ── matching ───────────────────────────────────────────────────────────── */
 
   matchesStep(step: Step): boolean {
@@ -545,6 +552,8 @@ export class Doc extends El {
   get documentElement(): El | null {
     return this.children[0] ?? null;
   }
+
+  readonly createElement = (tag: string): El => new El(tag);
 
   getElementById(id: string): El | null {
     for (const node of this.descendants()) if (node.getAttribute("id") === id) return node;

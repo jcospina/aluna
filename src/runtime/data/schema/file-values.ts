@@ -5,9 +5,8 @@
 // and the mutation interface reads the key back out of that `url`, so a Handler passes a file on by
 // handing back what it was given.
 
-import { FILE_URL_PREFIX } from "../../../platform/files/file-url.ts";
-import type { FileLedgerRow } from "../../../platform/files/ledger.ts";
-import { isFileKey } from "../../../platform/files/ledger.ts";
+import { FILE_URL_PREFIX, fileUrl } from "../../../platform/files/file-url.ts";
+import { isFileKey, type PendingFile } from "../../../platform/files/ledger.ts";
 import { FILE_FAMILIES, type FileFamily } from "../../../registry/fields/file.ts";
 
 export { FILE_URL_PREFIX } from "../../../platform/files/file-url.ts";
@@ -24,7 +23,7 @@ const STORED_KEYS = ["key", "kind", "mime", "size", "name"] as const;
 const PROJECTION_KEYS = ["url", "name", "kind", "mime", "size"] as const;
 
 /** The column value a ledger row stands for. Nothing the browser posted reaches it. */
-export function storedFileReference(row: FileLedgerRow): string {
+export function storedFileReference(row: PendingFile): string {
   return JSON.stringify({
     key: row.key,
     kind: row.kind,
@@ -35,7 +34,7 @@ export function storedFileReference(row: FileLedgerRow): string {
 }
 
 /** What a save of `row` will store, as generated code sees it: the router's input to a Handler. */
-export function projectFileLedgerRow(row: FileLedgerRow): CapabilityFileProjection {
+export function projectFileLedgerRow(row: PendingFile): CapabilityFileProjection {
   return projectStoredFileReference(row.field, storedFileReference(row));
 }
 
@@ -50,7 +49,7 @@ export function projectStoredFileReference(
   const stored = parseStoredReference(value);
   if (!stored) throw new Error(`Expected file column "${column}" to hold a stored file reference.`);
   return Object.freeze({
-    url: `${FILE_URL_PREFIX}${stored.key}`,
+    url: fileUrl(stored.key),
     name: stored.name,
     kind: stored.kind,
     mime: stored.mime,

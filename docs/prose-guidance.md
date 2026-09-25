@@ -202,7 +202,8 @@ the same thing the same thing.
 The rest are mechanical:
 
 - Set headings in sentence case, and do not skip heading levels.
-- Use straight quotes and apostrophes.
+- Use straight quotes and apostrophes. This governs docs; product copy follows
+  `design/`, which uses curly ones (’).
 - Put no horizontal rule above a heading.
 - Keep emoji out of prose.
 - Check for unfilled placeholders before shipping.

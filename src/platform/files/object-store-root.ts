@@ -1,7 +1,8 @@
 // Where the object store keeps its bytes: configurable, as the file cap is (Module 7 PLAN, epic
 // 7.1). A leaf, so the app, boot and `bun run reset` read the one setting without opening a store.
 
-import { OBJECT_STORE_ROOT } from "../persistence/table-names.ts";
+/** The root when `OMNI_OBJECT_STORE_ROOT` is unset. */
+export const OBJECT_STORE_ROOT = "storage";
 
 export const OBJECT_STORE_ROOT_ENV_VAR = "OMNI_OBJECT_STORE_ROOT";
 

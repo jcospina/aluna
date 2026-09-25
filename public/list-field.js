@@ -12,6 +12,7 @@ import {
   syncListRows,
   wireListRows,
 } from "../design/scripts/list-rows.js";
+import { onCreateFinished } from "./shell-dom.js";
 
 /* One import for the rows, gesture or not. `mountListRows` is absent: the server writes every
    row's naming into the form, so only the design page's rows, authored by hand, need it. */
@@ -47,16 +48,8 @@ export function startListFields(root) {
   // once. A second dispatcher here is how the design page and the product drift apart.
   wireListRows(root);
 
-  root.addEventListener?.("aluna:record-created", (event) => {
-    if (event.target instanceof HTMLFormElement) collapseListFieldRows(event.target);
-  });
-
-  root.addEventListener?.("aluna:create-cancelled", (event) => {
-    const trigger = event.target;
-    const form =
-      trigger instanceof Element ? Element.prototype.closest.call(trigger, "form") : null;
-    if (form instanceof HTMLFormElement) collapseListFieldRows(form);
-  });
+  const listen = root.addEventListener?.bind(root);
+  if (listen) onCreateFinished({ addEventListener: listen }, collapseListFieldRows);
 }
 
 if (typeof document !== "undefined") startListFields(document);

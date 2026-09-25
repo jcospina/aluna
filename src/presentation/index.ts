@@ -19,7 +19,6 @@ export {
   capabilityDeleteErrorId,
   capabilityEditErrorId,
   capabilityRecordsRegionId,
-  RECORD_CREATED_EVENT,
   type RenderableCapability,
   renderCreateForm,
   renderEditForm,

@@ -10,7 +10,7 @@
 import { constants } from "node:fs";
 import { mkdir, open, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { FILE_URL_PREFIX } from "./file-url.ts";
+import { fileUrl } from "./file-url.ts";
 import { isFileKey } from "./ledger.ts";
 import { resolveObjectStoreRoot, STAGING_DIRECTORY } from "./object-store-root.ts";
 
@@ -225,7 +225,7 @@ export function createLocalObjectStore(root: string = resolveObjectStoreRoot()):
       await rm(stagedPath(key), { force: true });
       await rm(objectPath(key), { force: true });
     },
-    url: (key) => `${FILE_URL_PREFIX}${requireKey(key)}`,
+    url: (key) => fileUrl(requireKey(key)),
     async clearStaging() {
       await rm(staging, { recursive: true, force: true });
       await mkdir(staging, { recursive: true });

@@ -1,4 +1,5 @@
 import {
+  ALUNA_RESERVED_FIELD_PREFIX,
   activeSpecFields,
   type CapabilitySpec,
   isFileFieldType,
@@ -8,9 +9,8 @@ import { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from "../../data/index.ts";
 import { listInputModeForField, normalizeListInputValues } from "../../field-types/list-input.ts";
 import type { CapabilityInput, CapabilityInputValue } from "../contract.ts";
 
-export const ALUNA_RESERVED_PREFIX = "__aluna_";
-export const ALUNA_PRESENT_MARKER = "__aluna_present";
-export const ALUNA_RECORD_ID_MARKER = "__aluna_record_id";
+export const ALUNA_PRESENT_MARKER = `${ALUNA_RESERVED_FIELD_PREFIX}present`;
+export const ALUNA_RECORD_ID_MARKER = `${ALUNA_RESERVED_FIELD_PREFIX}record_id`;
 
 export type WireProtocolAction = "create" | "read" | "update" | "delete" | "search";
 
@@ -24,8 +24,8 @@ export class WireProtocolError extends Error {
 }
 
 /**
- * Parse and validate the closed capability HTTP protocol before generated code loads. It supports
- * the final M4 Action vocabulary so 4.2 can bind the record target without re-parsing raw HTTP.
+ * Parse and validate the closed capability HTTP protocol before generated code loads, binding the
+ * record target an update or a delete acts on.
  */
 export async function parseCapabilityRequest(
   request: Request,
@@ -63,7 +63,7 @@ async function collectValues(request: Request): Promise<Map<string, string[]>> {
 
   for (const [key, value] of entries) {
     if (typeof value !== "string") {
-      throw new WireProtocolError(`File input "${key}" is not supported by this protocol yet.`);
+      throw new WireProtocolError(`File input "${key}" is refused: a file field posts its key.`);
     }
     const existing = grouped.get(key);
     if (existing) existing.push(value);
@@ -75,7 +75,7 @@ async function collectValues(request: Request): Promise<Map<string, string[]>> {
 function rejectUnknownReservedKeys(grouped: ReadonlyMap<string, readonly string[]>): void {
   for (const key of grouped.keys()) {
     if (
-      key.startsWith(ALUNA_RESERVED_PREFIX) &&
+      key.startsWith(ALUNA_RESERVED_FIELD_PREFIX) &&
       key !== ALUNA_PRESENT_MARKER &&
       key !== ALUNA_RECORD_ID_MARKER
     ) {

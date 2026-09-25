@@ -1,13 +1,13 @@
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import { errorMessage } from "../../../../../platform/errors.ts";
-import { FILE_LEDGER_TABLE } from "../../../../../platform/files/ledger.ts";
+import { reassignRecordFiles } from "../../../../../platform/files/ledger.ts";
 import { sqlIdentifier } from "../../../../../platform/persistence/sql-identifier.ts";
 import type { PresentationAdapter } from "../../../../../presentation/index.ts";
 import {
+  activeFileFields,
   activeSpecFields,
   type CapabilitySpec,
-  isFileFieldType,
 } from "../../../../../registry/index.ts";
 import {
   createCapabilityDeleteMutationPort,
@@ -36,7 +36,7 @@ import {
   sameSnapshot,
   snapshotCapabilityTables,
 } from "../../../gate-internal.ts";
-import { SCRATCH_INCARNATION_ID, scratchSubmission } from "../../../gate-scratch-files.ts";
+import { scratchFileScope, scratchSubmission } from "../../../gate-scratch-files.ts";
 import { selectedBehavioralCases } from "../freeze/behavioral-execution-plan.ts";
 import {
   ageSetupRows,
@@ -232,11 +232,7 @@ function seedRows(
   rows: readonly Record<string, BehavioralScalar>[],
   database: Database,
 ): string[] {
-  const fileFields = new Set(
-    activeSpecFields(spec.schema.fields)
-      .filter((field) => isFileFieldType(field.type))
-      .map((field) => field.name),
-  );
+  const fileFields = new Set(activeFileFields(spec.schema.fields).map((field) => field.name));
   return rows.map((row, index) => {
     const values = Object.entries(row);
     const tokens = Object.fromEntries(
@@ -244,7 +240,7 @@ function seedRows(
     ) as Record<string, string>;
     const form = { values: tokens, submittedFields: new Set(Object.keys(tokens)) };
     const { binding } = scratchSubmission(spec, scratchFormInput(spec, form, database), database);
-    const create = createCapabilityMutationPort(spec, database, undefined, binding);
+    const create = createCapabilityMutationPort(spec, binding);
     const data = Object.fromEntries(values.filter(([name]) => !fileFields.has(name)));
     const generatedId = String(materializeCapabilityActionRecord(create.create(data)).id);
     // Setup order is semantic input to the generated test. Stable ids ensure an
@@ -253,9 +249,7 @@ function seedRows(
     database
       .query(`UPDATE ${sqlIdentifier(tableName)} SET "id" = ? WHERE "id" = ?`)
       .run(deterministicId, generatedId);
-    database
-      .query(`UPDATE ${FILE_LEDGER_TABLE} SET "record_id" = ? WHERE "record_id" = ?`)
-      .run(deterministicId, generatedId);
+    reassignRecordFiles(database, binding.scope, generatedId, deterministicId);
     return deterministicId;
   });
 }
@@ -323,7 +317,7 @@ async function invokeAction(
     received.input = saved;
     return handlers.create({
       input: saved,
-      mutation: createCapabilityMutationPort(input.spec, readwrite, undefined, binding),
+      mutation: createCapabilityMutationPort(input.spec, binding),
       query,
       present,
     });
@@ -345,8 +339,6 @@ async function invokeAction(
         input.spec,
         targetId,
         actionInput.submittedFields,
-        readwrite,
-        undefined,
         binding,
       ),
       query,
@@ -356,9 +348,11 @@ async function invokeAction(
   if (!handlers.delete) throw new Error("Behavioral delete Handler is missing.");
   return handlers.delete({
     input: actionInput,
-    mutation: createCapabilityDeleteMutationPort(input.spec, targetId, readwrite, undefined, {
-      incarnationId: SCRATCH_INCARNATION_ID,
-    }),
+    mutation: createCapabilityDeleteMutationPort(
+      input.spec,
+      targetId,
+      scratchFileScope(input.spec, readwrite),
+    ),
     query,
   });
 }

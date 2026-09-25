@@ -371,11 +371,7 @@ function dependencyScratchCatalog(spec: CapabilitySpec, catalog: readonly Capabi
   );
   return catalog
     .filter((row) => declared.has(`${row.id}/${row.incarnation_id}`))
-    .map((row) => ({
-      spec: capabilitySpecFromRow(row),
-      incarnationId: row.incarnation_id,
-      rows: [],
-    }));
+    .map((row) => ({ spec: capabilitySpecFromRow(row), incarnationId: row.incarnation_id }));
 }
 
 /**

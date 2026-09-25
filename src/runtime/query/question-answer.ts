@@ -9,9 +9,9 @@
 // the bound values still cross, so the sentence can name them and a mis-scoped answer still shows.
 //
 // No arithmetic is asked of the model: SQLite did it. A `listing` step's rows still cross whole,
-// less a file's address, bounded only by 6.3/03's cap. Those rows, the bound values and the collection labels all cross
-// inside one fence, because what a person saved must not read as what the platform said. A failed
-// step does not cross at all: its message is a refusal addressed to the model.
+// less a file's address, bounded only by 6.3/03's cap. Those rows, the bound values and the
+// collection labels all cross inside one fence, because what a person saved must not read as what
+// the platform said. A failed step does not cross at all: its message is a refusal to the model.
 
 import { z } from "zod";
 
@@ -220,7 +220,7 @@ function formatStep(step: QuestionReadStep): string {
       ? [`${ANSWER_STEP_UNDER} ${JSON.stringify(step.call.parameters)}`]
       : [];
   const came = questionStepMatchedRows(step)
-    ? `  rows: ${renderQuestionRows(step.result)}`
+    ? `  rows: ${renderQuestionRows(step.result.rows)}`
     : `  ${QUESTION_ANSWER_NOTHING_MATCHED}`;
   return [
     `- ${questionStepNarration(step.call)}`,

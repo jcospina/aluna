@@ -10,6 +10,8 @@
 // door, in `choice-picker.test.ts`.
 
 import { describe, expect, test } from "bun:test";
+
+import { CREATE_CANCELLED_EVENT, RECORD_CREATED_EVENT } from "#shell/shell-dom.js";
 import {
   deskChrome,
   form,
@@ -228,7 +230,7 @@ describe("where the panel hangs", () => {
     const picker = await scene(form("picker", "second"));
     expect(picker.field.getAttribute("data-choice-placeholder")).toBe("Choose Value…");
     picker.field.setAttribute("data-choice-initial", "");
-    picker.doc.fire("aluna:record-created", picker.form);
+    picker.doc.fire(RECORD_CREATED_EVENT, picker.form);
     expect(picker.valueEl?.textContent).toBe("Choose Value…");
   });
 });
@@ -249,7 +251,7 @@ describe("putting a finished form back", () => {
     expect(picker.field.getAttribute("data-choice-initial")).toBe("");
 
     picker.form.reset();
-    picker.doc.fire("aluna:record-created", picker.form);
+    picker.doc.fire(RECORD_CREATED_EVENT, picker.form);
 
     expect(picker.carrier?.value).toBe("");
     expect(picker.valueEl?.textContent).toBe("Choose Value…");
@@ -267,7 +269,7 @@ describe("putting a finished form back", () => {
     picker.press(picker.options().find((o) => labelOf(o) === "fourth") as El);
 
     picker.form.reset();
-    picker.doc.fire("aluna:record-created", picker.form);
+    picker.doc.fire(RECORD_CREATED_EVENT, picker.form);
 
     expect(picker.carrier?.value).toBe("second");
     expect(picker.valueEl?.textContent).toBe("Second");
@@ -281,7 +283,7 @@ describe("putting a finished form back", () => {
     expect(row.field.querySelector("[data-choice-value]")?.value).toBe("fourth");
 
     row.form.reset();
-    row.doc.fire("aluna:create-cancelled", row.form);
+    row.doc.fire(CREATE_CANCELLED_EVENT, row.form);
 
     expect(row.field.querySelector("[data-choice-value]")?.value).toBe("");
     expect(

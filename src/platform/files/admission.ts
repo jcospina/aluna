@@ -1,7 +1,9 @@
 // File admission for the image rows (Module 7 PLAN decisions 1 to 4, ADR-0009). The table below is
 // the allowlist. The extension names a family, and the bytes may then pick any row of it, so a PNG
 // called `.jpg` is recorded as the PNG it is. A HEIC or HEIF major brand, TIFF and SVG match no
-// row. 7.2 adds the other families' rows. A leaf.
+// row. 7.2 adds the other families' rows. A leaf at runtime: the one import is a type.
+
+import type { FileFamily } from "../../registry/fields/file.ts";
 
 /** The most of a body the bytes are read from before the rows must have decided. */
 export const SIGNATURE_WINDOW_BYTES = 64 * 1024;
@@ -19,12 +21,12 @@ export class FileAdmissionRefusal extends Error {
 
 /** What admission lets a file be recorded as: its family and the type its bytes proved. */
 export interface AdmittedType {
-  readonly kind: string;
+  readonly kind: FileFamily;
   readonly mime: string;
 }
 
 interface SignatureRow {
-  readonly kind: string;
+  readonly kind: FileFamily;
   readonly mime: string;
   readonly extensions: readonly string[];
   /** How many leading bytes {@link SignatureRow.matches} reads. */
@@ -87,9 +89,6 @@ const SIGNATURES: readonly SignatureRow[] = [
   },
 ];
 
-/** Every extension admission takes, lowercase and without the dot, in table order. */
-export const ADMITTED_EXTENSIONS: readonly string[] = SIGNATURES.flatMap((row) => row.extensions);
-
 /** Every type admission records a file of `kind` as, in table order: what its picker offers. */
 export function admittedTypes(kind: string): readonly string[] {
   return [...new Set(SIGNATURES.filter((row) => row.kind === kind).map((row) => row.mime))];
@@ -128,8 +127,8 @@ function declaredType(header: string | undefined): string {
 export function admitClaims(
   name: string,
   declared: string | undefined,
-  accepts: readonly string[],
-): string {
+  accepts: readonly FileFamily[],
+): FileFamily {
   const extension = extensionOf(name);
   const row = SIGNATURES.find((candidate) => candidate.extensions.includes(extension));
   if (!row) throw new FileAdmissionRefusal("extension");
@@ -152,7 +151,7 @@ export class SignatureCheck {
   #head = new Uint8Array(0);
   #admitted: SignatureRow | undefined;
 
-  constructor(kind: string) {
+  constructor(kind: FileFamily) {
     this.#rows = SIGNATURES.filter((row) => row.kind === kind);
     this.#needed = Math.min(
       SIGNATURE_WINDOW_BYTES,

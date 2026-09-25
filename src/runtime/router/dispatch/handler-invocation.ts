@@ -6,7 +6,6 @@
 // every await: a capability being deleted asks its readers to stop, and every step here is
 // a place a Handler could otherwise carry on working for a lifetime that has ended.
 
-import type { Database } from "bun:sqlite";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import {
   createPresentationAdapter,
@@ -26,17 +25,20 @@ import {
   createCapabilityMutationPort,
   createCapabilityQueryPort,
   createCapabilityUpdateMutationPort,
-  deriveCapabilityTableDdl,
-  type FileClaimScope,
+  type FileSubmissionBinding,
+  fileClaimScope,
   resolveSubmittedFiles,
-  withFileProjections,
 } from "../../data/index.ts";
 import type {
+  CapabilityContext,
   CapabilityCreateHandler,
   CapabilityDeleteHandler,
+  CapabilityHandler,
   CapabilityReadHandler,
+  CapabilitySaveInput,
   CapabilityUpdateHandler,
 } from "../contract.ts";
+import { withFileProjections } from "../save-input.ts";
 import { assertReadOwnership } from "../wire/failure-responses.ts";
 import {
   type ParsedCapabilityRequest,
@@ -56,85 +58,63 @@ export async function invokeCapabilityHandler(
   parsedRequest: ParsedCapabilityRequest,
   signal: AbortSignal,
 ): Promise<string> {
-  const { input } = parsedRequest;
+  const { input, recordTarget } = parsedRequest;
   const query = createCapabilityQueryPort(databases.readonly, {
     target: spec,
     dependencies: dependencies.map(capabilitySpecFromRow),
     signal,
   });
   const writes = writeWindow();
-  // The router's first check ran before the save's transaction opened; this one runs inside it,
-  // holding the write lock, so a sweep or another save that committed in between is refused.
-  const checkFiles = (save: "create" | "update") =>
-    resolveSubmittedFiles(
-      activeSpecFields(spec.schema.fields),
-      input.values,
-      save,
-      fileClaimScope(databases.readwrite, row, spec, parsedRequest.recordTarget),
+  const fileScope = () =>
+    fileClaimScope(databases.readwrite, spec, row.incarnation_id, recordTarget);
+
+  const runSave = async <Port extends object>(
+    save: "create" | "update",
+    bind: (files: FileSubmissionBinding) => Port,
+    call: (handler: CapabilityHandler, context: SaveContext<Port>) => Promise<string>,
+  ): Promise<string> => {
+    assertReadOwnership(signal);
+    // The router's first check ran before the save's transaction opened; this one runs inside it,
+    // holding the write lock, so a sweep or another save that committed in between is refused.
+    const scope = fileScope();
+    const fields = activeSpecFields(spec.schema.fields);
+    const submitted = resolveSubmittedFiles(fields, input.values, save, scope);
+    const mutation = writes.guard(bind({ scope, submitted }));
+    const present = await buildPresentationAdapter(row, loadItemRenderer);
+    assertReadOwnership(signal);
+    const handler = await loadHandler(row.artifacts_path, save);
+    assertReadOwnership(signal);
+    const fragment = await writes.answered(
+      call(handler, { input: withFileProjections(input, submitted), mutation, query, present }),
     );
+    assertReadOwnership(signal);
+    return fragment;
+  };
 
   if (action === "create") {
-    assertReadOwnership(signal);
-    const files = checkFiles(action);
-    const mutation = writes.guard(
-      createCapabilityMutationPort(spec, databases.readwrite, signal, {
-        incarnationId: row.incarnation_id,
-        submitted: files,
-      }),
+    return runSave(
+      action,
+      (files) => createCapabilityMutationPort(spec, files, signal),
+      (handler, context) => (handler as CapabilityCreateHandler)(context),
     );
-    const present = await buildPresentationAdapter(row, loadItemRenderer);
-    assertReadOwnership(signal);
-    const handler = await loadHandler(row.artifacts_path, action);
-    assertReadOwnership(signal);
-    const fragment = await writes.answered(
-      (handler as CapabilityCreateHandler)({
-        input: withFileProjections(input, files),
-        mutation,
-        query,
-        present,
-      }),
-    );
-    assertReadOwnership(signal);
-    return fragment;
   }
   if (action === "update") {
-    assertReadOwnership(signal);
-    const target = requireRecordTarget(parsedRequest.recordTarget, action);
-    const files = checkFiles(action);
-    const mutation = writes.guard(
-      createCapabilityUpdateMutationPort(
-        spec,
-        target,
-        new Set(input.submittedFields),
-        databases.readwrite,
-        signal,
-        { incarnationId: row.incarnation_id, submitted: files },
-      ),
+    const target = requireRecordTarget(recordTarget, action);
+    const submittedFields = new Set(input.submittedFields);
+    return runSave(
+      action,
+      (files) => createCapabilityUpdateMutationPort(spec, target, submittedFields, files, signal),
+      (handler, context) => (handler as CapabilityUpdateHandler)(context),
     );
-    const present = await buildPresentationAdapter(row, loadItemRenderer);
-    assertReadOwnership(signal);
-    const handler = await loadHandler(row.artifacts_path, action);
-    assertReadOwnership(signal);
-    const fragment = await writes.answered(
-      (handler as CapabilityUpdateHandler)({
-        input: withFileProjections(input, files),
-        mutation,
-        query,
-        present,
-      }),
-    );
-    assertReadOwnership(signal);
-    return fragment;
   }
   if (action === "delete") {
     assertReadOwnership(signal);
     const mutation = writes.guard(
       createCapabilityDeleteMutationPort(
         spec,
-        requireRecordTarget(parsedRequest.recordTarget, action),
-        databases.readwrite,
+        requireRecordTarget(recordTarget, action),
+        fileScope(),
         signal,
-        { incarnationId: row.incarnation_id },
       ),
     );
     const handler = await loadHandler(row.artifacts_path, action);
@@ -154,6 +134,12 @@ export async function invokeCapabilityHandler(
   const fragment = await (handler as CapabilityReadHandler)({ input, query, present });
   assertReadOwnership(signal);
   return fragment;
+}
+
+/** A save's context over the mutation port it binds; each save checks it against its own Handler. */
+interface SaveContext<Port> extends Omit<CapabilityContext, "input"> {
+  readonly input: CapabilitySaveInput;
+  readonly mutation: Port;
 }
 
 /**
@@ -180,13 +166,7 @@ function writeWindow() {
               assertOpen();
               return write(...args);
             };
-            return [
-              name,
-              Object.defineProperties(guarded, {
-                name: { value: write.name },
-                length: { value: write.length },
-              }),
-            ];
+            return [name, guarded];
           },
         ),
       ) as Port;
@@ -195,26 +175,6 @@ function writeWindow() {
       answer = pending;
       return pending;
     },
-  };
-}
-
-/**
- * Where a save's file references are checked. An update's record is where its files are kept, so a
- * submission that keeps one is checked against what the record holds now.
- */
-export function fileClaimScope(
-  database: Database,
-  row: CapabilityRow,
-  spec: CapabilitySpec,
-  recordTarget: string | undefined,
-): FileClaimScope {
-  return {
-    database,
-    capabilityId: row.id,
-    incarnationId: row.incarnation_id,
-    ...(recordTarget === undefined
-      ? {}
-      : { record: { table: deriveCapabilityTableDdl(spec).tableName, id: recordTarget } }),
   };
 }
 

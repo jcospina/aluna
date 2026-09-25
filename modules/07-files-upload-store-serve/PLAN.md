@@ -385,8 +385,8 @@ in ADR-0009, and in the architecture and design documents.
 38. **Scratch references, no bytes.** The Gate mints references in its scratch
     database's own ledger: a field with a file, a field with none, a `file[]` with several,
     and a `file[]` an evolution added and left `NULL` in older rows, which the projection
-    turns into `[]`. Their names carry markup, a bidirectional override, emoji and 255
-    bytes. Admission, storage and serving are platform code with their own tests, exactly
+    turns into `[]`. Their names carry markup, emoji and 255 bytes, but no
+    bidirectional override, which admission strips (decision 6). Admission, storage and serving are platform code with their own tests, exactly
     as routing is. The empty field is the case a generated template most often forgets.
 39. **Behavioral tests name files by token.** A behavioral input is a plain string today,
     and the model cannot mint a pending reference. A file input becomes a closed token —

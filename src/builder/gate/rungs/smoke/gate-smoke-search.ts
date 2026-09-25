@@ -8,6 +8,7 @@ import type { Database } from "bun:sqlite";
 import { errorMessage } from "../../../../platform/errors.ts";
 import { sqlIdentifier } from "../../../../platform/persistence/sql-identifier.ts";
 import {
+  activeFileFields,
   activeSpecFields,
   type CapabilitySpec,
   choiceFieldOptions,
@@ -22,11 +23,13 @@ import {
   type CapabilityActionRecord,
   type CapabilityDataRow,
   encodeCapabilityFieldForStorage,
+  normalizeSearchText,
 } from "../../../../runtime/data/index.ts";
 import type { CapabilityInput, CapabilityReadHandler } from "../../../../runtime/router/index.ts";
 import type { ScratchCatalogCapability } from "../../gate.ts";
 import { buildGateQueryPort } from "../../gate-internal.ts";
-import { scratchFileName, scratchStoredFile } from "../../gate-scratch-files.ts";
+import { scratchFileType, scratchStoredFile } from "../../gate-scratch-files.ts";
+import { scratchFileName } from "../../gate-scratch-names.ts";
 import { SmokeActionFailure } from "./gate-smoke-repair.ts";
 import {
   assertIdsEqual,
@@ -372,37 +375,40 @@ const NON_TEXT_EXCLUSIONS = [
 ] as const;
 
 function addNonTextExclusionCases(state: FixtureState, nonText: readonly SpecField[]): void {
-  const matchable = declaredChoiceValues(state.spec);
+  const matchable = choiceMatches(state.spec);
+  const push = (label: string, q: string) => {
+    if (!matchable(q)) state.cases.push({ label, q, expectedIds: [] });
+  };
   for (const exclusion of NON_TEXT_EXCLUSIONS) {
-    const present = nonText.some((field) => field.type === exclusion.type);
-    if (!present || matchable.has(exclusion.q)) continue;
-    state.cases.push({ label: exclusion.label, q: exclusion.q, expectedIds: [] });
+    if (nonText.some((field) => field.type === exclusion.type)) push(exclusion.label, exclusion.q);
   }
   // A stored file's kind and type are text in its column too, in every row that holds one.
   const kinds = new Set(
-    nonText.flatMap((field) =>
-      isFileFieldType(field.type) ? (field.accepts?.slice(0, 1) ?? []) : [],
-    ),
+    activeFileFields(state.spec.schema.fields).flatMap((field) => field.accepts?.slice(0, 1) ?? []),
   );
   for (const kind of kinds) {
-    if (matchable.has(kind)) continue;
-    state.cases.push({ label: `file kind exclusion: ${kind}`, q: kind, expectedIds: [] });
+    const type = scratchFileType(kind);
+    push(`file kind exclusion: ${kind}`, kind);
+    push(`file type exclusion: ${type}`, type);
   }
 }
 
 /**
- * Every value an active choice field may hold. An option equal to an exclusion token would
- * make that assertion false about a correct Handler, so the fixture drops the case.
+ * Whether `q` falls inside a value an active choice field may hold, compared as search compares
+ * them. A correct Handler matches it there, so an exclusion case for it would be false.
  */
-function declaredChoiceValues(spec: CapabilitySpec): ReadonlySet<string> {
-  const values = new Set<string>();
+function choiceMatches(spec: CapabilitySpec): (q: string) => boolean {
+  const values: string[] = [];
   for (const field of activeSpecFields(spec.schema.fields)) {
     if (!isChoiceFieldType(field.type)) continue;
     // Disabled values included: the collision guarded against is with something a stored row
     // might hold, and a retired option is still exactly that.
-    for (const option of choiceFieldOptions(field)) values.add(option.value);
+    for (const option of choiceFieldOptions(field)) values.push(normalizeSearchText(option.value));
   }
-  return values;
+  return (q) => {
+    const term = normalizeSearchText(q);
+    return values.some((value) => value.includes(term));
+  };
 }
 
 function addBehaviorNeutralOrderRows(

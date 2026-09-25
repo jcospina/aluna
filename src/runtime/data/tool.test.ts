@@ -23,6 +23,7 @@ import {
 } from "./index.ts";
 import {
   createCapabilityDataTool,
+  noFiles,
   notesSpec,
   recipesSpec,
   requirednessSpec,
@@ -39,8 +40,14 @@ describe("split capability data ports", () => {
       applyCapabilityTableDdl(notes, databases.readwrite);
       applyCapabilityTableDdl(recipes, databases.readwrite);
 
-      const notesMutation = createCapabilityMutationPort(notes, databases.readwrite);
-      const recipesMutation = createCapabilityMutationPort(recipes, databases.readwrite);
+      const notesMutation = createCapabilityMutationPort(
+        notes,
+        noFiles(notes, databases.readwrite),
+      );
+      const recipesMutation = createCapabilityMutationPort(
+        recipes,
+        noFiles(recipes, databases.readwrite),
+      );
       const note = materializeCapabilityActionRecord(
         notesMutation.create({ text: "Soup notes", pinned: false }),
       );
@@ -75,7 +82,7 @@ describe("split capability data ports", () => {
     withFileDatabase((databases) => {
       const notes = notesSpec();
       applyCapabilityTableDdl(notes, databases.readwrite);
-      const mutation = createCapabilityMutationPort(notes, databases.readwrite);
+      const mutation = createCapabilityMutationPort(notes, noFiles(notes, databases.readwrite));
       // Comfortably past the batch, and past SQLite's oldest 999-parameter limit.
       const created = Array.from({ length: 1200 }, (_, index) =>
         materializeCapabilityActionRecord(
@@ -106,7 +113,7 @@ describe("split capability data ports", () => {
     withFileDatabase((databases) => {
       const notes = notesSpec();
       applyCapabilityTableDdl(notes, databases.readwrite);
-      const mutation = createCapabilityMutationPort(notes, databases.readwrite);
+      const mutation = createCapabilityMutationPort(notes, noFiles(notes, databases.readwrite));
       const query = createCapabilityQueryPort(databases.readonly, { target: notes });
       const total = () =>
         query.all({
@@ -137,7 +144,7 @@ describe("split capability data ports", () => {
     withFileDatabase((databases) => {
       const notes = notesSpec();
       applyCapabilityTableDdl(notes, databases.readwrite);
-      createCapabilityMutationPort(notes, databases.readwrite).create({
+      createCapabilityMutationPort(notes, noFiles(notes, databases.readwrite)).create({
         text: "Soup notes",
         pinned: false,
       });
@@ -178,7 +185,7 @@ describe("split capability data ports", () => {
     withFileDatabase((databases) => {
       const notes = notesSpec();
       applyCapabilityTableDdl(notes, databases.readwrite);
-      const mutation = createCapabilityMutationPort(notes, databases.readwrite);
+      const mutation = createCapabilityMutationPort(notes, noFiles(notes, databases.readwrite));
       mutation.create({ text: "First", pinned: false });
       // An unreset `EXPLAIN` is the shape that pins, whoever leaves one behind.
       databases.readonly.query('EXPLAIN SELECT "id" FROM "cap_notes"').all();
@@ -202,8 +209,14 @@ describe("split capability data ports", () => {
       for (const spec of [notes, recipes, hidden]) {
         applyCapabilityTableDdl(spec, databases.readwrite);
       }
-      const notesMutation = createCapabilityMutationPort(notes, databases.readwrite);
-      const recipesMutation = createCapabilityMutationPort(recipes, databases.readwrite);
+      const notesMutation = createCapabilityMutationPort(
+        notes,
+        noFiles(notes, databases.readwrite),
+      );
+      const recipesMutation = createCapabilityMutationPort(
+        recipes,
+        noFiles(recipes, databases.readwrite),
+      );
       notesMutation.create({ text: "Soup notes", pinned: false });
       recipesMutation.create({ title: "Soup" });
       const query = createCapabilityQueryPort(databases.readonly, {
@@ -242,7 +255,9 @@ describe("split capability data ports", () => {
       recipes.ui_intent.item.shows = ["title", "summary"];
       applyCapabilityTableDdl(notes, databases.readwrite);
       applyCapabilityTableDdl(recipes, databases.readwrite);
-      createCapabilityMutationPort(recipes, databases.readwrite).create({ title: "Soup" });
+      createCapabilityMutationPort(recipes, noFiles(recipes, databases.readwrite)).create({
+        title: "Soup",
+      });
       const hiddenRecipes = recipesSpec();
       hiddenRecipes.schema.fields = recipes.schema.fields.map((field) =>
         field.name === "title" ? { ...field, lifecycle: "inactive" } : field,
@@ -292,7 +307,7 @@ describe("split capability data ports", () => {
       const recipes = recipesSpec();
       applyCapabilityTableDdl(notes, databases.readwrite);
       applyCapabilityTableDdl(recipes, databases.readwrite);
-      const mutation = createCapabilityMutationPort(notes, databases.readwrite);
+      const mutation = createCapabilityMutationPort(notes, noFiles(notes, databases.readwrite));
       const first = materializeCapabilityActionRecord(
         mutation.create({ text: "First", pinned: false, added_later: "new value" }),
       );
@@ -300,7 +315,9 @@ describe("split capability data ports", () => {
         mutation.create({ text: "Second", pinned: true, added_later: "also new" }),
       );
       const foreign = materializeCapabilityActionRecord(
-        createCapabilityMutationPort(recipes, databases.readwrite).create({ title: "Soup" }),
+        createCapabilityMutationPort(recipes, noFiles(recipes, databases.readwrite)).create({
+          title: "Soup",
+        }),
       );
       databases.readwrite.run('UPDATE "cap_notes" SET "retired" = ?, "extra" = ? WHERE "id" = ?', [
         "secret",
@@ -355,13 +372,13 @@ describe("split capability data ports", () => {
       });
       applyCapabilityTableDdl(notes, databases.readwrite);
       const row = materializeCapabilityActionRecord(
-        createCapabilityMutationPort(notes, databases.readwrite).create({
+        createCapabilityMutationPort(notes, noFiles(notes, databases.readwrite)).create({
           text: "CAFÉ ÅNGSTRÖM",
           pinned: false,
           details: "Afternoon",
         }),
       );
-      createCapabilityMutationPort(notes, databases.readwrite).create({
+      createCapabilityMutationPort(notes, noFiles(notes, databases.readwrite)).create({
         text: "Jupiter",
         pinned: false,
         details: "",
@@ -425,7 +442,7 @@ describe("split capability data ports", () => {
     withFileDatabase((databases) => {
       const spec = notesSpec();
       applyCapabilityTableDdl(spec, databases.readwrite);
-      const mutation = createCapabilityMutationPort(spec, databases.readwrite);
+      const mutation = createCapabilityMutationPort(spec, noFiles(spec, databases.readwrite));
       const query = createCapabilityQueryPort(databases.readonly, { target: spec });
       mutation.create({ text: "Declared only", pinned: true });
 

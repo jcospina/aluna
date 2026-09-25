@@ -1,6 +1,8 @@
 // Every writing route guards its own door (Module 7 PLAN decisions 9 and 10). The walk reads the
 // app's own route table, so a writing route registered later — the upload route, the pending-only
-// route — is held to both refusals without anyone remembering to list it here.
+// route — is held to both refusals without anyone remembering to list it here. Every door gets one
+// refused probe of each kind, addressed and shaped so its route would spend if it ran; only a
+// streaming door, whose route reads the body itself, is also probed with a counted body.
 
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { type Context, Hono } from "hono";
@@ -9,7 +11,8 @@ import { CAPABILITY_PATH_PREFIX } from "#shell/routes.js";
 import type { LogoGenerationProvider } from "../lifecycle/logo/index.ts";
 import { createBuildJobQueue } from "../pipeline/jobs/build-jobs.ts";
 import type { Provider } from "../platform/provider/index.ts";
-import { makeSpyLoader } from "../runtime/router/dispatch/router.test-support.ts";
+import { install, notesRow } from "../runtime/router/dispatch/router.test-support.ts";
+import type { HandlerLoader, WireProtocolAction } from "../runtime/router/index.ts";
 import {
   createScratchDbEnv,
   makeMetricsRecorder,
@@ -27,7 +30,6 @@ import {
   guardWritingRoute,
   isPassThrough,
   passesThrough,
-  TEXT_BODY_LIMIT_BYTES,
   type WritingRouteGuard,
   writingRouteGuard,
 } from "./http/writing-route-guard.ts";
@@ -38,8 +40,17 @@ import {
  */
 const PROBE_FILE_CAP = 16 * 1024;
 
-/** Values a path parameter is probed with; a `{regex}` parameter gets the first it accepts. */
-const PARAM_SAMPLES = ["probe", "1", "00000000-0000-4000-8000-000000000000"];
+const PROBED_CAPABILITY = notesRow();
+
+/** Each path parameter names the installed capability, so a route that ran would act on it. */
+const PARAM_SAMPLES: Record<string, string> = {
+  id: PROBED_CAPABILITY.id,
+  incarnation_id: PROBED_CAPABILITY.incarnation_id,
+  action: "create" satisfies WireProtocolAction,
+};
+
+/** A form the prompt route would build from, the way a cross-site page would post it. */
+const SPENDING_FORM = { head: "prompt=probe&", type: "application/x-www-form-urlencoded" };
 
 interface Door {
   readonly label: string;
@@ -66,13 +77,14 @@ function isDoor(route: RouteEntry): boolean {
   return !writingRouteGuard(target(route)) && !isAppWidePassThrough(route);
 }
 
+/** A `{regex}` parameter gets the first of its sample and a number that the pattern accepts. */
 function probePath(pattern: string): string {
   return pattern
-    .replace(/:[^/{]+(?:\{([^}]*)\})?/g, (_param, regex: string | undefined) =>
-      regex === undefined
-        ? "probe"
-        : (PARAM_SAMPLES.find((sample) => new RegExp(`^(?:${regex})$`).test(sample)) ?? "probe"),
-    )
+    .replace(/:([^/{]+)(?:\{([^}]*)\})?/g, (_param, name: string, regex: string | undefined) => {
+      const samples = [PARAM_SAMPLES[name] ?? "probe", "1"];
+      const accepts = (sample: string) => !regex || new RegExp(`^(?:${regex})$`).test(sample);
+      return samples.find(accepts) ?? "probe";
+    })
     .replace(/\*/g, "probe");
 }
 
@@ -112,26 +124,29 @@ async function send(
 function declarationProblems({ label, guard, guardedFirst }: Door): string[] {
   if (!guard) return [`${label} is registered without a writing-route guard`];
   if (!guardedFirst) return [`${label} is registered before its guard`];
-  const expected = guard.streams ? PROBE_FILE_CAP : TEXT_BODY_LIMIT_BYTES;
-  if (guard.maxBodyBytes !== expected) {
-    return [`${label} accepts ${guard.maxBodyBytes}B where its kind accepts ${expected}B`];
+  if (guard.streams && guard.maxBodyBytes !== PROBE_FILE_CAP) {
+    return [`${label} accepts ${guard.maxBodyBytes}B where the file cap is ${PROBE_FILE_CAP}B`];
   }
   return [];
 }
 
 async function unreadProblems(app: Hono, door: Door, limit: number): Promise<string[]> {
   const problems: string[] = [];
-  for (const site of ["cross-site", "same-site"]) {
-    const body = probeBody(limit);
-    const status = await send(app, door, body, { "sec-fetch-site": site });
-    if (status !== 403 || body.pulledBytes() > 0) {
-      problems.push(
-        `${door.label} answered a ${site} request ${status} after ${body.pulledBytes()}B`,
-      );
-    }
+  const crossSite = probeBody(limit, SPENDING_FORM.head);
+  const crossSiteStatus = await send(app, door, crossSite, {
+    "content-type": SPENDING_FORM.type,
+    "sec-fetch-site": "cross-site",
+  });
+  if (crossSiteStatus !== 403 || crossSite.pulledBytes() > 0) {
+    problems.push(
+      `${door.label} answered a cross-site request ${crossSiteStatus} after ${crossSite.pulledBytes()}B`,
+    );
   }
-  const unread = probeBody(limit + 1);
-  const status = await send(app, door, unread, { "content-length": String(limit + 1) });
+  const unread = probeBody(limit + 1, SPENDING_FORM.head);
+  const status = await send(app, door, unread, {
+    "content-type": SPENDING_FORM.type,
+    "content-length": String(limit + 1),
+  });
   if (status !== 413 || unread.pulledBytes() > 0) {
     problems.push(`${door.label} answered a declared ${limit + 1}B body ${status}`);
   }
@@ -166,10 +181,9 @@ async function auditDoor(app: Hono, door: Door): Promise<string[]> {
   const declared = declarationProblems(door);
   if (declared.length > 0 || !door.guard) return declared;
   const limit = door.guard.maxBodyBytes;
-  return [
-    ...(await unreadProblems(app, door, limit)),
-    ...(await countedProblems(app, door, limit)),
-  ];
+  const unread = await unreadProblems(app, door, limit);
+  if (!door.guard.streams) return unread;
+  return [...unread, ...(await countedProblems(app, door, limit))];
 }
 
 async function auditApp(app: Hono): Promise<string[]> {
@@ -233,12 +247,11 @@ function quietApp(): Hono {
 describe("every writing route guards its own door", () => {
   let env: ScratchDbEnv;
   let spent: string[];
-  let loads: ReturnType<typeof makeSpyLoader>;
 
   beforeEach(() => {
     env = createScratchDbEnv("omni-crud-writing-route-guards-");
+    install(env.conns, PROBED_CAPABILITY);
     spent = [];
-    loads = makeSpyLoader();
   });
 
   afterEach(() => {
@@ -258,12 +271,16 @@ describe("every writing route guards its own door", () => {
         return Promise.reject(new Error("no refused or probing request reaches the logo service"));
       },
     };
+    const loadHandler: HandlerLoader = () => {
+      spent.push("handler");
+      return Promise.reject(new Error("no refused or probing request reaches a handler"));
+    };
     return createApp({
       getProvider: () => provider,
       recordMetrics: makeMetricsRecorder().recordMetrics,
       buildDatabases: env.conns,
       artifactsRoot: env.artifactsRoot,
-      capabilityRouter: { databases: env.conns, loadHandler: loads.loadHandler },
+      capabilityRouter: { databases: env.conns, loadHandler },
       buildJobs: createBuildJobQueue({
         createId: () => {
           spent.push("build job");
@@ -283,7 +300,6 @@ describe("every writing route guards its own door", () => {
     expect(exempt.map((route) => `${route.method} ${route.path}`)).toEqual(["ALL /*"]);
     expect(await auditApp(app)).toEqual([]);
     expect(spent).toEqual([]);
-    expect(loads.calls).toEqual([]);
   });
 
   test("a read through the record router is not a door, and another site may still ask", async () => {
@@ -335,8 +351,7 @@ describe("the route walk", () => {
     app.post("/takes-next", async (c, _next) => wrote(c));
     app.use("/middleware-writes", wrote);
     app.post("/guard-after", wrote);
-    app.post("/guard-after", guardWritingRoute(TEXT_BODY_LIMIT_BYTES));
-    app.post("/generous", guardWritingRoute(4 * TEXT_BODY_LIMIT_BYTES), wrote);
+    app.post("/guard-after", guardWritingRoute());
     app.post("/generous-stream", guardStreamingRoute(2 * PROBE_FILE_CAP), wrote);
     app.post("/swallows", guardStreamingRoute(PROBE_FILE_CAP), async (c) => {
       try {
@@ -363,7 +378,6 @@ describe("the route walk", () => {
       "/*",
       "/echoes",
       "/exempted",
-      "/generous",
       "/generous-stream",
       "/guard-after",
       "/middleware-writes",
@@ -377,14 +391,14 @@ describe("the route walk", () => {
 
   test("passes every door that is shut, however it is registered", async () => {
     const app = quietApp();
-    app.all("/guarded/:id", guardWritingRoute(TEXT_BODY_LIMIT_BYTES), wrote);
-    app.post("/numbered/:id{[0-9]+}", guardWritingRoute(TEXT_BODY_LIMIT_BYTES), wrote);
+    app.all("/guarded/:id", guardWritingRoute(), wrote);
+    app.post("/numbered/:id{[0-9]+}", guardWritingRoute(), wrote);
     app.post("/streamed", guardStreamingRoute(PROBE_FILE_CAP), readAll);
     app.post("/knows-nobody/:id", guardStreamingRoute(PROBE_FILE_CAP), (c) => c.text("who?", 404));
     app.on("HEAD", "/head", wrote);
     const inner = new Hono();
     inner.onError((_error, c) => c.text("inner failed", 500));
-    inner.post("/inside", guardWritingRoute(TEXT_BODY_LIMIT_BYTES), wrote);
+    inner.post("/inside", guardWritingRoute(), wrote);
     app.route("/mounted", inner);
 
     expect(doors(app).length).toBe(5);

@@ -6,11 +6,11 @@ import type { FileFamily } from "../../registry/fields/file.ts";
 
 /** A key a save may not claim, or an upload whose bytes were taken before it answered. */
 export const ADD_FILE_AGAIN_SENTENCE =
-  "I can't save that file in this field. Mind adding it here again?";
+  "I can’t save that file in this field. Mind adding it here again?";
 
 /** What a field says of a file admission refused, by the family the field takes. */
 export const NOT_ADMITTED_SENTENCES = {
-  image: "That isn't a photo I can show here. Mind picking a different one?",
+  image: "That isn’t a photo I can show here. Mind picking a different one?",
 } as const satisfies Record<FileFamily, string>;
 
 /** The cap as a person reads it: whole megabytes, as the drawn "500 MB" is, and never rounded up. */
@@ -22,5 +22,5 @@ function sizeInWords(bytes: number): string {
 
 /** A file over the cap, whatever its kind. */
 export function oversizeSentence(maxFileBytes: number): string {
-  return `That's over ${sizeInWords(maxFileBytes)}, more than I can keep in one file. Mind picking a smaller one?`;
+  return `That’s over ${sizeInWords(maxFileBytes)}, more than I can keep in one file. Mind picking a smaller one?`;
 }

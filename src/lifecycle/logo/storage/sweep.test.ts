@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { until } from "../../../platform/async.test-support.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { THIRD_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import {
@@ -70,18 +71,6 @@ function logoState() {
 
 function storedLogo(): string {
   return capabilityLogoPath(artifactsRoot, "notes", NOTES_INCARNATION_ID);
-}
-
-/**
- * Wait for a condition the in-flight request is about to satisfy. The deadline is wall-clock, not
- * a tick count, so a loaded machine gets the same ten seconds a quiet one does.
- */
-async function until(satisfied: () => boolean): Promise<void> {
-  const deadline = Date.now() + 10_000;
-  while (!satisfied() && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 1));
-  }
-  expect(satisfied()).toBe(true);
 }
 
 interface GatedProvider extends LogoGenerationProvider {

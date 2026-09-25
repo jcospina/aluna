@@ -3,7 +3,7 @@
 // means: what is in, what is out, and which spec edits can and cannot move a digest.
 
 import { describe, expect, test } from "bun:test";
-import { photoSpec } from "../../../../../registry/fields/file.test-support.ts";
+import { PHOTO_FIELD, photoSpec } from "../../../../../registry/fields/file.test-support.ts";
 import { SECOND_INCARNATION_ID } from "../../../../../registry/incarnations.test-support.ts";
 import {
   type CapabilitySpec,
@@ -256,11 +256,12 @@ describe("a file field's tokens are create/update validation shape", () => {
   };
 
   test("hands the model each file field's families beside its type", () => {
+    const { name, type, required, accepts } = PHOTO_FIELD;
     expect(actionTestInputs(photoSpec(), "create").schema).toContainEqual({
-      name: "photo",
-      type: "file",
-      required: false,
-      accepts: ["image"],
+      name,
+      type,
+      required,
+      accepts,
     });
   });
 

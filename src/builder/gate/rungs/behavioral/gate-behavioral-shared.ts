@@ -1,7 +1,11 @@
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
 import type { BehavioralErrorCase, SpecField } from "../../../../registry/index.ts";
-import { behavioralErrorMarkersSchema, capabilityToolSchema } from "../../../../registry/index.ts";
+import {
+  behavioralErrorMarkersSchema,
+  capabilityToolSchema,
+  isFileFieldType,
+} from "../../../../registry/index.ts";
 import type { selectCapabilityRows } from "../../../../runtime/data/index.ts";
 import type { HandlerUnitName } from "../../../units/generation/units.ts";
 import { fieldValueMatches } from "../../gate-internal.ts";
@@ -152,8 +156,8 @@ export function rowMatches(
 ): boolean {
   return Object.entries(expected).every(([field, value]) => {
     const type = fields.find((candidate) => candidate.name === field)?.type;
-    const wanted = type === "file" ? tokenFile(value) : value;
-    return type ? fieldValueMatches(type, row[field], wanted) : row[field] === value;
+    if (!type) return row[field] === value;
+    return fieldValueMatches(type, row[field], isFileFieldType(type) ? tokenFile(value) : value);
   });
 }
 

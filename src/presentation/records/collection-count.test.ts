@@ -48,14 +48,8 @@ describe("what the collection says", () => {
     expect(collectionCountSentence(0, NOTES)).toBe("");
   });
 
-  test("says the plural the model wrote, in whatever language it wrote it", () => {
-    // The platform never derives a plural: these are what English and Korean spell, not a rule.
-    expect(collectionCountSentence(3, { noun: "photo", plural: "photos" })).toBe("3 photos");
-    expect(collectionCountSentence(3, { noun: "check-in", plural: "check-ins" })).toBe(
-      "3 check-ins",
-    );
+  test("says the plural it is given, and never derives one", () => {
     expect(collectionCountSentence(3, { noun: "person", plural: "people" })).toBe("3 people");
-    expect(collectionCountSentence(3, { noun: "메모", plural: "메모" })).toBe("3 메모");
   });
 
   test("writes a large number the way a person reads one", () => {

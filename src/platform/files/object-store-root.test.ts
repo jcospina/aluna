@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
-import { OBJECT_STORE_ROOT } from "../persistence/table-names.ts";
-import { OBJECT_STORE_ROOT_ENV_VAR, resolveObjectStoreRoot } from "./object-store-root.ts";
+import {
+  OBJECT_STORE_ROOT,
+  OBJECT_STORE_ROOT_ENV_VAR,
+  resolveObjectStoreRoot,
+} from "./object-store-root.ts";
 
 test("the object store's root is the setting, or the default when it is unset or blank", () => {
   expect(resolveObjectStoreRoot({})).toBe(OBJECT_STORE_ROOT);

@@ -4,13 +4,21 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 
-import { CAPTION_FIELD, photoSpec } from "../../../registry/fields/file.test-support.ts";
+import { fileUrl } from "../../../platform/files/file-url.ts";
+import { mintFileKey } from "../../../platform/files/ledger.ts";
+import {
+  CAPTION_FIELD,
+  PHOTO_FIELD,
+  photoSpec,
+} from "../../../registry/fields/file.test-support.ts";
 import {
   applyAdditiveCapabilityMigration,
   applyCapabilityTableDdl,
+  CapabilityDataValidationError,
   createCapabilityQueryPort,
   deriveAdditiveCapabilityMigration,
 } from "../index.ts";
+import { fileKeyFromProjection, projectStoredFileReference } from "./file-values.ts";
 import { tableColumns } from "./table-shape.test-support.ts";
 
 const REFERENCE = JSON.stringify({
@@ -77,6 +85,17 @@ describe("a file field's column", () => {
   });
 });
 
+describe("a stored reference as generated code sees it", () => {
+  test("names its file by the address the key is served from, and cannot be changed", () => {
+    const key = mintFileKey();
+    const stored = JSON.stringify({ ...JSON.parse(REFERENCE), key });
+    const projection = projectStoredFileReference(PHOTO_FIELD.name, stored);
+    expect(projection.url).toBe(fileUrl(key));
+    expect(fileKeyFromProjection(projection)).toBe(key);
+    expect(Object.isFrozen(projection)).toBe(true);
+  });
+});
+
 describe("reading a file column through the query port", () => {
   test("a Handler may not declare one as a projected column yet", () => {
     const database = new Database(":memory:");
@@ -88,7 +107,7 @@ describe("reading a file column through the query port", () => {
           sql: 'SELECT "photo" FROM "cap_photos"',
           result: [{ alias: "photo", type: "file" as "string" }],
         }),
-      ).toThrow('Invalid query result type "file" for alias "photo".');
+      ).toThrow(CapabilityDataValidationError);
     } finally {
       database.close();
     }

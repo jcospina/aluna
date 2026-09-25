@@ -14,20 +14,22 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
+import { FILE_URL_PREFIX } from "../../platform/files/file-url.ts";
 import { DB_PATH, openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
 import { runMigrations } from "../../platform/persistence/migrations.ts";
+import { FILE_LEDGER_TABLE } from "../../platform/persistence/table-names.ts";
 import { codeOf, flat } from "../../presentation/safety/source.test-support.ts";
-import { NO_SHADOW } from "./query-worker.test-support.ts";
+import { NO_SHADOW, wholeTables } from "./query-worker.test-support.ts";
 import {
   createQueryWorker,
   type QueryShadow,
-  type QueryShadowTable,
   type QueryWorker,
   QueryWorkerBusyError,
   QueryWorkerClosedError,
   QueryWorkerStatementError,
 } from "./query-worker.ts";
+import { QUESTION_FILE_WITHHELD } from "./question-file-scrub.ts";
+import { QUESTION_DESK_SCHEMA, type QuestionViewColumn, questionView } from "./question-views.ts";
 import { RUNAWAY_QUERY_SQL } from "./runaway-query.test-support.ts";
 import { addedPaths, sweepPlatformStores } from "./store-sweep.test-support.ts";
 import { SQL_LITERALS_AND_COMMENTS, STATEMENT_RESULT_CODES } from "./whole-catalog-query-scope.ts";
@@ -71,8 +73,12 @@ function seeded(options: { migrate?: boolean } = {}): { path: string; database: 
   return { path, database: pair.readwrite };
 }
 
-function start(path: string = DB_PATH): QueryWorker {
-  const worker = createQueryWorker(path, NO_SHADOW);
+const WIDGETS = wholeTables("widget");
+/** The seeded table itself, under the view that shows it. */
+const UNDERNEATH = `${QUESTION_DESK_SCHEMA}.widget`;
+
+function start(path: string, shadow: QueryShadow = WIDGETS): QueryWorker {
+  const worker = createQueryWorker(path, shadow);
   workers.push(worker);
   return worker;
 }
@@ -98,7 +104,9 @@ describe("the query worker", () => {
     // Importing `db.ts` for DB_PATH is what makes the file openable: its module scope creates the
     // file and the WAL `-shm` index a read-only connection can attach to but never create.
     // `main` is the thread's own empty schema; the file is the one other it holds.
-    const [row] = await start().read("SELECT file FROM pragma_database_list WHERE file <> ''");
+    const [row] = await start(DB_PATH, NO_SHADOW).read(
+      "SELECT file FROM pragma_database_list WHERE file <> ''",
+    );
 
     expect(realpathSync(String(row?.file))).toBe(realpathSync(DB_PATH));
   });
@@ -110,7 +118,7 @@ describe("the query worker", () => {
     // DML and DDL both: the boundary is SQLite's, so it holds regardless of the SQL issued.
     // The message matters — a refusal by message shape would pass for a mere typo too.
     await expect(
-      worker.read("INSERT INTO widget (name, size) VALUES (?, ?)", ["delta", 40]),
+      worker.read(`INSERT INTO ${UNDERNEATH} (name, size) VALUES (?, ?)`, ["delta", 40]),
     ).rejects.toThrow(/attempt to write a readonly database/);
     await expect(worker.read("CREATE TABLE smuggled (id INTEGER)")).rejects.toThrow(
       /attempt to write a readonly database/,
@@ -181,7 +189,7 @@ describe("the query worker", () => {
     expect(String(constructed[0]?.[0])).toMatch(/query-worker-thread\.ts$/);
     expect(posted).toEqual([
       {
-        message: { kind: "open", id: expect.any(Number), path, shadow: NO_SHADOW },
+        message: { kind: "open", id: expect.any(Number), path, shadow: WIDGETS },
         transfer: undefined,
       },
       {
@@ -202,9 +210,9 @@ describe("the query worker", () => {
     const worker = start(path);
 
     await worker.read("SELECT count(*) AS total FROM widget");
-    await expect(worker.read("INSERT INTO widget (name, size) VALUES ('x', 1)")).rejects.toThrow(
-      /attempt to write a readonly database/,
-    );
+    await expect(
+      worker.read(`INSERT INTO ${UNDERNEATH} (name, size) VALUES ('x', 1)`),
+    ).rejects.toThrow(/attempt to write a readonly database/);
     await worker.read("SELECT name FROM widget ORDER BY name");
     const after = sweepPlatformStores(database, join(path, ".."));
 
@@ -372,27 +380,26 @@ describe("the two things the thread mirrors rather than imports", () => {
 });
 
 const TABLE = 'odd "name"';
-const WITHHELD = "(withheld)";
 
 /** A table only its views may show: one row per way a key or an address can be stored. */
 function shadowedDesk(
-  columns: QueryShadowTable["columns"] = COLUMNS,
+  columns: readonly QuestionViewColumn[] = COLUMNS,
   notes: (key: string) => readonly string[] = () => [],
 ) {
   const { path, database } = seeded();
   const key = randomUUID();
   const quotedTable = `"${TABLE.replaceAll('"', '""')}"`;
-  database.exec(`CREATE TABLE ledger ("key" TEXT PRIMARY KEY)`);
-  database.run(`INSERT INTO ledger VALUES (?)`, [key]);
+  database.exec(`CREATE TABLE ${FILE_LEDGER_TABLE} ("key" TEXT PRIMARY KEY)`);
+  database.run(`INSERT INTO ${FILE_LEDGER_TABLE} VALUES (?)`, [key]);
   database.exec(
     `CREATE TABLE ${quotedTable} (id TEXT, photo TEXT, note TEXT, tags TEXT, hidden TEXT) STRICT`,
   );
   const insert = database.prepare(`INSERT INTO ${quotedTable} VALUES (?, ?, ?, ?, ?)`);
   const tags = JSON.stringify(["a", key]);
   insert.run("stored", JSON.stringify({ key, kind: "image" }), `see ${key}`, tags, key);
-  insert.run("malformed", "not json", `${ADDRESS}${key.slice(0, 8)}`, "[]", null);
+  insert.run("malformed", "not json", `${FILE_URL_PREFIX}${key.slice(0, 8)}`, "[]", null);
   insert.run("doubled", `{"key":"a","key":"${key}","kind":"image"}`, randomUUID(), "[]", null);
-  insert.run("plain", null, `my ${ADDRESS} folder`, '["b"]', null);
+  insert.run("plain", null, `my ${FILE_URL_PREFIX} folder`, '["b"]', null);
   insert.run("nul", null, `${String.fromCharCode(0)}${key}`, "[]", null);
   insert.run("bare", null, key.replaceAll("-", "").toUpperCase(), "[]", null);
   insert.run("spaced", null, key.replaceAll("-", "|"), "[]", null);
@@ -402,19 +409,15 @@ function shadowedDesk(
     insert.run(`at-${index}`, null, note, "[]", null);
   });
   insert.finalize();
-  const shadow: QueryShadow = {
-    tables: [{ table: TABLE, columns }],
-    withheld: WITHHELD,
-    filePrefix: ADDRESS,
-    ledgerTable: "ledger",
-  };
-  const worker = createQueryWorker(path, shadow);
+  const worker = createQueryWorker(path, {
+    schema: QUESTION_DESK_SCHEMA,
+    views: [questionView(TABLE, columns)],
+  });
   workers.push(worker);
   return { worker, key, quotedTable };
 }
 
-const ADDRESS = "/files/";
-const COLUMNS: QueryShadowTable["columns"] = [
+const COLUMNS: readonly QuestionViewColumn[] = [
   { name: "id", reading: "value" },
   { name: "photo", reading: "file" },
   { name: "note", reading: "text" },
@@ -435,7 +438,7 @@ describe("the views a question reads its tables through (Module 7 decision 37)",
       { id: "listed", photo: null },
       { id: "malformed", photo: null },
       // A name that may hold an address goes too; the rest of the reference stays.
-      { id: "named", photo: only("image", WITHHELD) },
+      { id: "named", photo: only("image", QUESTION_FILE_WITHHELD) },
       { id: "nul", photo: null },
       { id: "plain", photo: null },
       { id: "spaced", photo: null },
@@ -450,13 +453,15 @@ describe("the views a question reads its tables through (Module 7 decision 37)",
     );
     // As it was, after an address, behind a NUL, without its hyphens, with bars for them.
     expect(rows).toHaveLength(5);
-    expect(rows.map((row) => row.note)).toEqual(rows.map(() => WITHHELD.toUpperCase()));
+    expect(rows.map((row) => row.note)).toEqual(
+      rows.map(() => QUESTION_FILE_WITHHELD.toUpperCase()),
+    );
     // A uuid the ledger does not hold, and a path with no key after it, are data.
     const kept = await worker.read(
       `SELECT note FROM ${quotedTable} WHERE id IN ('doubled', 'plain') ORDER BY id`,
     );
-    expect(kept.map((row) => row.note === WITHHELD)).toEqual([false, false]);
-    expect(kept[1]).toEqual({ note: `my ${ADDRESS} folder` });
+    expect(kept.map((row) => row.note === QUESTION_FILE_WITHHELD)).toEqual([false, false]);
+    expect(kept[1]).toEqual({ note: `my ${FILE_URL_PREFIX} folder` });
   });
 
   test("withholds a list as a list, and keeps text comparing as text", async () => {
@@ -471,15 +476,25 @@ describe("the views a question reads its tables through (Module 7 decision 37)",
     ]);
   });
 
-  test("reads a long note with a uuid in it in time that follows its length", async () => {
-    const { worker, quotedTable } = shadowedDesk();
-    const started = performance.now();
-    const [row] = await worker.read(
-      `SELECT length(note) AS n FROM ${quotedTable} WHERE id = 'listed'`,
-    );
-    expect(row?.n).toBeGreaterThan(48_000);
-    // Each 32-digit window walks one chunk, not the whole note: measured at 11s for 32k before.
-    expect(performance.now() - started).toBeLessThan(5_000);
+  test("reads a note in time that follows its length, not its square", async () => {
+    // Hex runs all through it, so every chunk is walked window by window. Timed in CPU, which a
+    // loaded machine delays but does not inflate: a note 32 times longer costs 27-51 times more,
+    // and 450-600 times when each window walks the whole note. The cheapest of three reads each.
+    const uuids = (count: number) => Array.from({ length: count }, () => randomUUID()).join(" ");
+    const { worker, quotedTable } = shadowedDesk(COLUMNS, () => [uuids(25), uuids(800)]);
+    const cheapest = async (id: string) => {
+      let best = Number.POSITIVE_INFINITY;
+      for (let run = 0; run < 3; run += 1) {
+        const started = process.cpuUsage();
+        await worker.read(`SELECT length(note) AS n FROM ${quotedTable} WHERE id = ?`, [id]);
+        const { user, system } = process.cpuUsage(started);
+        best = Math.min(best, user + system);
+      }
+      return best;
+    };
+    const short = await cheapest("at-0");
+    const long = await cheapest("at-1");
+    expect(long / short).toBeLessThan(150);
   });
 
   test("finds a key wherever it falls against the chunks a long note is read in", async () => {
@@ -489,7 +504,7 @@ describe("the views a question reads its tables through (Module 7 decision 37)",
     );
     const [row] = await worker.read(
       `SELECT count(*) AS n FROM ${quotedTable} WHERE id LIKE 'at-%' AND note = ?`,
-      [WITHHELD],
+      [QUESTION_FILE_WITHHELD],
     );
     expect(row).toEqual({ n: offsets.length });
   });
@@ -500,15 +515,36 @@ describe("how the views are opened, and what they leave no way round", () => {
 
   test("keeps its views through the settings it opens with", async () => {
     const { worker } = shadowedDesk();
-    expect(await worker.read("SELECT type, name FROM sqlite_temp_master")).toEqual([
-      { type: "view", name: TABLE },
-    ]);
+    const views = await worker.read("SELECT name FROM sqlite_temp_master WHERE type = 'view'");
+    expect(views.map(({ name }) => name).sort()).toEqual([FILE_LEDGER_TABLE, TABLE, "widget"]);
+  });
+
+  test("shows every table it was given no view for as nothing, SQLite's own included", async () => {
+    const { path, database } = seeded();
+    database.exec(`CREATE TABLE ${FILE_LEDGER_TABLE} ("key" TEXT PRIMARY KEY)`);
+    database.run(`INSERT INTO ${FILE_LEDGER_TABLE} VALUES (?)`, [randomUUID()]);
+    database.exec("CREATE TABLE counted (n INTEGER PRIMARY KEY AUTOINCREMENT)");
+    database.exec("INSERT INTO counted DEFAULT VALUES; ANALYZE;");
+    const internal = ["sqlite_stat1", "sqlite_stat4", "sqlite_sequence"];
+    for (const table of internal) {
+      expect(database.query(`SELECT * FROM ${table}`).all().length).toBeGreaterThan(0);
+    }
+    const worker = start(path, NO_SHADOW);
+
+    await expect(worker.read(`SELECT key FROM ${FILE_LEDGER_TABLE}`)).rejects.toThrow(
+      /no such column/,
+    );
+    for (const table of [FILE_LEDGER_TABLE, "widget", "counted", ...internal]) {
+      expect({ table, rows: await worker.read(`SELECT * FROM ${table}`) }).toEqual({
+        table,
+        rows: [],
+      });
+    }
   });
 
   test("lets no name reach round a view", async () => {
     const { worker, key, quotedTable } = shadowedDesk();
-    const [desk] = await worker.read("SELECT name FROM pragma_database_list WHERE file <> ''");
-    const schema = String(desk?.name);
+    const underneath = `${QUESTION_DESK_SCHEMA}.${quotedTable}`;
 
     // A column the catalog does not list is not there, and `main` holds nothing.
     await expect(worker.read(`SELECT hidden FROM ${quotedTable}`)).rejects.toThrow(
@@ -519,7 +555,7 @@ describe("how the views are opened, and what they leave no way round", () => {
     );
     // A write the table bound lets through unprepared fails before it reads a thing.
     const write = worker.read(
-      `UPDATE ${schema}.${quotedTable} SET note = json_extract('{}', (SELECT photo FROM ${schema}.${quotedTable} LIMIT 1))`,
+      `UPDATE ${underneath} SET note = json_extract('{}', (SELECT photo FROM ${underneath} LIMIT 1))`,
     );
     await expect(write).rejects.toThrow(/readonly/);
     await write.catch((error: Error) => expect(error.message).not.toContain(key));

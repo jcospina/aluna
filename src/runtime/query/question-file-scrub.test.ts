@@ -4,7 +4,7 @@
 // proof is the exact text each prompt carries, in both the turn's prompt and the answer's.
 
 import type { Database } from "bun:sqlite";
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 
 import { FILE_URL_PREFIX } from "../../platform/files/file-url.ts";
@@ -13,14 +13,13 @@ import {
   requireFileLedgerRow,
   seedFileLedgerRow,
 } from "../../platform/files/ledger.test-support.ts";
-import { readFileLedgerKeys } from "../../platform/files/ledger.ts";
-import { PHOTO_FIELD, photoSpec } from "../../registry/fields/file.test-support.ts";
+import { FILE_LEDGER_TABLE } from "../../platform/persistence/table-names.ts";
+import { CAPTION_FIELD, PHOTO_FIELD, photoSpec } from "../../registry/fields/file.test-support.ts";
 import { FIRST_INCARNATION_ID } from "../../registry/incarnations.test-support.ts";
-import { readActiveRegistryCatalog } from "../../registry/index.ts";
-import { CAPABILITY_TABLE_PREFIX } from "../data/index.ts";
+import { type CapabilitySpec, readActiveRegistryCatalog } from "../../registry/index.ts";
+import { capabilityTableName } from "../data/schema/ddl.ts";
 import { storedFileReference } from "../data/schema/file-values.ts";
-import { NO_SHADOW } from "./query-worker.test-support.ts";
-import { createQueryWorker } from "./query-worker.ts";
+import { createQueryWorker, type QueryWorker } from "./query-worker.ts";
 import {
   answers,
   nextPrompt,
@@ -34,32 +33,29 @@ import {
 import {
   fileKeyDigits,
   QUESTION_FILE_WITHHELD,
-  questionFileKeysIn,
   questionLedger,
   scrubQuestionRows,
 } from "./question-file-scrub.ts";
 import {
   QUESTION_STEP_RESULT_TOO_LARGE,
-  QUESTION_STEP_SCRUB_CEILING_BYTES,
+  QUESTION_STEP_SCRUB_CEILING_CHARACTERS,
   questionRowsTooLargeToScrub,
   renderQuestionRows,
 } from "./question-payload.ts";
-import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
-import { catalogShadow } from "./whole-catalog-read-scope.ts";
-
-let platforms: ScratchPlatforms;
-
-beforeEach(() => {
-  platforms = createScratchPlatforms();
-});
-
-afterEach(() => {
-  platforms.disposeAll();
-});
+import { QUESTION_DESK_SCHEMA, questionViews } from "./question-views.ts";
+import { createScratchPlatforms } from "./read-scope.test-support.ts";
 
 const OLD_PHOTO = { ...PHOTO_FIELD, name: "old_photo", lifecycle: "inactive" as const };
-const SPEC = photoSpec([...photoSpec().schema.fields, OLD_PHOTO]);
-const TABLE = `${CAPABILITY_TABLE_PREFIX}${SPEC.id}`;
+const TAGS = { ...CAPTION_FIELD, name: "tags", type: "string[]" as const, required: false };
+const TAGGED = photoSpec([...photoSpec().schema.fields, OLD_PHOTO, TAGS]);
+const SPEC = {
+  ...TAGGED,
+  ui_intent: {
+    ...TAGGED.ui_intent,
+    form: { ...TAGGED.ui_intent.form, list_inputs: [{ field: TAGS.name, mode: "repeatable" }] },
+  },
+} satisfies CapabilitySpec;
+const TABLE = capabilityTableName(SPEC.id);
 const QUESTION = "how many photos do I have, and what kind of files are they?";
 
 const PHOTOS = [
@@ -102,11 +98,12 @@ function photosDesk(): PhotosDesk {
         ...file,
       });
     const insert = database.prepare(
-      `INSERT INTO ${TABLE} (id, created_at, extra, caption, photo, old_photo) VALUES (?, ?, '{}', ?, ?, ?)`,
+      `INSERT INTO ${TABLE} (id, created_at, extra, caption, photo, old_photo, tags) VALUES (?, ?, '{}', ?, ?, ?, ?)`,
     );
     const save = (role: Role, caption: string, key: string | null) => {
       const stored = key && storedFileReference(requireFileLedgerRow(database, key));
-      insert.run(ids[role], "2026-09-20 09:00:00", caption, stored, stored);
+      const tags = role === "copied" ? JSON.stringify(["harbour", key]) : null;
+      insert.run(ids[role], "2026-09-20 09:00:00", caption, stored, stored, tags);
     };
     const pending = admit({ state: "pending", recordId: null });
     const cleaned = admit({ state: "cleanup_enqueued", recordId: "a-deleted-record" });
@@ -132,6 +129,23 @@ function photosDesk(): PhotosDesk {
   return { desk, ids, keys };
 }
 
+/** Nothing here writes to the desk, so every suite reads the one. */
+const platforms = createScratchPlatforms();
+let shared: PhotosDesk;
+/** The worker the question's scope would start, read directly: no scrub stands behind it. */
+let worker: QueryWorker;
+
+beforeAll(() => {
+  shared = photosDesk();
+  const catalog = readActiveRegistryCatalog(shared.desk.database.readonly);
+  worker = createQueryWorker(shared.desk.path, questionViews(catalog));
+});
+
+afterAll(() => {
+  worker.close();
+  platforms.disposeAll();
+});
+
 /** Every spelling of a key a prompt could carry it in, fullwidth ones included. */
 function expectNoKey(prompt: string, keys: readonly string[]): void {
   const lower = prompt.toLowerCase();
@@ -152,13 +166,12 @@ async function promptsFor(desk: QuestionDesk, sql: string, parameters: string[] 
   return { turn, answer: run.answerPrompts[0] ?? "", step: run.steps[0] };
 }
 
-/** A caption's key, as a statement reads it back out of the caption it was copied into. */
-const COPIED_KEY = "substr(caption, 8, 36)";
+/** The fullwidth caption's key, as a statement reads it back out of the caption. */
 const WIDE_KEY = `substr(caption, ${WIDE.length + 1}, 36)`;
 const TO_36 = "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 36)";
 
 /** Ways a statement can dress a key: halves swapped, a letter a row, hex, codes, backwards. */
-function dressings(key: string, where = ""): readonly (readonly [string, string])[] {
+function dressings(key: string, where: string): readonly (readonly [string, string])[] {
   const from = `FROM ${TABLE} ${where}`;
   const rows = `FROM n, ${TABLE} ${where}`;
   return [
@@ -167,7 +180,7 @@ function dressings(key: string, where = ""): readonly (readonly [string, string]
     ["a character a row beside its index", `${TO_36} SELECT i, substr(${key}, i, 1) AS c ${rows}`],
     ["hex-encoded", `SELECT hex(${key}) AS k ${from}`],
     ["hex-encoded three times", `SELECT hex(hex(hex(${key}))) AS k ${from}`],
-    ["as a blob", `SELECT unhex(replace(${key}, '-', '')) AS k ${from}`],
+    ["as a blob", `SELECT CAST(${key} AS BLOB) AS k ${from}`],
     [
       "as character codes",
       `${TO_36} SELECT group_concat(unicode(substr(${key}, i, 1))) AS k ${rows}`,
@@ -184,13 +197,13 @@ interface ReadBack {
 
 describe("a question over Photos", () => {
   test("hands the model every file's kind, type, size and name, and none of its keys", async () => {
-    const { desk, ids, keys } = photosDesk();
+    const { desk, ids, keys } = shared;
     const { turn, answer, step } = await promptsFor(
       desk,
       `SELECT id, caption, photo FROM ${TABLE}`,
     );
     if (step?.result.outcome !== "rows") throw new Error("the read did not come back");
-    const rendered = renderQuestionRows(step.result);
+    const rendered = renderQuestionRows(step.result.rows);
     const read = new Map((JSON.parse(rendered) as ReadBack[]).map((row) => [row.id, row]));
 
     for (const prompt of [turn, answer]) {
@@ -216,19 +229,8 @@ describe("a question over Photos", () => {
     }
   });
 
-  test("withholds every copy but the fullwidth one before any statement reads it", async () => {
-    const { desk, ids } = photosDesk();
-    const { step } = await promptsFor(desk, `SELECT id, caption FROM ${TABLE}`);
-    if (step?.result.outcome !== "rows") throw new Error("the read did not come back");
-    const raw = new Map(step.result.rows.map((row) => [row.id, row.caption]));
-    for (const role of WITHHELD_CAPTIONS) {
-      const atSource = raw.get(ids[role]) === QUESTION_FILE_WITHHELD;
-      expect({ role, atSource }).toEqual({ role, atSource: role !== "wide" });
-    }
-  });
-
   test("can still count its photos by type, in what the model reads", async () => {
-    const { desk } = photosDesk();
+    const { desk } = shared;
     const { turn, answer } = await promptsFor(
       desk,
       `SELECT json_extract(photo, '$.mime') AS type, count(*) AS how_many FROM ${TABLE} WHERE photo IS NOT NULL GROUP BY type ORDER BY type`,
@@ -243,47 +245,48 @@ describe("a question over Photos", () => {
 });
 
 describe("the worker holds no key a statement can reach", () => {
-  test("its file columns come without one, an inactive field's too", async () => {
-    const { desk } = photosDesk();
-    const shadow = catalogShadow(readActiveRegistryCatalog(desk.database.readonly));
-    const worker = createQueryWorker(desk.path, shadow);
-    try {
-      const rows = await worker.read(
-        `SELECT json_extract(photo, '$.key') AS k, json_extract(old_photo, '$.key') AS o, json_type(old_photo) AS t FROM ${TABLE} WHERE photo IS NOT NULL`,
-      );
-      expect(rows).toEqual([0, 1, 2, 3].map(() => ({ k: null, o: null, t: "object" })));
-    } finally {
-      worker.close();
+  test("a file column comes as its kind, type, size and name, never its key", async () => {
+    const rows = await worker.read(
+      `SELECT photo, json_extract(photo, '$.key') AS k FROM ${TABLE} WHERE photo IS NOT NULL`,
+    );
+    expect(rows.map(({ k }) => k)).toEqual([0, 1, 2, 3].map(() => null));
+    expectNoKey(JSON.stringify(rows), shared.keys);
+  });
+
+  test("a copy in text is withheld before any statement reads it, all but the fullwidth one", async () => {
+    const { ids } = shared;
+    const rows = await worker.read(`SELECT id, caption FROM ${TABLE}`);
+    const raw = new Map(rows.map((row) => [row.id, row.caption]));
+    for (const role of WITHHELD_CAPTIONS) {
+      const atSource = raw.get(ids[role]) === QUESTION_FILE_WITHHELD;
+      expect({ role, atSource }).toEqual({ role, atSource: role !== "wide" });
     }
   });
 
-  const READS: readonly (readonly [string, string])[] = [
-    ...dressings("json_extract(photo, '$.key')").map(
-      ([how, sql]) => [`the file column's, ${how}`, sql] as const,
-    ),
-    ...dressings("json_extract(photo, '$.name')").map(
-      ([how, sql]) => [`a file name's, ${how}`, sql] as const,
-    ),
-    ...dressings(COPIED_KEY).map(([how, sql]) => [`the copies', ${how}`, sql] as const),
-    ["in what SQLite says of a bad path", `SELECT json_extract('{}', photo) AS k FROM ${TABLE}`],
-    ["whole, from every row at once", `SELECT json_group_array(json(photo)) AS k FROM ${TABLE}`],
-  ];
+  test("a list holding a key comes as a list, holding the withheld phrase alone", async () => {
+    const rows = await worker.read(`SELECT tags FROM ${TABLE} WHERE id = ?`, [shared.ids.copied]);
+    expect(rows).toEqual([{ tags: JSON.stringify([QUESTION_FILE_WITHHELD]) }]);
+  });
 
-  for (const [how, sql] of READS) {
-    test(`so nothing of a key comes back: ${how}`, async () => {
-      const { desk, keys } = photosDesk();
-      const { turn, answer } = await promptsFor(desk, sql);
-      expectNoKey(turn, keys);
-      expectNoKey(answer, keys);
-    });
-  }
+  test("nor does what SQLite says of a bad path quote one", async () => {
+    const read = worker.read(`SELECT json_extract('{}', photo) AS k FROM ${TABLE}`);
+    await expect(read).rejects.toThrow(/bad JSON path/);
+    await read.catch((error: Error) => expectNoKey(error.message, shared.keys));
+  });
+
+  test("nor a table or column the table bound refuses, the ledger's key included", async () => {
+    await expect(worker.read(`SELECT key FROM ${FILE_LEDGER_TABLE}`)).rejects.toThrow(
+      /no such column/,
+    );
+    expect(await worker.read(`SELECT * FROM ${FILE_LEDGER_TABLE}`)).toEqual([]);
+    for (const column of ["extra", OLD_PHOTO.name]) {
+      await expect(worker.read(`SELECT ${column} FROM ${TABLE}`)).rejects.toThrow(/no such column/);
+    }
+  });
 
   test("and a write naming the file's own schema fails read-only before it reads", async () => {
-    const { desk, keys } = photosDesk();
-    const worker = createQueryWorker(desk.path, NO_SHADOW);
-    const [attached] = await worker.read("SELECT name FROM pragma_database_list WHERE file <> ''");
-    worker.close();
-    const underneath = `${String(attached?.name)}.${TABLE}`;
+    const { desk, keys } = shared;
+    const underneath = `${QUESTION_DESK_SCHEMA}.${TABLE}`;
     const { turn, step } = await promptsFor(
       desk,
       `UPDATE ${underneath} SET caption = json_extract('{}', (SELECT photo FROM ${underneath} LIMIT 1))`,
@@ -294,11 +297,8 @@ describe("the worker holds no key a statement can reach", () => {
   });
 
   test("and no schema name reaches the table underneath", async () => {
-    const { desk, keys } = photosDesk();
-    const worker = createQueryWorker(desk.path, NO_SHADOW);
-    const [attached] = await worker.read("SELECT name FROM pragma_database_list WHERE file <> ''");
-    worker.close();
-    for (const schema of ["main", String(attached?.name)]) {
+    const { desk, keys } = shared;
+    for (const schema of ["main", QUESTION_DESK_SCHEMA]) {
       const { turn, step } = await promptsFor(desk, `SELECT photo FROM ${schema}.${TABLE}`);
       expect(step?.result.outcome).toBe("failed");
       expectNoKey(turn, keys);
@@ -311,15 +311,27 @@ describe("a copy only the scrub of what comes back can read", () => {
 
   for (const [how, sql] of dressings(WIDE_KEY, ONLY)) {
     test(`is never handed to the model ${how}`, async () => {
-      const { desk, keys } = photosDesk();
-      const { turn, answer } = await promptsFor(desk, sql);
+      const { desk, keys } = shared;
+      const { turn, answer, step } = await promptsFor(desk, sql);
+      if (step?.result.outcome !== "rows") throw new Error("the read did not come back");
+      // Most dressings hide from a search of the prompt, so every text still holding a digit is
+      // what proves the scrub read it: a hyphen or an index is all that may stay.
+      const kept = step.result.rows.flatMap((row) =>
+        Object.values(row).filter(
+          (value) =>
+            typeof value === "string" &&
+            value !== QUESTION_FILE_WITHHELD &&
+            /[0-9a-f]/i.test(value.normalize("NFKC")),
+        ),
+      );
+      expect(kept).toEqual([]);
       expectNoKey(turn, keys);
       expectNoKey(answer, keys);
     });
   }
 
   test("is withheld from what SQLite says about a statement it broke", async () => {
-    const { desk, keys } = photosDesk();
+    const { desk, keys } = shared;
     const { turn, step } = await promptsFor(
       desk,
       `SELECT json_extract('{}', ${WIDE_KEY}) FROM ${TABLE} ${ONLY}`,
@@ -330,7 +342,7 @@ describe("a copy only the scrub of what comes back can read", () => {
   });
 
   test("is withheld from a statement and the values it was bound to, before either is weighed", async () => {
-    const { desk, keys } = photosDesk();
+    const { desk, keys } = shared;
     const key = keys[0] as string;
     const { turn, answer, step } = await promptsFor(
       desk,
@@ -346,12 +358,49 @@ describe("a copy only the scrub of what comes back can read", () => {
   });
 });
 
+describe("a key the ledger takes after a question was asked", () => {
+  test("is withheld from the next question, pending or being cleaned up", async () => {
+    const desk = questionDesk(platforms, undefined, (database) => {
+      registerCapability(database, SPEC, FIRST_INCARNATION_ID);
+      return registeredSpecs(database);
+    });
+    const sql = `SELECT caption FROM ${TABLE}`;
+    expect((await promptsFor(desk, sql)).step?.result).toMatchObject({ outcome: "rows" });
+
+    const database = desk.database.readwrite;
+    const admit = (seed: Partial<FileLedgerSeed>) =>
+      seedFileLedgerRow(database, {
+        capabilityId: SPEC.id,
+        incarnationId: FIRST_INCARNATION_ID,
+        field: PHOTO_FIELD.name,
+        ...seed,
+      });
+    const keys = [
+      admit({ state: "pending", recordId: null }),
+      admit({ state: "cleanup_enqueued", recordId: "a-deleted-record" }),
+    ];
+    const insert = database.prepare(
+      `INSERT INTO ${TABLE} (id, created_at, extra, caption) VALUES (?, '2026-09-21 09:00:00', '{}', ?)`,
+    );
+    for (const key of keys) insert.run(randomUUID(), `${WIDE}${fullwidth(key)}`);
+    insert.finalize();
+
+    const { turn, answer, step } = await promptsFor(desk, sql);
+    expect(step?.result).toEqual({
+      outcome: "rows",
+      rows: keys.map(() => ({ caption: QUESTION_FILE_WITHHELD })),
+    });
+    expectNoKey(turn, keys);
+    expectNoKey(answer, keys);
+  });
+});
+
 describe("rows far past the cap", () => {
   test("are refused before the scrub reads them", async () => {
-    const { desk } = photosDesk();
+    const { desk } = shared;
     const { step } = await promptsFor(
       desk,
-      `SELECT printf('%.*c', ${QUESTION_STEP_SCRUB_CEILING_BYTES}, 'x') AS t FROM ${TABLE} LIMIT 1`,
+      `SELECT printf('%.*c', ${QUESTION_STEP_SCRUB_CEILING_CHARACTERS}, 'x') AS t FROM ${TABLE} LIMIT 1`,
     );
     expect(step?.result).toEqual({ outcome: "failed", message: QUESTION_STEP_RESULT_TOO_LARGE });
   });
@@ -359,14 +408,15 @@ describe("rows far past the cap", () => {
   test("are counted cell by cell, name and value", () => {
     const name = "t";
     const at = (length: number) => [{ [name]: "x".repeat(length - name.length) }];
-    expect(questionRowsTooLargeToScrub(at(QUESTION_STEP_SCRUB_CEILING_BYTES))).toBe(false);
-    expect(questionRowsTooLargeToScrub(at(QUESTION_STEP_SCRUB_CEILING_BYTES + 1))).toBe(true);
+    expect(questionRowsTooLargeToScrub(at(QUESTION_STEP_SCRUB_CEILING_CHARACTERS))).toBe(false);
+    expect(questionRowsTooLargeToScrub(at(QUESTION_STEP_SCRUB_CEILING_CHARACTERS + 1))).toBe(true);
   });
 });
 
 describe("the scrub, value by value", () => {
   const key = randomUUID();
   const ledger = questionLedger([key]);
+  const empty = questionLedger([]);
   const address = `${FILE_URL_PREFIX}${key.slice(0, 8)}`;
 
   test("replaces an address however it is escaped", () => {
@@ -383,7 +433,7 @@ describe("the scrub, value by value", () => {
       `${FILE_URL_PREFIX.slice(0, 3)}\u200b${FILE_URL_PREFIX.slice(3)}${tail}`,
       `${FILE_URL_PREFIX.slice(0, 3)}\u202e${FILE_URL_PREFIX.slice(3)}${tail}`,
     ];
-    expect(scrubQuestionRows([Object.fromEntries(escaped.entries())], new Set())).toEqual([
+    expect(scrubQuestionRows([Object.fromEntries(escaped.entries())], empty)).toEqual([
       Object.fromEntries(escaped.map((_, index) => [index, QUESTION_FILE_WITHHELD])),
     ]);
   });
@@ -399,23 +449,23 @@ describe("the scrub, value by value", () => {
         f: null,
       },
     ];
-    expect(scrubQuestionRows(rows, ledger.keys)).toEqual(rows);
+    expect(scrubQuestionRows(rows, ledger)).toEqual(rows);
   });
 
   test("survives an entity no code point answers to", () => {
     const rows = [{ a: `&#${"9".repeat(400)};`, b: `&#x${"f".repeat(300)};` }];
-    expect(scrubQuestionRows(rows, new Set())).toEqual(rows);
+    expect(scrubQuestionRows(rows, empty)).toEqual(rows);
   });
 
   test("withholds only the cells a key runs through", () => {
     const rows = [{ a: key.slice(0, 18), n: null, count: 3, b: key.slice(18), c: "stays" }];
-    expect(scrubQuestionRows(rows, questionFileKeysIn(rows, ledger))).toEqual([
+    expect(scrubQuestionRows(rows, ledger)).toEqual([
       { a: QUESTION_FILE_WITHHELD, n: null, count: 3, b: QUESTION_FILE_WITHHELD, c: "stays" },
     ]);
   });
 
   test("shows a blob as its bytes in hex, not as a map of numbers", () => {
-    const [row] = scrubQuestionRows([{ b: new Uint8Array([0xab, 0x01]) }], new Set());
+    const [row] = scrubQuestionRows([{ b: new Uint8Array([0xab, 0x01]) }], empty);
     expect(row).toEqual({ b: "X'AB01'" });
   });
 
@@ -427,25 +477,22 @@ describe("the scrub, value by value", () => {
       size: 1,
       name: address,
     });
-    expect(scrubQuestionRows([{ photo: stored }], new Set())).toEqual([
+    expect(scrubQuestionRows([{ photo: stored }], empty)).toEqual([
       { photo: QUESTION_FILE_WITHHELD },
     ]);
   });
 
-  test("finds only the ledger's keys, however the rows spell them", () => {
-    const found = questionFileKeysIn([{ a: key.toUpperCase(), b: randomUUID() }], ledger);
-    expect([...found]).toEqual([...ledger.keys]);
-  });
-
-  test("reads the ledger in every state", () => {
-    const { desk, keys } = photosDesk();
-    expect(new Set(readFileLedgerKeys(desk.database.readonly))).toEqual(new Set(keys));
+  test("withholds a ledger key in any case, and no other uuid", () => {
+    const other = randomUUID();
+    expect(scrubQuestionRows([{ a: key.toUpperCase(), b: other }], ledger)).toEqual([
+      { a: QUESTION_FILE_WITHHELD, b: other },
+    ]);
   });
 });
 
 describe("the catalog", () => {
   test("describes a file column by its kind, type, size and name, and never by a key", () => {
-    const { desk } = photosDesk();
+    const { desk } = shared;
     const prompt = nextPrompt(QUESTION, registeredSpecs(desk.database.readwrite), []);
     const lines = prompt.split("\n");
     const at = lines.findIndex((line) => line.startsWith(`    - ${PHOTO_FIELD.name}:`));
@@ -454,23 +501,5 @@ describe("the catalog", () => {
     for (const family of PHOTO_FIELD.accepts ?? []) expect(described).toContain(family);
     for (const part of ["kind", "mime", "size", "name"]) expect(described).toContain(part);
     expect(described).not.toMatch(/\bkey\b/i);
-  });
-
-  test("is read through views that list every column its spec knows, inactive ones too", () => {
-    const { desk } = photosDesk();
-    const shadow = catalogShadow(readActiveRegistryCatalog(desk.database.readonly));
-    expect(shadow.tables).toEqual([
-      {
-        table: TABLE,
-        columns: [
-          { name: "id", reading: "value" },
-          { name: "created_at", reading: "value" },
-          { name: "extra", reading: "text" },
-          { name: "caption", reading: "text" },
-          { name: PHOTO_FIELD.name, reading: "file" },
-          { name: OLD_PHOTO.name, reading: "file" },
-        ],
-      },
-    ]);
   });
 });

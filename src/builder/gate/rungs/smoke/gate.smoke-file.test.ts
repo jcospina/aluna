@@ -2,15 +2,17 @@
 // minted in the scratch database's own ledger (Module 7 PLAN decision 38), so a Handler that
 // mangles a photo or a search that reads one fails the Gate.
 
+import type { Database } from "bun:sqlite";
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 
+import { MAX_NAME_BYTES } from "../../../../platform/files/file-name.ts";
 import { requireFileLedgerRow } from "../../../../platform/files/ledger.test-support.ts";
 import {
   CAPTION_FIELD,
   PHOTO_FIELD,
   photoSpec,
 } from "../../../../registry/fields/file.test-support.ts";
-import type { CapabilitySpec } from "../../../../registry/index.ts";
+import type { CapabilitySpec, SpecField } from "../../../../registry/index.ts";
 import { deriveCapabilityTableDdl, FILE_CLEAR_VALUE } from "../../../../runtime/data/index.ts";
 import type { HandlerUnitName } from "../../../units/generation/units.ts";
 import {
@@ -20,10 +22,9 @@ import {
   readHandlerFor,
   searchHandlerFor,
   updateHandlerFor,
+  withScratch,
 } from "../../gate.test-support.ts";
 import type { CapabilityGateInput } from "../../gate.ts";
-import { openScratchDatabasePair } from "../../gate-internal.ts";
-import { SCRATCH_FILE_NAME_BYTES } from "../../gate-scratch-files.ts";
 import { runSmokeRung } from "./gate-smoke.ts";
 import { SmokeRungFailure } from "./gate-smoke-repair.ts";
 import {
@@ -32,24 +33,14 @@ import {
   leftOutCreate,
   mintSmokeFiles,
 } from "./gate-smoke-samples.ts";
-import { fixtureFieldValue } from "./gate-smoke-search.ts";
 
 setDefaultTimeout(30_000);
 
 function withMintedFiles<T>(
   spec: CapabilitySpec,
-  run: (
-    files: ReturnType<typeof mintSmokeFiles>,
-    database: ReturnType<typeof openScratchDatabasePair>["readwrite"],
-  ) => T,
+  run: (files: ReturnType<typeof mintSmokeFiles>, database: Database) => T,
 ): T {
-  const scratch = openScratchDatabasePair();
-  try {
-    return run(mintSmokeFiles(spec, scratch.readwrite), scratch.readwrite);
-  } finally {
-    scratch.readonly.close();
-    scratch.readwrite.close();
-  }
+  return withScratch(spec, (database) => run(mintSmokeFiles(spec, database), database));
 }
 
 const COVER_FIELD = { ...PHOTO_FIELD, name: "cover", label: "Cover" };
@@ -148,7 +139,7 @@ describe("a file field's smoke samples", () => {
     });
   });
 
-  test("names every scratch file with markup, a bidirectional override and an emoji, in 255 bytes", () => {
+  test("names every scratch file apart, with markup and an emoji, in the most bytes a name keeps", () => {
     withMintedFiles(photoSpec(), (files, database) => {
       const names = Object.values(photoFiles(files)).map(
         ({ key }) => requireFileLedgerRow(database, key).name,
@@ -156,16 +147,10 @@ describe("a file field's smoke samples", () => {
       expect(new Set(names).size).toBe(names.length);
       for (const name of names) {
         expect(name).toMatch(/<[a-z]+[^>]*>/);
-        expect(name).toMatch(/[\u202A-\u202E\u2066-\u2069]/u);
         expect(name).toMatch(/\p{Extended_Pictographic}/u);
-        expect(Buffer.byteLength(name, "utf8")).toBe(SCRATCH_FILE_NAME_BYTES);
+        expect(Buffer.byteLength(name, "utf8")).toBe(MAX_NAME_BYTES);
       }
     });
-  });
-
-  test("gives every other search fixture row a file and leaves the rest empty", () => {
-    expect(typeof fixtureFieldValue(PHOTO_FIELD, 2)).toBe("string");
-    expect(fixtureFieldValue(PHOTO_FIELD, 3)).toBeNull();
   });
 });
 
@@ -192,6 +177,29 @@ function photoGate(
     }),
     itemRenderer: itemRendererFor(spec),
   };
+}
+
+/** A photo capability whose choice holds its file's kind inside an option, as search reads it. */
+function sourcedPhotoSpec(): CapabilitySpec {
+  const kind = PHOTO_FIELD.accepts?.[0] ?? "";
+  const source: SpecField = {
+    name: "source",
+    label: "Source",
+    type: "choice",
+    required: true,
+    lifecycle: "active",
+    values: [
+      { value: `${kind.toUpperCase()} scan`, label: "Scan" },
+      { value: "camera", label: "Camera" },
+    ],
+    groups: [],
+  };
+  const spec = photoSpec([CAPTION_FIELD, PHOTO_FIELD, source]);
+  const form = {
+    ...spec.ui_intent.form,
+    choice_inputs: [{ field: "source", presentation: "picker" as const }],
+  };
+  return { ...spec, ui_intent: { ...spec.ui_intent, form } };
 }
 
 async function smokeFailure(input: CapabilityGateInput): Promise<SmokeRungFailure> {
@@ -268,6 +276,21 @@ describe("the smoke rung over a photo capability", () => {
     const failure = await smokeFailure(photoGate({ search: readsTheKind }));
     expect(failure.diagnostic.smoke.action).toBe("search");
     expect(failure.message).toContain("file kind exclusion");
+  });
+
+  test("drops the kind case a choice option holds, and still fails a search reading the type", async () => {
+    const spec = sourcedPhotoSpec();
+    const run = await runSmokeRung(photoGate({}, spec));
+    expect(run.result.attempts).toHaveLength(1);
+    const source = searchHandlerFor(spec);
+    const readsTheType = source.replace(
+      '(coalesce(instr(platform_search_normalize("target"."caption"), platform_search_normalize("search_term"."term")), 0) > 0)',
+      '(coalesce(instr(platform_search_normalize("target"."caption"), platform_search_normalize("search_term"."term")), 0) > 0) OR (coalesce(instr(platform_search_normalize(json_extract("target"."photo", \\\'$.mime\\\')), platform_search_normalize("search_term"."term")), 0) > 0)',
+    );
+    expect(readsTheType).not.toBe(source);
+    const failure = await smokeFailure(photoGate({ search: readsTheType }, spec));
+    expect(failure.diagnostic.smoke.action).toBe("search");
+    expect(failure.message).toContain("file type exclusion");
   });
 
   test("ties its tied rows exactly, so ranking matches by the photo gets one verdict", async () => {

@@ -74,7 +74,7 @@ describe("resolved evolution intent scope", () => {
       plural_noun: "diary entries",
     });
 
-    expect(diff.facts.map((fact) => fact.kind)).toEqual(["capability_label", "empty_state_noun"]);
+    expect(diff.facts.map((fact) => fact.kind)).toEqual(["capability_label", "capability_nouns"]);
     expect(() => validateEvolutionIntentScope(intent("ui_change"), diff)).not.toThrow();
   });
 

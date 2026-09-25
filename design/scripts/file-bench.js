@@ -10,7 +10,13 @@
  * before it starts.
  */
 
-import { FileRefusal, mountFileFields, pickInto, settleFileFields } from "./file-field.js";
+import {
+  FILE_FIELD_HOOKS,
+  FileRefusal,
+  mountFileFields,
+  pickInto,
+  settleFileFields,
+} from "./file-field.js";
 
 /**
  * @typedef {import("./file-field.js").Picked} Picked
@@ -251,7 +257,7 @@ function pace(button) {
 const BENCH = [
   ["[data-file-pretend]", pretend],
   ["[data-file-speed]", pace],
-  ["[data-held-save]", (button) => settleIn(button, "keep")],
+  [`[${FILE_FIELD_HOOKS.save}]`, (button) => settleIn(button, "keep")],
   ["[data-file-cancel]", (button) => settleIn(button, "revert")],
 ];
 

@@ -180,7 +180,6 @@ describe("every other field is left to the data to say", () => {
     expect(result.steps[0]?.result).toEqual({
       outcome: "rows",
       rows: [{ category: "cheese" }, { category: "food" }, { category: "vegetables" }],
-      fileKeys: new Set(),
     });
   });
 
@@ -230,7 +229,6 @@ describe("a question whose words are nowhere in the data", () => {
     expect(result.steps[1]?.result).toEqual({
       outcome: "rows",
       rows: [{ total: GROCERIES_TOTAL }],
-      fileKeys: new Set(),
     });
   });
 });

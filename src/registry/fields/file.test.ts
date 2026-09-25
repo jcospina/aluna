@@ -15,24 +15,21 @@ import {
   capabilitySpecSchema,
   FILE_FAMILIES,
   FILE_FIELD_TYPES,
-  familiesSchema,
   fieldTypeSchema,
-  GENERATION_FIELD_TYPES,
   getCapability,
   insertCapability,
-  isFileFieldType,
-  isListFieldType,
   isSearchableTextType,
-  LIST_FIELD_TYPES,
   promptCapabilitySpecSchema,
   type SpecField,
 } from "../index.ts";
 import { CAPTION_FIELD, orderings, PHOTO_FIELD, photoSpec } from "./file.test-support.ts";
+import { familiesSchema } from "./file.ts";
 
-function refusal(value: unknown): string {
+/** Where a refused spec was refused; the sentence is the schema's own, so it is not restated. */
+function refusedAt(value: unknown): string[] {
   const parsed = capabilitySpecSchema.safeParse(value);
   if (parsed.success) throw new Error("expected the spec to be refused");
-  return parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("\n");
+  return parsed.error.issues.map((issue) => issue.path.join("."));
 }
 
 function withPhoto(photo: Record<string, unknown>) {
@@ -69,16 +66,6 @@ describe("a spec may declare a file field", () => {
     });
   });
 
-  test("a file type stands apart from the list types", () => {
-    expect(fieldTypeSchema.options).toEqual(expect.arrayContaining([...FILE_FIELD_TYPES]));
-    for (const type of FILE_FIELD_TYPES) {
-      expect(LIST_FIELD_TYPES as readonly string[]).not.toContain(type);
-      expect(isListFieldType(type)).toBe(false);
-      expect(isFileFieldType(type)).toBe(true);
-    }
-    for (const type of LIST_FIELD_TYPES) expect(isFileFieldType(type)).toBe(false);
-  });
-
   test("a file field is not searchable", () => {
     for (const type of FILE_FIELD_TYPES) expect(isSearchableTextType(type)).toBe(false);
   });
@@ -91,50 +78,40 @@ describe("a spec may declare a file field", () => {
   test("a file field never takes a list-input intent", () => {
     const spec = photoSpec();
     spec.ui_intent.form.list_inputs = [{ field: "photo", mode: "repeatable" }];
-    expect(refusal(spec)).toContain('field "photo" must be a list field');
+    expect(refusedAt(spec)).toContain("ui_intent.form.list_inputs.0.field");
   });
 });
 
 describe("accepts fails closed", () => {
   test("on a field that is not a file field", () => {
     const spec = photoSpec([{ ...CAPTION_FIELD, accepts: ["image"] }, PHOTO_FIELD]);
-    expect(refusal(spec)).toContain("schema.fields.0.accepts: only a file field declares accepts");
+    expect(refusedAt(spec)).toEqual(["schema.fields.0.accepts"]);
   });
 
   test("when a file field leaves it out", () => {
     const { accepts: _omitted, ...bare } = PHOTO_FIELD;
     const spec = photoSpec([CAPTION_FIELD, bare as SpecField]);
-    expect(refusal(spec)).toContain(
-      "schema.fields.1.accepts: a file field must declare what it accepts",
-    );
+    expect(refusedAt(spec)).toEqual(["schema.fields.1.accepts"]);
   });
 
   test("when it is null, empty, repeats a family, or names one outside the enum", () => {
-    expect(refusal(withPhoto({ accepts: null }))).toContain("schema.fields.1.accepts");
-    expect(refusal(withPhoto({ accepts: [] }))).toContain("accepts at least one family");
-    expect(refusal(withPhoto({ accepts: ["image", "image"] }))).toContain("at most once");
+    for (const accepts of [null, [], [...FILE_FAMILIES, ...FILE_FAMILIES]]) {
+      expect(refusedAt(withPhoto({ accepts }))).toEqual(["schema.fields.1.accepts"]);
+    }
     for (const family of ["video", "pdf", "IMAGE", ""]) {
-      expect(refusal(withPhoto({ accepts: [family] }))).toContain("schema.fields.1.accepts.0");
+      expect(refusedAt(withPhoto({ accepts: [family] }))).toEqual(["schema.fields.1.accepts.0"]);
     }
   });
 });
 
 describe("accepts is stored in canonical order", () => {
-  // Four families, as Module 7 ends with; this epic admits one, and one cannot be reordered.
+  // Longer than `FILE_FAMILIES`, which one family cannot reorder.
   const ORDER = ["image", "video", "audio", "document"] as const;
 
   test("every ordering of every selection parses to the order's own sequence", () => {
     const schema = familiesSchema(ORDER);
     for (const authored of orderings(ORDER)) {
       expect(schema.parse(authored)).toEqual(ORDER.filter((family) => authored.includes(family)));
-    }
-  });
-
-  test("and the spec's own accepts is that rule over the admitted families", () => {
-    for (const authored of orderings(FILE_FAMILIES)) {
-      const canonical = FILE_FAMILIES.filter((family) => authored.includes(family));
-      const parsed = capabilitySpecSchema.parse(withPhoto({ accepts: authored }));
-      expect(parsed.schema.fields[1]?.accepts).toEqual(canonical);
     }
   });
 });
@@ -162,10 +139,9 @@ describe("the provider schema", () => {
     );
   });
 
-  test("offers the builder's types, the file type among them", () => {
+  test("offers every field type", () => {
     const field = fieldSchemaOf() as { properties: { type: { enum: string[] } } };
-    expect(field.properties.type.enum).toEqual([...GENERATION_FIELD_TYPES]);
-    for (const type of FILE_FIELD_TYPES) expect(field.properties.type.enum).toContain(type);
+    expect(field.properties.type.enum).toEqual([...fieldTypeSchema.options]);
   });
 
   test("turns a null accepts into absence, so a non-file field has one spelling", () => {

@@ -11,6 +11,7 @@
 
 import { normalizeSearchText } from "../../../../../platform/persistence/sqlite-functions.ts";
 import {
+  activeFileFields,
   activeSpecFields,
   type CapabilitySpec,
   type CapabilityTool,
@@ -162,7 +163,7 @@ function assertSavedCaseHoldsRequiredFiles(
   const saves = testCase.action === "create" || testCase.action === "update";
   const missingRequired = testCase.expectedError?.code === MISSING_REQUIRED_FIELDS_ERROR_CODE;
   if (!saves || missingRequired || testCase.expectedPlatformError) return;
-  const required = [...activeFileFields(spec).values()].filter((field) => field.required);
+  const required = activeFileFields(spec.schema.fields).filter((field) => field.required);
   for (const field of required) {
     const entry = testCase.input.find((value) => value.field === field.name);
     if (entry === undefined ? testCase.action === "update" : entry.value !== null) continue;
@@ -176,7 +177,7 @@ function withoutFileTokens(
   spec: CapabilitySpec,
   testCase: FullBehavioralTestCase,
 ): FullBehavioralTestCase {
-  const files = new Set(activeFileFields(spec).keys());
+  const files = new Set(activeFileFields(spec.schema.fields).map((field) => field.name));
   const textualRow = (row: FullBehavioralTestCase["setupRows"][number]) => ({
     values: row.values.filter((entry) => !files.has(entry.field)),
   });
@@ -186,14 +187,6 @@ function withoutFileTokens(
     setupRows: testCase.setupRows.map(textualRow),
     expectedRows: testCase.expectedRows.map(textualRow),
   };
-}
-
-function activeFileFields(spec: CapabilitySpec): ReadonlyMap<string, SpecField> {
-  return new Map(
-    activeSpecFields(spec.schema.fields)
-      .filter((field) => isFileFieldType(field.type))
-      .map((field) => [field.name, field]),
-  );
 }
 
 /**
@@ -250,7 +243,7 @@ export function assertCaseFieldVocabulary(
  * none. Every other input is a string, since only a file field has a token for none.
  */
 function assertFileTokens(spec: CapabilitySpec, testCase: FullBehavioralTestCase): void {
-  const files = activeFileFields(spec);
+  const files = new Map(activeFileFields(spec.schema.fields).map((field) => [field.name, field]));
   for (const entry of testCase.input) {
     const field = files.get(entry.field);
     if (field) assertFileToken(testCase.name, "input", field, entry.value);
@@ -519,7 +512,7 @@ function mutationFragmentValues(testCase: FullBehavioralTestCase): string[] {
   );
 }
 
-/** The strings a case submits. A `null` is a file field's token for none, never text. */
+/** The strings a case submits. File tokens are stripped before this runs; `null` only narrows. */
 function submittedStrings(testCase: FullBehavioralTestCase): string[] {
   return testCase.input.flatMap((entry) => (entry.value === null ? [] : [entry.value]));
 }

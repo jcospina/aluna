@@ -187,8 +187,7 @@ describe("capability gate — generated five-Action scratch catalog", () => {
     read: [
       "export default async function read({ query, present }: CapabilityContext): Promise<string> {",
       "  const rows = query.records({",
-      '    sql: \'SELECT target."id" AS "target_id" FROM "cap_notes" AS target CROSS JOIN "cap_scratch_catalog" AS catalog WHERE catalog."text" = ? AND catalog."retired_note" = ? ORDER BY target."created_at" DESC, target."id" DESC\',',
-      '    parameters: ["synthetic only", "compatibility only"],',
+      '    sql: \'SELECT target."id" AS "target_id" FROM "cap_notes" AS target WHERE NOT EXISTS (SELECT catalog."retired_note" FROM "cap_scratch_catalog" AS catalog) ORDER BY target."created_at" DESC, target."id" DESC\',',
       "  });",
       '  return rows.map(({ record }) => present(record)).join("");',
       "}",
@@ -196,7 +195,7 @@ describe("capability gate — generated five-Action scratch catalog", () => {
   };
   const itemRenderer = FIVE_ACTION_UNITS.find((unit) => unit.kind === "item-renderer")?.content;
 
-  test("applies every declared schema and seeds only supplied synthetic rows", async () => {
+  test("applies every declared schema, inactive columns included, and no dependency rows", async () => {
     if (!itemRenderer) throw new Error("generated item renderer missing");
     const result = await runCapabilityGate(
       gateInput({
@@ -205,13 +204,7 @@ describe("capability gate — generated five-Action scratch catalog", () => {
         handlers: referenceHandlers,
         itemRenderer,
         behavioralTier: { enabled: false },
-        scratchCatalog: [
-          {
-            spec: dependencySpec,
-            incarnationId: dependencyIncarnation,
-            rows: [{ text: "synthetic only", retired_note: "compatibility only" }],
-          },
-        ],
+        scratchCatalog: [{ spec: dependencySpec, incarnationId: dependencyIncarnation }],
       }),
     );
 

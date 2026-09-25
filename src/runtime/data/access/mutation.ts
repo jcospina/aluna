@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { enqueueDisplacedFile, enqueueRecordFiles } from "../../../platform/files/ledger.ts";
-import { db, type PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import {
+  activeFileFields,
   activeSpecFields,
   type CapabilitySpec,
   capabilitySpecSchema,
@@ -34,6 +34,7 @@ import {
 import {
   claimPendingFile,
   type FileClaimScope,
+  heldFileKey,
   type SubmittedFile,
   type SubmittedFiles,
   submittedFileKey,
@@ -60,34 +61,37 @@ export interface CapabilityDeleteMutationPort {
 
 const PLATFORM_POPULATED_COLUMNS = new Set<string>(PLATFORM_COLUMNS);
 
+/** The active fields a save writes, and the same fields split into data and files. */
+function savedFields(spec: CapabilitySpec) {
+  const fields = activeSpecFields(spec.schema.fields);
+  return {
+    fields,
+    dataFields: fields.filter((field) => !isFileFieldType(field.type)),
+    fileFields: activeFileFields(fields),
+  };
+}
+
 /**
- * The router-checked file submission a save writes (Module 7 PLAN decision 17). Without one, as in
- * a Gate dependency's seeded rows, a create's file fields are empty, so a required one refuses it,
- * and an update may submit none.
+ * The router-checked file submission a save writes, and the scope it was checked in, whose
+ * database the save writes through (Module 7 PLAN decision 17).
  */
 export interface FileSubmissionBinding {
-  readonly incarnationId: string;
+  readonly scope: FileClaimScope;
   readonly submitted: SubmittedFiles;
 }
 
 export function createCapabilityMutationPort(
   spec: CapabilitySpec,
-  database = db,
+  files: FileSubmissionBinding,
   signal?: AbortSignal,
-  files?: FileSubmissionBinding,
 ): CapabilityMutationPort {
   const parsed = capabilitySpecSchema.parse(spec);
   const { tableName } = deriveCapabilityTableDdl(parsed);
   const quotedTable = sqlIdentifier(tableName);
-  const fields = activeSpecFields(parsed.schema.fields);
-  const dataFields = fields.filter((field) => !isFileFieldType(field.type));
-  const fileFields = fields.filter((field) => isFileFieldType(field.type));
+  const { fields, dataFields, fileFields } = savedFields(parsed);
   const allowedInsertFields = new Set(fields.map((field) => field.name));
-  const scope: FileClaimScope | undefined = files && {
-    database,
-    capabilityId: parsed.id,
-    incarnationId: files.incarnationId,
-  };
+  const { scope } = files;
+  const { database } = scope;
 
   // A submission's file belongs to one record: a second create cannot claim it or quietly drop it.
   const written = new Set<string>();
@@ -96,7 +100,7 @@ export function createCapabilityMutationPort(
     create(values) {
       assertReadOwnership(signal);
       const own = insertValues(parsed.id, allowedInsertFields, values);
-      const keys = writtenFileKeys(fileFields, own, files?.submitted, written);
+      const keys = writtenFileKeys(fileFields, own, files.submitted, written);
       assertRequiredFilesHeld(parsed.id, fields, own, keys, "create");
       const normalized = normalizeSpecFieldValues(parsed.id, dataFields, own);
       const id = randomUUID();
@@ -104,7 +108,10 @@ export function createCapabilityMutationPort(
       // answers anyway must not commit the key it promoted for a record that was never written.
       const insert = database.transaction((): StoredCapabilityRow => {
         for (const [field, key] of keys) {
-          normalized[field.name] = key === null ? null : claimedReference(field, key, id, scope);
+          normalized[field.name] =
+            key === null
+              ? null
+              : storedFileReference(claimPendingFile(field, key, id, "create", scope));
         }
         const columns = ["id", ...fields.map((field) => field.name)];
         const sqlValues: SqlValue[] = [
@@ -133,21 +140,35 @@ export function createCapabilityMutationPort(
 function writtenFileKeys(
   fileFields: readonly SpecField[],
   values: CapabilityCreateValues,
-  submitted: SubmittedFiles | undefined,
+  submitted: SubmittedFiles,
   written: ReadonlySet<string>,
 ): ReadonlyMap<SpecField, string | null> {
   const keys = new Map<SpecField, string | null>();
   for (const field of fileFields) {
-    const file = submitted?.get(field.name);
+    const file = submitted.get(field.name);
     const submittedKey = file === undefined ? null : submittedFileKey(file);
-    const given = ownValue(values, field.name);
-    const refused = given !== undefined && !namesSubmittedFile(given, submittedKey);
-    if (refused || (submittedKey !== null && written.has(submittedKey))) {
+    assertHandedBack(values, field, submittedKey);
+    if (submittedKey !== null && written.has(submittedKey)) {
       throw new FileFieldWriteError(field.name);
     }
     keys.set(field, submittedKey);
   }
   return keys;
+}
+
+/** Refuse a Handler's value for a file field unless it is left out or names the submission. */
+function assertHandedBack(
+  values: Readonly<Record<string, unknown>>,
+  field: SpecField,
+  submittedKey: string | null,
+): void {
+  const given = ownValue(values, field.name);
+  if (given === undefined) return;
+  const named =
+    given === null
+      ? submittedKey === null
+      : submittedKey !== null && fileKeyFromProjection(given) === submittedKey;
+  if (!named) throw new FileFieldWriteError(field.name);
 }
 
 /**
@@ -179,56 +200,36 @@ function assertRequiredFilesHeld(
 
 /** The key each active file field holds once an update is written: its submission's, or the record's. */
 function resultingFileKeys(
-  fields: readonly SpecField[],
+  fileFields: readonly SpecField[],
   current: CapabilityDataRow,
   fileWrites: FileWrites,
 ): ReadonlyMap<SpecField, string | null> {
   const submitted = new Map(fileWrites);
   return new Map(
-    fields
-      .filter((field) => isFileFieldType(field.type))
-      .map((field) => {
-        const file = submitted.get(field);
-        return [field, file === undefined ? heldKey(current, field) : submittedFileKey(file)];
-      }),
+    fileFields.map((field) => {
+      const file = submitted.get(field);
+      return [field, file === undefined ? heldKey(current, field) : submittedFileKey(file)];
+    }),
   );
-}
-
-function namesSubmittedFile(given: unknown, submittedKey: string | null): boolean {
-  if (given === null) return submittedKey === null;
-  return submittedKey !== null && fileKeyFromProjection(given) === submittedKey;
-}
-
-function claimedReference(
-  field: SpecField,
-  key: string,
-  recordId: string,
-  scope: FileClaimScope | undefined,
-  action: "create" | "update" = "create",
-): string {
-  if (!scope) throw new FileFieldWriteError(field.name);
-  return storedFileReference(claimPendingFile(field, key, recordId, action, scope));
 }
 
 export function createCapabilityUpdateMutationPort(
   spec: CapabilitySpec,
   recordTarget: string,
   submittedFields: ReadonlySet<string>,
-  database = db,
+  files: FileSubmissionBinding,
   signal?: AbortSignal,
-  files?: FileSubmissionBinding,
 ): CapabilityUpdateMutationPort {
   const parsed = capabilitySpecSchema.parse(spec);
   const input: BoundUpdateAuthority = {
     capabilityId: parsed.id,
     quotedTable: sqlIdentifier(deriveCapabilityTableDdl(parsed).tableName),
     target: validateBoundRecordTarget(recordTarget),
-    fields: activeSpecFields(parsed.schema.fields),
+    ...savedFields(parsed),
     fieldsByName: new Map(parsed.schema.fields.map((field) => [field.name, field])),
     submittedFields: new Set(submittedFields),
-    database,
-    files: new Map(files?.submitted),
-    scope: files && { database, capabilityId: parsed.id, incarnationId: files.incarnationId },
+    files: new Map(files.submitted),
+    scope: files.scope,
   };
   validateBoundSubmittedFields(input);
   // How many updates are running: one a Handler starts from inside another commits only with it.
@@ -250,7 +251,9 @@ export function createCapabilityUpdateMutationPort(
       depth += 1;
       let updated: CapabilityDataRow;
       try {
-        updated = database.transaction(() => updateBoundTarget(input, own, fileWrites))();
+        updated = input.scope.database.transaction(() =>
+          updateBoundTarget(input, own, fileWrites),
+        )();
       } finally {
         depth -= 1;
       }
@@ -266,14 +269,13 @@ export function createCapabilityUpdateMutationPort(
 export function createCapabilityDeleteMutationPort(
   spec: CapabilitySpec,
   recordTarget: string,
-  database = db,
+  scope: FileClaimScope,
   signal?: AbortSignal,
-  files?: Pick<FileSubmissionBinding, "incarnationId">,
 ): CapabilityDeleteMutationPort {
   const parsed = capabilitySpecSchema.parse(spec);
   const target = validateBoundRecordTarget(recordTarget);
   const quotedTable = sqlIdentifier(deriveCapabilityTableDdl(parsed).tableName);
-  const owner = files && { capabilityId: parsed.id, incarnationId: files.incarnationId };
+  const { database } = scope;
 
   return {
     delete() {
@@ -284,7 +286,7 @@ export function createCapabilityDeleteMutationPort(
           .query(`DELETE FROM ${quotedTable} WHERE "id" = ? RETURNING "id"`)
           .get(target);
         if (!deleted) throw new RecordNotFoundError(parsed.id, "delete");
-        if (owner) enqueueRecordFiles(database, owner, target);
+        enqueueRecordFiles(database, scope, target);
       })();
     },
   };
@@ -295,11 +297,12 @@ interface BoundUpdateAuthority {
   readonly quotedTable: string;
   readonly target: string;
   readonly fields: readonly SpecField[];
+  readonly dataFields: readonly SpecField[];
+  readonly fileFields: readonly SpecField[];
   readonly fieldsByName: ReadonlyMap<string, SpecField>;
   readonly submittedFields: ReadonlySet<string>;
-  readonly database: PlatformDatabase["readwrite"];
   readonly files: Map<string, SubmittedFile>;
-  readonly scope: FileClaimScope | undefined;
+  readonly scope: FileClaimScope;
 }
 
 type FileWrites = readonly (readonly [SpecField, SubmittedFile])[];
@@ -309,13 +312,13 @@ function updateBoundTarget(
   values: CapabilityUpdateValues,
   fileWrites: FileWrites,
 ): CapabilityDataRow {
-  const stored = authority.database
+  const stored = authority.scope.database
     .query(`SELECT * FROM ${authority.quotedTable} WHERE "id" = ?`)
     .get(authority.target) as StoredCapabilityRow | null;
   if (!stored) throw new RecordNotFoundError(authority.capabilityId, "update");
 
   const current = normalizeStoredRow(authority.fields, stored);
-  const dataFields = authority.fields.filter((field) => !isFileFieldType(field.type));
+  const { dataFields } = authority;
   const merged: Record<string, unknown> = Object.fromEntries(
     dataFields.map((field) => [field.name, current[field.name]]),
   );
@@ -327,7 +330,7 @@ function updateBoundTarget(
     authority.capabilityId,
     authority.fields,
     merged,
-    resultingFileKeys(authority.fields, current, fileWrites),
+    resultingFileKeys(authority.fileFields, current, fileWrites),
     "update",
   );
 
@@ -360,13 +363,10 @@ function submittedFileWrites(
   authority: BoundUpdateAuthority,
   values: CapabilityUpdateValues,
 ): FileWrites {
-  return authority.fields.flatMap((field) => {
+  return authority.fileFields.flatMap((field) => {
     const file = authority.submittedFields.has(field.name) && authority.files.get(field.name);
     if (!file) return [];
-    const given = ownValue(values, field.name);
-    if (given !== undefined && !namesSubmittedFile(given, submittedFileKey(file))) {
-      throw new FileFieldWriteError(field.name);
-    }
+    assertHandedBack(values, field, submittedFileKey(file));
     return [[field, file] as const];
   });
 }
@@ -394,26 +394,21 @@ function writeSubmittedFiles(
     if (file.write === "keep") continue;
     columns[field.name] =
       file.write === "claim"
-        ? claimedReference(field, file.row.key, authority.target, authority.scope, "update")
+        ? storedFileReference(
+            claimPendingFile(field, file.row.key, authority.target, "update", authority.scope),
+          )
         : null;
     const displaced = heldKey(current, field);
-    if (displaced !== null && !enqueueDisplaced(authority, field, displaced)) {
+    const owner = { ...authority.scope, field: field.name, recordId: authority.target };
+    if (displaced !== null && !enqueueDisplacedFile(authority.scope.database, owner, displaced)) {
       throw new Error(`The file "${field.name}" held is not owned by its record in the ledger.`);
     }
   }
   return columns;
 }
 
-function enqueueDisplaced(authority: BoundUpdateAuthority, field: SpecField, key: string): boolean {
-  const { scope } = authority;
-  if (!scope) return false;
-  const owner = { ...scope, field: field.name, recordId: authority.target };
-  return enqueueDisplacedFile(authority.database, owner, key);
-}
-
 function heldKey(current: CapabilityDataRow, field: SpecField): string | null {
-  const held = ownValue(current, field.name);
-  return held === null || held === undefined ? null : (fileKeyFromProjection(held) ?? null);
+  return heldFileKey(ownValue(current, field.name));
 }
 
 function persistBoundUpdate(
@@ -423,7 +418,7 @@ function persistBoundUpdate(
   const written = authority.fields.filter((field) => Object.hasOwn(columns, field.name));
   const assignments = written.map((field) => `${sqlIdentifier(field.name)} = ?`).join(", ");
   const sqlValues = written.map((field) => columns[field.name] ?? null);
-  const updated = authority.database
+  const updated = authority.scope.database
     .query(`UPDATE ${authority.quotedTable} SET ${assignments} WHERE "id" = ? RETURNING *`)
     .get(...sqlValues, authority.target) as StoredCapabilityRow | null;
   if (!updated) throw new RecordNotFoundError(authority.capabilityId, "update");

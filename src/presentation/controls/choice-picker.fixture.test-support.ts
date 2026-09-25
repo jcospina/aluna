@@ -69,7 +69,7 @@ export function installDomGlobals(): void {
     for (const [name, tags] of Object.entries(ELEMENT_CLASSES)) {
       installed.push(define(name, onlyTags(Element_, tags)));
     }
-    installed.push(define("window", { innerHeight: 800 }));
+    installed.push(define("window", { innerHeight: 800, addEventListener: () => {} }));
     installed.push(
       define(
         "Event",

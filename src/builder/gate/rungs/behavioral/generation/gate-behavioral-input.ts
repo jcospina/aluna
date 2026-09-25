@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { sqlIdentifier } from "../../../../../platform/persistence/sql-identifier.ts";
 import {
+  activeFileFields,
   activeSpecFields,
   type CapabilitySpec,
   type FileFamily,
@@ -98,9 +99,9 @@ export function scratchFormInput(
   recordId?: string,
 ): CapabilityInput {
   const values = { ...input.values };
-  for (const field of activeSpecFields(spec.schema.fields)) {
+  for (const field of activeFileFields(spec.schema.fields)) {
     const token = values[field.name];
-    if (!isFileFieldType(field.type) || typeof token !== "string") continue;
+    if (typeof token !== "string") continue;
     if (token !== "") {
       const name = tokenFileName(token);
       values[field.name] = mintScratchFile(

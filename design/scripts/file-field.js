@@ -29,6 +29,27 @@
  *             seeds: Map<string, number> }} Field
  */
 
+/**
+ * The attributes a page draws a field and its form's save with: every name the control finds its
+ * markup by, so a server drawing that markup writes the same ones.
+ */
+export const FILE_FIELD_HOOKS = Object.freeze({
+  field: "data-file-field",
+  body: "data-file-body",
+  kind: "data-kind",
+  accept: "data-file-accept",
+  holdsName: "data-holds-name",
+  holdsSize: "data-holds-size",
+  holdsSrc: "data-holds-src",
+  holdsDuration: "data-holds-duration",
+  focus: "data-file-focus",
+  save: "data-held-save",
+  saveLabel: "data-held-save-label",
+});
+
+/** @param {string} name */
+const hooked = (name) => `[${name}]`;
+
 /** A pick the platform would not take, and the sentence it says so with. */
 export class FileRefusal extends Error {
   /**
@@ -181,7 +202,7 @@ function harvestSeeds(f) {
 
 /** @param {Field} f */
 const pickAttrs = (f) =>
-  ` type="button" data-file-pick data-file-focus aria-labelledby="${f.host.id}-label ${f.host.id}-cta" aria-describedby="${f.host.id}-guidance"`;
+  ` type="button" data-file-pick ${FILE_FIELD_HOOKS.focus} aria-labelledby="${f.host.id}-label ${f.host.id}-cta" aria-describedby="${f.host.id}-guidance"`;
 
 /** @param {InFlight} u */
 const progressAttrs = (u) =>
@@ -223,7 +244,7 @@ const uploadingFrame = (
 </span>
 <div class="file__bar">
   <span class="file__meta">${esc(u.picked.name)}</span>
-  ${barButton(f, "stop", "Stop", `Stop uploading ${esc(u.picked.name)}`, "data-file-stop data-file-focus")}
+  ${barButton(f, "stop", "Stop", `Stop uploading ${esc(u.picked.name)}`, `data-file-stop ${FILE_FIELD_HOOKS.focus}`)}
 </div>`;
 
 /**
@@ -269,7 +290,7 @@ const filledFrame = (
 </span>
 <div class="file__bar">
   <span class="file__meta">${esc(held.name)} · ${sizeOf(held.size)}</span>
-  ${barButton(f, "replace", "Replace", `Replace ${esc(held.name)}`, "data-file-pick data-file-focus")}
+  ${barButton(f, "replace", "Replace", `Replace ${esc(held.name)}`, `data-file-pick ${FILE_FIELD_HOOKS.focus}`)}
   ${barButton(f, "clear", "Clear", `Clear ${esc(held.name)}`, "data-file-clear")}
 </div>`;
 
@@ -303,7 +324,7 @@ const uploadingRow = (f, u) => `<div class="file__row">
     <span class="file__meta" data-file-pct>${pctOf(u)}%</span>
   </span>
   <span class="file__actions">
-    ${square(f, "stop", `Stop uploading ${esc(u.picked.name)}`, glyph(12, G.stop, true), "data-file-stop data-file-focus")}
+    ${square(f, "stop", `Stop uploading ${esc(u.picked.name)}`, glyph(12, G.stop, true), `data-file-stop ${FILE_FIELD_HOOKS.focus}`)}
   </span>
 </div>`;
 
@@ -346,7 +367,7 @@ function filledRow(f, held) {
       ${meta}
     </span>
     <span class="file__actions">
-      ${square(f, "replace", `Replace ${name}`, glyph(14, G.replace), "data-file-pick data-file-focus")}
+      ${square(f, "replace", `Replace ${name}`, glyph(14, G.replace), `data-file-pick ${FILE_FIELD_HOOKS.focus}`)}
       ${square(f, "clear", `Clear ${name}`, glyph(14, G.clear), "data-file-clear")}
     </span>
   </div>`;
@@ -379,7 +400,7 @@ const scopeOf = (f) => f.host.closest("form, .form") ?? f.host.parentElement ?? 
 
 /** @param {Element} scope */
 const fieldsIn = (scope) =>
-  [...scope.querySelectorAll("[data-file-field]")].flatMap((el) => {
+  [...scope.querySelectorAll(hooked(FILE_FIELD_HOOKS.field))].flatMap((el) => {
     const f = el instanceof HTMLElement ? FIELDS.get(el) : undefined;
     return f ? [f] : [];
   });
@@ -389,7 +410,7 @@ const fieldsIn = (scope) =>
  * @param {string | null} waiting
  */
 function holdOne(save, waiting) {
-  const label = save.querySelector("[data-held-save-label]");
+  const label = save.querySelector(hooked(FILE_FIELD_HOOKS.saveLabel));
   if (!(label instanceof HTMLElement)) return;
   label.dataset.rest ??= label.textContent ?? "";
   if (waiting === null) {
@@ -416,7 +437,7 @@ function holdSave(scope) {
       waiting.length > 1
         ? "I’m waiting on the files…"
         : `I’m waiting on the ${KINDS[only.kind].noun}…`;
-  for (const save of scope.querySelectorAll("[data-held-save]")) {
+  for (const save of scope.querySelectorAll(hooked(FILE_FIELD_HOOKS.save))) {
     if (save instanceof HTMLElement) holdOne(save, label);
   }
 }
@@ -435,7 +456,7 @@ function render(f) {
   }
   wireMedia(f);
   holdSave(scopeOf(f));
-  const next = f.body.querySelector("[data-file-focus]");
+  const next = f.body.querySelector(hooked(FILE_FIELD_HOOKS.focus));
   if (hadFocus && next instanceof HTMLElement) next.focus({ focusVisible: true });
   f.host.dispatchEvent(
     new CustomEvent(FILE_FIELD_CHANGE, {
@@ -648,7 +669,10 @@ function wireDrop(f) {
  * @returns {Held | null}
  */
 function heldOn(host) {
-  const { holdsName: name, holdsSrc: url, holdsSize: size, holdsDuration: duration } = host.dataset;
+  const name = host.getAttribute(FILE_FIELD_HOOKS.holdsName);
+  const url = host.getAttribute(FILE_FIELD_HOOKS.holdsSrc);
+  const size = host.getAttribute(FILE_FIELD_HOOKS.holdsSize);
+  const duration = host.getAttribute(FILE_FIELD_HOOKS.holdsDuration);
   if (!name) return null;
   return {
     name,
@@ -676,13 +700,13 @@ function live(host) {
  * @param {Transfer} transfer
  */
 function mountOne(host, transfer) {
-  const body = host.querySelector("[data-file-body]");
-  const kind = /** @type {Kind} */ (host.dataset.kind ?? "image");
+  const body = host.querySelector(hooked(FILE_FIELD_HOOKS.body));
+  const kind = /** @type {Kind} */ (host.getAttribute(FILE_FIELD_HOOKS.kind) ?? "image");
   if (!(body instanceof HTMLElement) || !(kind in KINDS) || FIELDS.has(host)) return;
   host.setAttribute("role", "group");
   host.setAttribute("aria-labelledby", `${host.id}-label`);
   const input = document.createElement("input");
-  const accept = host.dataset.fileAccept || KINDS[kind].accept;
+  const accept = host.getAttribute(FILE_FIELD_HOOKS.accept) || KINDS[kind].accept;
   Object.assign(input, { type: "file", hidden: true, tabIndex: -1, accept });
   host.append(input);
   const guidance = host.querySelector(".field__guidance");
@@ -741,7 +765,7 @@ function mountPage() {
     (event) => {
       if (
         event.target instanceof Element &&
-        event.target.closest('[data-held-save][aria-disabled="true"]')
+        event.target.closest(`${hooked(FILE_FIELD_HOOKS.save)}[aria-disabled="true"]`)
       ) {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -761,7 +785,8 @@ function mountPage() {
   window.addEventListener("dragover", (event) => {
     if (!carriesFiles(event)) return;
     unlightAllBut(event.target);
-    if (event.target instanceof Element && event.target.closest("[data-file-field]")) return;
+    if (event.target instanceof Element && event.target.closest(hooked(FILE_FIELD_HOOKS.field)))
+      return;
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = "none";
   });
@@ -781,7 +806,7 @@ function mountPage() {
  * @param {Transfer} transfer
  */
 export function mountFileFields(root, transfer) {
-  for (const host of root.querySelectorAll("[data-file-field]")) {
+  for (const host of root.querySelectorAll(hooked(FILE_FIELD_HOOKS.field))) {
     if (host instanceof HTMLElement) mountOne(host, transfer);
   }
   mountPage();
@@ -797,6 +822,13 @@ export function pickInto(host, picked) {
   const f = FIELDS.get(host);
   if (f) take(f, picked);
 }
+
+/**
+ * Whether any field under `scope` has a file travelling, which a page asks before it sends a form.
+ *
+ * @param {Element} scope
+ */
+export const uploadingIn = (scope) => fieldsIn(scope).some((f) => f.upload !== null);
 
 /**
  * What a form's save and cancel do to the file fields in it: a save keeps what each field

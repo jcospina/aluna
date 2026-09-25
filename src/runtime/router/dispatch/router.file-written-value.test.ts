@@ -3,7 +3,7 @@
 // with ledger rows minted directly, as the upload route would mint them.
 
 import { describe, expect, test } from "bun:test";
-
+import { fileUrl } from "../../../platform/files/file-url.ts";
 import { requireFileLedgerRow } from "../../../platform/files/ledger.test-support.ts";
 import { FILE_LEDGER_TABLE, mintFileKey } from "../../../platform/files/ledger.ts";
 import {
@@ -11,13 +11,12 @@ import {
   RECORD_CHANGED_ERROR_CODE,
 } from "../../../registry/index.ts";
 import { createApp } from "../../../server/app.ts";
-import { createMutationCoordinator } from "../../concurrency/mutation-coordinator.ts";
 import { createReadGateCoordinator } from "../../concurrency/read-gates.ts";
 import {
   CapabilityDataValidationError,
   type CapabilityFileProjection,
   FILE_CLEAR_VALUE,
-  FILE_URL_PREFIX,
+  projectFileLedgerRow,
   RECORD_NOT_FOUND_ERROR_CODE,
 } from "../../data/index.ts";
 import { FileFieldWriteError } from "../../data/internal.ts";
@@ -25,9 +24,10 @@ import { storedFileReference } from "../../data/schema/file-values.ts";
 import type { CapabilityUpdateContext } from "../contract.ts";
 import { READ_UNAVAILABLE_ERROR_CODE } from "../wire/failure-responses.ts";
 import {
+  between,
   editBody,
+  keyOf,
   PHOTO,
-  projectionOf,
   updateHandler,
   usePhotosRouter,
 } from "./router.file.test-support.ts";
@@ -36,17 +36,6 @@ import type { HandlerLoader } from "./router.ts";
 
 describe("the edit's check runs again inside the save's transaction", () => {
   const photos = usePhotosRouter();
-
-  /** Run `flip` after the route's first check and before its transaction opens. */
-  function between(flip: () => void) {
-    const mutationCoordinator = createMutationCoordinator();
-    const acquire = mutationCoordinator.tryAcquireRecordWrite.bind(mutationCoordinator);
-    mutationCoordinator.tryAcquireRecordWrite = () => {
-      flip();
-      return acquire();
-    };
-    return mutationCoordinator;
-  }
 
   test("and refuses a kept key another save replaced in between", async () => {
     const kept = photos.mint();
@@ -203,7 +192,7 @@ describe("mutation.update and the written-value rule", () => {
       loadHandler,
     });
 
-    expect(returned).toEqual(projectionOf(photos.ledger(kept)));
+    expect(returned).toEqual(projectFileLedgerRow(photos.ledger(kept)));
     expect(Object.isFrozen(returned)).toBe(true);
   });
 
@@ -271,21 +260,14 @@ describe("mutation.update and the written-value rule", () => {
 
 describe("any other photo generated code hands back is refused before anything is written", () => {
   const photos = usePhotosRouter();
-  const keyOf = (photo: CapabilityFileProjection) => photo.url.slice(FILE_URL_PREFIX.length);
   const values: readonly [string, (photo: CapabilityFileProjection, old: string) => unknown][] = [
     [
       "the projection of the photo being replaced",
-      (photo, old) => ({ ...photo, url: FILE_URL_PREFIX + old }),
+      (photo, old) => ({ ...photo, url: fileUrl(old) }),
     ],
-    [
-      "another pending key's address",
-      (photo) => ({ ...photo, url: FILE_URL_PREFIX + mintFileKey() }),
-    ],
+    ["another pending key's address", (photo) => ({ ...photo, url: fileUrl(mintFileKey()) })],
     ["the bare key", (photo) => keyOf(photo)],
-    [
-      "the stored shape",
-      ({ url, ...rest }) => ({ key: url.slice(FILE_URL_PREFIX.length), ...rest }),
-    ],
+    ["the stored shape", ({ url, ...rest }) => ({ key: keyOf({ url, ...rest }), ...rest })],
     ["the clear itself", () => FILE_CLEAR_VALUE],
   ];
 
@@ -316,7 +298,7 @@ describe("any other photo generated code hands back is refused before anything i
     const id = await photos.save(kept);
     const before = { stored: photos.stored(), ledger: photos.ledgerRows() };
     const { refusals, loadHandler } = refusedWrite(({ mutation }) =>
-      mutation.update({ caption: "Dusk", photo: projectionOf(photos.ledger(kept)) }),
+      mutation.update({ caption: "Dusk", photo: projectFileLedgerRow(photos.ledger(kept)) }),
     );
 
     const response = await photos.request(

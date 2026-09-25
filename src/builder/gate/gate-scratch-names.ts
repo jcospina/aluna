@@ -1,18 +1,17 @@
-// The names the Gate's scratch files carry (Module 7 PLAN decision 38). A leaf that imports
-// nothing, so the behavioral rung's row comparison can name a token's file without pulling the
-// runtime into its import graph.
+// The names the Gate's scratch files carry (Module 7 PLAN decision 38). Its one import is a leaf,
+// so the behavioral rung's row comparison can name a token's file without pulling the runtime into
+// its import graph.
 
-/** The longest name admission keeps (PLAN decision 6), which every scratch name reaches exactly. */
-export const SCRATCH_FILE_NAME_BYTES = 255;
+import { MAX_NAME_BYTES } from "../../platform/files/file-name.ts";
 
 /**
- * A name a template must escape and isolate: markup, a right-to-left override and an emoji, padded
- * to exactly {@link SCRATCH_FILE_NAME_BYTES} UTF-8 bytes. `label` tells two names apart.
+ * A name a template must escape and isolate: markup and an emoji, padded to exactly the
+ * {@link MAX_NAME_BYTES} UTF-8 bytes admission keeps. `label` tells two names apart.
  */
 export function scratchFileName(label: string): string {
-  const head = `<img src=x onerror="alert(1)">${label} \u{202E}gpj.exe \u{1F305}`;
+  const head = `<img src=x onerror="alert(1)">${label} \u{1F305}`;
   const tail = ".jpg";
-  const room = SCRATCH_FILE_NAME_BYTES - Buffer.byteLength(head + tail, "utf8");
+  const room = MAX_NAME_BYTES - Buffer.byteLength(head + tail, "utf8");
   if (room < 0) throw new Error(`Scratch file label "${label}" leaves no room in the name.`);
   return `${head}${"_".repeat(room)}${tail}`;
 }

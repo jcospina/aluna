@@ -12,11 +12,12 @@ export interface ProbeBody {
 }
 
 /**
- * `total` bytes (Infinity for a body that never ends) beginning with `head` and filled with `a`,
- * so `head` = `"x="` makes a urlencoded form. Nothing is produced before the first read.
+ * `total` bytes (Infinity for a body that never ends) beginning with `head`, text or bytes, and
+ * filled with `a`, so `"x="` makes a urlencoded form and a signature makes a file. Nothing is
+ * produced before the first read.
  */
-export function probeBody(total: number, head = ""): ProbeBody {
-  const opening = new TextEncoder().encode(head);
+export function probeBody(total: number, head: string | readonly number[] = ""): ProbeBody {
+  const opening = typeof head === "string" ? new TextEncoder().encode(head) : Uint8Array.from(head);
   let pulled = 0;
   let cancelled = false;
   const stream = new ReadableStream<Uint8Array>(

@@ -1,10 +1,10 @@
-// The builder offers a file field since 7.1/06: the candidate prompt names the type, and a
-// candidate that adds one passes the stage, required or not.
+// The candidate prompt names the file type, and a candidate that adds one passes the stage, required
+// or not.
 
 import { describe, expect, test } from "bun:test";
 
 import { PHOTO_FIELD } from "../../../registry/fields/file.test-support.ts";
-import { GENERATION_FIELD_TYPES } from "../../../registry/index.ts";
+import { fieldTypeSchema } from "../../../registry/index.ts";
 import { FILE_FIELD_PROMPT_LINES } from "../../spec/file-field-guidance.ts";
 import { recordingSend } from "../../spec/spec-gen.test-support.ts";
 import {
@@ -16,7 +16,6 @@ import {
   makeCandidateProvider,
 } from "./candidate.test-support.ts";
 import { buildCandidateSpecPrompt, generateCandidateSpec } from "./candidate-spec-gen.ts";
-import { CandidateValidationError } from "./candidate-validation.ts";
 
 function stageInput(authored: unknown) {
   const committed = journalCapabilityRow();
@@ -35,16 +34,10 @@ function withPhoto(): CandidateDraft {
   return authored;
 }
 
-async function rejectionOf(authored: CandidateDraft) {
-  const error = await generateCandidateSpec(stageInput(authored)).catch((caught) => caught);
-  expect(error).toBeInstanceOf(CandidateValidationError);
-  return (error as CandidateValidationError).issues;
-}
-
 describe("the candidate prompt", () => {
   test("offers the file type and says what it accepts", () => {
     const prompt = buildCandidateSpecPrompt(stageInput(candidateFrom(journalCapabilityRow())));
-    expect(prompt).toContain(`- a field's type is one of: ${GENERATION_FIELD_TYPES.join(" | ")}.`);
+    expect(prompt).toContain(`- a field's type is one of: ${fieldTypeSchema.options.join(" | ")}.`);
     for (const line of FILE_FIELD_PROMPT_LINES) expect(prompt).toContain(line);
   });
 });
@@ -62,11 +55,5 @@ describe("a generated candidate that adds a file field", () => {
     for (const errorCase of authored.behavioral_errors) errorCase.fields.push(PHOTO_FIELD.name);
     const { candidate } = await generateCandidateSpec(stageInput(authored));
     expect(candidate.schema.fields.at(-1)).toMatchObject({ name: "photo", required: true });
-  });
-
-  test("adds no refusal of its own to a candidate refused for something else", async () => {
-    const authored = withPhoto();
-    authored.subject = "a different notebook";
-    expect((await rejectionOf(authored)).map((issue) => issue.path)).toEqual(["subject"]);
   });
 });

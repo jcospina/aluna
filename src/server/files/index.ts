@@ -4,13 +4,9 @@
 
 import type { Hono } from "hono";
 import { registerFileServeRoute } from "./serve-route.ts";
-import { type FileRouteDeps, registerFileUploadRoute } from "./upload-route.ts";
+import { type FileUploadDeps, registerFileUploadRoute } from "./upload-route.ts";
 
-export { FILE_NAME_HEADER } from "#shell/shell-dom.js";
-export { fileUploadPath } from "../../platform/files/upload-path.ts";
-export type { FileRouteDeps } from "./upload-route.ts";
-
-export function registerFileRoutes(app: Hono, deps: FileRouteDeps): void {
+export function registerFileRoutes(app: Hono, deps: FileUploadDeps): void {
   registerFileUploadRoute(app, deps);
   registerFileServeRoute(app, deps);
 }

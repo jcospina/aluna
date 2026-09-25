@@ -108,7 +108,7 @@ const ASCII_WHITESPACE = /[\t\n\f\r ]+/;
  * An attribute value with its character references decoded. A name without its semicolon is left
  * as written: the legacy names a browser reads that way spell only `&`, `<`, `>`, `"` or Latin-1.
  */
-function decodeAttributeValue(raw: string): string {
+export function decodeAttributeValue(raw: string): string {
   return raw.replace(
     /&(?:#(\d+);?|#[xX]([0-9a-fA-F]+);?|([A-Za-z][A-Za-z0-9]*);)/g,
     (reference, decimal?: string, hex?: string, name?: string) => {

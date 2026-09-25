@@ -1,7 +1,7 @@
 // A filename is data (Module 7 PLAN decision 6): kept as the name the person gave their file, and
 // sent back in a disposition header Bun can write. A leaf: it imports nothing.
 
-const MAX_NAME_BYTES = 255;
+export const MAX_NAME_BYTES = 255;
 /** Longer than this after its last dot, the tail is part of the name and the cap may cut it. */
 const MAX_EXTENSION_BYTES = 16;
 

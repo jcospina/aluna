@@ -22,19 +22,18 @@ import { type FileClaimScope, resolveSubmittedFiles } from "./file-claims.ts";
  * Refuse a submission the platform owns the answer to, before any generated code loads.
  *
  * @param values the parsed wire values — strings and string arrays, exactly as submitted
- * @param files the ledger this capability's incarnation claims its pending keys from, and an
- * update's record, whose files a submission may keep
+ * @param scope where the submission's file fields are checked
  */
 export function assertSubmittedFieldValues(
   fields: readonly SpecField[],
   values: Readonly<Record<string, unknown>>,
   action: "create" | "update",
-  files: FileClaimScope,
+  scope: FileClaimScope,
 ): void {
-  const { capabilityId } = files;
+  const { capabilityId } = scope;
   // Stated in the order `normalizeSpecFieldValues` states them, so a submission that is
   // wrong twice is refused for the same reason wherever the check runs.
   assertDeclaredChoiceValues(capabilityId, fields, values, action);
   assertAdmittedStringLengths(capabilityId, fields, values, action);
-  resolveSubmittedFiles(fields, values, action, files);
+  resolveSubmittedFiles(fields, values, action, scope);
 }

@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-
 import {
   createDebouncedCapabilitySearch,
   DEFAULT_SEARCH_DEBOUNCE_MS,
   type SearchState,
 } from "#shell/search-chrome.js";
+import { until } from "../../../platform/async.test-support.ts";
 
 interface ScheduledWork {
   readonly callback: () => void;
@@ -34,14 +34,6 @@ function controlledSchedule() {
   };
 }
 
-async function waitUntil(predicate: () => boolean): Promise<void> {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (predicate()) return;
-    await Bun.sleep(0);
-  }
-  throw new Error("Timed out waiting for scheduled search work.");
-}
-
 describe("debounced capability search", () => {
   test("typing debounces to one encoded GET search request and renders its shared fragment", async () => {
     const scheduled = controlledSchedule();
@@ -69,7 +61,7 @@ describe("debounced capability search", () => {
     expect(scheduled.work[0]).toMatchObject({ cancelled: true, delayMs: 300 });
     expect(scheduled.work[1]).toMatchObject({ cancelled: false, delayMs: 300 });
     scheduled.runLatest();
-    await waitUntil(() => rendered.length === 1);
+    await until(() => rendered.length === 1);
 
     expect(DEFAULT_SEARCH_DEBOUNCE_MS).toBe(300);
     expect(requested).toHaveLength(1);
@@ -101,7 +93,7 @@ describe("debounced capability search", () => {
 
     search.update("\u2003 \n\t");
     scheduled.runLatest();
-    await waitUntil(() => rendered.length === 1);
+    await until(() => rendered.length === 1);
     await search.searchNow("");
 
     expect(urls).toEqual(["/capability/journal/read", "/capability/journal/read"]);
@@ -162,7 +154,7 @@ describe("capability search request ownership", () => {
 
     search.update("guji");
     scheduled.runLatest();
-    await waitUntil(() => order.includes("render"));
+    await until(() => order.includes("render"));
 
     expect(order).toEqual(["take the region", "claim", "render"]);
   });

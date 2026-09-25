@@ -5,7 +5,8 @@
  * says that something is wrong and the sentence says what, so each is said in its own place.
  */
 
-import { FILE_FIELD_CHANGE } from "../design/scripts/file-field.js";
+import { FILE_FIELD_CHANGE, FILE_FIELD_HOOKS } from "../design/scripts/file-field.js";
+import { FILE_FIELD_ATTRIBUTES } from "./shell-dom.js";
 
 const FIELD = ".field";
 const GUIDANCE = "[data-field-guidance]";
@@ -32,7 +33,7 @@ const REQUIRED_LIST = "[data-list-required]";
  * A required file field's value, which the photo control keeps in a hidden input. Holding nothing
  * is an empty value, or the clear the server drew for it once the file it held is taken away.
  */
-const REQUIRED_FILE = "[data-file-value][data-file-required]";
+const REQUIRED_FILE = `[${FILE_FIELD_ATTRIBUTES.value}][${FILE_FIELD_ATTRIBUTES.required}]`;
 const LIST_ROW_INPUT = "[data-list-field-row] input";
 const NOTICE = "[data-error-fields]";
 /**
@@ -48,7 +49,7 @@ const ERROR_REGION = '[aria-live="polite"]';
 const SPEAKS_FOR =
   ".listbox__button, .field__textarea, .field__input, .field__checkbox, .choice-set, .segmented";
 /** The photo control's own buttons, which a refusal reaches but a button cannot be invalid. */
-const FILE_FOCUS = "[data-file-focus]";
+const FILE_FOCUS = `[${FILE_FIELD_HOOKS.focus}]`;
 
 /**
  * What a field name may be, checked before it is spent in a selector. `data-error-fields` is read
@@ -228,7 +229,7 @@ function holdsNothing(field) {
   if (carrier) return carrier instanceof HTMLInputElement && carrier.value.trim() === "";
   const file = field.querySelector(REQUIRED_FILE);
   if (file instanceof HTMLInputElement) {
-    return file.value === "" || file.value === file.dataset.fileClearValue;
+    return file.value === "" || file.value === file.getAttribute(FILE_FIELD_ATTRIBUTES.clearValue);
   }
   if (!field.matches(REQUIRED_LIST)) return false;
   const rows = [...field.querySelectorAll(LIST_ROW_INPUT)];

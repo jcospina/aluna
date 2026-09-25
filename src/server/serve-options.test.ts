@@ -3,6 +3,10 @@ import { DEFAULT_MAX_FILE_BYTES, MAX_FILE_BYTES_ENV_VAR } from "../platform/file
 import { resolveServeOptions } from "./serve-options.ts";
 
 describe("what the server is started with", () => {
+  test("it listens on the loopback interface, so no other machine can reach it", () => {
+    expect(resolveServeOptions({}).hostname).toMatch(/^127\.\d+\.\d+\.\d+$/);
+  });
+
   test("its body cap is the per-file cap, by default and when configured", () => {
     expect(resolveServeOptions({}).maxRequestBodySize).toBe(DEFAULT_MAX_FILE_BYTES);
     for (const configured of [2048, DEFAULT_MAX_FILE_BYTES * 2]) {
