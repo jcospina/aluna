@@ -145,7 +145,12 @@ platform code with their own tests, exactly as routing is.
 
 **The question loop never sees a key.** It may count, group and filter file
 columns by `kind`, and the platform scrubs keys and `/files/` paths from every
-row before the model reads it.
+row before the model reads it. *Amended 2026-09-25 (7.1/09):* in two layers. The
+question's worker reads every table through views that show a file column without
+its key and withhold text holding a key or an address, because a statement can
+disguise any value it can read and no scrub of the result undoes that. The scrub of
+what comes back remains, for a copy the views cannot recognise and for the
+statement, bound values and SQLite messages the model reads back (ADR-0008).
 
 **No derivatives in Module 7.** No thumbnails and no video posters: originals are
 served as they are, and the platform's HTML filter marks the markup that shows

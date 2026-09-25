@@ -20,9 +20,19 @@ export type QuestionStepPlan =
 /** The plan of a statement that never reached one, and of a read the bound refused outright. */
 export const NO_PLAN: QuestionStepPlan = Object.freeze({ empty: "unreadable" });
 
+/**
+ * The rows a statement produced, as the worker handed them back, and the ledger keys the turn found
+ * in them (Module 7 decision 37). They travel with the rows because rendering has no database.
+ */
+export interface QuestionRowsResult {
+  readonly outcome: "rows";
+  readonly rows: readonly QueryWorkerRow[];
+  readonly fileKeys: ReadonlySet<string>;
+}
+
 /** The rows one step produced, or why it produced none. */
 export type QuestionStepResult =
-  | { readonly outcome: "rows"; readonly rows: readonly QueryWorkerRow[] }
+  | QuestionRowsResult
   | { readonly outcome: "failed"; readonly message: string };
 
 /**

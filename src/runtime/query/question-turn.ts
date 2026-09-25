@@ -10,13 +10,25 @@
 // shapes both sides pass around are `question-step.ts`.
 
 import { assertNever } from "../../platform/errors.ts";
+import { readFileLedgerKeys, readFileLedgerSignature } from "../../platform/files/ledger.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import { abortableProvider, type Provider } from "../../platform/provider/index.ts";
+import type { CapabilitySpec } from "../../registry/index.ts";
 import type { QueryWorkerRow } from "./query-worker.ts";
+import {
+  type QuestionLedger,
+  questionFileKeysIn,
+  questionLedger,
+  scrubQuestionText,
+  scrubQuestionValues,
+} from "./question-file-scrub.ts";
 import { questionOpenedACollection } from "./question-nothing-found.ts";
 import {
+  QUESTION_STATEMENT_TOO_LARGE,
+  QUESTION_STEP_RESULT_TOO_LARGE,
   questionPayloadBytes,
   questionPayloadRefusal,
+  questionRowsTooLargeToScrub,
   questionStatementRefusal,
 } from "./question-payload.ts";
 import { questionStatementFault } from "./question-statement-fault.ts";
@@ -114,23 +126,31 @@ function payloadRefusal(
   /** Refused for its own size, and recorded without the call that could not be carried. */
   readonly statement: string | null;
   readonly beforeReading: string | null;
-  afterReading(rows: readonly QueryWorkerRow[]): {
+  afterReading(
+    rows: readonly QueryWorkerRow[],
+    ledger: QuestionLedger,
+  ): {
     readonly step: QuestionStep;
     readonly refusal: string | null;
   };
 } {
   const spent = questionPayloadSpent(steps);
-  const asked: QuestionStep = { call, ...facts, result: { outcome: "rows", rows: [] } };
+  const asked: QuestionStep = {
+    call,
+    ...facts,
+    result: { outcome: "rows", rows: [], fileKeys: new Set() },
+  };
   const askedBytes = questionStepBytes(asked, steps.length);
   return {
     statement: questionStatementRefusal(askedBytes),
     beforeReading: questionPayloadRefusal(0, askedBytes, spent),
-    afterReading(rows) {
-      const step: QuestionStep = { call, ...facts, result: { outcome: "rows", rows } };
+    afterReading(rows, ledger) {
+      const result = { outcome: "rows", rows, fileKeys: questionFileKeysIn(rows, ledger) } as const;
+      const step: QuestionStep = { call, ...facts, result };
       return {
         step,
         refusal: questionPayloadRefusal(
-          questionPayloadBytes(rows),
+          questionPayloadBytes(result),
           questionStepBytes(step, steps.length),
           spent,
         ),
@@ -212,6 +232,61 @@ export async function runQuestionTurn(
   // eleven ran, and with no deadline the eleventh is an unbounded wait nobody sees the rows of.
   if (steps.length >= input.budget) return { kind: "spent" };
 
+  // Scrubbed before it is weighed, so the statement the budget counts is the one later prompts
+  // carry; the worker runs what the model wrote. One too large as written is refused before the
+  // scrub reads it, keeping no call. A key saved while the statement runs is not in this ledger
+  // read; the worker's views check the ledger as they read.
+  const written: QuestionStep = { call, ...NO_STATEMENT_FACTS, result: NOTHING_READ };
+  const ledger = ledgerOf(deps.database);
+  const shown: QuestionToolCall | null =
+    questionStatementRefusal(questionStepBytes(written, steps.length)) === null
+      ? {
+          ...call,
+          sql: scrubQuestionText(call.sql, ledger),
+          parameters: scrubQuestionValues(call.parameters, ledger),
+        }
+      : null;
+  const ran = await ranStatement(deps, { steps, specs, call, shown, ledger });
+  if (ran.kind !== "step" || ran.step.result.outcome !== "failed") return ran;
+  const message = scrubQuestionText(ran.step.result.message, ledger);
+  return { kind: "step", step: { ...ran.step, result: { outcome: "failed", message } } };
+}
+
+const NOTHING_READ = Object.freeze({
+  outcome: "rows",
+  rows: [],
+  fileKeys: new Set<string>(),
+} as const);
+
+/** The last ledger read, kept until a key is added or removed: its fragments cost the most. */
+const ledgers = new WeakMap<
+  object,
+  { readonly signature: string; readonly ledger: QuestionLedger }
+>();
+
+function ledgerOf(database: PlatformDatabase["readonly"]): QuestionLedger {
+  const signature = JSON.stringify(readFileLedgerSignature(database));
+  const kept = ledgers.get(database);
+  if (kept?.signature === signature) return kept.ledger;
+  const ledger = questionLedger(readFileLedgerKeys(database));
+  ledgers.set(database, { signature, ledger });
+  return ledger;
+}
+
+interface StatementToRun {
+  readonly steps: readonly QuestionStep[];
+  readonly specs: readonly CapabilitySpec[];
+  /** What runs. */
+  readonly call: QuestionToolCall;
+  /** What is weighed and recorded (Module 7 decision 37), or `null` for one too large to scrub. */
+  readonly shown: QuestionToolCall | null;
+  readonly ledger: QuestionLedger;
+}
+
+async function ranStatement(
+  deps: QuestionTurnDeps,
+  { steps, specs, call, shown, ledger }: StatementToRun,
+): Promise<QuestionTurn> {
   // Declared out here so a statement that was admitted and then failed in the worker still
   // records what its plan said; a statement refused by the bound itself never had one read.
   let facts: StatementFacts = NO_STATEMENT_FACTS;
@@ -222,27 +297,38 @@ export async function runQuestionTurn(
       collections: explained.collections.map((spec) => spec.label),
       plan: explained.plan,
     };
-    const refusal = payloadRefusal(steps, call, facts);
+    const refusal = payloadRefusal(steps, shown ?? call, facts);
     // Weighed before it runs: a statement that fails has no rows to weigh, and its text is
     // re-rendered into every later prompt all the same.
-    if (refusal.statement !== null) {
+    if (shown === null || refusal.statement !== null) {
       // The one refusal that keeps no call: quoting an unquotable statement back into the
       // prompt that refuses it would be the failure it is refusing.
       return {
         kind: "step",
-        step: { call: null, ...facts, result: { outcome: "failed", message: refusal.statement } },
+        step: {
+          call: null,
+          ...facts,
+          result: { outcome: "failed", message: refusal.statement ?? QUESTION_STATEMENT_TOO_LARGE },
+        },
       };
     }
-    if (refusal.beforeReading !== null) return refused(call, facts, refusal.beforeReading);
+    if (refusal.beforeReading !== null) return refused(shown, facts, refusal.beforeReading);
     const rows = await deps.scope.read(call.sql, call.parameters);
+    // Far past the cap before any scrub reads it: scanning what nobody will be sent is the cost.
+    if (questionRowsTooLargeToScrub(rows)) {
+      return refused(shown, facts, QUESTION_STEP_RESULT_TOO_LARGE);
+    }
     // Weighed again with its rows, between the worker and the step, so an over-size result is
     // never something a later reader has to remember not to use. The rows are dropped whole.
-    const read = refusal.afterReading(rows);
-    if (read.refusal !== null) return refused(call, facts, read.refusal);
+    const read = refusal.afterReading(rows, ledger);
+    if (read.refusal !== null) return refused(shown, facts, read.refusal);
     return { kind: "step", step: read.step };
   } catch (error) {
     const message = questionStatementFault(error);
     if (message === undefined) throw error;
-    return { kind: "step", step: { call, ...facts, result: { outcome: "failed", message } } };
+    return {
+      kind: "step",
+      step: { call: shown, ...facts, result: { outcome: "failed", message } },
+    };
   }
 }

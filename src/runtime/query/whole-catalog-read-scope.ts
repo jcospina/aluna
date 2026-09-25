@@ -6,15 +6,23 @@
 //
 // This is ownership, not table admission; `whole-catalog-query-scope.ts` is the other half, and
 // the turn is what takes it. Ownership never enters the worker (decision 11), and nothing is
-// created — no row, no version, no artifact, no cache, no persisted read dependency.
+// created — no row, no version, no artifact, no cache, no persisted read dependency. The worker's
+// temp views live in its own memory and die with it.
 //
 // Decision 13's residual risk: no wall-clock deadline applies to a question anywhere on this
 // path, so a deletion admitted during a long query cancels it rather than waiting.
 
+import { FILE_URL_PREFIX } from "../../platform/files/file-url.ts";
 import { dbReadonly, type PlatformDatabase } from "../../platform/persistence/db.ts";
+import { FILE_LEDGER_TABLE } from "../../platform/persistence/table-names.ts";
 import {
   type ActiveCatalogReader,
   type ActiveRegistryCatalog,
+  capabilitySpecFromRow,
+  type FieldType,
+  isFileFieldType,
+  isListFieldType,
+  PLATFORM_COLUMNS,
   readActiveRegistryCatalog,
 } from "../../registry/index.ts";
 import {
@@ -22,14 +30,21 @@ import {
   capabilityIncarnation,
   type ReadGateCoordinator,
 } from "../concurrency/read-gates.ts";
-import { assertReadOwnership } from "../data/index.ts";
+import {
+  assertReadOwnership,
+  CAPABILITY_TABLE_PREFIX,
+  SQLITE_TYPE_BY_FIELD_TYPE,
+} from "../data/index.ts";
 import {
   createQueryWorker,
+  type QueryColumnReading,
+  type QueryShadow,
   type QueryWorker,
   QueryWorkerClosedError,
   type QueryWorkerRow,
   type QueryWorkerValue,
 } from "./query-worker.ts";
+import { QUESTION_FILE_WITHHELD } from "./question-file-scrub.ts";
 
 /** A question ended through the scope's own cancel entry point rather than by the gate. */
 export class WholeCatalogReadCancelledError extends Error {
@@ -66,7 +81,44 @@ export interface WholeCatalogReadScopeDeps {
    */
   readonly database?: PlatformDatabase["readonly"];
   readonly readActiveCatalog?: ActiveCatalogReader;
-  readonly createWorker?: () => QueryWorker;
+  /** Handed the views the worker reads the catalog through (Module 7 decision 37). */
+  readonly createWorker?: (shadow: QueryShadow) => QueryWorker;
+}
+
+function readingOf(type: FieldType): QueryColumnReading {
+  if (isFileFieldType(type)) return "file";
+  if (isListFieldType(type)) return "list";
+  return SQLITE_TYPE_BY_FIELD_TYPE[type] === "TEXT" ? "text" : "value";
+}
+
+/**
+ * Every table of the catalog as a question reads it: the columns its spec knows, inactive fields
+ * included, since their data stays. A column added after this snapshot is not among them.
+ */
+export function catalogShadow(catalog: ActiveRegistryCatalog): QueryShadow {
+  const [id, createdAt, extra] = PLATFORM_COLUMNS;
+  const tables = catalog.capabilities.map((row) => {
+    const spec = capabilitySpecFromRow(row);
+    const fields = spec.schema.fields.map(({ name, type }) => ({
+      name,
+      reading: readingOf(type),
+    }));
+    return {
+      table: `${CAPABILITY_TABLE_PREFIX}${spec.id}`,
+      columns: [
+        { name: id, reading: "value" as const },
+        { name: createdAt, reading: "value" as const },
+        { name: extra, reading: "text" as const },
+        ...fields,
+      ],
+    };
+  });
+  return {
+    tables,
+    withheld: QUESTION_FILE_WITHHELD,
+    filePrefix: FILE_URL_PREFIX,
+    ledgerTable: FILE_LEDGER_TABLE,
+  };
 }
 
 /**
@@ -81,8 +133,10 @@ export async function withWholeCatalogReadScope<T>(
   const database = deps.database ?? dbReadonly;
   // The worker opens the file this catalog was read from, not `DB_PATH`: another connection would
   // answer about one desk's registry against another desk's rows. It starts on the first statement.
-  const createWorker = deps.createWorker ?? (() => createQueryWorker(database.filename));
+  const createWorker =
+    deps.createWorker ?? ((shadow) => createQueryWorker(database.filename, shadow));
   const catalog = readActiveCatalog(database);
+  const shadow = catalogShadow(catalog);
   const incarnations = catalog.capabilities.map(capabilityIncarnation);
 
   return await deps.readGates.withTokens(
@@ -156,7 +210,7 @@ export async function withWholeCatalogReadScope<T>(
         if (over) {
           throw new QueryWorkerClosedError("The whole-catalog read scope is over.");
         }
-        worker ??= createWorker();
+        worker ??= createWorker(shadow);
         try {
           const rows = await worker.read(sql, parameters);
           // A statement that finished in the gap between a cancel and its own rejection

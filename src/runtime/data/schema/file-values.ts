@@ -59,6 +59,17 @@ export function projectStoredFileReference(
 }
 
 /**
+ * A stored reference with its key dropped, as a question's model may read it (decision 37), or
+ * `undefined` for a value that is not one.
+ */
+export function keylessStoredFileReference(value: unknown): string | undefined {
+  const stored = parseStoredReference(value);
+  if (!stored) return undefined;
+  const { kind, mime, size, name } = stored;
+  return JSON.stringify({ kind, mime, size, name });
+}
+
+/**
  * The key a projection handed back names, or `undefined` for anything that is not a projection.
  * Only `url` is read: a copied or edited projection still names its file, and saves the ledger's.
  */

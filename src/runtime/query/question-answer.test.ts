@@ -135,7 +135,7 @@ function stepOf(label: QuestionStepLabel, rows: readonly Record<string, never>[]
     call: { tool: READ_ONLY_QUERY_TOOL, sql: A_FEW_ROWS, label, parameters: [SHOP] },
     collections: [EXPENSES_CAPABILITY.label],
     plan: { empty: "no rows" },
-    result: { outcome: "rows", rows },
+    result: { outcome: "rows", rows, fileKeys: new Set() },
   };
 }
 
@@ -156,6 +156,7 @@ describe("a total comes back from a statement", () => {
     expect(steps[1]?.result).toEqual({
       outcome: "rows",
       rows: [{ total: SHOP_TOTAL, how_many: SHOP_ROWS }],
+      fileKeys: new Set(),
     });
 
     // The claim itself, on what actually reached the worker rather than on what was scripted.
@@ -264,7 +265,7 @@ describe("nothing but the results reaches the answer", () => {
       },
       collections: [EXPENSES_CAPABILITY.label],
       plan: { empty: "no rows" },
-      result: { outcome: "rows", rows: [{}] },
+      result: { outcome: "rows", rows: [{}], fileKeys: new Set() },
     };
     const prompt = buildQuestionAnswerPrompt({ question: QUESTION, steps: [step] });
 
@@ -313,7 +314,7 @@ describe("nothing but the results reaches the answer", () => {
       questionRenderedBytes(() => buildQuestionAnswerPrompt({ question: QUESTION, steps })) -
       steps.reduce(
         (total, step) =>
-          total + (step.result.outcome === "rows" ? questionPayloadBytes(step.result.rows) : 0),
+          total + (step.result.outcome === "rows" ? questionPayloadBytes(step.result) : 0),
         0,
       );
 
@@ -350,7 +351,7 @@ describe("a step that returned nothing has nothing to report", () => {
       call: null,
       collections: [],
       plan: { empty: "one row", answers: [] },
-      result: { outcome: "rows", rows: [{ total: 3 }] },
+      result: { outcome: "rows", rows: [{ total: 3 }], fileKeys: new Set() },
     };
 
     expect(questionStepsWithRows([failed, rows, failed])).toEqual([rows]);

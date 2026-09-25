@@ -51,6 +51,22 @@ measurement, recorded in `src/runtime/query/query-worker.ts`, found the thread s
 2.98s of CPU in the 3s after `terminate()` returned. What closing the worker ends at once is
 the wait, because every pending read rejects.
 
+*Amended 2026-09-25 — how the worker opens (Module 7 PLAN decision 37, 7.1/09).* The worker's
+own `main` is an empty in-memory database, and the one documented file is attached
+`mode=ro` under a schema name only the worker knows; `query_only`, `temp_store` and the
+refusals by name all stand. Every catalog table is read through a temp view named like it
+and listing the columns its spec knows: a file column comes without its key, and text or a
+file's name that may hold an address — a `/files/` path, a NUL no SQLite text function
+reads past, or a ledger key in any case once the common separators the worker lists are
+dropped — comes as a withheld phrase. A key no statement can see is one no statement can
+spell out another way. The residual: a copy some Handler stored with other characters
+between its digits, or already cut up, is read whole only by the scrub of what comes back,
+and a statement can reorder its pieces past that scrub. The table bound prepares
+every read on the platform's connection, where that schema does not exist; a write it lets
+through unprepared fails `mode=ro` before reading anything, or, through a view, as
+*cannot modify it because it is a view*. `main.`-qualified names now find nothing, and the
+worker is told the tables and columns to view at birth — names, never a token.
+
 **Ownership stays on the main thread.** The complete per-incarnation read-token set is
 acquired atomically against one catalog snapshot or not at all, and released in
 `finally`, exactly as ADR-0006 and ARCH §8 require. The worker is only where SQL

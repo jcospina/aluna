@@ -128,6 +128,9 @@ are **deliberately left alone**: closed module plans are history.
    thread ticked 39 times out of an expected 40 during two seconds of a runaway recursive
    query; and `terminate()` killed that synchronously-running query in ~300ms. The safety
    seam survives the move, which is what makes the move admissible at all.
+   *Amended 2026-09-25 (Module 7 decision 37):* the worker's `main` is now in memory, with
+   the file attached `mode=ro` and every catalog table read through a view that shows no
+   file's key; ADR-0008 records how the seam holds.
 
 8. **Ten steps.** Capabilities in this PoC are simple and the questions asked of them are
    simple; a budget that a real question never approaches is the right shape for a

@@ -1,15 +1,16 @@
-// Where a whole-catalog read executes: a Worker thread holding its own `SQLITE_OPEN_READONLY`
-// connection to the one documented database file. `bun:sqlite` is synchronous, so a clumsy join on
-// the main thread would freeze the desk for its whole duration; the move is admissible because the
-// safety seam survives it (ADR-0008, decisions 6 and 7).
+// Where a whole-catalog read executes: a Worker thread, so a clumsy join cannot freeze the desk
+// (ADR-0008, decisions 6 and 7). The one documented database file is attached `mode=ro` under a
+// schema name only this thread knows, beside an empty in-memory `main` (Module 7 decision 37).
 //
-// `SQLITE_OPEN_READONLY` means *cannot write this database*, which is narrower than it reads.
-// Measured on Bun 1.3.12 against a read-only connection: `VACUUM INTO` wrote a complete copy of the
-// catalog, `CREATE TEMP TABLE` spilled 293 MB to disk, and `ATTACH DATABASE` read any other SQLite
-// file on the machine. `PRAGMA query_only` and the `NOT_A_READ` refusals below close all three.
+// Each table in the question's catalog is read through a temp view named like it, listing the
+// columns the catalog knows: a file column without its key, and text or a file's name showing
+// the withheld phrase where it may hold a ledger key or a file's address (`mayHoldAnAddress`). An unqualified name reads the
+// view and `main.` finds nothing. The table bound prepares every read on a connection where that
+// schema does not exist, and a write it lets through fails `mode=ro` before anything is read.
 //
-// They bound the connection to its own file, not which tables — `assertWholeCatalogQuery` does
-// that on the main thread. This thread holds no token: a path, a statement, its parameters.
+// Read-only means *cannot write this database*, which is narrower than it reads: measured on Bun
+// 1.3.12, `VACUUM INTO`, `CREATE TEMP TABLE` and `ATTACH DATABASE` each escaped it. `PRAGMA
+// query_only` and the `NOT_A_READ` refusals below close all three. This thread holds no token.
 
 import { Database } from "bun:sqlite";
 
@@ -22,8 +23,30 @@ export type QueryWorkerValue = string | number | boolean | null | Uint8Array;
 /** One row of a whole-catalog read: aliased columns, never a record handle. */
 export type QueryWorkerRow = Readonly<Record<string, QueryWorkerValue>>;
 
+/** How a column reaches a statement: as stored, as a file without its key, or as withholdable text or list. */
+export type QueryColumnReading = "value" | "file" | "text" | "list";
+
+/** One capability table as a question reads it: every column its catalog entry knows, and how. */
+export interface QueryShadowTable {
+  readonly table: string;
+  readonly columns: readonly { readonly name: string; readonly reading: QueryColumnReading }[];
+}
+
+/** What the worker is told at birth. It imports nothing, so the platform's words come with it. */
+export interface QueryShadow {
+  readonly tables: readonly QueryShadowTable[];
+  readonly withheld: string;
+  readonly filePrefix: string;
+  readonly ledgerTable: string;
+}
+
 export type QueryWorkerRequest =
-  | { readonly kind: "open"; readonly id: number; readonly path: string }
+  | {
+      readonly kind: "open";
+      readonly id: number;
+      readonly path: string;
+      readonly shadow: QueryShadow;
+    }
   | {
       readonly kind: "read";
       readonly id: number;
@@ -53,7 +76,8 @@ export type QueryWorkerResponse =
  * `ANALYZE` is added, because it writes `sqlite_stat1`; `TRUNCATE` is left out, having no
  * statement form in SQLite.
  */
-const NOT_A_READ = /^\s*(?:ATTACH|DETACH|PRAGMA|VACUUM|REINDEX|ANALYZE)\b/i;
+const NOT_A_READ =
+  /^\s*(?:ATTACH|DETACH|PRAGMA|VACUUM|REINDEX|ANALYZE|SAVEPOINT|RELEASE|BEGIN|COMMIT|END|ROLLBACK)\b/i;
 
 /** Quoted literals and comments, so a `;` or a keyword inside one is never mistaken for SQL.
  * Mirrored in `whole-catalog-query-scope.ts` for the reason above, and pinned against it. */
@@ -84,7 +108,7 @@ self.onmessage = (event: MessageEvent) => {
 
 function handle(request: QueryWorkerRequest): QueryWorkerResponse {
   if (request.kind === "open") {
-    connection = open(request.path);
+    connection = open(request.path, request.shadow);
     return { kind: "opened", id: request.id };
   }
 
@@ -135,19 +159,91 @@ class NoConnection extends Error {
  * The SQLite runtime is pinned by the main thread before this one exists and inherited here;
  * `configureSqliteRuntime()` loads once per process and throws `SQLite already loaded` from here.
  */
-function open(path: string): Database {
-  const opened = new Database(path, { readonly: true });
+function open(path: string, shadow: QueryShadow): Database {
+  const opened = new Database(":memory:");
   // The contention allowance the platform's own connections carry (db.ts): WAL keeps this reader
-  // off the writer's back, and the wait absorbs the brief lock a checkpoint takes.
+  // off the writer's back, and the wait absorbs the brief lock a checkpoint takes — ATTACH included.
   opened.exec("PRAGMA busy_timeout = 5000;");
-  opened.exec("PRAGMA query_only = ON;");
-  // Belt and braces under `query_only`, which already refuses a temp table outright: if
-  // one is ever admitted again, it is bounded by RAM rather than by free disk.
+  // Bounds a temp table by RAM rather than free disk, should `query_only` ever admit one. Set
+  // before the views, because changing it drops every temp object.
   opened.exec("PRAGMA temp_store = MEMORY;");
+  const uri = `file:${path.split("/").map(encodeURIComponent).join("/")}?mode=ro`;
+  opened.run(`ATTACH DATABASE ? AS ${DESK_SCHEMA}`, [uri]);
+  for (const table of shadow.tables) {
+    const columns = table.columns.map(({ name, reading }) => columnAs(name, reading, shadow));
+    opened.exec(
+      `CREATE TEMP VIEW ${quoted(table.table)} AS SELECT ${columns.join(", ")} FROM ${DESK_SCHEMA}.${quoted(table.table)} AS source`,
+    );
+    // A view is compiled when it is read, so a column the table lacks fails here, at open.
+    opened.prepare(`SELECT * FROM temp.${quoted(table.table)} LIMIT 0`).finalize();
+  }
+  opened.exec("PRAGMA query_only = ON;");
   // `platform_search_normalize` is per-connection and unregistered here: a question filtering text
   // fails with *no such function*. On darwin, registering it is refused: this thread knows no
   // pinned library path, so the ABI the extension would compile against cannot be checked.
   return opened;
+}
+
+/** No read can name this: the table bound prepares every read where no schema is called it. */
+const DESK_SCHEMA = "question_desk";
+
+const quoted = (name: string) => `"${name.replaceAll('"', '""')}"`;
+const literal = (text: string) => `'${text.replaceAll("'", "''")}'`;
+const globbed = (text: string) => text.replace(/[*?[]/g, "[$&]");
+const HEX = "[0-9a-fA-F]";
+const HEX_RUN = `'*${"[0-9a-f]".repeat(32)}*'`;
+/** What a copied key is most often written with between its digits, dropped before matching. */
+const SEPARATORS = [..."-_:./\\,;|+=#&?!'\"`()[]{}<>", " ", "\t", "\n", "\r", "\u00a0"];
+/** A window's text is cut into chunks this long, overlapping by 31, so no substr walks far. */
+const CHUNK = 1024;
+
+/** SQL for a key's 32 digits in a row read as the ledger's hyphenated key. */
+function dashed(digits: string): string {
+  const part = (from: number, length: number) => `substr(${digits}, ${from}, ${length})`;
+  return [part(1, 8), part(9, 4), part(13, 4), part(17, 4), part(21, 12)].join(" || '-' || ");
+}
+
+/**
+ * Whether `text` may hold a file's address: a NUL, past which SQLite's text functions read
+ * nothing; a `/files/` path; or, the listed separators dropped, a ledger key, looked up through
+ * the ledger's index at each 32-digit window of the chunks holding a run of hex digits.
+ */
+function mayHoldAnAddress(text: string, shadow: QueryShadow): string {
+  const digits = `lower(${SEPARATORS.reduce((inner, separator) => `replace(${inner}, ${literal(separator)}, '')`, text)})`;
+  const ledger = `${DESK_SCHEMA}.${quoted(shadow.ledgerTable)}`;
+  const span = CHUNK + 31;
+  const chunks = `chunk(c, rest) AS (SELECT substr(${digits}, 1, ${span}), substr(${digits}, ${CHUNK + 1}) UNION ALL SELECT substr(rest, 1, ${span}), substr(rest, ${CHUNK + 1}) FROM chunk WHERE length(rest) > 31)`;
+  const windows = `at(p, c) AS (SELECT 1, c FROM chunk WHERE c GLOB ${HEX_RUN} UNION ALL SELECT p + 1, c FROM at WHERE p + 32 <= length(c))`;
+  const inLedger = `EXISTS (WITH RECURSIVE ${chunks}, ${windows} SELECT 1 FROM at JOIN ${ledger} AS ledger ON ledger."key" = ${dashed("substr(at.c, at.p, 32)")})`;
+  return [
+    `instr(CAST(${text} AS BLOB), x'00') > 0`,
+    `${text} GLOB ${literal(`*${globbed(shadow.filePrefix)}${HEX.repeat(8)}*`)}`,
+    `(EXISTS (SELECT 1 FROM ${ledger}) AND ${digits} GLOB ${HEX_RUN} AND ${inLedger})`,
+  ].join(" OR ");
+}
+
+/**
+ * A view column: a file as the four fields a question may read, each withheld where it may hold
+ * an address; or text, or a list's JSON, withheld the same way. Every name is qualified, since
+ * SQLite reads a double-quoted name no column has as a string instead, and text is cast back to
+ * TEXT, since a CASE has no affinity and a number bound against it would match nothing.
+ */
+function columnAs(name: string, reading: QueryColumnReading, shadow: QueryShadow): string {
+  const column = `source.${quoted(name)}`;
+  const as = `AS ${quoted(name)}`;
+  const withheld = literal(shadow.withheld);
+  const unless = (value: string) =>
+    `CASE WHEN ${mayHoldAnAddress(value, shadow)} THEN ${withheld} ELSE ${value} END`;
+  if (reading === "value") return `${column} ${as}`;
+  if (reading === "file") {
+    const fields = ["kind", "mime", "size", "name"].map(
+      (field) => `'${field}', ${unless(`json_extract(${column}, '$.${field}')`)}`,
+    );
+    const whole = `json_valid(${column}) AND json_type(${column}) = 'object' AND json_type(json_remove(${column}, '$.key'), '$.key') IS NULL`;
+    return `CASE WHEN ${whole} THEN json_object(${fields.join(", ")}) END ${as}`;
+  }
+  const hidden = reading === "list" ? `json_array(${withheld})` : withheld;
+  return `CAST(CASE WHEN ${mayHoldAnAddress(column, shadow)} THEN ${hidden} ELSE ${column} END AS TEXT) ${as}`;
 }
 
 function assertOneReadStatement(sql: string): void {

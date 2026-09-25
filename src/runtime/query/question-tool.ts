@@ -1,6 +1,6 @@
 // The one tool a question is offered (PLAN decisions 5, 6 and 14; ADR-0008). It is the physically
-// read-only adapter — no second tool, no escape hatch — and every statement runs against the
-// worker's `SQLITE_OPEN_READONLY` connection, so a mutating statement fails at the SQLite seam.
+// read-only adapter — no second tool, no escape hatch — and every statement runs in the worker
+// against the database file attached `mode=ro`, so a mutating statement fails at the SQLite seam.
 // What lives here is an offer, not a guard, and nothing in this file may become that seam.
 //
 // `questionToolCallSchema` is derived from `QUESTION_TOOLS` and the derivation refuses an inventory

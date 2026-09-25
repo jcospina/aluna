@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { ReadGateClosingError } from "../concurrency/read-gates.ts";
+import { NO_SHADOW } from "./query-worker.test-support.ts";
 import { createQueryWorker, type QueryWorker, QueryWorkerStatementError } from "./query-worker.ts";
 import {
   createScratchPlatforms,
@@ -182,7 +183,11 @@ describe("what a cancel does to a statement already running", () => {
     const readGates = gatesFor(database);
 
     const waited = await withWholeCatalogReadScope(
-      { readGates, database: database.readonly, createWorker: () => createQueryWorker(path) },
+      {
+        readGates,
+        database: database.readonly,
+        createWorker: () => createQueryWorker(path, NO_SHADOW),
+      },
       async (scope) => {
         const { runaway } = await startRunawayQuery(scope);
         const cancelledAt = Date.now();
@@ -205,7 +210,11 @@ describe("what a cancel does to a statement already running", () => {
 
     await expect(
       withWholeCatalogReadScope(
-        { readGates, database: database.readonly, createWorker: () => createQueryWorker(path) },
+        {
+          readGates,
+          database: database.readonly,
+          createWorker: () => createQueryWorker(path, NO_SHADOW),
+        },
         async (scope) => {
           const { runaway } = await startRunawayQuery(scope);
           draining = readGates.closeAndDrain(NOTES, { timeoutMs: DRAIN_MS });

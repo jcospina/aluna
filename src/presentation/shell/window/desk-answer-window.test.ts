@@ -39,6 +39,7 @@ import {
   ANSWER_WINDOW_OPENING,
   ANSWER_WINDOW_SAYING_ATTRIBUTE,
   REFUSED_PROMPT_ATTRIBUTE,
+  renderAnswerWindowSaying,
 } from "../../../server/http/index.ts";
 import {
   codeOf as code,
@@ -154,6 +155,33 @@ describe("it is the third window, and there is no fourth", () => {
   test("no answer window is ever the window that may not be covered", () => {
     // It stacks like the other two. `desk-stack.test.ts` holds the slots themselves.
     expect(ANSWER).not.toContain("top: true");
+  });
+});
+
+describe("it shows words and nothing else", () => {
+  test("markup in what she says arrives as text, so no image, link or address is drawn", () => {
+    // Module 7 decision 37. Escaped on the server, read back as `textContent` by the glue, and
+    // written as `textContent` here; no step of the way parses what she said as HTML.
+    expect(renderAnswerWindowSaying('<img src="/files/x"><a href="/files/x">x</a>')).not.toMatch(
+      /<(img|a)\b/,
+    );
+    expect(GLUE).toMatch(/saying:\s*said\.textContent\b/);
+    expect(ANSWER).toMatch(/\bbody\.textContent\s*=\s*text\b/);
+    // Nothing it builds can show an image, embed a page or follow a link, no attribute it sets can
+    // point anywhere, and no sink it reaches parses markup.
+    const built = [...ANSWER.matchAll(/createElement(?:NS)?\(\s*[^,)]*?["'`]([\w-]+)["'`]\s*\)/g)];
+    const showing =
+      /^(?:a|img|image|picture|source|video|audio|iframe|object|embed|link|svg|use|frame)$/i;
+    expect(built.length).toBeGreaterThan(0);
+    expect(built.map(([, tag]) => tag).filter((tag) => showing.test(tag ?? ""))).toEqual([]);
+    const named = [...ANSWER.matchAll(/setAttribute(?:NS)?\(\s*[^,)]*?["'`]([\w:-]+)["'`]/g)];
+    expect(named.length).toBeGreaterThan(0);
+    expect(
+      named.map(([, name]) => name).filter((name) => /href|src|data|action/i.test(name ?? "")),
+    ).toEqual([]);
+    const sinks =
+      /\b(?:innerHTML|outerHTML|insertAdjacentHTML|DOMParser|createContextualFragment|srcdoc)\b|document\.write\b|\.(?:href|src)\s*=/;
+    expect(ANSWER.match(sinks)).toBeNull();
   });
 });
 

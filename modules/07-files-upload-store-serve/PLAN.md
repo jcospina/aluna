@@ -375,6 +375,10 @@ in ADR-0009, and in the architecture and design documents.
     The catalog describes a file column and its `kind`. Rows are scrubbed before the model
     reads them: a file reference loses its key, and any value that is or contains a ledger
     key or a `/files/` path is replaced. The answer window stays text.
+    *Amended 2026-09-25 (7.1/09):* the scrub is the second layer. A statement can
+    disguise any value it reads, so the question's worker reads every table through
+    views that show a file column without its key and withhold text holding a key or
+    an address before any statement sees it (ADR-0008, ADR-0009).
 
 ### The Gate
 

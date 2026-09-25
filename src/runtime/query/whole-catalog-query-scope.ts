@@ -4,7 +4,7 @@
 // `whole-catalog-read-scope.ts` owns the read tokens for the length of a question; this bounds
 // the tables one statement may read, by enumerating what an `EXPLAIN` says it opens rather than
 // by matching strings. It is a table bound, never the safety seam: a mutation passes straight
-// through and fails at `SQLITE_OPEN_READONLY`. Three other things do rest on it, though —
+// through and fails in the worker, at `mode=ro` or at a view. Three other things do rest on it, though —
 // the `?` arity check, the collection names the answer's prompt carries, and the plan 6.4/04's
 // zero-rows ending is read from — so removing it costs those, not only the table bound.
 //

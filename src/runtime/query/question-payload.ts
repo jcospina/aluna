@@ -12,6 +12,8 @@
 // main thread before anything measures it.
 
 import type { QueryWorkerRow } from "./query-worker.ts";
+import { scrubQuestionRows } from "./question-file-scrub.ts";
+import type { QuestionRowsResult } from "./question-step.ts";
 
 /**
  * The most one step's rows may be, in bytes of the text the prompt renders. Not injectable, for
@@ -44,17 +46,45 @@ export function questionRenderedBytes(render: () => string): number {
   }
 }
 
+/** A result's rendering, kept: every prompt and every weighing re-renders every earlier step. */
+const rendered = new WeakMap<object, string>();
+
 /**
- * The exact text a step's rows reach the next prompt as. The prompt builder and the
- * measurement below share it, so what is counted is what is sent.
+ * The exact text a step's rows reach either prompt as, scrubbed of every file address. The prompt
+ * builders and the measurement below share it, so what is counted is what is sent.
  */
-export function renderQuestionRows(rows: readonly QueryWorkerRow[]): string {
-  return JSON.stringify(rows);
+export function renderQuestionRows(result: Omit<QuestionRowsResult, "outcome">): string {
+  const kept = rendered.get(result);
+  if (kept !== undefined) return kept;
+  const text = JSON.stringify(scrubQuestionRows(result.rows, result.fileKeys));
+  rendered.set(result, text);
+  return text;
+}
+
+/**
+ * Rows so far past the cap that they are refused before the scrub reads them: scanning a result
+ * nobody will be sent is main-thread time. Four times the cap, because a scrub can shorten a row a
+ * lot — a long note holding a copied key goes to one short phrase. The cap itself still weighs the
+ * scrubbed text, which can be the longer of the two, and the count here is characters, not bytes.
+ */
+export const QUESTION_STEP_SCRUB_CEILING_BYTES = 4 * QUESTION_STEP_RESULT_CAP_BYTES;
+
+/** Whether `rows` pass that ceiling, counted cell by cell and stopping as soon as they do. */
+export function questionRowsTooLargeToScrub(rows: readonly QueryWorkerRow[]): boolean {
+  let bytes = 0;
+  for (const row of rows) {
+    for (const [name, value] of Object.entries(row)) {
+      bytes +=
+        name.length + (value instanceof Uint8Array ? value.byteLength * 2 : String(value).length);
+      if (bytes > QUESTION_STEP_SCRUB_CEILING_BYTES) return true;
+    }
+  }
+  return false;
 }
 
 /** What those rows cost, in UTF-8 bytes. */
-export function questionPayloadBytes(rows: readonly QueryWorkerRow[]): number {
-  return questionRenderedBytes(() => renderQuestionRows(rows));
+export function questionPayloadBytes(result: Omit<QuestionRowsResult, "outcome">): number {
+  return questionRenderedBytes(() => renderQuestionRows(result));
 }
 
 /**

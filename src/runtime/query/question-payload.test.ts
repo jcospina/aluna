@@ -66,9 +66,14 @@ function bulkyDesk(): QuestionDesk {
   });
 }
 
+/** Rows as a step carries them, holding no ledger key. */
+function rowsResult(rows: readonly QueryWorkerRow[]) {
+  return { rows, fileKeys: new Set<string>() };
+}
+
 /** Rows whose rendered payload is exactly `bytes` long. */
 function rowsOfExactly(bytes: number): readonly QueryWorkerRow[] {
-  const overhead = questionPayloadBytes([{ t: "" }]);
+  const overhead = questionPayloadBytes(rowsResult([{ t: "" }]));
   return [{ t: "x".repeat(bytes - overhead) }];
 }
 
@@ -78,9 +83,13 @@ function weigh(rows: readonly QueryWorkerRow[], spent = 0): string | null {
     call: null,
     collections: [],
     plan: { empty: "no rows" },
-    result: { outcome: "rows", rows },
+    result: { outcome: "rows", rows, fileKeys: new Set() },
   };
-  return questionPayloadRefusal(questionPayloadBytes(rows), questionStepBytes(step), spent);
+  return questionPayloadRefusal(
+    questionPayloadBytes(rowsResult(rows)),
+    questionStepBytes(step),
+    spent,
+  );
 }
 
 /** A bound value long enough that a handful of statements carrying it fill a question. */
@@ -163,8 +172,10 @@ describe("the two numbers", () => {
     // much again over it counted as bytes. Tokens follow the bytes.
     const rows = [{ text: "書".repeat(6000) }];
 
-    expect(renderQuestionRows(rows).length).toBeLessThan(QUESTION_STEP_RESULT_CAP_BYTES);
-    expect(questionPayloadBytes(rows)).toBeGreaterThan(QUESTION_STEP_RESULT_CAP_BYTES);
+    expect(renderQuestionRows(rowsResult(rows)).length).toBeLessThan(
+      QUESTION_STEP_RESULT_CAP_BYTES,
+    );
+    expect(questionPayloadBytes(rowsResult(rows))).toBeGreaterThan(QUESTION_STEP_RESULT_CAP_BYTES);
     expect(weigh(rows)).toBe(QUESTION_STEP_RESULT_TOO_LARGE);
   });
 
@@ -177,13 +188,15 @@ describe("the two numbers", () => {
       call: null,
       collections: [],
       plan: { empty: "no rows" },
-      result: { outcome: "rows", rows },
+      result: { outcome: "rows", rows, fileKeys: new Set() },
     };
 
     expect(nextPrompt("anything", registeredSpecs(desk.database.readonly), [step])).toContain(
-      renderQuestionRows(rows),
+      renderQuestionRows(rowsResult(rows)),
     );
-    expect(questionPayloadBytes(rows)).toBe(Buffer.byteLength(renderQuestionRows(rows), "utf8"));
+    expect(questionPayloadBytes(rowsResult(rows))).toBe(
+      Buffer.byteLength(renderQuestionRows(rowsResult(rows)), "utf8"),
+    );
   });
 });
 
@@ -197,10 +210,10 @@ describe("the cap is payload size, not rows", () => {
     const first = steps[0]?.result;
     if (first?.outcome !== "rows") throw new Error("the read was refused");
     expect(first.rows.length).toBeGreaterThan(600);
-    expect(questionPayloadBytes(first.rows)).toBeLessThanOrEqual(QUESTION_STEP_RESULT_CAP_BYTES);
+    expect(questionPayloadBytes(first)).toBeLessThanOrEqual(QUESTION_STEP_RESULT_CAP_BYTES);
     // And the model gets all of them. An admitted result that quietly lost its tail would be
     // the same lie as a truncated refusal, arriving through the door marked "passes".
-    expect(prompts[1]).toContain(renderQuestionRows(first.rows));
+    expect(prompts[1]).toContain(renderQuestionRows(first));
     expect(prompts[1]).toContain(`short-${String(SHORT_NOTES - 1).padStart(5, "0")}`);
   });
 
@@ -211,7 +224,7 @@ describe("the cap is payload size, not rows", () => {
     // exist rather than a query that quietly matched nothing.
     const rows = await desk.inScope((scope) => scope.read(LONG_ROWS_SQL, []));
     expect(rows).toHaveLength(LONG_NOTES);
-    expect(questionPayloadBytes(rows)).toBeGreaterThan(QUESTION_STEP_RESULT_CAP_BYTES);
+    expect(questionPayloadBytes(rowsResult(rows))).toBeGreaterThan(QUESTION_STEP_RESULT_CAP_BYTES);
 
     const { steps } = await desk.run(scriptedProvider(reads(LONG_ROWS_SQL), answers()));
 
@@ -296,7 +309,11 @@ describe("the loop narrows after a refusal", () => {
     if (result.ending !== "answered") throw new Error("the fixture answers");
     expect(result.steps).toHaveLength(2);
     expect(steps[0]?.result.outcome).toBe("failed");
-    expect(steps[1]?.result).toEqual({ outcome: "rows", rows: [{ total: LONG_NOTES }] });
+    expect(steps[1]?.result).toEqual({
+      outcome: "rows",
+      rows: [{ total: LONG_NOTES }],
+      fileKeys: new Set(),
+    });
     // One read consumed, exactly as a failed statement consumes one.
     expect(prompts[0]).toContain(`- ${QUESTION_STEP_BUDGET} of ${QUESTION_STEP_BUDGET}.`);
     expect(prompts[1]).toContain(`- ${QUESTION_STEP_BUDGET - 1} of ${QUESTION_STEP_BUDGET}.`);
@@ -319,7 +336,7 @@ describe("the cap bounds a whole ten-step question", () => {
     const desk = bulkyDesk();
     const oneRead = `${LONG_ROWS_SQL} LIMIT 5`;
     const rows = await desk.inScope((scope) => scope.read(oneRead, []));
-    const perStep = questionPayloadBytes(rows);
+    const perStep = questionPayloadBytes(rowsResult(rows));
     expect(perStep).toBeLessThanOrEqual(QUESTION_STEP_RESULT_CAP_BYTES);
 
     const { result, steps, prompts } = await desk.run(scriptedProvider(reads(oneRead)));
@@ -365,7 +382,7 @@ describe("the cap bounds a whole ten-step question", () => {
     const matchedNothing = steps.filter((step) => step.result.outcome === "rows");
     expect(matchedNothing.length).toBeGreaterThan(0);
     for (const step of matchedNothing) {
-      expect(step.result).toEqual({ outcome: "rows", rows: [] });
+      expect(step.result).toEqual({ outcome: "rows", rows: [], fileKeys: new Set() });
     }
     // The rest are refused *before* the statement runs, on the weight of the call alone.
     const refused = steps.filter((step) => step.result.outcome === "failed");
@@ -427,7 +444,11 @@ describe("a statement too large to carry is refused before it runs", () => {
       QUESTION_STEP_RESULT_CAP_BYTES,
     );
     // And the loop carries on: the next, ordinary read is admitted.
-    expect(steps[1]?.result).toEqual({ outcome: "rows", rows: [{ total: 659 }] });
+    expect(steps[1]?.result).toEqual({
+      outcome: "rows",
+      rows: [{ total: 659 }],
+      fileKeys: new Set(),
+    });
   });
 
   test("at the byte", () => {

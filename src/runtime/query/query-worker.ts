@@ -11,14 +11,19 @@
 // needs `sqlite3_interrupt` through FFI against `Database.handle`. What `close()` reclaims at once
 // is the caller: `end()` rejects every pending read synchronously, the whole of decision 10's kill.
 
-import { DB_PATH } from "../../platform/persistence/db.ts";
 import type {
+  QueryShadow,
   QueryWorkerRequest,
   QueryWorkerResponse,
   QueryWorkerRow,
   QueryWorkerValue,
 } from "./query-worker-thread.ts";
 
+export type {
+  QueryColumnReading,
+  QueryShadow,
+  QueryShadowTable,
+} from "./query-worker-thread.ts";
 export type { QueryWorkerRow, QueryWorkerValue };
 
 export class QueryWorkerError extends Error {
@@ -26,7 +31,8 @@ export class QueryWorkerError extends Error {
 }
 
 /** The statement itself was refused, carrying its own message — a write reaches the caller as
- * *attempt to write a readonly database*. The worker stays open; a different statement fixes it. */
+ * *attempt to write a readonly database*, or through a view as *cannot modify it because it is a
+ * view*. The worker stays open; a different statement fixes it. */
 export class QueryWorkerStatementError extends QueryWorkerError {
   override readonly name = "QueryWorkerStatementError";
 }
@@ -69,10 +75,11 @@ interface PendingRequest {
 }
 
 /**
- * Start a query worker against `path`, defaulting to the one documented database file. The path is
- * a parameter for the reason `openDatabase`'s is: tests drive it against a throwaway file.
+ * Start a query worker against `path`, defaulting to the one documented database file, reading its
+ * tables through `shadow`'s views. The path is a parameter for the reason `openDatabase`'s is: tests
+ * drive it against a throwaway file.
  */
-export function createQueryWorker(path: string = DB_PATH): QueryWorker {
+export function createQueryWorker(path: string, shadow: QueryShadow): QueryWorker {
   // Bun's bundler emits this specifier as written, so `scripts/build.ts` copies the thread beside
   // the bundle and `build.test.ts` asserts the copy and the thread's lack of relative imports.
   const worker = new Worker(new URL("./query-worker-thread.ts", import.meta.url).href);
@@ -160,7 +167,7 @@ export function createQueryWorker(path: string = DB_PATH): QueryWorker {
     end(new QueryWorkerClosedError(`The query worker stopped: ${event.message || "unknown"}`));
   };
 
-  const opened = post({ kind: "open", id: nextRequestId++, path }, "opened");
+  const opened = post({ kind: "open", id: nextRequestId++, path, shadow }, "opened");
   // An open that fails with no read outstanding would otherwise surface as an unhandled
   // rejection and take the process down with it. `read` still sees the same failure.
   opened.catch(() => {});
