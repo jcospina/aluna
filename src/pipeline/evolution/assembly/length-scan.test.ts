@@ -29,6 +29,7 @@ function notesSpec(fields: readonly SpecField[]): CapabilitySpec {
     ground: "grass_green",
     companion: "coral_orange",
     noun: "note",
+    plural_noun: "notes",
     schema: { fields: [...fields] },
     ui_intent: {
       form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },

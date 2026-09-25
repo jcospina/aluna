@@ -1,8 +1,8 @@
 // @ts-check
 
 /**
- * The names the server's markup and the browser's behaviour have to agree on: element ids, the
- * attributes that carry meaning, the sidecar's wire format, and one selector.
+ * The names the server and the browser have to agree on: element ids, the attributes that carry
+ * meaning, the sidecar's wire format, one selector, and the header an upload names its file in.
  *
  * A leaf on purpose. Their natural homes — `desk-window.js`, `record-view.js`,
  * `collection-count.js`, `search-chrome.js` — each install themselves on import, so reaching one
@@ -41,17 +41,20 @@ export const BUSY_LABEL_ATTRIBUTE = "data-busy-label";
  */
 export const IDLE_LABEL_ATTRIBUTE = "data-idle-label";
 
+/** The header an upload names its file in, percent-encoded: a header cannot carry `日本.jpg`. */
+export const FILE_NAME_HEADER = "x-file-name";
+
 /** How long the collection search waits after a keystroke before it asks the server. */
 export const DEFAULT_SEARCH_DEBOUNCE_MS = 300;
 
 /**
  * What a form opening onto a record puts focus on. `:not([type=hidden])` because every field is
- * preceded by its own `__aluna_present` marker; the last two are drawn choice controls, which are
- * not form elements at all.
+ * preceded by its own `__aluna_present` marker, and `:not([hidden])` for the picker a file field
+ * keeps out of sight. The rest are drawn controls, which are not form elements at all.
  */
 export const FIRST_FIELD_SELECTOR =
-  "input:not([type=hidden]), textarea, select," +
-  " .listbox__button, .segmented button:not([disabled])";
+  "input:not([type=hidden]):not([hidden]), textarea, select," +
+  " .listbox__button, .segmented button:not([disabled]), [data-file-focus]";
 
 /* A comment, not markup: the fragment enforcer passes one straight through, so a generated
    Handler could open a mutation's answer with a forged sidecar. `readsThisRegion` refuses it. */

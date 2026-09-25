@@ -93,6 +93,7 @@ function expensesSpec(category: SpecField): CapabilitySpec {
     id: "expenses",
     label: "Expenses",
     noun: "expense",
+    plural_noun: "expenses",
     schema: {
       fields: [
         category,

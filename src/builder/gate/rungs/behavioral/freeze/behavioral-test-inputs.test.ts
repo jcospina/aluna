@@ -369,6 +369,7 @@ describe("per-Action behavioral test inputs — digest equality", () => {
       ...RICH_SPEC,
       label: "Jottings",
       noun: "note",
+      plural_noun: "notes",
       schema: {
         fields: RICH_SPEC.schema.fields.map((field) => ({
           ...field,

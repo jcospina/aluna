@@ -201,7 +201,11 @@ contact — named by the model alongside the capability's own name. It is what t
 desk's empty state is written around, so a capability reads "add your first
 recipe above" rather than naming itself back at the user. Unlike the logo's
 subject, ground and companion it may change as a capability's purpose does, and
-changing it never causes a logo to be drawn (M5 plan 42).
+changing it never causes a logo to be drawn (M5 plan 42). The model writes its
+plural beside it (`plural_noun`), and the collection states its count in that
+word: "12 photos", "3 check-ins". The platform never derives a plural, so every
+language gets the one its model wrote. A capability built before the plural
+existed keeps its frozen snapshot, which is read with the plural on its registry row.
 _Avoid_: singular label, item name, entity name, record type
 
 **Prompt bar**:

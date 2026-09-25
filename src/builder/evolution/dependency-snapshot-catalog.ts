@@ -12,7 +12,7 @@ import type { VerifiedDependencySnapshot } from "../artifacts/inventory/artifact
 import { SnapshotVerificationError } from "../artifacts/inventory/snapshot-error.ts";
 import {
   type VerifiedCapabilitySnapshot,
-  verifyCapabilitySnapshot,
+  verifyStoredCapabilitySnapshot,
 } from "../artifacts/publication/artifact-lifecycle.ts";
 
 export function buildVerifiedDependencySnapshotCatalog(
@@ -21,7 +21,12 @@ export function buildVerifiedDependencySnapshotCatalog(
 ): readonly VerifiedDependencySnapshot[] {
   return rows
     .filter((row) => row.id !== forCapabilityId)
-    .map((row) => verifiedDependencySnapshot(row, verifyCapabilitySnapshot(row.artifacts_path)));
+    .map((row) =>
+      verifiedDependencySnapshot(
+        row,
+        verifyStoredCapabilitySnapshot(row.artifacts_path, { pluralNoun: row.plural_noun }),
+      ),
+    );
 }
 
 /**

@@ -8,7 +8,9 @@
 // It is deliberately not the enforcer: a Handler legitimately composes forms, buttons, inputs and
 // `hx-*`. It removes only what executes, plus `hx-swap-oob`, which is escape rather than
 // execution — it writes into any element on the desk by id, and only the platform swaps
-// out-of-band. Conforming markup passes byte-identical, so a caller can log what was removed.
+// out-of-band. An Alpine directive executes: the page's Alpine evaluates it wherever it lands,
+// and htmx's own evaluating attributes are off (`allowEval` in `public/app.js`). Conforming
+// markup passes byte-identical, so a caller can log what was removed.
 
 import { isDangerousUrl } from "./attribute-urls.ts";
 import { escapeCdataOpeners } from "./cdata.ts";
@@ -28,6 +30,9 @@ const HANDLER_URL_ATTRS: ReadonlySet<string> = new Set([
 
 /** The one attribute that swaps outside the target — platform machinery, never a Handler's. */
 const OUT_OF_BAND_ATTR = "hx-swap-oob";
+
+/** Alpine's directives and the two shorthands it reads as `x-on` and `x-bind`. */
+const ALPINE_DIRECTIVE = /^(x-|@|:)/;
 
 export interface SafeFragment {
   readonly html: string;
@@ -54,8 +59,9 @@ function scrubElement(element: HTMLRewriterTypes.Element): void {
   for (const [lower, value] of collapseRepeatedAttributes(element)) {
     // `on*` is the whole event-handler family, and no `on`-prefixed attribute sits outside it,
     // so the prefix closes the family rather than the members someone thought of.
-    if (lower.startsWith("on") || lower === OUT_OF_BAND_ATTR) element.removeAttribute(lower);
-    else if (HANDLER_URL_ATTRS.has(lower) && isDangerousUrl(value, lower)) {
+    if (lower.startsWith("on") || lower === OUT_OF_BAND_ATTR || ALPINE_DIRECTIVE.test(lower)) {
+      element.removeAttribute(lower);
+    } else if (HANDLER_URL_ATTRS.has(lower) && isDangerousUrl(value, lower)) {
       element.removeAttribute(lower);
     }
   }

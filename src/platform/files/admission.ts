@@ -90,6 +90,11 @@ const SIGNATURES: readonly SignatureRow[] = [
 /** Every extension admission takes, lowercase and without the dot, in table order. */
 export const ADMITTED_EXTENSIONS: readonly string[] = SIGNATURES.flatMap((row) => row.extensions);
 
+/** Every type admission records a file of `kind` as, in table order: what its picker offers. */
+export function admittedTypes(kind: string): readonly string[] {
+  return [...new Set(SIGNATURES.filter((row) => row.kind === kind).map((row) => row.mime))];
+}
+
 /** Whether admission could have recorded a file of `kind` as `mime`. */
 export function isAdmittedType(kind: string, mime: string): boolean {
   return SIGNATURES.some((row) => row.kind === kind && row.mime === mime);

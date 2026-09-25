@@ -145,7 +145,9 @@ function formatCollection(spec: CapabilitySpec): string {
     .filter((field) => field.lifecycle === "active")
     .flatMap((field) => [
       `    - ${field.name}: ${SQLITE_TYPE_BY_FIELD_TYPE[field.type]}, holds a ${field.type}${
-        field.required ? ", always set" : ", may be null"
+        field.required
+          ? ", set by every save, though a record saved before it was required may hold null"
+          : ", may be null"
       }`,
       ...(isChoiceFieldType(field.type) ? [formatChoiceValues(field)] : []),
     ]);

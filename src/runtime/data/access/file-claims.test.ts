@@ -14,13 +14,23 @@ import {
   type ScratchDbEnv,
   teardownScratchDbEnv,
 } from "../../../platform/persistence/scratch-db.test-support.ts";
-import { PHOTO_FIELD, photoSpec } from "../../../registry/fields/file.test-support.ts";
+import {
+  CAPTION_FIELD,
+  PHOTO_FIELD,
+  photoSpec,
+} from "../../../registry/fields/file.test-support.ts";
 import {
   FIRST_INCARNATION_ID,
   SECOND_INCARNATION_ID,
 } from "../../../registry/incarnations.test-support.ts";
 import type { SpecField } from "../../../registry/index.ts";
-import { FileFieldWriteError, InvalidFileReferenceError, RecordChangedError } from "../internal.ts";
+import {
+  CapabilityDataValidationError,
+  FileFieldWriteError,
+  InvalidFileReferenceError,
+  MissingRequiredFieldsError,
+  RecordChangedError,
+} from "../internal.ts";
 import { applyCapabilityTableDdl } from "../schema/ddl.ts";
 import { FILE_URL_PREFIX, projectFileLedgerRow } from "../schema/file-values.ts";
 import { FILE_CLEAR_VALUE, type FileClaimScope, resolveSubmittedFiles } from "./file-claims.ts";
@@ -233,6 +243,107 @@ describe("an edit's mutation interface checks once more", () => {
     expect(() =>
       createCapabilityUpdateMutationPort(spec, id, new Set(["photo"]), env.conns.readwrite),
     ).toThrow(FileFieldWriteError);
+  });
+});
+
+describe("a required file field below the router", () => {
+  const required = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, required: true }, COVER_FIELD]);
+  const photos = () => env.conns.readwrite.query(`SELECT "caption", "photo" FROM "cap_photos"`);
+
+  function missingOf(save: () => unknown): readonly string[] {
+    try {
+      save();
+    } catch (error) {
+      if (error instanceof MissingRequiredFieldsError) return error.fields;
+      throw error;
+    }
+    throw new Error("the save was not refused");
+  }
+
+  function updatePort(id: string, values: Record<string, unknown>) {
+    const submitted = resolveSubmittedFiles(required.schema.fields, values, "update", {
+      ...scope,
+      record: { table: "cap_photos", id },
+    });
+    return createCapabilityUpdateMutationPort(
+      required,
+      id,
+      new Set(Object.keys(values)),
+      env.conns.readwrite,
+      undefined,
+      { incarnationId: FIRST_INCARNATION_ID, submitted },
+    );
+  }
+
+  test("refuses a create that leaves it empty, naming every empty required field in order", () => {
+    const submitted = resolveSubmittedFiles(
+      required.schema.fields,
+      { photo: "", cover: "" },
+      "create",
+      scope,
+    );
+    const port = createCapabilityMutationPort(required, env.conns.readwrite, undefined, {
+      incarnationId: FIRST_INCARNATION_ID,
+      submitted,
+    });
+    expect(missingOf(() => port.create({ caption: " " }))).toEqual(["caption", "photo"]);
+    expect(missingOf(() => port.create({ caption: "Dawn" }))).toEqual(["photo"]);
+    expect(photos().all()).toEqual([]);
+  });
+
+  test("judges a malformed create as malformed before it asks for the photo", () => {
+    const port = createCapabilityMutationPort(required, env.conns.readwrite, undefined, {
+      incarnationId: FIRST_INCARNATION_ID,
+      submitted: resolveSubmittedFiles(required.schema.fields, { photo: "" }, "create", scope),
+    });
+    const refusedAs = (values: unknown) => {
+      try {
+        port.create(values as never);
+      } catch (error) {
+        return (error as Error).constructor;
+      }
+      throw new Error("the create was not refused");
+    };
+    for (const values of [null, { caption: "Dawn", id: "forged" }, { caption: "Dawn", bogus: 1 }]) {
+      expect(refusedAs(values)).toBe(CapabilityDataValidationError);
+    }
+  });
+
+  test("leaves another field's pending file pending when it refuses the save", () => {
+    const cover = mint({ field: COVER_FIELD.name });
+    const create = createCapabilityMutationPort(required, env.conns.readwrite, undefined, {
+      incarnationId: FIRST_INCARNATION_ID,
+      submitted: resolveSubmittedFiles(
+        required.schema.fields,
+        { photo: "", cover },
+        "create",
+        scope,
+      ),
+    });
+    expect(missingOf(() => create.create({ caption: "Dawn" }))).toEqual(["photo"]);
+    expect(requireFileLedgerRow(env.conns.readwrite, cover).state).toBe("pending");
+
+    const { id } = savedWithPhoto();
+    const edit = updatePort(id, { photo: FILE_CLEAR_VALUE, cover });
+    expect(missingOf(() => edit.update({}))).toEqual(["photo"]);
+    expect(requireFileLedgerRow(env.conns.readwrite, cover).state).toBe("pending");
+  });
+
+  test("refuses an edit that clears it, and the record keeps its photo, still owned", () => {
+    const { held, id } = savedWithPhoto();
+    const before = photos().all();
+    expect(missingOf(() => updatePort(id, { photo: FILE_CLEAR_VALUE }).update({}))).toEqual([
+      "photo",
+    ]);
+    expect(photos().all()).toEqual(before);
+    expect(requireFileLedgerRow(env.conns.readwrite, held).state).toBe("owned");
+  });
+
+  test("refuses any edit of a record that holds none, as a required data field does", () => {
+    env.conns.readwrite.run(`INSERT INTO "cap_photos" ("id", "caption") VALUES ('old', 'Old')`);
+    const caption = { caption: "Older" };
+    expect(missingOf(() => updatePort("old", caption).update(caption))).toEqual(["photo"]);
+    expect(missingOf(() => updatePort("old", { photo: "" }).update({}))).toEqual(["photo"]);
   });
 });
 

@@ -183,7 +183,7 @@ function inputValueContract(spec: CapabilitySpec, action: HandlerUnitName): stri
 
   return [
     ...scalarRules,
-    ...(files ? fileInputRules(action) : []),
+    ...(files ? fileInputRules(action, spec) : []),
     "- Use the scalar extractor only for scalar schema fields. For a string[] field, use `Array.isArray(value) ? [...value] : []`; do not take only its first element.",
     "- A submitted unchecked boolean may have no `input.values` entry. Interpret that `undefined` as false only after `input.submittedFields` proves the boolean was submitted.",
     ...(action === "update"
@@ -194,13 +194,25 @@ function inputValueContract(spec: CapabilitySpec, action: HandlerUnitName): stri
   ];
 }
 
-function fileInputRules(action: "create" | "update"): string[] {
+function fileInputRules(action: "create" | "update", spec: CapabilitySpec): string[] {
   const arrives =
     action === "create"
-      ? "or `null` when it was submitted empty; a file field the form left out is not in `input.values` at all, and the record holds no file"
+      ? "or `null` when it was submitted empty; a file field a request left out is not in `input.values` at all and holds nothing"
       : "or `null` when the edit empties it or it holds nothing; a file field the edit left out is not in `input.values` and keeps its file";
+  const required = activeSpecFields(spec.schema.fields).some(
+    (field) => field.required && isFileFieldType(field.type),
+  );
+  const presence =
+    action === "create"
+      ? "`input.values[name]` is `null` or `undefined`"
+      : "`input.submittedFields.has(name)` and `input.values[name]` is `null` or `undefined`";
   return [
     `- A file field arrives as the projection \`{ url, name, kind, mime, size }\` of what the save will store, ${arrives}. Pass \`input.values[name]\` to \`mutation.${action}\` unchanged or leave the field out; never run it through the scalar extractor, and never build, edit, replace or \`null\` one yourself.`,
+    ...(required
+      ? [
+          `- A required file field is missing when ${presence}. Test that value itself, never through the scalar extractor, which reads a file that is there as \`""\`.`,
+        ]
+      : []),
   ];
 }
 
@@ -290,7 +302,7 @@ function actionBehavior(spec: CapabilitySpec, action: HandlerUnitName): string {
   if (action === "create") {
     return [
       "- Read values only from `input.values`, coerce them into the Action-safe field types, call `mutation.create`, and return `present(row)` for the inserted row.",
-      `- Create presence is explicit: every active field is in \`input.submittedFields\`${hasActiveFileField(spec.schema.fields) ? ", except a file field the form left out" : ""}. A submitted empty optional scalar becomes \`null\`; treat either "on" (browser checkbox) or "true" (Gate synthetic input) as a checked boolean, while an unchecked submitted boolean has no value and becomes \`false\`; never invent a value for a required field.`,
+      `- Create presence is explicit: every active field is in \`input.submittedFields\`${hasActiveFileField(spec.schema.fields) ? ", except a file field a request left out" : ""}. A submitted empty optional scalar becomes \`null\`; treat either "on" (browser checkbox) or "true" (Gate synthetic input) as a checked boolean, while an unchecked submitted boolean has no value and becomes \`false\`; never invent a value for a required field.`,
       "- A string[] input is already a readonly string array in submitted order. Narrow with `Array.isArray`, pass a flat mutable copy such as `[...value]` to `mutation.create`, and never wrap the array in another array or split commas.",
       "- Destructure `{ input, mutation, present }`: `export default async function create({ input, mutation, present }: CapabilityCreateContext): Promise<string>`.",
     ].join("\n");

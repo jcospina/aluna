@@ -158,6 +158,7 @@ describe("every change-fact matrix row, end to end", () => {
       ground: "grass_green",
       companion: "coral_orange",
       noun: "note",
+      plural_noun: "notes",
       schema: {
         fields: [
           ...base.schema.fields,

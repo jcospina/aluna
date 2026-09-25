@@ -72,6 +72,7 @@ function expensesWithCategories(): CapabilitySpec {
     id: EXPENSES_CAPABILITY.id,
     label: EXPENSES_CAPABILITY.label,
     noun: "expense",
+    plural_noun: "expenses",
     schema: {
       fields: [
         CATEGORY,

@@ -68,6 +68,7 @@ export function notesSpec(): CapabilitySpec {
     id: NOTES_CAPABILITY.id,
     label: NOTES_CAPABILITY.label,
     noun: "note",
+    plural_noun: "notes",
     schema: {
       fields: [
         { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
@@ -82,6 +83,7 @@ function expensesSpec(): CapabilitySpec {
     id: EXPENSES_CAPABILITY.id,
     label: EXPENSES_CAPABILITY.label,
     noun: "expense",
+    plural_noun: "expenses",
     schema: {
       fields: [
         { name: "text", label: "What", type: "string", required: true, lifecycle: "active" },

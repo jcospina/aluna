@@ -18,7 +18,16 @@ import {
   capabilitySpecFromRow,
   listCapabilities,
 } from "../../../registry/index.ts";
-import { verifyCapabilitySnapshot } from "./artifact-lifecycle.ts";
+import {
+  type VerifiedCapabilitySnapshot,
+  verifyStoredCapabilitySnapshot,
+} from "./artifact-lifecycle.ts";
+
+/**
+ * Stands in for the plural a pre-`plural_noun` spec lacks wherever the proof reads only identity
+ * and digests: a removal, or a history version whose noun the live row may no longer share.
+ */
+const UNREAD_PLURAL = { pluralNoun: "unread" } as const;
 
 export interface TombstonedCapabilityIncarnation {
   readonly capabilityId: string;
@@ -124,11 +133,14 @@ function verifyCommittedVersion(root: string, row: CapabilityRow, version: numbe
   const directory = resolve(root, row.id, row.incarnation_id, `v${version}`);
   if (!existsSync(directory)) throw corruption(row, `committed v${version} is missing`);
   assertRealDirectory(directory, `committed ${row.id} v${version}`);
-  let verified: ReturnType<typeof verifyCapabilitySnapshot>;
+  let verified: VerifiedCapabilitySnapshot;
   try {
     // Provenance parsing validates historical dependency identity/digest shape;
     // intentionally do not resolve those pairs against today's live registry.
-    verified = verifyCapabilitySnapshot(directory);
+    verified = verifyStoredCapabilitySnapshot(
+      directory,
+      version === row.version ? { pluralNoun: row.plural_noun } : UNREAD_PLURAL,
+    );
   } catch (error) {
     throw corruption(row, `committed v${version} is corrupt: ${errorMessage(error)}`);
   }
@@ -144,7 +156,7 @@ function verifyCommittedVersion(root: string, row: CapabilityRow, version: numbe
 function assertCommittedIdentity(
   row: CapabilityRow,
   version: number,
-  manifest: ReturnType<typeof verifyCapabilitySnapshot>["manifest"],
+  manifest: VerifiedCapabilitySnapshot["manifest"],
 ): void {
   if (
     manifest.capability_id !== row.id ||
@@ -296,7 +308,7 @@ function verifiedPublishedCandidate(
   version: number,
 ): RemovalCandidate {
   try {
-    const verified = verifyCapabilitySnapshot(directory);
+    const verified = verifyStoredCapabilitySnapshot(directory, UNREAD_PLURAL);
     if (
       verified.manifest.capability_id !== capabilityId ||
       verified.manifest.incarnation_id !== incarnationId ||

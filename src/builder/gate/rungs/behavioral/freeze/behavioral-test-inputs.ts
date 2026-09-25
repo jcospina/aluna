@@ -96,6 +96,8 @@ export interface ActionFixtureVocabulary {
 export interface ActionFixtureField {
   readonly name: string;
   readonly type: FieldType;
+  /** A required field holds a value in every seeded row, because the save that seeds it asks. */
+  readonly required: boolean;
   readonly values?: readonly string[];
   readonly accepts?: readonly FileFamily[];
 }
@@ -105,6 +107,7 @@ export function actionFixtureVocabulary(spec: CapabilitySpec): ActionFixtureVoca
     row_fields: [...activeSpecFields(spec.schema.fields)].sort(byName).map((field) => ({
       name: field.name,
       type: field.type,
+      required: field.required,
       ...(field.values === undefined ? {} : { values: choiceTestValues(field) }),
       ...(field.accepts === undefined ? {} : { accepts: field.accepts }),
     })),

@@ -38,6 +38,7 @@ export {
 export {
   collectionCountSentence,
   filteredCollectionCountSentence,
+  type RecordNouns,
   renderCollectionCountSidecar,
 } from "./records/collection-count.ts";
 export {

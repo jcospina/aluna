@@ -70,6 +70,7 @@ export {
   InvalidChoiceError,
   InvalidFileReferenceError,
   isCapabilityActionRecord,
+  isMissingRequiredValue,
   MaxLengthExceededError,
   MissingRequiredFieldsError,
   materializeCapabilityActionRecord,

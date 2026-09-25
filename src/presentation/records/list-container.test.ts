@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { FIRST_FIELD_SELECTOR } from "#shell/shell-dom.js";
+
 import { Doc, parseHtml } from "../controls/choice-picker.test-support.ts";
 import { capabilityRecordsRegionId, type RenderableCapability } from "../fields/field-renderer.ts";
 import { COLLECTION_COUNT_LABEL_ATTR, capabilityCountLabelId } from "./collection-count.ts";
@@ -191,12 +193,8 @@ describe("container scaffolding", () => {
     // A view swap that leaves focus on a control no longer on screen strands a
     // keyboard user at the top of the desk.
     expect(feed).toContain("createOpen = true");
-    // Every field is preceded by its own hidden `__aluna_present` marker, so the first `input`
-    // cannot take focus. The last two are drawn choice controls, which are not form elements.
-    expect(feed).toContain(
-      "$refs.createPanel.querySelector('input:not([type=hidden]), textarea, select," +
-        " .listbox__button, .segmented button:not([disabled])')?.focus()",
-    );
+    expect(feed).toContain(`$refs.createPanel.querySelector('${FIRST_FIELD_SELECTOR}')?.focus()`);
+    expect(FIRST_FIELD_SELECTOR).not.toContain("'");
   });
 
   test("a successful create closes the form and returns focus to its New button", () => {

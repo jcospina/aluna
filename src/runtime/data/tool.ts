@@ -319,7 +319,7 @@ export function normalizeSpecFieldValues(
   return normalized;
 }
 
-function isMissingRequiredValue(field: SpecField, value: unknown): boolean {
+export function isMissingRequiredValue(field: SpecField, value: unknown): boolean {
   if (value === undefined || value === null) return true;
   switch (field.type) {
     case "string":

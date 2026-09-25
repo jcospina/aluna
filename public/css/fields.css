@@ -133,8 +133,10 @@
 /*
  * The shell fills the field's column. The design's shell is sized by whatever it sits in,
  * and here that is a stacked form: without this a text control shrinks to its content.
+ * A photo's frame is the exception: the design sizes it itself, and a column-wide 4:3 frame
+ * would put its own prompt below the fold.
  */
-.field__control {
+.field__control:not(.file__stage) {
   width: 100%;
 }
 

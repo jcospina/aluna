@@ -29,6 +29,7 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
     ground: "grass_green",
     companion: "coral_orange",
     noun: "note",
+    plural_noun: "notes",
     schema: {
       fields: [
         { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },

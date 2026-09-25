@@ -71,6 +71,7 @@ describe("resolved evolution intent scope", () => {
       ...committed,
       label: "Diary",
       noun: "diary entry",
+      plural_noun: "diary entries",
     });
 
     expect(diff.facts.map((fact) => fact.kind)).toEqual(["capability_label", "empty_state_noun"]);

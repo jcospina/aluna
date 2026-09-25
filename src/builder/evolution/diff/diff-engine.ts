@@ -194,9 +194,9 @@ function detectFacts(committed: CapabilitySpec, candidate: CapabilitySpec): read
   ) {
     facts.push({ kind: "capability_label" });
   }
-  // `noun` moves one sentence of platform copy. `subject`, `ground` and `companion` are birth
+  // `noun` and `plural_noun` move platform copy only. `subject`, `ground` and `companion` are birth
   // facts: validation rejects a candidate that moved one, and the residual check catches it.
-  if (committed.noun !== candidate.noun) {
+  if (committed.noun !== candidate.noun || committed.plural_noun !== candidate.plural_noun) {
     facts.push({ kind: "empty_state_noun" });
   }
   if (committed.prompt_context !== candidate.prompt_context) {

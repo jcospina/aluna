@@ -43,11 +43,10 @@ describe("a generated spec carrying a file field", () => {
     ]);
   });
 
-  test("is still refused when it marks the file field required", async () => {
+  test("passes the stage when it marks the file field required", async () => {
     const required = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, required: true }]);
-    await expect(generateSpec(stageInput(required))).rejects.toThrow(
-      "a file field cannot be required",
-    );
+    const { spec } = await generateSpec(stageInput(required));
+    expect(spec.schema.fields.find((field) => field.type === "file")?.required).toBe(true);
   });
 
   test("meets no refusal of an unoffered type, now the builder offers the whole pantry", () => {

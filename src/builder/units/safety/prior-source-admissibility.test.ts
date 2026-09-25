@@ -60,6 +60,7 @@ function candidateSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec 
     ground: "grass_green",
     companion: "coral_orange",
     noun: "note",
+    plural_noun: "notes",
     schema,
     ui_intent: {
       form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
@@ -111,6 +112,7 @@ function journalsCatalog(): readonly CapabilityRow[] {
       ground: "grass_green",
       companion: "coral_orange",
       noun: "note",
+      plural_noun: "notes",
       incarnation_id: JOURNALS_INCARNATION,
       version: 1,
       artifacts_path: `capabilities/journals/${JOURNALS_INCARNATION}/v1/`,

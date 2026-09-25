@@ -3,13 +3,14 @@
 
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
+import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { requireFileLedgerRow } from "../../platform/files/ledger.test-support.ts";
 import { FILE_LEDGER_TABLE } from "../../platform/files/ledger.ts";
 import { runMigrations } from "../../platform/persistence/migrations.ts";
-import { PHOTO_FIELD, photoSpec } from "../../registry/fields/file.test-support.ts";
+import { CAPTION_FIELD, PHOTO_FIELD, photoSpec } from "../../registry/fields/file.test-support.ts";
 import { deriveCapabilityTableDdl, FILE_CLEAR_VALUE } from "../../runtime/data/index.ts";
 import { openScratchDatabasePair, prepareScratchCatalog } from "./gate-internal.ts";
 import {
@@ -118,6 +119,42 @@ describe("the scratch ledger's place in the module graph", () => {
       expect(run.exitCode).toBe(0);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+});
+
+const DEPENDENCY_INCARNATION = randomUUID();
+
+describe("a dependency's seeded rows", () => {
+  test("hold a file of their own in a required file field, as a save would give them", () => {
+    const fields = [CAPTION_FIELD, { ...PHOTO_FIELD, required: true }];
+    const dependency = { ...photoSpec(fields), id: "albums" };
+    const catalog = [
+      { spec: dependency, incarnationId: DEPENDENCY_INCARNATION, rows: [{ caption: "Seeded" }] },
+    ];
+    const reader = {
+      ...photoSpec(),
+      read_dependencies: {
+        ...photoSpec().read_dependencies,
+        read: [{ capability_id: dependency.id, incarnation_id: DEPENDENCY_INCARNATION }],
+      },
+    };
+    const scratch = openScratchDatabasePair();
+    try {
+      prepareScratchCatalog(reader, deriveCapabilityTableDdl(reader), catalog, scratch);
+      const table = deriveCapabilityTableDdl(dependency).tableName;
+      const [seeded] = scratch.readwrite.query(`SELECT "id", "photo" FROM "${table}"`).all() as {
+        id: string;
+        photo: string | null;
+      }[];
+      const { key } = JSON.parse(seeded?.photo ?? "null") as { key: string };
+      expect(requireFileLedgerRow(scratch.readwrite, key)).toMatchObject({
+        state: "owned",
+        record_id: seeded?.id,
+      });
+    } finally {
+      scratch.readonly.close();
+      scratch.readwrite.close();
     }
   });
 });

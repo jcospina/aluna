@@ -8,7 +8,6 @@ import { sqlIdentifier } from "../../../../platform/persistence/sql-identifier.t
 import {
   activeSpecFields,
   type CapabilitySpec,
-  hasActiveFileField,
   isFileFieldType,
 } from "../../../../registry/index.ts";
 import {
@@ -47,9 +46,9 @@ import { runSmokeRepairLoop, SmokeActionFailure, type SmokeRungRun } from "./gat
 import {
   buildSmokeInput,
   buildUpdateInputs,
+  leftOutCreate,
   mintSmokeFiles,
   type SmokeFiles,
-  standInCreate,
 } from "./gate-smoke-samples.ts";
 import {
   fixtureFieldValue,
@@ -184,7 +183,7 @@ async function executeSmokeCycle(
   );
 
   const deleteFragment = await executeDelete(input, remove, insertedRow.id, readwrite, readonly);
-  await executeStandInCreate(input, handlers, recorder, files, readwrite, readonly);
+  await executeLeftOutCreate(input, handlers, recorder, files, readwrite, readonly);
 
   return {
     tableName: input.ddl.tableName,
@@ -243,8 +242,8 @@ async function executeCreateRead(
   return { createFragment, initialRows, insertedRow, readFragment };
 }
 
-/** A create with its file fields left out, as the form's stand-in posts one (`standInCreate`). */
-async function executeStandInCreate(
+/** A create that leaves its optional file fields out, which the router takes (`leftOutCreate`). */
+async function executeLeftOutCreate(
   input: CapabilityGateInput,
   handlers: LoadedHandlers,
   recorder: RecordingPresentation,
@@ -252,9 +251,9 @@ async function executeStandInCreate(
   readwrite: Database,
   readonly: Database,
 ): Promise<void> {
-  if (!hasActiveFileField(input.spec.schema.fields)) return;
-  const standIn = standInCreate(buildSmokeInput(input.spec, files), input.spec);
-  const submission = scratchSubmission(input.spec, standIn.input, readwrite);
+  const leftOut = leftOutCreate(input.spec, files);
+  if (!leftOut) return;
+  const submission = scratchSubmission(input.spec, leftOut.input, readwrite);
   const rows = () =>
     selectCapabilityRows(
       input.spec,
@@ -272,7 +271,7 @@ async function executeStandInCreate(
     assertFragment("create", fragment);
     assertPresentedFragmentsReturned("create", fragment, recorder.fragments());
     const created = rows().filter((row) => !before.has(row.id));
-    assertSmokeRows(input.spec, created, standIn.expectedValues);
+    assertSmokeRows(input.spec, created, leftOut.expectedValues);
   });
 }
 

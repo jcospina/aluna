@@ -47,7 +47,7 @@ export function probeField(type: FieldType, overrides: Partial<SpecField> = {}):
     required: true,
     lifecycle: "active",
     ...(type === "choice" ? { values: [...PROBE_CHOICE_OPTIONS], groups: [] } : {}),
-    ...(type === "file" ? { accepts: [...FILE_FAMILIES], required: false } : {}),
+    ...(type === "file" ? { accepts: [...FILE_FAMILIES] } : {}),
     ...overrides,
   };
 }

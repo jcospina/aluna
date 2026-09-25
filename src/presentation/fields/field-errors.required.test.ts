@@ -3,6 +3,8 @@
 // says so on, and the paint all of it depends on.
 
 import { describe, expect, test } from "bun:test";
+import { FILE_URL_PREFIX } from "../../platform/files/file-url.ts";
+import { mintFileKey } from "../../platform/files/ledger.ts";
 import { installDomGlobals } from "../controls/choice-picker.fixture.test-support.ts";
 import { El, parseHtml } from "../controls/choice-picker.test-support.ts";
 import { readSource } from "../safety/source.test-support.ts";
@@ -170,6 +172,39 @@ describe("a required field is refused in the browser", () => {
     one.reportMissing("title");
     expect(one.isInvalid("title")).toBe(true);
     expect(one.isInvalid("status")).toBe(true);
+  });
+});
+describe("a required photo is refused in the browser", () => {
+  test("a required photo is refused empty or cleared, and the request is never made", async () => {
+    const photo = capabilityOf([probeField("file", { name: "photo", label: "Photo" })]);
+    const empty = await scene(photo);
+    const submitted = empty.submit();
+    expect(submitted.prevented).toBe(true);
+    expect(submitted.stopped).toBe(true);
+    expect(empty.posted).toHaveLength(0);
+    expect(empty.saidIn("photo")).toBe(REQUIRED_FIELD_SENTENCE);
+
+    const key = mintFileKey();
+    const photoHeld = { url: `${FILE_URL_PREFIX}${key}`, name: "a.jpg", kind: "image" };
+    const record = { id: "r1", photo: { ...photoHeld, mime: "image/jpeg", size: 3 } };
+    const cleared = await scene(photo, { record });
+    const carrier = cleared.doc.querySelector("[data-file-value]") as El;
+    expect(carrier.value).toBe(key);
+    carrier.value = carrier.getAttribute("data-file-clear-value") ?? "";
+    expect(carrier.value).not.toBe("");
+    expect(cleared.submit().prevented).toBe(true);
+    expect(cleared.saidIn("photo")).toBe(REQUIRED_FIELD_SENTENCE);
+  });
+
+  test("a photo holding a key lets the submission go, and an optional one is never asked for", async () => {
+    const held = await scene(capabilityOf([probeField("file", { name: "photo" })]));
+    (held.doc.querySelector("[data-file-value]") as El).value = "a-pending-key";
+    expect(held.submit().prevented).toBe(false);
+
+    const optional = await scene(
+      capabilityOf([probeField("file", { name: "photo", required: false })]),
+    );
+    expect(optional.submit().prevented).toBe(false);
   });
 });
 

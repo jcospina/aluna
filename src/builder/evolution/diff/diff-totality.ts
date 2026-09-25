@@ -45,6 +45,7 @@ function residualProjection(spec: CapabilitySpec, committedNames: ReadonlySet<st
   const canonical = canonicalizeJson(spec) as Record<string, unknown>;
   canonical.label = RESIDUAL_SENTINEL;
   canonical.noun = RESIDUAL_SENTINEL;
+  canonical.plural_noun = RESIDUAL_SENTINEL;
   canonical.prompt_context = RESIDUAL_SENTINEL;
   canonical.behavior = RESIDUAL_SENTINEL;
   canonical.behavioral_errors = RESIDUAL_SENTINEL;
