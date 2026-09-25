@@ -38,6 +38,7 @@ export {
   type VerifiedCapabilitySnapshot,
   type VerifiedPublishedSnapshot,
   verifyCapabilitySnapshot,
+  verifyStoredCapabilitySnapshot,
 } from "./artifacts/publication/artifact-lifecycle.ts";
 export {
   ArtifactReconciliationError,

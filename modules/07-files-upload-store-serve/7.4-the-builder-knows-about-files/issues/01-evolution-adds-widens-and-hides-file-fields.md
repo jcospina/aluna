@@ -31,6 +31,13 @@ rather than a wire error.
 committed field's type never changes already refuses it, in candidate validation. This
 issue adds the test.
 
+**What 7.1/08 left for a required file field.** A file field may be required since 7.1/08,
+and the save refuses a record whose required file field would end up empty, a record that
+already held nothing included. An evolution that adds a required file field, or makes one
+required, therefore leaves every older record refusing every edit until a file is added to
+it. A record has no default file to backfill, so this issue decides what the evolution does
+about those records.
+
 ## Acceptance criteria
 
 - [ ] Evolving to add a `file` and a `file[]` field keeps every existing record, which

@@ -61,6 +61,7 @@ export function journalCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
     ground: "grass_green",
     companion: "coral_orange",
     noun: "journal entry",
+    plural_noun: "journal entries",
     schema: {
       fields: [
         { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
@@ -154,6 +155,7 @@ export function shelvesCapabilityRow(overrides: Partial<CapabilityRow> = {}): Ca
     ground: "mustard_ochre",
     companion: "coral_orange",
     noun: "shelf",
+    plural_noun: "shelves",
     schema: {
       fields: [
         {

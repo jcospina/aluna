@@ -17,6 +17,7 @@ import {
   type ChoiceFieldType,
   type FieldType,
   type FileFieldType,
+  hasActiveFileField,
   isChoiceFieldType,
   isFileFieldType,
   isListFieldType,
@@ -32,9 +33,10 @@ import {
   type WireProtocolAction,
 } from "../../runtime/router/wire/wire-protocol.ts";
 import { escapeHtml } from "../../server/http/html.ts";
-import { ADDING_LABEL, busyLabelAttribute, SAVING_RECORD_LABEL } from "../controls/busy-label.ts";
+import { ADDING_LABEL, SAVING_RECORD_LABEL } from "../controls/busy-label.ts";
 import { renderChoiceField } from "../controls/choice-control.ts";
 import { renderFileField } from "../controls/file-control.ts";
+import { submitButton } from "../controls/submit-button.ts";
 import {
   controlShell,
   type FieldChrome,
@@ -50,6 +52,8 @@ import {
  */
 export interface RenderableCapability {
   readonly id: string;
+  /** Where the form's uploads go; absent where it is only inspected, as the Gate's spec is. */
+  readonly incarnationId?: string;
   readonly label: string;
   /** The singular record noun the platform's empty-state sentence is written around. */
   readonly noun: string;
@@ -128,9 +132,8 @@ export function renderCreateForm(capability: RenderableCapability): string {
   const capabilityId = capability.id;
   const regionId = capabilityRecordsRegionId(capabilityId);
   const errorId = capabilityCreateErrorId(capabilityId);
-  const fields = activeSpecFields(capability.schema.fields)
-    .map((field) => renderCreateField(capabilityId, field, capability.form))
-    .join("");
+  const active = activeSpecFields(capability.schema.fields);
+  const fields = active.map((field) => renderCreateField(capability, field)).join("");
   return (
     `<form class="capability-create-form" aria-label="Add to ${escapeHtml(capability.label)}"` +
     ` hx-post="${capabilityActionUrl(capabilityId, "create")}"` +
@@ -146,7 +149,7 @@ export function renderCreateForm(capability: RenderableCapability): string {
     `<div id="${errorId}" class="capability-create-form__error" aria-live="polite"></div>` +
     `<div class="capability-create-form__fields">${fields}</div>` +
     `<div class="capability-create-form__actions">` +
-    `<button class="btn btn--primary" type="submit"${busyLabelAttribute(ADDING_LABEL)}>Add</button>` +
+    submitButton("Add", ADDING_LABEL, hasActiveFileField(active)) +
     `<button class="btn btn--outline" type="button" data-create-cancel` +
     ` @click="$el.ownerDocument.defaultView.HTMLFormElement.prototype.reset.call($el.form);` +
     ` $el.ownerDocument.getElementById('${errorId}').replaceChildren();` +
@@ -169,9 +172,8 @@ export function renderEditForm(
     throw new Error("Cannot render an edit form without a nonblank record id.");
   }
 
-  const fields = activeSpecFields(capability.schema.fields)
-    .map((field) => renderEditField(capability.id, field, capability.form, record[field.name]))
-    .join("");
+  const active = activeSpecFields(capability.schema.fields);
+  const fields = active.map((field) => renderEditField(capability, field, record[field.name]));
   const errorId = capabilityEditErrorId(capability.id);
   const escapedRecordId = escapeHtml(recordId);
   const label = escapeHtml(capability.label);
@@ -184,9 +186,9 @@ export function renderEditForm(
     `${requiredMessageAttribute()}>` +
     `<input type="hidden" name="${ALUNA_RECORD_ID_MARKER}" value="${escapedRecordId}">` +
     `<div id="${errorId}" class="capability-edit-form__error" aria-live="polite"></div>` +
-    `<div class="capability-edit-form__fields">${fields}</div>` +
+    `<div class="capability-edit-form__fields">${fields.join("")}</div>` +
     `<div class="capability-edit-form__actions">` +
-    `<button class="btn btn--primary" type="submit"${busyLabelAttribute(SAVING_RECORD_LABEL)}>Save</button>` +
+    submitButton("Save", SAVING_RECORD_LABEL, hasActiveFileField(active)) +
     `<button class="btn btn--outline" type="button" data-record-cancel>Cancel</button>` +
     renderDeleteTrigger(capability) +
     `</div>` +
@@ -260,13 +262,14 @@ function createInputFor(type: NativeInputFieldType): CreateInput {
   }
 }
 
-function renderCreateField(capabilityId: string, field: SpecField, form: UiFormIntent): string {
+function renderCreateField(capability: RenderableCapability, field: SpecField): string {
+  const { id: capabilityId, form } = capability;
   if (isListFieldType(field.type)) return renderCreateListField(capabilityId, field, form);
   if (isChoiceFieldType(field.type)) {
     return renderChoiceField(`cap-${capabilityId}-${field.name}`, field, form, undefined);
   }
   if (isFileFieldType(field.type)) {
-    return renderFileField(`cap-${capabilityId}-${field.name}`, field, form);
+    return renderFileField(`cap-${capabilityId}-${field.name}`, field, form, capability, undefined);
   }
   // `capabilityId` and `field.name` are both `[a-z][a-z0-9_]*` (spec-validated), so
   // this id is a safe HTML token; the label still escapes its humanized text.
@@ -281,17 +284,17 @@ function renderCreateField(capabilityId: string, field: SpecField, form: UiFormI
 }
 
 function renderEditField(
-  capabilityId: string,
+  capability: RenderableCapability,
   field: SpecField,
-  form: UiFormIntent,
   value: unknown,
 ): string {
+  const { id: capabilityId, form } = capability;
   if (isListFieldType(field.type)) return renderEditListField(capabilityId, field, form, value);
   if (isChoiceFieldType(field.type)) {
     return renderChoiceField(`edit-${capabilityId}-${field.name}`, field, form, value);
   }
   if (isFileFieldType(field.type)) {
-    return renderFileField(`edit-${capabilityId}-${field.name}`, field, form);
+    return renderFileField(`edit-${capabilityId}-${field.name}`, field, form, capability, value);
   }
   if (field.type === "datetime") return renderEditDatetimeField(capabilityId, field, form, value);
   return renderScalarField(

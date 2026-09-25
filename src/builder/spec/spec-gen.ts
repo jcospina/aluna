@@ -119,6 +119,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     '- label is the short user-facing capability name written under its logo on the desk, like "Notes" or "Reading list". It must be a name, not a sentence, narration, promise, or confirmation.',
     "- Every distinct capability must use a meaningful semantic label and id derived from the user's wording. Never create a mechanical numbered or versioned duplicate.",
     `- noun is the singular common noun for one stored record, lowercase, at most ${MAX_CAPABILITY_NOUN_LENGTH} characters — "note", "recipe", "contact". It completes desk copy such as "add your first <noun> above", so it is a bare noun, never a phrase or a plural.`,
+    `- plural_noun is noun in the plural, in the same language and casing, at most ${MAX_CAPABILITY_NOUN_LENGTH} characters — note → "notes", photo → "photos", check-in → "check-ins", person → "people". The collection states its count in it, as in "12 <plural_noun>". Where the language does not mark the plural, it is noun unchanged.`,
     "",
     "The capability's logo — you choose the drawing's subject and its two hues, and nothing else:",
     `- subject is a short noun phrase naming one concrete object that stands for this capability, at most ${MAX_LOGO_SUBJECT_LENGTH} characters — "an open notebook", "a brass telescope", "a stack of recipe cards". One object, plainly named. Never letters, words, initials, logos, or a described scene; never a style, medium, palette, layout, or composition instruction.`,

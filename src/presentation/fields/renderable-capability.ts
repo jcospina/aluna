@@ -25,6 +25,7 @@ export function renderableFromSpec(spec: CapabilitySpec): RenderableCapability {
 export function renderableFromRow(row: CapabilityRow): RenderableCapability {
   return {
     id: row.id,
+    incarnationId: row.incarnation_id,
     label: canonicalCapabilityLabel(row),
     noun: row.noun,
     schema: row.schema,

@@ -1,4 +1,4 @@
-// The smoke drives a file field the way 7.1/08's control will post it, with scratch references
+// The smoke drives a file field the way the form's photo control posts it, with scratch references
 // minted in the scratch database's own ledger (Module 7 PLAN decision 38), so a Handler that
 // mangles a photo or a search that reads one fails the Gate.
 
@@ -29,8 +29,8 @@ import { SmokeRungFailure } from "./gate-smoke-repair.ts";
 import {
   buildSmokeInput,
   buildUpdateInputs,
+  leftOutCreate,
   mintSmokeFiles,
-  standInCreate,
 } from "./gate-smoke-samples.ts";
 import { fixtureFieldValue } from "./gate-smoke-search.ts";
 
@@ -52,6 +52,17 @@ function withMintedFiles<T>(
   }
 }
 
+const COVER_FIELD = { ...PHOTO_FIELD, name: "cover", label: "Cover" };
+
+function requiredPhotoSpec(): CapabilitySpec {
+  return photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, required: true }]);
+}
+
+/** A required photo beside an optional cover: the second create leaves one out and posts one. */
+function requiredAndOptionalSpec(): CapabilitySpec {
+  return photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, required: true }, COVER_FIELD]);
+}
+
 function photoFiles(files: ReturnType<typeof mintSmokeFiles>) {
   const minted = files.get(PHOTO_FIELD.name);
   if (!minted) throw new Error("Expected the photo's smoke files.");
@@ -70,12 +81,46 @@ describe("a file field's smoke samples", () => {
     });
   });
 
-  test("a second create posts the photo as today's stand-in does: not at all", () => {
+  test("a second create leaves an optional photo out, as a request other than the form may", () => {
     withMintedFiles(photoSpec(), (files) => {
-      const standIn = standInCreate(buildSmokeInput(photoSpec(), files), photoSpec());
-      expect(PHOTO_FIELD.name in standIn.input.values).toBe(false);
-      expect([...standIn.input.submittedFields]).toEqual([CAPTION_FIELD.name]);
-      expect(standIn.expectedValues[PHOTO_FIELD.name]).toBeNull();
+      const leftOut = leftOutCreate(photoSpec(), files);
+      expect(leftOut && PHOTO_FIELD.name in leftOut.input.values).toBe(false);
+      expect([...(leftOut?.input.submittedFields ?? [])]).toEqual([CAPTION_FIELD.name]);
+      expect(leftOut?.expectedValues[PHOTO_FIELD.name]).toBeNull();
+    });
+  });
+
+  test("a required photo is never left out, so a spec with only that one has no second create", () => {
+    const spec = requiredPhotoSpec();
+    withMintedFiles(spec, (files) => {
+      expect(leftOutCreate(spec, files)).toBeUndefined();
+    });
+  });
+
+  test("a second create posts a required photo a file of its own, leaving the optional one out", () => {
+    const spec = requiredAndOptionalSpec();
+    withMintedFiles(spec, (files) => {
+      const leftOut = leftOutCreate(spec, files);
+      const own = photoFiles(files).leftOut;
+      expect(leftOut?.input.values[PHOTO_FIELD.name]).toBe(own.key);
+      expect(leftOut?.expectedValues[PHOTO_FIELD.name]).toEqual(own.expected);
+      expect(leftOut && COVER_FIELD.name in leftOut.input.values).toBe(false);
+      expect(leftOut?.input.submittedFields.has(COVER_FIELD.name)).toBe(false);
+      expect(own.key).not.toBe(photoFiles(files).created.key);
+    });
+  });
+
+  test("a required photo takes only the edits that leave it holding a file: keep and replace", () => {
+    const spec = requiredPhotoSpec();
+    withMintedFiles(spec, (files) => {
+      const { created, replacement } = photoFiles(files);
+      const edits = buildUpdateInputs(spec, files).filter(
+        ({ field }) => field.name === PHOTO_FIELD.name,
+      );
+      expect(edits.map(({ input }) => input.values[PHOTO_FIELD.name])).toEqual([
+        created.key,
+        replacement.key,
+      ]);
     });
   });
 
@@ -166,6 +211,13 @@ describe("the smoke rung over a photo capability", () => {
   test("passes Handlers that hand the photo back as they were given it", async () => {
     const run = await runSmokeRung(photoGate());
     expect(run.result.attempts).toHaveLength(1);
+  });
+
+  test("passes Handlers over a required photo, which no edit empties", async () => {
+    for (const spec of [requiredPhotoSpec(), requiredAndOptionalSpec()]) {
+      const run = await runSmokeRung(photoGate({}, spec));
+      expect(run.result.attempts).toHaveLength(1);
+    }
   });
 
   test("fails a create Handler that runs the photo through the scalar extractor", async () => {

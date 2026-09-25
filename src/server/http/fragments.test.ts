@@ -210,6 +210,7 @@ describe("web fragments", () => {
       ground: "grass_green",
       companion: "coral_orange",
       noun: "note",
+      plural_noun: "notes",
       incarnation_id: "11111111-1111-4111-8111-111111111111",
       version: 2,
       logo: { status: "absent", attempts: 0 } as const,

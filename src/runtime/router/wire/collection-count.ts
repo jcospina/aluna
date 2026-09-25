@@ -16,6 +16,7 @@ import {
   collectionCountSentence,
   countRenderedItems,
   filteredCollectionCountSentence,
+  type RecordNouns,
   renderCollectionCountSidecar,
 } from "../../../presentation/index.ts";
 import type { CapabilitySpec } from "../../../registry/index.ts";
@@ -28,7 +29,7 @@ export interface CollectionCountInput {
   readonly databases: PlatformDatabase;
   /** The route's read lease — the count is cancelled with every other read of this capability. */
   readonly signal: AbortSignal;
-  readonly noun: string;
+  readonly nouns: RecordNouns;
   readonly action: WireProtocolAction;
   /** The scrubbed answer this sidecar will ride on, and the source of the matched half. */
   readonly fragment: string;
@@ -39,15 +40,15 @@ export interface CollectionCountInput {
  * cannot be taken says nothing rather than something untrue; a revoked lease logs no error.
  */
 export function collectionCountSidecar(input: CollectionCountInput): string {
-  const { spec, databases, signal, noun, action, fragment } = input;
+  const { spec, databases, signal, nouns, action, fragment } = input;
   if (action !== "read" && action !== "search") return "";
 
   try {
     const total = countCapabilityRecords(spec, databases.readonly, signal);
     return renderCollectionCountSidecar(
       action === "search"
-        ? filteredCollectionCountSentence(countRenderedItems(fragment), total, noun)
-        : collectionCountSentence(total, noun),
+        ? filteredCollectionCountSentence(countRenderedItems(fragment), total, nouns)
+        : collectionCountSentence(total, nouns),
     );
   } catch (error) {
     if (!signal.aborted) console.error(`Capability ${spec.id} could not be counted:`, error);

@@ -21,14 +21,20 @@ import {
   renderableFromSpec,
 } from "../../presentation/index.ts";
 import {
+  activeSpecFields,
   type CapabilityRow,
   type CapabilitySpec,
   type CapabilityTool,
   type FieldType,
+  isFileFieldType,
   LOGO_BIRTH_STATUS,
   type ReadDependency,
 } from "../../registry/index.ts";
-import type { CapabilityCreateValues, CapabilityTableDdl } from "../../runtime/data/index.ts";
+import type {
+  CapabilityCreateValues,
+  CapabilityTableDdl,
+  FileSubmissionBinding,
+} from "../../runtime/data/index.ts";
 import {
   type CapabilityQueryPort,
   createCapabilityMutationPort,
@@ -46,6 +52,7 @@ import type {
 import { formatDiagnostics } from "../generated-code-check.ts";
 import type { HandlerUnitName } from "../units/generation/units.ts";
 import type { ScratchCatalogCapability } from "./gate.ts";
+import { mintScratchFile, scratchFileName, scratchSubmission } from "./gate-scratch-files.ts";
 
 /** The complete steady-state Handler inventory exercised by the full smoke cycle. */
 export const SMOKE_HANDLER_NAMES = [
@@ -208,6 +215,24 @@ export function buildGateQueryPort(
   return createCapabilityQueryPort(database, { target: spec, dependencies });
 }
 
+/**
+ * A dependency's seeded row is a saved record, and a save refuses one without its required files,
+ * so each gets a scratch file of its own as the form's upload would have given it.
+ */
+function requiredFilesBinding(spec: CapabilitySpec, database: Database): FileSubmissionBinding {
+  const required = activeSpecFields(spec.schema.fields).filter(
+    (field) => field.required && isFileFieldType(field.type),
+  );
+  const values = Object.fromEntries(
+    required.map((field) => {
+      const name = scratchFileName(`${spec.id} ${field.name}`);
+      return [field.name, mintScratchFile(database, spec, field, name).key];
+    }),
+  );
+  const input = { values, submittedFields: new Set(Object.keys(values)) };
+  return scratchSubmission(spec, input, database).binding;
+}
+
 function seedCompatibilityRow(
   spec: CapabilitySpec,
   tableName: string,
@@ -231,7 +256,12 @@ function seedCompatibilityRow(
   }
 
   const created = materializeCapabilityActionRecord(
-    createCapabilityMutationPort(spec, database).create(activeValues),
+    createCapabilityMutationPort(
+      spec,
+      database,
+      undefined,
+      requiredFilesBinding(spec, database),
+    ).create(activeValues),
   );
   if (inactiveValues.length === 0) return;
 

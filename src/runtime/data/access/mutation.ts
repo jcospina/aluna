@@ -10,7 +10,12 @@ import {
   PLATFORM_COLUMNS,
   type SpecField,
 } from "../../../registry/index.ts";
-import { FileFieldWriteError, RecordChangedError, RecordNotFoundError } from "../internal.ts";
+import {
+  FileFieldWriteError,
+  MissingRequiredFieldsError,
+  RecordChangedError,
+  RecordNotFoundError,
+} from "../internal.ts";
 import { deriveCapabilityTableDdl } from "../schema/ddl.ts";
 import { fileKeyFromProjection, storedFileReference } from "../schema/file-values.ts";
 import { ownValue } from "../schema/own-value.ts";
@@ -19,6 +24,7 @@ import {
   type CapabilityDataRow,
   CapabilityDataValidationError,
   createCapabilityActionRecord,
+  isMissingRequiredValue,
   isPlainObject,
   normalizeSpecFieldValues,
   normalizeStoredRow,
@@ -56,7 +62,8 @@ const PLATFORM_POPULATED_COLUMNS = new Set<string>(PLATFORM_COLUMNS);
 
 /**
  * The router-checked file submission a save writes (Module 7 PLAN decision 17). Without one, as in
- * the Gate's scratch runs, a create's file fields are empty and an update may submit none.
+ * a Gate dependency's seeded rows, a create's file fields are empty, so a required one refuses it,
+ * and an update may submit none.
  */
 export interface FileSubmissionBinding {
   readonly incarnationId: string;
@@ -88,9 +95,10 @@ export function createCapabilityMutationPort(
   return {
     create(values) {
       assertReadOwnership(signal);
-      const own = isPlainObject(values) ? { ...values } : values;
-      const normalized = normalizeInsertValues(parsed.id, dataFields, allowedInsertFields, own);
+      const own = insertValues(parsed.id, allowedInsertFields, values);
       const keys = writtenFileKeys(fileFields, own, files?.submitted, written);
+      assertRequiredFilesHeld(parsed.id, fields, own, keys, "create");
+      const normalized = normalizeSpecFieldValues(parsed.id, dataFields, own);
       const id = randomUUID();
       // A savepoint inside the save's transaction: a Handler that catches a failed insert and
       // answers anyway must not commit the key it promoted for a record that was never written.
@@ -140,6 +148,50 @@ function writtenFileKeys(
     keys.set(field, submittedKey);
   }
   return keys;
+}
+
+/**
+ * Refuse a save that leaves a required file field empty, naming with it every required data field
+ * the same save leaves empty, in schema order, as the refusal of a data field alone names them.
+ */
+function assertRequiredFilesHeld(
+  capabilityId: string,
+  fields: readonly SpecField[],
+  values: Readonly<Record<string, unknown>>,
+  fileKeys: ReadonlyMap<SpecField, string | null>,
+  action: "create" | "update",
+): void {
+  const empty = new Set(
+    [...fileKeys].filter(([field, key]) => field.required && key === null).map(([field]) => field),
+  );
+  if (empty.size === 0) return;
+  const missing = fields.filter((field) =>
+    isFileFieldType(field.type)
+      ? empty.has(field)
+      : field.required && isMissingRequiredValue(field, ownValue(values, field.name)),
+  );
+  throw new MissingRequiredFieldsError(
+    capabilityId,
+    missing.map((field) => field.name),
+    action,
+  );
+}
+
+/** The key each active file field holds once an update is written: its submission's, or the record's. */
+function resultingFileKeys(
+  fields: readonly SpecField[],
+  current: CapabilityDataRow,
+  fileWrites: FileWrites,
+): ReadonlyMap<SpecField, string | null> {
+  const submitted = new Map(fileWrites);
+  return new Map(
+    fields
+      .filter((field) => isFileFieldType(field.type))
+      .map((field) => {
+        const file = submitted.get(field);
+        return [field, file === undefined ? heldKey(current, field) : submittedFileKey(file)];
+      }),
+  );
 }
 
 function namesSubmittedFile(given: unknown, submittedKey: string | null): boolean {
@@ -271,6 +323,13 @@ function updateBoundTarget(
     if (!authority.submittedFields.has(field.name)) continue;
     merged[field.name] = submittedUpdateValue(field, values);
   }
+  assertRequiredFilesHeld(
+    authority.capabilityId,
+    authority.fields,
+    merged,
+    resultingFileKeys(authority.fields, current, fileWrites),
+    "update",
+  );
 
   // `current` is what the row already holds, the one thing that makes a disabled choice value
   // admissible: a record standing on an option before it was retired keeps it through an edit.
@@ -371,19 +430,19 @@ function persistBoundUpdate(
   return normalizeStoredRow(authority.fields, updated);
 }
 
-function normalizeInsertValues(
+/** A create's values as the Handler gave them, refused before any field is judged if malformed. */
+function insertValues(
   capabilityId: string,
-  fields: readonly SpecField[],
   allowedInsertFields: ReadonlySet<string>,
   values: CapabilityCreateValues,
-): Record<string, SqlValue> {
+): CapabilityCreateValues {
   if (!isPlainObject(values)) {
     throw new CapabilityDataValidationError(
       `Capability "${capabilityId}" insert values must be an object.`,
     );
   }
   validateInsertKeys(capabilityId, allowedInsertFields, values);
-  return normalizeSpecFieldValues(capabilityId, fields, values);
+  return { ...values };
 }
 
 function validateInsertKeys(

@@ -6,7 +6,11 @@ import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { zodSchema } from "ai";
 
 import { requireFileLedgerRow } from "../../../../platform/files/ledger.test-support.ts";
-import { PHOTO_FIELD, photoSpec } from "../../../../registry/fields/file.test-support.ts";
+import {
+  CAPTION_FIELD,
+  PHOTO_FIELD,
+  photoSpec,
+} from "../../../../registry/fields/file.test-support.ts";
 import {
   deriveCapabilityTableDdl,
   FILE_CLEAR_VALUE,
@@ -155,7 +159,8 @@ describe("the behavioral case shape", () => {
     const photo = actionFixtureVocabulary(photoSpec()).row_fields.find(
       ({ name }) => name === PHOTO_FIELD.name,
     );
-    expect(photo).toEqual({ name: "photo", type: "file", accepts: ["image"] });
+    const { name, type, required, accepts } = PHOTO_FIELD;
+    expect(photo).toEqual({ name, type, required, accepts });
   });
 });
 
@@ -239,6 +244,127 @@ describe("the contract over file tokens", () => {
     expect(() =>
       assertActionSuiteContract(photoSpec(), "create", createSuite(assertsTheToken)),
     ).toThrow("fragment assertions may use submitted input");
+  });
+});
+
+/** A required photo: every saved record holds one, so only a missing-required case may not. */
+describe("the contract over a required photo", () => {
+  const spec = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, required: true }]);
+  const errorFor = (action: "create" | "update") => {
+    const found = spec.behavioral_errors.find((entry) => entry.action === action);
+    if (!found) throw new Error(`Expected a ${action} missing_required_fields case.`);
+    return found;
+  };
+  const errorCase = (action: "create" | "update") => {
+    const found = PHOTO_SUITE.cases.find(
+      (candidate) => candidate.action === action && candidate.expectedError,
+    );
+    if (!found) throw new Error(`Expected a ${action} error case.`);
+    return {
+      ...found,
+      expectedError: { ...errorFor(action), fields: [...errorFor(action).fields] },
+    };
+  };
+  const missingUpdate = withoutFilesOnMissingRecords(
+    PHOTO_SUITE.cases.find(({ target }) => target === "missing_record") ?? normalCase("update"),
+  );
+  const updates = (...cases: FullBehavioralTestCase[]) =>
+    assertActionSuiteContract(spec, "update", [...cases, missingUpdate]);
+  const creates = (...cases: FullBehavioralTestCase[]) =>
+    assertActionSuiteContract(spec, "create", cases);
+  const photoInput = (value: string | null | undefined) =>
+    value === undefined ? [] : [{ field: PHOTO_FIELD.name, value }];
+
+  test("names it among the fields a missing_required_fields update submits, as null", () => {
+    const update = (value: string | null | undefined): FullBehavioralTestCase => ({
+      ...errorCase("update"),
+      input: [{ field: CAPTION_FIELD.name, value: "" }, ...photoInput(value)],
+    });
+    expect(() => updates(normalCase("update"), update(null))).not.toThrow();
+    expect(() => updates(normalCase("update"), update("image"))).toThrow(
+      "may not submit non-empty affected fields",
+    );
+    expect(() => updates(normalCase("update"), update(undefined))).toThrow(
+      "must submit every affected field as empty",
+    );
+  });
+
+  test("lets a missing_required_fields create post it as null or leave it out, never a file", () => {
+    const create = (value: string | null | undefined): FullBehavioralTestCase => ({
+      ...errorCase("create"),
+      input: photoInput(value),
+    });
+    expect(() => creates(normalCase("create"), create(null))).not.toThrow();
+    expect(() => creates(normalCase("create"), create(undefined))).not.toThrow();
+    expect(() => creates(normalCase("create"), create("image"))).toThrow(
+      "may not submit non-empty affected fields",
+    );
+  });
+
+  test("refuses a save expected to go through that leaves it empty", () => {
+    const create = errorCase("create");
+    const withoutPhoto: FullBehavioralTestCase = {
+      ...normalCase("create"),
+      input: [{ field: CAPTION_FIELD.name, value: "Caption only" }],
+    };
+    expect(() => creates(withoutPhoto, create)).toThrow('required file field "photo" empty');
+    expect(() =>
+      creates({ ...withoutPhoto, input: [...withoutPhoto.input, ...photoInput(null)] }, create),
+    ).toThrow('required file field "photo" empty');
+    const clears = { ...normalCase("update"), input: photoInput(null) };
+    expect(() => updates(clears, errorCase("update"))).toThrow('required file field "photo" empty');
+  });
+
+  test("exempts only a missing_required_fields case, never another refusal it declares", () => {
+    const declared = {
+      action: "create" as const,
+      trigger: "a caption already in the scrapbook",
+      code: "duplicate_caption",
+      fields: [CAPTION_FIELD.name],
+      expected_markers: errorFor("create").expected_markers,
+    };
+    const withDuplicate = { ...spec, behavioral_errors: [...spec.behavioral_errors, declared] };
+    const duplicate: FullBehavioralTestCase = {
+      ...errorCase("create"),
+      name: "refuses a caption already kept",
+      expectedError: { ...declared, fields: [...declared.fields] },
+      input: [{ field: CAPTION_FIELD.name, value: "Twice" }],
+    };
+    expect(() =>
+      assertActionSuiteContract(withDuplicate, "create", [
+        normalCase("create"),
+        errorCase("create"),
+        duplicate,
+      ]),
+    ).toThrow('required file field "photo" empty');
+  });
+
+  test("refuses a setup row that leaves a required field empty, since a save seeds it", () => {
+    const seeded = (values: FullBehavioralTestCase["setupRows"][number]["values"]) => ({
+      ...normalCase("update"),
+      setupRows: [{ values }],
+    });
+    const caption = { field: CAPTION_FIELD.name, value: "Kept" };
+    const photo = (value: string | null) => ({ field: PHOTO_FIELD.name, value });
+    const required = errorCase("update");
+    expect(() => updates(seeded([caption, photo(null)]), required)).toThrow(
+      'setupRows[0] leaves required field "photo" empty',
+    );
+    expect(() => updates(seeded([photo("image")]), required)).toThrow(
+      'setupRows[0] leaves required field "caption" empty',
+    );
+    const blank = { field: CAPTION_FIELD.name, value: "   " };
+    expect(() => updates(seeded([blank, photo("image")]), required)).toThrow(
+      'setupRows[0] leaves required field "caption" empty',
+    );
+  });
+
+  test("tells the model which row fields a saved record must fill", () => {
+    const fields = actionFixtureVocabulary(spec).row_fields;
+    expect(fields.find(({ name }) => name === PHOTO_FIELD.name)?.required).toBe(true);
+    expect(fields.find(({ name }) => name === CAPTION_FIELD.name)?.required).toBe(
+      CAPTION_FIELD.required,
+    );
   });
 });
 

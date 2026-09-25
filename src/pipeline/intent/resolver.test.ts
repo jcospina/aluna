@@ -64,6 +64,7 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
     ground: "grass_green",
     companion: "coral_orange",
     noun: "note",
+    plural_noun: "notes",
     incarnation_id: incarnationId,
     version: 1,
     schema: {
@@ -112,6 +113,7 @@ function recipesRow(): CapabilityRow {
     ground: "grass_green",
     companion: "coral_orange",
     noun: "note",
+    plural_noun: "notes",
     incarnation_id: SECOND_INCARNATION_ID,
     version: 2,
     schema: {

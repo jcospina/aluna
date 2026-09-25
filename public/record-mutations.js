@@ -24,6 +24,8 @@ const EDIT_ACTIONS_SELECTOR = ".capability-edit-form__actions";
 const BACK_SELECTOR = "[data-record-form-back]";
 const RECORD_VIEW_SELECTOR = "[data-record-view]";
 const SUBMIT_BUTTON_SELECTOR = 'button[type="submit"]';
+const HELD_SAVE_LABEL_SELECTOR = "[data-held-save-label]";
+const FILE_FIELD_SELECTOR = "[data-file-field]";
 const RECORD_CREATED_EVENT = "aluna:record-created";
 
 /**
@@ -38,32 +40,51 @@ function requestForm(event, selector) {
 }
 
 /**
- * Keep a control's idle text where the restore can find it, once. Reading it again after the
- * busy sentence is showing would remember the busy sentence.
- *
- * @param {Element} control
- */
-function rememberIdleLabel(control) {
-  if (control.hasAttribute(IDLE_LABEL_ATTRIBUTE)) return;
-  control.setAttribute(IDLE_LABEL_ATTRIBUTE, control.textContent ?? "");
-}
-
-/**
  * Swap a submit control between its idle text and the sentence the server gave it to say. Both
  * come off the markup: the browser restating either meant a renamed button reverted to the
- * browser's spelling the first time it was pressed.
+ * browser's spelling the first time it was pressed. A save a file can hold keeps its words in a
+ * label of their own, which the hold writes too, so that label is what changes.
  *
  * @param {HTMLButtonElement} submit
  * @param {boolean} pending
  */
 function sayWhatItIsDoing(submit, pending) {
+  const label = submit.querySelector(HELD_SAVE_LABEL_SELECTOR) ?? submit;
   if (pending) {
-    rememberIdleLabel(submit);
-    submit.textContent = submit.getAttribute(BUSY_LABEL_ATTRIBUTE) ?? submit.textContent;
+    if (!submit.hasAttribute(IDLE_LABEL_ATTRIBUTE)) {
+      submit.setAttribute(IDLE_LABEL_ATTRIBUTE, label.textContent ?? "");
+    }
+    label.textContent = submit.getAttribute(BUSY_LABEL_ATTRIBUTE) ?? label.textContent;
     return;
   }
   const idle = submit.getAttribute(IDLE_LABEL_ATTRIBUTE);
-  if (idle !== null) submit.textContent = idle;
+  if (idle !== null) label.textContent = idle;
+}
+
+/**
+ * A file picked while a save is out would change a draft the server may have saved without it.
+ *
+ * @param {HTMLFormElement} form
+ * @param {boolean} frozen
+ */
+function freezeFileFields(form, frozen) {
+  for (const field of form.querySelectorAll(FILE_FIELD_SELECTOR)) {
+    if (field instanceof HTMLElement) field.inert = frozen;
+  }
+}
+
+/**
+ * A save was refused, so its form's file fields take picks again, before `htmx` swaps in the
+ * refusal that focus has to reach them to say. A save that went through keeps them frozen until
+ * the form is put back.
+ *
+ * @param {Event} event
+ */
+export function thawFileFields(event) {
+  const detail = /** @type {CustomEvent<{ xhr?: XMLHttpRequest }>} */ (event).detail;
+  if ((detail?.xhr?.status ?? 0) < 400) return;
+  const form = requestForm(event, EDIT_FORM_SELECTOR) ?? requestForm(event, CREATE_FORM_SELECTOR);
+  if (form) freezeFileFields(form, false);
 }
 
 /**
@@ -71,7 +92,7 @@ function sayWhatItIsDoing(submit, pending) {
  * @param {boolean} pending
  * @param {string} cancelSelector
  */
-function setPending(form, pending, cancelSelector) {
+export function setPending(form, pending, cancelSelector) {
   form.setAttribute("aria-busy", pending ? "true" : "false");
   const submit = form.querySelector(SUBMIT_BUTTON_SELECTOR);
   if (submit instanceof HTMLButtonElement) {
@@ -80,6 +101,7 @@ function setPending(form, pending, cancelSelector) {
   }
   const cancel = form.querySelector(cancelSelector);
   if (cancel instanceof HTMLButtonElement) cancel.disabled = pending;
+  freezeFileFields(form, pending);
   // The bar is the form's own sibling, in the record view and the create view alike. Disabled
   // while a mutation runs, like Cancel: a save the server may have committed is not cancellable.
   const back = form.parentElement?.querySelector(BACK_SELECTOR);
@@ -346,8 +368,11 @@ function handleEditOutcome(form, successful, outcomeUnknown, surfaceGone) {
       surfaceGone,
     );
   }
+  // Back to the top, unless a refusal has just put the person on a field lower down.
   const fields = form.querySelector(".capability-edit-form__fields");
-  if (fields instanceof HTMLElement) fields.scrollTop = 0;
+  if (fields instanceof HTMLElement && !fields.contains(document.activeElement)) {
+    fields.scrollTop = 0;
+  }
 }
 
 /**
@@ -449,6 +474,8 @@ function installRecordMutations() {
       setCreatePending(createForm, true);
     }
   });
+
+  document.addEventListener("htmx:beforeSwap", thawFileFields);
 
   document.addEventListener("htmx:afterRequest", (event) => {
     const custom = /** @type {CustomEvent<{ successful?: boolean, xhr?: XMLHttpRequest }>} */ (

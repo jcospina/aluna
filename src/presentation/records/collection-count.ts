@@ -13,7 +13,6 @@ import {
 } from "#shell/shell-dom.js";
 import { escapeHtml } from "../../server/http/html.ts";
 import type { RenderableCapability } from "../fields/field-renderer.ts";
-import { pluralNoun } from "./plural-noun.ts";
 
 // The sidecar's wire format, declared in the module that parses it. A prefix changed on one side
 // only parks the comment in the DOM and freezes the count at a stale number without erroring.
@@ -28,13 +27,19 @@ export function capabilityCountLabelId(capabilityId: string): string {
   return `${capabilityId}-count`;
 }
 
+/** A capability's record noun and the plural the model authored beside it. */
+export interface RecordNouns {
+  readonly noun: string;
+  readonly plural: string;
+}
+
 /**
  * What the collection says. Empty at zero, because the platform empty state already speaks for a
- * collection with nothing in it. The noun is the capability's own when {@link pluralNoun} allows.
+ * collection with nothing in it.
  */
-export function collectionCountSentence(count: number, noun: string): string {
+export function collectionCountSentence(count: number, nouns: RecordNouns): string {
   if (count <= 0) return "";
-  return withNoun(written(count), count, noun);
+  return withNoun(written(count), count, nouns);
 }
 
 /**
@@ -44,7 +49,7 @@ export function collectionCountSentence(count: number, noun: string): string {
 export function filteredCollectionCountSentence(
   matched: number,
   total: number,
-  noun: string,
+  nouns: RecordNouns,
 ): string {
   if (total <= 0) return "";
   // The two numbers are read one after the other, not in one transaction, so a delete between
@@ -52,7 +57,7 @@ export function filteredCollectionCountSentence(
   // and neither does a number that is not a whole one — `NaN` fails both comparisons below.
   if (!Number.isInteger(matched) || !Number.isInteger(total)) return "";
   if (matched < 0 || matched > total) return "";
-  return withNoun(`${written(matched)} of ${written(total)}`, total, noun);
+  return withNoun(`${written(matched)} of ${written(total)}`, total, nouns);
 }
 
 /** A number the way a person reads one. */
@@ -60,14 +65,9 @@ function written(count: number): string {
   return count.toLocaleString("en-US");
 }
 
-/**
- * `lead`, followed by the capability's own noun declined by `governing` — or `lead` alone when
- * {@link pluralNoun} declines. Declined once is declined at every count, so the shape holds.
- */
-function withNoun(lead: string, governing: number, noun: string): string {
-  const plural = pluralNoun(noun);
-  if (plural === undefined) return lead;
-  return governing === 1 ? `${lead} ${noun}` : `${lead} ${plural}`;
+/** `lead`, followed by the capability's own noun in the number `governing` asks for. */
+function withNoun(lead: string, governing: number, nouns: RecordNouns): string {
+  return `${lead} ${governing === 1 ? nouns.noun : nouns.plural}`;
 }
 
 /** The empty label the collection chrome carries. The count arrives into it. */

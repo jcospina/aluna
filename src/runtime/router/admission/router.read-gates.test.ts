@@ -44,6 +44,7 @@ function shelvesRow() {
     ground: "grass_green",
     companion: "coral_orange",
     noun: "note",
+    plural_noun: "notes",
     incarnation_id: SHELVES_INCARNATION,
     prompt_context: "Stores shelf names.",
   });
@@ -57,6 +58,7 @@ function tasksRow() {
     ground: "grass_green",
     companion: "coral_orange",
     noun: "note",
+    plural_noun: "notes",
     incarnation_id: TASKS_INCARNATION,
     prompt_context: "Stores tasks.",
   });

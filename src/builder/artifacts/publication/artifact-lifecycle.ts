@@ -250,10 +250,38 @@ export function publishCapabilitySnapshot(
   }
 }
 
-/** Read and verify a staged or published snapshot against its own manifest. */
+/**
+ * The registry row's plural, for a stored snapshot written before `plural_noun` existed. The
+ * frozen bytes are never rewritten; the next version the capability publishes carries its own.
+ */
+export interface SnapshotReadForward {
+  readonly pluralNoun: string;
+}
+
+/**
+ * Read and verify a snapshot this build is publishing against its own manifest. It was written
+ * with `plural_noun`, so one missing it is corrupt; a snapshot already on disk is read with
+ * {@link verifyStoredCapabilitySnapshot}, which may be older than the key.
+ */
 export function verifyCapabilitySnapshot(
   directory: string,
   expectedManifest?: SnapshotManifest,
+): VerifiedCapabilitySnapshot {
+  return verifySnapshot(directory, expectedManifest, undefined);
+}
+
+/** Read and verify a snapshot already on disk, reading a pre-`plural_noun` spec forward. */
+export function verifyStoredCapabilitySnapshot(
+  directory: string,
+  readForward: SnapshotReadForward,
+): VerifiedCapabilitySnapshot {
+  return verifySnapshot(directory, undefined, readForward);
+}
+
+function verifySnapshot(
+  directory: string,
+  expectedManifest: SnapshotManifest | undefined,
+  readForward: SnapshotReadForward | undefined,
 ): VerifiedCapabilitySnapshot {
   const absoluteDirectory = resolve(directory);
   const manifest = readSnapshotManifest(absoluteDirectory);
@@ -263,7 +291,7 @@ export function verifyCapabilitySnapshot(
   assertExactDiskInventory(actualFiles, manifest);
   verifyManifestEntries(absoluteDirectory, manifest);
   assertSnapshotContentFingerprint(manifest);
-  const spec = readCapabilitySpec(absoluteDirectory);
+  const spec = readCapabilitySpec(absoluteDirectory, readForward);
   if (spec.id !== manifest.capability_id) {
     throw new SnapshotVerificationError("spec.json identity does not match snapshot.json.");
   }
@@ -297,7 +325,7 @@ export function readFrozenBehavioralTests(
   return parsed.data;
 }
 
-function readCapabilitySpec(directory: string): CapabilitySpec {
+function readCapabilitySpec(directory: string, readForward?: SnapshotReadForward): CapabilitySpec {
   let value: unknown;
   try {
     value = JSON.parse(readFileSync(join(directory, SPEC_FILE), "utf8"));
@@ -306,11 +334,19 @@ function readCapabilitySpec(directory: string): CapabilitySpec {
   }
   // A published snapshot is immutable, so an older `spec.json` is read forward: a collection
   // added after it was written canonicalizes to empty, leaving its content digest untouched.
-  const parsed = capabilitySpecSchema.safeParse(canonicalizeStoredCapabilityShape(value));
+  const parsed = capabilitySpecSchema.safeParse(
+    withPluralReadForward(canonicalizeStoredCapabilityShape(value), readForward),
+  );
   if (!parsed.success) {
     throw new SnapshotVerificationError(`Invalid spec.json: ${parsed.error.message}`);
   }
   return parsed.data;
+}
+
+function withPluralReadForward(value: unknown, readForward?: SnapshotReadForward): unknown {
+  if (readForward === undefined || typeof value !== "object" || value === null) return value;
+  if ("plural_noun" in value) return value;
+  return { ...value, plural_noun: readForward.pluralNoun };
 }
 
 function readSnapshotManifest(directory: string): SnapshotManifest {

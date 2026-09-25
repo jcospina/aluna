@@ -268,6 +268,7 @@ describe("decision 24's transition table — the tier-on rows", () => {
       ...base,
       label: "Reminders",
       noun: "note",
+      plural_noun: "notes",
       schema: {
         fields: base.schema.fields.map((field) => ({ ...field, label: `${field.label} ` })),
       },

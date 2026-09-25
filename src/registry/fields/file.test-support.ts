@@ -27,6 +27,7 @@ export function photoSpec(fields: readonly SpecField[] = [CAPTION_FIELD, PHOTO_F
     id: "photos",
     label: "Photos",
     noun: "photo",
+    plural_noun: "photos",
     prompt_context: "Stores the user's captioned photos.",
     schema: { fields: fields.map((field) => ({ ...field })) },
     ui_intent: { ...base.ui_intent, item: { ...base.ui_intent.item, shows: ["caption"] } },

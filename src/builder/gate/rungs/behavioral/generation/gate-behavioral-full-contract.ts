@@ -20,13 +20,14 @@ import {
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   type SpecField,
 } from "../../../../../registry/index.ts";
+import { isMissingRequiredValue } from "../../../../../runtime/data/index.ts";
 import { actionTestInputDigest, actionTestInputs } from "../freeze/behavioral-test-inputs.ts";
 import { assertKnownFields, sameBehavioralError } from "../gate-behavioral-shared.ts";
 import type {
   FrozenBehavioralTests,
   FullBehavioralTestCase,
 } from "./gate-behavioral-full-schema.ts";
-import type { BehavioralScalar } from "./gate-behavioral-input.ts";
+import { type BehavioralScalar, fieldValuesToRecord } from "./gate-behavioral-input.ts";
 
 /**
  * Validate one Action's generated cases against the platform contract. Called on generated and
@@ -116,12 +117,58 @@ function assertCaseContract(spec: CapabilitySpec, testCase: FullBehavioralTestCa
   // A file token names a family, never text a fragment or a query can show, so it is no evidence.
   const textual = withoutFileTokens(spec, testCase);
   assertResponseShape(textual);
+  assertSetupRowsHoldRequired(spec, testCase);
+  assertSavedCaseHoldsRequiredFiles(spec, testCase);
+  // Read before the file tokens go: a required file field posted empty is a submitted field.
   if (testCase.expectedError?.code === MISSING_REQUIRED_FIELDS_ERROR_CODE) {
-    assertMissingRequiredTrigger(textual);
+    assertMissingRequiredTrigger(testCase);
   }
   if (!testCase.expectedError && !testCase.expectedPlatformError) {
     assertAssertionsUseSyntheticValues(textual);
     assertSearchOrderingCoverage(spec, textual);
+  }
+}
+
+/**
+ * A setup row is seeded through the save a form makes, which refuses a record leaving a required
+ * field empty, so such a row fails its case before any Handler runs and no repair can mend it. The
+ * row is read as seeding reads it: a file field by its token, every other field by the save's rule.
+ */
+function assertSetupRowsHoldRequired(spec: CapabilitySpec, testCase: FullBehavioralTestCase): void {
+  const active = activeSpecFields(spec.schema.fields);
+  for (const [index, row] of testCase.setupRows.entries()) {
+    const record = fieldValuesToRecord(active, row.values);
+    for (const field of active.filter(({ required }) => required)) {
+      const value = record[field.name];
+      const empty = isFileFieldType(field.type)
+        ? value === undefined || value === null
+        : isMissingRequiredValue(field, value);
+      if (!empty) continue;
+      throw new Error(
+        `Behavioral test "${testCase.name}" setupRows[${index}] leaves required field "${field.name}" empty; a setup row is a saved record, and a save refuses one without it.`,
+      );
+    }
+  }
+}
+
+/**
+ * A save never leaves a required file field empty unless its case expects the missing_required
+ * refusal: the platform refuses that save whatever the Handler does, before any other verdict.
+ */
+function assertSavedCaseHoldsRequiredFiles(
+  spec: CapabilitySpec,
+  testCase: FullBehavioralTestCase,
+): void {
+  const saves = testCase.action === "create" || testCase.action === "update";
+  const missingRequired = testCase.expectedError?.code === MISSING_REQUIRED_FIELDS_ERROR_CODE;
+  if (!saves || missingRequired || testCase.expectedPlatformError) return;
+  const required = [...activeFileFields(spec).values()].filter((field) => field.required);
+  for (const field of required) {
+    const entry = testCase.input.find((value) => value.field === field.name);
+    if (entry === undefined ? testCase.action === "update" : entry.value !== null) continue;
+    throw new Error(
+      `Behavioral test "${testCase.name}" leaves required file field "${field.name}" empty in a save it expects to go through; give it a family token.`,
+    );
   }
 }
 

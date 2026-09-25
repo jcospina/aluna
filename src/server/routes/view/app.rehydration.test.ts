@@ -68,6 +68,7 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
         id: "recipes",
         label: "Recipes",
         noun: "recipe",
+        plural_noun: "recipes",
         incarnation_id: SECOND_INCARNATION_ID,
         artifacts_path: `capabilities/recipes/${SECOND_INCARNATION_ID}/v1/`,
         prompt_context: "Stores the user's recipes.",

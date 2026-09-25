@@ -258,7 +258,7 @@ describe("the counter's words", () => {
 // declarations out under `.field__label` — the restate-instead-of-reuse this epic removed.
 describe("a field label takes the shared caps role rather than restating it", () => {
   test("every label carries it, whatever shape the control is", () => {
-    for (const type of ["string", "number", "boolean", "date", "choice"] as const) {
+    for (const type of ["string", "number", "boolean", "date", "choice", "file"] as const) {
       const html = renderCreateForm(oneField(probeField(type, { required: true })));
       const labels = [...html.matchAll(/class="field__label[^"]*"/g)].map(([match]) => match);
 

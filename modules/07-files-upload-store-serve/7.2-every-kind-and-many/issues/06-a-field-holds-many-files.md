@@ -41,6 +41,12 @@ required-nullable shape, and the input digest covers it. The builder may declare
 `file[]` when a record holds several files, and the item-renderer guidance covers drawing
 a list.
 
+**What 7.1/08 left for a required list.** A file field may be required since 7.1/08. The
+mutation interface refuses a save that would leave a required `file` empty
+(`assertRequiredFilesHeld` and `resultingFileKeys` in `src/runtime/data/access/mutation.ts`),
+but both handle one key or none. A required `file[]` must refuse `[]` the same way, and the
+browser's own check (`holdsNothing` in `public/field-errors.js`) must count an empty list.
+
 ## Acceptance criteria
 
 - [ ] `file[]` is in `FILE_FIELD_TYPES`, is not searchable, and every `isListFieldType`

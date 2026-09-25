@@ -130,6 +130,7 @@ export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): str
     "- When the intent explicitly changes behavior, return one or two plain sentences of stated intent. Aluna conservatively regenerates every Action's behavioral tests when these bytes change.",
     "- prompt_context describes what the capability stores. Preserve it byte-for-byte unless the resolved intent changes the capability's purpose.",
     '- noun is the singular common noun for one stored record, used in desk copy such as "add your first <noun> above". Preserve it byte-for-byte unless the capability now holds a different kind of thing.',
+    '- plural_noun is noun in the plural, in the same language and casing, used in the collection count such as "12 <plural_noun>". Where the language does not mark the plural, it is noun unchanged. Preserve it byte-for-byte unless noun changes, and then write the plural of the new noun.',
     "",
     "Current committed spec (including inactive fields):",
     JSON.stringify(committed, null, 2),

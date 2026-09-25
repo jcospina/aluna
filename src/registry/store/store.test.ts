@@ -46,6 +46,7 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
     ground: "grass_green",
     companion: "coral_orange",
     noun: "note",
+    plural_noun: "notes",
     incarnation_id: NOTES_INCARNATION_ID,
     version: 1,
     schema: {
@@ -127,6 +128,7 @@ describe("capability registry store", () => {
       ground: "grass_green",
       companion: "coral_orange",
       noun: "note",
+      plural_noun: "notes",
       incarnation_id: SECOND_INCARNATION_ID,
       artifacts_path: `capabilities/recipes/${SECOND_INCARNATION_ID}/v1/`,
       seed: 184206,
@@ -189,6 +191,7 @@ describe("capability registry store", () => {
       ground: "grass_green",
       companion: "coral_orange",
       noun: "note",
+      plural_noun: "notes",
       incarnation_id: SECOND_INCARNATION_ID,
       artifacts_path: `capabilities/reading_list/${SECOND_INCARNATION_ID}/v1/`,
       seed: 184206,
@@ -270,6 +273,7 @@ describe("capability registry store", () => {
       // The one name the platform owns. Nullable and defaultless: a capability nobody has
       // renamed says so, rather than restating its authored label in a second column.
       "display_label_override",
+      "plural_noun",
     ]);
   });
 });

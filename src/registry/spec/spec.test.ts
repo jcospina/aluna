@@ -8,7 +8,7 @@
 // live in `spec.behavior.test.ts`. The shared `validSpec` fixture lives in `spec.test-support.ts`.
 
 import { describe, expect, test } from "bun:test";
-import { FILE_FAMILIES, isFileFieldType } from "../fields/file.ts";
+import { FILE_FAMILIES } from "../fields/file.ts";
 import { validSpec } from "./spec.test-support.ts";
 import {
   type CapabilitySpec,
@@ -60,8 +60,7 @@ describe("capability spec shape — valid shapes & pantry types", () => {
     expect(isChoiceFieldType("string")).toBe(false);
 
     for (const type of fieldTypeSchema.options) {
-      // A file field cannot be required until the form can take a file (7.1/08).
-      for (const required of isFileFieldType(type) ? [false] : [true, false]) {
+      for (const required of [true, false]) {
         const spec = validSpec({
           schema: { fields: [pantryField(type, required)] },
         });

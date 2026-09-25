@@ -76,6 +76,7 @@ interface StoredRow {
   ground: string;
   companion: string;
   noun: string;
+  plural_noun: string;
   incarnation_id: string;
   version: number;
   seed: number;
@@ -97,7 +98,7 @@ interface StoredRow {
  * {@link claimLogoGeneration} and {@link settleLogoGeneration}, so no write can roll a claim back.
  */
 const WRITE_COLUMNS =
-  "id, label, subject, ground, companion, noun, incarnation_id, version, seed, schema, ui_intent, behavior, behavioral_errors, tools, read_dependencies, artifacts_path, prompt_context";
+  "id, label, subject, ground, companion, noun, plural_noun, incarnation_id, version, seed, schema, ui_intent, behavior, behavioral_errors, tools, read_dependencies, artifacts_path, prompt_context";
 
 const WRITE_PLACEHOLDERS = WRITE_COLUMNS.split(", ")
   .map(() => "?")
@@ -121,6 +122,7 @@ function parseStoredRow(stored: StoredRow): CapabilityRow {
       ground: stored.ground,
       companion: stored.companion,
       noun: stored.noun,
+      plural_noun: stored.plural_noun,
       incarnation_id: stored.incarnation_id,
       version: stored.version,
       seed: stored.seed,
@@ -194,7 +196,8 @@ export function compareAndSwapCapability(
       : database
           .query(
             `UPDATE ${REGISTRY_TABLE}
-             SET label = ?, subject = ?, ground = ?, companion = ?, noun = ?, incarnation_id = ?, version = ?,
+             SET label = ?, subject = ?, ground = ?, companion = ?, noun = ?, plural_noun = ?,
+                 incarnation_id = ?, version = ?,
                  schema = ?, ui_intent = ?, behavior = ?, behavioral_errors = ?, tools = ?,
                  read_dependencies = ?, artifacts_path = ?, prompt_context = ?
              WHERE id = ? AND incarnation_id = ? AND version = ?
@@ -207,6 +210,7 @@ export function compareAndSwapCapability(
             valid.ground,
             valid.companion,
             valid.noun,
+            valid.plural_noun,
             valid.incarnation_id,
             valid.version,
             JSON.stringify(valid.schema),
@@ -296,6 +300,7 @@ function storedValues(row: CapabilityRegistryWrite): (string | number)[] {
     row.ground,
     row.companion,
     row.noun,
+    row.plural_noun,
     row.incarnation_id,
     row.version,
     row.seed,

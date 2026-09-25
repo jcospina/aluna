@@ -13,6 +13,7 @@ import {
   capabilityCountLabelId,
   collectionCountSentence,
   filteredCollectionCountSentence,
+  type RecordNouns,
   renderCollectionCountLabel,
   renderCollectionCountSidecar,
 } from "./collection-count.ts";
@@ -35,96 +36,66 @@ const SAMPLE: RenderableCapability = {
   actions: ["create", "read", "update", "delete", "search"],
 };
 
+const NOTES: RecordNouns = { noun: "note", plural: "notes" };
+
 describe("what the collection says", () => {
-  test("states the number in the capability's own noun", () => {
-    expect(collectionCountSentence(3, "task")).toBe("3 tasks");
-    expect(collectionCountSentence(1, "task")).toBe("1 task");
+  test("states the number in the capability's own noun, singular at one", () => {
+    expect(collectionCountSentence(3, NOTES)).toBe("3 notes");
+    expect(collectionCountSentence(1, NOTES)).toBe("1 note");
   });
 
   test("says nothing at zero — the platform empty state speaks for a bare collection", () => {
-    expect(collectionCountSentence(0, "task")).toBe("");
+    expect(collectionCountSentence(0, NOTES)).toBe("");
   });
 
-  test("pluralizes the nouns English spells one way", () => {
-    expect(collectionCountSentence(2, "recipe")).toBe("2 recipes");
-    expect(collectionCountSentence(2, "entry")).toBe("2 entries");
-    expect(collectionCountSentence(2, "box")).toBe("2 boxes");
-    expect(collectionCountSentence(2, "dish")).toBe("2 dishes");
-    expect(collectionCountSentence(2, "match")).toBe("2 matches");
-    expect(collectionCountSentence(2, "address")).toBe("2 addresses");
-    expect(collectionCountSentence(2, "day")).toBe("2 days");
-    expect(collectionCountSentence(2, "child")).toBe("2 children");
-    expect(collectionCountSentence(2, "person")).toBe("2 people");
-    expect(collectionCountSentence(2, "tea tasting")).toBe("2 tea tastings");
-  });
-
-  test("declines the nouns English spells more than one way, and states the number alone", () => {
-    // `-f`/`-fe` (leaf/chief), `-o` (potato/photo) and anything already ending in `s`
-    // (a series, or a model that emitted a plural) each have two answers.
-    for (const noun of ["leaf", "knife", "shelf", "life", "potato", "hero", "series", "notes"]) {
-      expect(collectionCountSentence(7, noun)).toBe("7");
-      // Declined once is declined at every count, so the label never changes shape.
-      expect(collectionCountSentence(1, noun)).toBe("1");
-    }
-  });
-
-  test("never counts what English does not count", () => {
-    for (const noun of ["data", "equipment", "furniture", "news", "information"]) {
-      expect(collectionCountSentence(7, noun)).toBe("7");
-    }
-  });
-
-  test("never glues an English plural onto a noun that is not written in Latin letters", () => {
-    for (const noun of ["메모", "笔记", "ノート", "воспоминание", "مذكرة", "note."]) {
-      expect(collectionCountSentence(7, noun)).toBe("7");
-      expect(collectionCountSentence(1, noun)).toBe("1");
-    }
+  test("says the plural the model wrote, in whatever language it wrote it", () => {
+    // The platform never derives a plural: these are what English and Korean spell, not a rule.
+    expect(collectionCountSentence(3, { noun: "photo", plural: "photos" })).toBe("3 photos");
+    expect(collectionCountSentence(3, { noun: "check-in", plural: "check-ins" })).toBe(
+      "3 check-ins",
+    );
+    expect(collectionCountSentence(3, { noun: "person", plural: "people" })).toBe("3 people");
+    expect(collectionCountSentence(3, { noun: "메모", plural: "메모" })).toBe("3 메모");
   });
 
   test("writes a large number the way a person reads one", () => {
-    expect(collectionCountSentence(1234567, "note")).toBe("1,234,567 notes");
+    expect(collectionCountSentence(1234567, NOTES)).toBe("1,234,567 notes");
   });
 });
 
 describe("what a filtered collection says", () => {
   test("states both numbers, and neither of them stands alone", () => {
-    expect(filteredCollectionCountSentence(3, 22, "note")).toBe("3 of 22 notes");
-    expect(filteredCollectionCountSentence(1, 22, "note")).toBe("1 of 22 notes");
+    expect(filteredCollectionCountSentence(3, 22, NOTES)).toBe("3 of 22 notes");
+    expect(filteredCollectionCountSentence(1, 22, NOTES)).toBe("1 of 22 notes");
   });
 
   test("nothing matched says so, beside a total that is not zero", () => {
     // The case decision 32 exists for. A capability with 22 notes and a search that
     // found none of them must never read as a capability with no notes.
-    expect(filteredCollectionCountSentence(0, 22, "note")).toBe("0 of 22 notes");
+    expect(filteredCollectionCountSentence(0, 22, NOTES)).toBe("0 of 22 notes");
   });
 
   test("the total governs the noun, because the noun belongs to the collection", () => {
-    expect(filteredCollectionCountSentence(0, 1, "note")).toBe("0 of 1 note");
-    expect(filteredCollectionCountSentence(1, 1, "note")).toBe("1 of 1 note");
-    expect(filteredCollectionCountSentence(2, 3, "entry")).toBe("2 of 3 entries");
+    expect(filteredCollectionCountSentence(0, 1, NOTES)).toBe("0 of 1 note");
+    expect(filteredCollectionCountSentence(1, 1, NOTES)).toBe("1 of 1 note");
+    expect(filteredCollectionCountSentence(2, 3, NOTES)).toBe("2 of 3 notes");
   });
 
   test("a bare collection is not a filtered one, and says nothing here", () => {
     // Nothing to filter, so nothing to qualify: the platform empty state is what a
     // collection with no records says, and it says it once.
-    expect(filteredCollectionCountSentence(0, 0, "note")).toBe("");
+    expect(filteredCollectionCountSentence(0, 0, NOTES)).toBe("");
   });
 
   test("a pair that cannot both be true is not stated at all", () => {
     // The rows are selected before the total is counted and the two are not one transaction, so
     // a delete between them yields more matched than there are. "3 of 1 notes" is not repaired.
-    expect(filteredCollectionCountSentence(3, 1, "note")).toBe("");
-    expect(filteredCollectionCountSentence(-1, 22, "note")).toBe("");
-  });
-
-  test("a declined noun leaves the pair, which is true in every language", () => {
-    for (const noun of ["leaf", "potato", "series", "data", "메모", "مذكرة"]) {
-      expect(filteredCollectionCountSentence(2, 7, noun)).toBe("2 of 7");
-    }
+    expect(filteredCollectionCountSentence(3, 1, NOTES)).toBe("");
+    expect(filteredCollectionCountSentence(-1, 22, NOTES)).toBe("");
   });
 
   test("writes both numbers the way a person reads them", () => {
-    expect(filteredCollectionCountSentence(1234, 1234567, "note")).toBe("1,234 of 1,234,567 notes");
+    expect(filteredCollectionCountSentence(1234, 1234567, NOTES)).toBe("1,234 of 1,234,567 notes");
   });
 });
 

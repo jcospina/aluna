@@ -72,3 +72,26 @@ describe("a Handler's fragment cannot swap outside the region it was aimed at", 
     expect(enforceHandlerFragment(once).neutralized).toBe(false);
   });
 });
+
+describe("a Handler's fragment carries no code for the page's Alpine to run", () => {
+  test("every directive and both shorthands are removed, and the element they sat on stays", () => {
+    for (const attribute of [
+      'x-data="{ open: true }"',
+      "x-init=\"fetch('/steal?c=' + document.cookie)\"",
+      'X-HTML="payload"',
+      'x-on:click="x()"',
+      '@click="x()"',
+      ':class="x()"',
+      'x-bind:href="x()"',
+    ]) {
+      const { html, neutralized } = enforceHandlerFragment(`<div ${attribute}>Kept</div>`);
+      expect(html).toBe("<div>Kept</div>");
+      expect(neutralized).toBe(true);
+    }
+  });
+
+  test("an attribute that merely contains the letters stays", () => {
+    const fragment = '<div data-x-note="kept" class="box-x">Kept</div>';
+    expect(enforceHandlerFragment(fragment)).toEqual({ html: fragment, neutralized: false });
+  });
+});

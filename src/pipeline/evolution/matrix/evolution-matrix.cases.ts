@@ -46,9 +46,9 @@ export const MATRIX: readonly MatrixCase[] = [
     ddl: [],
   },
   {
-    row: "empty-state noun → platform copy, no units",
+    row: "record noun and plural → platform copy, no units",
     intent: "call each one an entry",
-    candidate: () => notesSpec({ noun: "entry" }),
+    candidate: () => notesSpec({ noun: "entry", plural_noun: "entries" }),
     facts: ["empty_state_noun"],
     platformWork: ["platform_empty_state_copy"],
     regenerated: [],

@@ -19,7 +19,8 @@
  *             duration?: number }} Picked
  * @typedef {{ name: string, size: number, url: string, duration?: number }} Held
  * @typedef {{ done: Promise<Held>, abort: () => void }} Upload
- * @typedef {(picked: Picked, kind: Kind, onProgress: (loaded: number) => void) => Upload} Transfer
+ * @typedef {(picked: Picked, kind: Kind, onProgress: (loaded: number) => void,
+ *             host: HTMLElement) => Upload} Transfer
  * @typedef {{ picked: Picked, loaded: number, handle: Upload | null }} InFlight
  * @typedef {{ host: HTMLElement, body: HTMLElement, guidance: HTMLElement | null,
  *             live: HTMLElement, input: HTMLInputElement, kind: Kind, guide: string,
@@ -61,8 +62,9 @@ const G = {
 };
 
 /**
- * What a kind decides: its shape, the word for it, and what its picker offers. The picker's
- * list is a courtesy — admission is the platform's, and it refuses in the field.
+ * What a kind decides: its shape, the word for it, and what its picker offers unless its host
+ * names the types itself, as a server that admits files does. The picker's list is a courtesy —
+ * admission is the platform's, and it refuses in the field.
  *
  * @type {Record<Kind, { shape: "frame" | "row", noun: string, choose: string, accept: string }>}
  */
@@ -196,7 +198,7 @@ const progressAttrs = (u) =>
  * @param {string} attrs
  */
 const barButton = (f, role, text, label, attrs) =>
-  `<button class="btn btn--outline btn--sm" type="button" ${attrs} aria-label="${label}"${seed(f, role)}>${text}</button>`;
+  `<button class="btn btn--outline btn--sm" type="button" ${attrs} aria-label="${label}" aria-describedby="${f.host.id}-guidance"${seed(f, role)}>${text}</button>`;
 
 /** @param {Field} f */
 const emptyFrame = (
@@ -279,7 +281,7 @@ const filledFrame = (
  * @param {string} attrs
  */
 const square = (f, role, label, body, attrs) =>
-  `<button class="btn btn--outline file__action" type="button" ${attrs} aria-label="${label}"${seed(f, role)}>${body}</button>`;
+  `<button class="btn btn--outline file__action" type="button" ${attrs} aria-label="${label}" aria-describedby="${f.host.id}-guidance"${seed(f, role)}>${body}</button>`;
 
 /** @param {Field} f */
 const emptyRow = (f) => `<div class="file__row">
@@ -360,11 +362,20 @@ function bodyOf(f) {
 
 /* ── State ────────────────────────────────────────────────────────────────── */
 
+/**
+ * Said by a field after every change of state, bubbling, so a page can keep what it posts in
+ * step with what the field holds. `saved` and `current` are the same object while the field
+ * holds what it was mounted with.
+ *
+ * @typedef {{ saved: Held | null, current: Held | null, uploading: boolean }} FileFieldChange
+ */
+export const FILE_FIELD_CHANGE = "file-field:change";
+
 /** @type {WeakMap<HTMLElement, Field>} */
 const FIELDS = new WeakMap();
 
 /** @param {Field} f */
-const scopeOf = (f) => f.host.closest(".form") ?? f.host.parentElement ?? document.body;
+const scopeOf = (f) => f.host.closest("form, .form") ?? f.host.parentElement ?? document.body;
 
 /** @param {Element} scope */
 const fieldsIn = (scope) =>
@@ -419,12 +430,19 @@ function render(f) {
   f.host.classList.toggle("is-invalid", f.refusal !== null && !f.current && !f.upload);
   if (f.guidance) {
     f.guidance.textContent = f.refusal ?? f.guide;
+    f.guidance.hidden = (f.refusal ?? f.guide) === "";
     f.guidance.classList.toggle("field__guidance--error", f.refusal !== null);
   }
   wireMedia(f);
   holdSave(scopeOf(f));
   const next = f.body.querySelector("[data-file-focus]");
   if (hadFocus && next instanceof HTMLElement) next.focus({ focusVisible: true });
+  f.host.dispatchEvent(
+    new CustomEvent(FILE_FIELD_CHANGE, {
+      bubbles: true,
+      detail: { saved: f.saved, current: f.current, uploading: f.upload !== null },
+    }),
+  );
 }
 
 /** @param {Field} f */
@@ -463,9 +481,11 @@ function abandon(f) {
 function refused(f, u, error) {
   if (f.upload !== u) return;
   f.upload = null;
-  f.refusal = error instanceof FileRefusal ? error.sentence : FAILED;
+  // An upload the page stopped, as it does when the field leaves it, is a Stop, not a failure.
+  const stopped = error instanceof DOMException && error.name === "AbortError";
+  f.refusal = stopped ? null : error instanceof FileRefusal ? error.sentence : FAILED;
   render(f);
-  say(f, f.refusal);
+  if (f.refusal) say(f, f.refusal);
 }
 
 /**
@@ -484,11 +504,16 @@ function take(f, picked) {
   render(f);
   say(f, `I’m uploading ${picked.name}.`);
   try {
-    u.handle = f.transfer(picked, f.kind, (loaded) => {
-      if (f.upload !== u) return;
-      u.loaded = loaded;
-      paint(f);
-    });
+    u.handle = f.transfer(
+      picked,
+      f.kind,
+      (loaded) => {
+        if (f.upload !== u) return;
+        u.loaded = loaded;
+        paint(f);
+      },
+      f.host,
+    );
   } catch (error) {
     refused(f, u, error);
     return;
@@ -657,7 +682,8 @@ function mountOne(host, transfer) {
   host.setAttribute("role", "group");
   host.setAttribute("aria-labelledby", `${host.id}-label`);
   const input = document.createElement("input");
-  Object.assign(input, { type: "file", hidden: true, tabIndex: -1, accept: KINDS[kind].accept });
+  const accept = host.dataset.fileAccept || KINDS[kind].accept;
+  Object.assign(input, { type: "file", hidden: true, tabIndex: -1, accept });
   host.append(input);
   const guidance = host.querySelector(".field__guidance");
   const saved = heldOn(host);

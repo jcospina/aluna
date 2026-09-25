@@ -311,6 +311,14 @@ export const MIGRATIONS: readonly Migration[] = [
   },
   // The file ledger (Module 7 PLAN decision 21). The Gate's scratch databases build it too.
   { id: "0016_file_ledger", up: createFileLedgerSchema },
+  // The plural the collection count states itself in, authored beside the noun. No default, as
+  // 0012: a row predating it fails the row schema loudly, and `bun run reset` rebuilds the corpus.
+  {
+    id: "0017_capability_plural_noun",
+    up: (database) => {
+      database.exec(`ALTER TABLE ${REGISTRY_TABLE} ADD COLUMN plural_noun TEXT;`);
+    },
+  },
 ];
 
 // The set of migration ids already recorded in the ledger. Empty when the ledger table does not

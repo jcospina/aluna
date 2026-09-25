@@ -77,11 +77,20 @@ describe("empty-state noun → platform copy only; the birth facts never diff", 
     // so nothing regenerates and every unit is copied byte-for-byte.
     const diff = diffOf((draft) => {
       draft.noun = "diary entry";
+      draft.plural_noun = "diary entries";
     });
     expect(factKinds(diff)).toEqual(["empty_state_noun"]);
     expect(diff.workPlan.platformWork).toEqual(["platform_empty_state_copy"]);
     expect(diff.workPlan.regeneratedUnits).toEqual([]);
     expect(diff.workPlan.gate.behavioral).toEqual({ actions: [], fullSuite: false });
+  });
+
+  test("a changed plural alone is the same fact, never an unmapped change", () => {
+    const diff = diffOf((draft) => {
+      draft.plural_noun = "notas";
+    });
+    expect(factKinds(diff)).toEqual(["empty_state_noun"]);
+    expect(diff.workPlan.regeneratedUnits).toEqual([]);
   });
 
   test("no evolution fact can select logo generation", () => {

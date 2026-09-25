@@ -62,7 +62,8 @@ plain count come back.
 resting collection answers `22 entries` — same label, same place, one more number
 (`filteredCollectionCountSentence`, `src/presentation/records/collection-count.ts`). The
 total governs the noun, because the noun belongs to the collection and not to the search,
-and a noun the platform will not pluralize safely leaves the bare pair. A total of zero says
+and a noun the platform will not pluralize safely leaves the bare pair *(superseded
+2026-09-25: the plural is now the model-authored `plural_noun`, never declined)*. A total of zero says
 nothing at all: that collection is bare rather than filtered, and the empty state is what a
 bare collection says.
 

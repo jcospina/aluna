@@ -32,6 +32,7 @@ export function committedSpecView(row: CapabilityRow): CapabilitySpec {
     ground: row.ground,
     companion: row.companion,
     noun: row.noun,
+    plural_noun: row.plural_noun,
     schema: row.schema,
     ui_intent: row.ui_intent,
     behavior: row.behavior,

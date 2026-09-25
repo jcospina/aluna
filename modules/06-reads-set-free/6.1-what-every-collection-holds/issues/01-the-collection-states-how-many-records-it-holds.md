@@ -127,7 +127,9 @@ closed.
   comment straight through. The htmx reader now honours a sidecar only on a swap aimed at
   the records region, which a mutation's answer never is, and ignores a swap another rule
   has cancelled.
-- **Broken plurals.** The schema admits any single line in any script, so the first
+- **Broken plurals.** *(Superseded 2026-09-25: the declining `pluralNoun` below left "3" for
+  photo and check-in; the model now authors `plural_noun` beside `noun` and the platform
+  derives no plural.)* The schema admits any single line in any script, so the first
   pluralizer produced "7 메모s", "7 leafs", "7 potatos", "7 serieses", "7 datas".
   `pluralNoun` now declines wherever English has two answers and outright for anything not
   written in Latin letters, leaving the bare number. The one wrong answer left is a

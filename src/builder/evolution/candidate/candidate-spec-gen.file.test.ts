@@ -1,5 +1,5 @@
 // The builder offers a file field since 7.1/06: the candidate prompt names the type, and a
-// candidate that adds one passes the stage unless it marks it required.
+// candidate that adds one passes the stage, required or not.
 
 import { describe, expect, test } from "bun:test";
 
@@ -55,12 +55,13 @@ describe("a generated candidate that adds a file field", () => {
     expect(candidate.schema.fields.at(-1)).toMatchObject({ name: "photo", accepts: ["image"] });
   });
 
-  test("is refused when it marks the new field required", async () => {
+  test("passes the stage when it marks the new field required, as any field may be", async () => {
     const authored = withPhoto();
     const photo = authored.schema.fields.at(-1);
     if (photo) photo.required = true;
-    const paths = (await rejectionOf(authored)).map((issue) => issue.path);
-    expect(paths).toContain(`schema.fields.${authored.schema.fields.length - 1}.required`);
+    for (const errorCase of authored.behavioral_errors) errorCase.fields.push(PHOTO_FIELD.name);
+    const { candidate } = await generateCandidateSpec(stageInput(authored));
+    expect(candidate.schema.fields.at(-1)).toMatchObject({ name: "photo", required: true });
   });
 
   test("adds no refusal of its own to a candidate refused for something else", async () => {

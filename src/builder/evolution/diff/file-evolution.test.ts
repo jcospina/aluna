@@ -112,15 +112,12 @@ describe("a committed file field", () => {
     ).toEqual(["field_lifecycle"]);
   });
 
-  test("cannot turn required: that is refused before the Diff until the form can take a file", () => {
-    const issues = rejection(journalWithPhoto(), (draft) => {
+  test("turns required through the fact every field turns required by", () => {
+    const facts = factsFor(journalWithPhoto(), (draft) => {
       Object.assign(photoOf(draft), { required: true });
       for (const errorCase of draft.behavioral_errors) errorCase.fields = ["title", "photo"];
     });
-    expect(issues).toContainEqual({
-      path: `schema.fields.${journalCapabilityRow().schema.fields.length}.required`,
-      message: "a file field cannot be required until the form can take a file",
-    });
+    expect(facts).toContain("required_change");
   });
 
   test("reactivates through the lifecycle fact", () => {

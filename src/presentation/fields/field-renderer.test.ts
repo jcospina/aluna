@@ -291,9 +291,9 @@ describe("create form — one control per pantry type — labels, lifecycle, and
 
 describe("centralization — exhaustive over the admitted pantry", () => {
   // Drives straight off the registry enum: a new pantry type is rendered in both modes here and
-  // fails loudly unless the renderer's two total switches handle it. A file field has no control
-  // until 7.1/08, so its stand-in shows the label and names the field nowhere a form submits.
-  test("every fieldTypeSchema option renders in both modes, and all but a file as a control", () => {
+  // fails loudly unless the renderer's two total switches handle it. A file field's control is
+  // drawn in the browser, so its markup is the host the control mounts on and the value it posts.
+  test("every fieldTypeSchema option renders in both modes as a control", () => {
     for (const type of fieldTypeSchema.options) {
       const probe = oneField(probeField(type));
       const capability = { ...probe, actions: [...probe.actions, "update"] as const };
@@ -301,14 +301,9 @@ describe("centralization — exhaustive over the admitted pantry", () => {
       const edit = renderEditForm(capability, { id: "probe-1", value: sampleFieldValue(type) });
 
       for (const form of [create, edit]) {
-        if (isFileFieldType(type)) {
-          expect(form).toContain('<span class="field__label caps"');
-          expect(form).not.toContain('name="value"');
-          expect(form).not.toContain('value="value"');
-        } else {
-          expect(form).toMatch(/<(?:input|select|textarea)\b/);
-          expect(form).toContain('name="value"');
-        }
+        expect(form).toContain('name="value"');
+        if (isFileFieldType(type)) expect(form).toContain("data-file-field");
+        else expect(form).toMatch(/<(?:input|select|textarea)\b[^>]*name="value"/);
       }
     }
   });

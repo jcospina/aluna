@@ -309,9 +309,11 @@ const commonSpecShape = {
   subject: logoSubjectSchema,
   ground: logoHueFamilySchema,
   companion: logoHueFamilySchema,
-  // The singular common noun for one record, used in the desk's empty-state copy. A platform-View
-  // fact: it may evolve, and it never selects logo generation.
+  // The singular common noun for one record, and the plural the collection count says it in. The
+  // model writes both, so no platform rule guesses a plural in any language. Platform-View facts:
+  // they may evolve, and they never select logo generation.
   noun: singleLinePhrase(MAX_CAPABILITY_NOUN_LENGTH),
+  plural_noun: singleLinePhrase(MAX_CAPABILITY_NOUN_LENGTH),
   schema: specSchemaShapeOf(specFieldSchema),
   ui_intent: uiIntentSchema,
   // Free text. The behavioral tier generates tests from this — from stated
@@ -438,6 +440,7 @@ export function capabilitySpecFromRow(row: CapabilityRow): CapabilitySpec {
     ground: row.ground,
     companion: row.companion,
     noun: row.noun,
+    plural_noun: row.plural_noun,
     schema: row.schema,
     ui_intent: row.ui_intent,
     behavior: row.behavior,

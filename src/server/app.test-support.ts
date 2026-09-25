@@ -219,6 +219,7 @@ export const NOTES_SPEC = {
   ground: "grass_green",
   companion: "coral_orange",
   noun: "note",
+  plural_noun: "notes",
   schema: {
     fields: [{ name: "text", label: "Text", type: "string", required: true, lifecycle: "active" }],
   },

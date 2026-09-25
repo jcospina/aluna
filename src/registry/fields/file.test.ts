@@ -83,11 +83,9 @@ describe("a spec may declare a file field", () => {
     for (const type of FILE_FIELD_TYPES) expect(isSearchableTextType(type)).toBe(false);
   });
 
-  test("a file field cannot be required until 7.1/08's control can fill one", () => {
+  test("a file field may be required, now the form's control can fill one", () => {
     const spec = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, required: true }]);
-    expect(refusal(spec)).toContain(
-      "schema.fields.1.required: a file field cannot be required until the form can take a file",
-    );
+    expect(capabilitySpecSchema.parse(spec).schema.fields[1]?.required).toBe(true);
   });
 
   test("a file field never takes a list-input intent", () => {

@@ -451,7 +451,7 @@ async function executeCapabilityHandler(
         spec,
         databases,
         signal,
-        noun: row.noun,
+        nouns: { noun: row.noun, plural: row.plural_noun },
         action,
         fragment: html,
       }),

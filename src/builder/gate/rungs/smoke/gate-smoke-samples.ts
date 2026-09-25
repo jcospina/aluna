@@ -4,8 +4,8 @@
 // The switch is exhaustive by construction (an explicit non-`unknown` return type and no
 // `default`), so a new field type cannot reach the smoke without a sample of its own. A
 // choice is the one type whose sample is not free text: it can only ever hold a value it
-// declares, so both phases draw from its declared options. A file field submits what 7.1/08's
-// control will post, and takes five edits in turn (`fileUpdateSamples`).
+// declares, so both phases draw from its declared options. A file field submits what the form's
+// photo control posts, and takes the edits in turn that its field permits (`fileUpdateSamples`).
 
 import type { Database } from "bun:sqlite";
 import {
@@ -35,11 +35,15 @@ export interface SmokeFile {
   readonly expected: CapabilityFileProjection;
 }
 
-/** The files one cycle submits to a file field: on create, as a replacement, and onto an empty field. */
+/**
+ * The files one cycle submits to a file field: on create, as a replacement, onto an empty field,
+ * and to the second create, which a required field is never left out of.
+ */
 export interface SmokeFiles {
   readonly created: SmokeFile;
   readonly replacement: SmokeFile;
   readonly added: SmokeFile;
+  readonly leftOut: SmokeFile;
 }
 
 /** Every active file field's smoke files, minted pending in the scratch ledger before the cycle. */
@@ -60,6 +64,7 @@ export function mintSmokeFiles(
         created: mint("gate smoke"),
         replacement: mint("gate update"),
         added: mint("gate added"),
+        leftOut: mint("gate second"),
       };
       return [field.name, files];
     }),
@@ -85,27 +90,37 @@ export function buildSmokeInput(
 }
 
 /**
- * The same create as the form's stand-in posts it until 7.1/08: every file field left out of both
- * the values and the submitted fields, so the record holds no file.
+ * A second create with every optional file field left out of both the values and the submitted
+ * fields, as a request other than the form's may send it, so the record holds no file there. A
+ * required file field posts a file of its own, since the first create's is claimed by now; a spec
+ * with no optional one has no such create.
  */
-export function standInCreate(smoke: SmokeInput, spec: CapabilitySpec): SmokeInput {
-  const files = new Set(
-    activeSpecFields(spec.schema.fields)
-      .filter((field) => isFileFieldType(field.type))
-      .map((field) => field.name),
+export function leftOutCreate(
+  spec: CapabilitySpec,
+  files: ReadonlyMap<string, SmokeFiles>,
+): SmokeInput | undefined {
+  const fileFields = activeSpecFields(spec.schema.fields).filter((field) =>
+    isFileFieldType(field.type),
   );
-  const kept = <Value>(entries: Readonly<Record<string, Value>>) =>
-    Object.fromEntries(Object.entries(entries).filter(([name]) => !files.has(name)));
-  return {
-    input: {
-      values: kept(smoke.input.values),
-      submittedFields: new Set([...smoke.input.submittedFields].filter((name) => !files.has(name))),
-    },
-    expectedValues: {
-      ...kept(smoke.expectedValues),
-      ...Object.fromEntries([...files].map((name) => [name, null])),
-    },
-  };
+  const leftOut = new Set(fileFields.filter((field) => !field.required).map(({ name }) => name));
+  if (leftOut.size === 0) return undefined;
+  const smoke = buildSmokeInput(spec, files);
+  const values = { ...smoke.input.values };
+  const expectedValues = { ...smoke.expectedValues };
+  for (const field of fileFields) {
+    if (leftOut.has(field.name)) {
+      delete values[field.name];
+      expectedValues[field.name] = null;
+      continue;
+    }
+    const own = requireSmokeFiles(field, files.get(field.name)).leftOut;
+    values[field.name] = own.key;
+    expectedValues[field.name] = own.expected;
+  }
+  const submittedFields = new Set(
+    [...smoke.input.submittedFields].filter((name) => !leftOut.has(name)),
+  );
+  return { input: { values, submittedFields }, expectedValues };
 }
 
 export interface SmokeUpdateSample {
@@ -130,13 +145,18 @@ export function buildUpdateInputs(
 }
 
 /**
- * The edits 7.1/08's control posts, in an order where each starts from what the last one left:
- * keep the file the record holds, replace it, clear it, leave the empty field empty, and add one.
+ * The edits the form's photo control posts, in an order where each starts from what the last one
+ * left: keep the file the record holds, replace it, clear it, leave the empty field empty, and add
+ * one. A required field is refused an empty save, so it takes the first two alone.
  */
 function fileUpdateSamples(field: SpecField, files: SmokeFiles): readonly SmokeUpdateSample[] {
-  return [
+  const holding = [
     updateSample(field, files.created.key, files.created.expected),
     updateSample(field, files.replacement.key, files.replacement.expected),
+  ];
+  if (field.required) return holding;
+  return [
+    ...holding,
     updateSample(field, FILE_CLEAR_VALUE, null),
     updateSample(field, "", null),
     updateSample(field, files.added.key, files.added.expected),

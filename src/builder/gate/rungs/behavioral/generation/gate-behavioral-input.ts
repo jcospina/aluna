@@ -87,8 +87,9 @@ export function inputValuesToHandlerInput(
 }
 
 /**
- * A case's submission as 7.1/08's control posts it: a family token becomes a pending scratch file,
- * and an empty one clears the file an update's record holds or leaves an empty field empty.
+ * A case's submission as the form's photo control posts it: a family token becomes a pending
+ * scratch file, and an empty one clears the file an update's record holds or leaves an empty
+ * field empty.
  */
 export function scratchFormInput(
   spec: CapabilitySpec,

@@ -54,10 +54,7 @@ export function familiesSchema<const Order extends readonly [string, ...string[]
 
 export const acceptsSchema = familiesSchema(FILE_FAMILIES);
 
-/**
- * Every file field declares `accepts`, and only a file field does. None is required yet: the form's
- * stand-in has nothing to fill, so a required one would refuse every save until 7.1/08's control.
- */
+/** Every file field declares `accepts`, and only a file field does. */
 export function validateFileFields(
   spec: Pick<CapabilitySpec, "schema">,
   ctx: z.RefinementCtx,
@@ -71,13 +68,6 @@ export function validateFileFields(
     }
     if (field.accepts === undefined) {
       ctx.addIssue({ code: "custom", message: "a file field must declare what it accepts", path });
-    }
-    if (field.required) {
-      ctx.addIssue({
-        code: "custom",
-        message: "a file field cannot be required until the form can take a file",
-        path: ["schema", "fields", index, "required"],
-      });
     }
   }
 }

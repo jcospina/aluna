@@ -37,8 +37,9 @@ import {
   runCapabilityGate,
   type UnitGenerationObserver,
   type UnitProvenanceManifest,
+  type VerifiedCapabilitySnapshot,
   type VerifiedDependencySnapshot,
-  verifyCapabilitySnapshot,
+  verifyStoredCapabilitySnapshot,
 } from "../../../builder/index.ts";
 import type { Provider } from "../../../platform/provider/index.ts";
 import { ZERO_TOKEN_USAGE } from "../../../platform/provider/usage.ts";
@@ -347,7 +348,7 @@ async function reportFrozenTests(
  */
 function freezeEvolutionTests(
   input: AssembleEvolutionCandidateInput,
-  verified: ReturnType<typeof verifyCapabilitySnapshot>,
+  verified: VerifiedCapabilitySnapshot,
 ): Promise<FrozenBehavioralTestsResult> | undefined {
   // The tier resolves here rather than in the Gate, because generation now precedes the Gate — but
   // through the same global toggle a v1 build reads, since the tier is one experiment-wide knob.
@@ -394,10 +395,10 @@ function writtenUnitNames(
 }
 
 /** Verify the committed on-disk snapshot before trusting it as an evolution base. */
-function verifyEvolutionBase(
-  committed: CapabilityRow,
-): ReturnType<typeof verifyCapabilitySnapshot> {
-  const verified = verifyCapabilitySnapshot(committed.artifacts_path);
+function verifyEvolutionBase(committed: CapabilityRow): VerifiedCapabilitySnapshot {
+  const verified = verifyStoredCapabilitySnapshot(committed.artifacts_path, {
+    pluralNoun: committed.plural_noun,
+  });
   if (
     verified.manifest.capability_id !== committed.id ||
     verified.manifest.incarnation_id !== committed.incarnation_id ||

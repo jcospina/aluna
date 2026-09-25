@@ -22,6 +22,7 @@ function spec(): CapabilitySpec {
     ground: "grass_green",
     companion: "coral_orange",
     noun: "note",
+    plural_noun: "notes",
     schema: {
       fields: [
         { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
@@ -222,6 +223,7 @@ describe("reserved capability wire protocol — the rendered form, round-tripped
         id: built.id,
         label: built.label,
         noun: built.noun,
+        plural_noun: built.plural_noun,
         schema: built.schema,
         form: built.ui_intent.form,
         actions: built.tools,

@@ -97,7 +97,8 @@ function openRecord(item) {
     replace: (outgoing, incoming) => outgoing.replaceWith(incoming),
     process: (incoming) => htmx()?.process(incoming),
   });
-  if (swapped && view) focusFirstField(view);
+  // After the microtask that mounts what the swap brought, or a file field would have no control.
+  if (swapped && view) queueMicrotask(() => focusFirstField(view));
 }
 
 /**

@@ -5,12 +5,19 @@
  * says that something is wrong and the sentence says what, so each is said in its own place.
  */
 
+import { FILE_FIELD_CHANGE } from "../design/scripts/file-field.js";
+
 const FIELD = ".field";
 const GUIDANCE = "[data-field-guidance]";
 const ERROR_CLASS = "field__guidance--error";
 const INVALID_CLASS = "is-invalid";
-/** Where the declared hint waits while the error is standing in its place. */
+/**
+ * Where the slot's words wait while the error stands in their place, and what the slot was before
+ * it: a control that writes its own refusals into the slot, the photo's, may have been saying one.
+ */
 const STASH = "data-field-guidance-text";
+const PRIOR = "data-field-guidance-prior";
+const MARKED = `[${STASH}]`;
 /**
  * A picker's value rides this hidden input, which no browser validates, so a required picker left
  * empty used to sail past the browser and be refused by the server a round trip later.
@@ -21,6 +28,11 @@ const MISSING_CHOICE = "[data-choice-value][data-choice-required]";
  * would refuse a list that is complete, so the field says the word and the submit enforces it.
  */
 const REQUIRED_LIST = "[data-list-required]";
+/**
+ * A required file field's value, which the photo control keeps in a hidden input. Holding nothing
+ * is an empty value, or the clear the server drew for it once the file it held is taken away.
+ */
+const REQUIRED_FILE = "[data-file-value][data-file-required]";
 const LIST_ROW_INPUT = "[data-list-field-row] input";
 const NOTICE = "[data-error-fields]";
 /**
@@ -35,6 +47,8 @@ const ERROR_REGION = '[aria-live="polite"]';
  */
 const SPEAKS_FOR =
   ".listbox__button, .field__textarea, .field__input, .field__checkbox, .choice-set, .segmented";
+/** The photo control's own buttons, which a refusal reaches but a button cannot be invalid. */
+const FILE_FOCUS = "[data-file-focus]";
 
 /**
  * What a field name may be, checked before it is spent in a selector. `data-error-fields` is read
@@ -62,8 +76,8 @@ function speaksFor(field) {
  * @returns {HTMLElement | null}
  */
 function focusTarget(field) {
-  const control = speaksFor(field)[0];
-  if (!control) return null;
+  const control = speaksFor(field)[0] ?? field.querySelector(FILE_FOCUS);
+  if (!(control instanceof HTMLElement)) return null;
   if (!control.classList.contains("choice-set") && !control.classList.contains("segmented")) {
     return control;
   }
@@ -99,8 +113,13 @@ function guidanceSlot(field) {
  */
 export function markFieldError(field, sentence) {
   const slot = guidanceSlot(field);
-  if (!field.classList.contains(INVALID_CLASS)) {
+  if (!slot.hasAttribute(STASH)) {
     slot.setAttribute(STASH, slot.textContent ?? "");
+    const prior = [
+      field.classList.contains(INVALID_CLASS) ? INVALID_CLASS : "",
+      slot.classList.contains(ERROR_CLASS) ? ERROR_CLASS : "",
+    ];
+    slot.setAttribute(PRIOR, prior.join(" ").trim());
   }
   slot.textContent = sentence;
   slot.hidden = false;
@@ -117,18 +136,30 @@ export function markFieldError(field, sentence) {
  * @returns {boolean} whether there was anything to clear
  */
 export function clearFieldError(field) {
-  if (!field.classList.contains(INVALID_CLASS)) return false;
   const slot = field.querySelector(GUIDANCE);
-  if (slot instanceof HTMLElement) {
-    const hint = slot.getAttribute(STASH) ?? "";
-    slot.textContent = hint;
-    slot.hidden = hint === "";
-    slot.classList.remove(ERROR_CLASS);
-    slot.removeAttribute(STASH);
-  }
-  field.classList.remove(INVALID_CLASS);
+  if (!(slot instanceof HTMLElement) || !slot.hasAttribute(STASH)) return false;
+  const hint = slot.getAttribute(STASH) ?? "";
+  const prior = (slot.getAttribute(PRIOR) ?? "").split(" ");
+  slot.textContent = hint;
+  slot.hidden = hint === "";
+  slot.classList.toggle(ERROR_CLASS, prior.includes(ERROR_CLASS));
+  slot.removeAttribute(STASH);
+  slot.removeAttribute(PRIOR);
+  field.classList.toggle(INVALID_CLASS, prior.includes(INVALID_CLASS));
   for (const control of speaksFor(field)) control.removeAttribute("aria-invalid");
   return true;
+}
+
+/**
+ * Let go of a verdict without putting anything back: the photo control has just said everything
+ * about itself again, in the same slot, from its own state.
+ *
+ * @param {Element} field
+ */
+function forgetFieldError(field) {
+  const slot = field.querySelector(GUIDANCE);
+  slot?.removeAttribute(STASH);
+  slot?.removeAttribute(PRIOR);
 }
 
 /** @param {Element} form */
@@ -195,6 +226,10 @@ export function missingRequiredValues(form) {
 function holdsNothing(field) {
   const carrier = field.querySelector(MISSING_CHOICE);
   if (carrier) return carrier instanceof HTMLInputElement && carrier.value.trim() === "";
+  const file = field.querySelector(REQUIRED_FILE);
+  if (file instanceof HTMLInputElement) {
+    return file.value === "" || file.value === file.dataset.fileClearValue;
+  }
   if (!field.matches(REQUIRED_LIST)) return false;
   const rows = [...field.querySelectorAll(LIST_ROW_INPUT)];
   return rows.every((row) => !(row instanceof HTMLInputElement) || row.value.trim() === "");
@@ -257,7 +292,7 @@ function endReportingPass(form) {
   // first field in the form is not always the first event.
   queueMicrotask(() => {
     reporting = false;
-    focusField(form.querySelector(`${FIELD}.${INVALID_CLASS}`));
+    focusField(form.querySelector(MARKED)?.closest(FIELD) ?? null);
   });
 }
 
@@ -327,6 +362,9 @@ export function startFieldErrors(root) {
   };
   root.addEventListener("input", corrected);
   root.addEventListener("change", corrected);
+  root.addEventListener(FILE_FIELD_CHANGE, (event) => {
+    if (event.target instanceof Element) forgetFieldError(event.target);
+  });
 
   // A reset is the draft being put down — create's Cancel, and the form a committed create
   // empties. Every verdict on it goes with it.

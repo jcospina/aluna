@@ -333,6 +333,11 @@ export class El {
     return this.hasAttribute("disabled");
   }
 
+  set disabled(next: boolean) {
+    if (next) this.setAttribute("disabled", "");
+    else this.removeAttribute("disabled");
+  }
+
   get dataset(): Record<string, string | undefined> {
     const own = this.attributes;
     return new Proxy(
@@ -566,6 +571,9 @@ export class Doc extends El {
         prevented = true;
       },
       stopPropagation: () => {
+        stopped = true;
+      },
+      stopImmediatePropagation: () => {
         stopped = true;
       },
     };

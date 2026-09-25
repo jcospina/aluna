@@ -5,6 +5,7 @@
 // can also come from Bun, with no body, when the declared length is over the cap.
 
 import type { Context, Hono } from "hono";
+import { FILE_NAME_HEADER } from "#shell/shell-dom.js";
 import {
   type AdmittedType,
   admitClaims,
@@ -24,6 +25,7 @@ import {
   NOT_ADMITTED_SENTENCES,
   oversizeSentence,
 } from "../../platform/files/refusal-copy.ts";
+import { FILE_UPLOAD_ROUTE } from "../../platform/files/upload-path.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import {
   type CapabilityRow,
@@ -50,16 +52,6 @@ export interface FileRouteDeps {
   readonly objectStore: ObjectStore;
   /** The per-file cap the upload's guard counts against (7.1/01). */
   readonly maxFileBytes: number;
-}
-
-const FILE_UPLOAD_ROUTE = "/capability/:id/:incarnation_id/upload/:field";
-
-/** The header an upload names its file in, percent-encoded: a header cannot carry `日本.jpg`. */
-export const FILE_NAME_HEADER = "x-file-name";
-
-export function fileUploadPath(capabilityId: string, incarnationId: string, field: string): string {
-  const segments = [capabilityId, incarnationId, "upload", field].map(encodeURIComponent);
-  return `/capability/${segments.join("/")}`;
 }
 
 const NO_STORE = { "cache-control": "no-store" } as const;

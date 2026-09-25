@@ -115,6 +115,14 @@
     <script type="module" src="/static/long-text-field.js"></script>
 
     <!--
+      The photo control. `design/scripts/file-field.js` draws it; this sends each pick to the
+      upload route the moment it is made, keeps the value the form posts in step with what the
+      field holds, and refuses a submission while a file is still travelling. Loaded before the
+      rule below, so a form waiting on a file is not told a required photo is missing.
+    -->
+    <script type="module" src="/static/file-field.js"></script>
+
+    <!--
       Where a validation error is said, and what stops a submission before it is sent. A
       refusal the server marked with `data-error-fields` is moved out of the form's error
       region into each field it names, taking that field's guidance slot; correcting the
