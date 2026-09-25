@@ -13,7 +13,7 @@
 // door. A name that leaves here is one somebody outside could call; there is nothing out there
 // that should be weighing a payload or admitting a statement.
 
-export { createQueryWorker, type QueryWorker } from "./query-worker.ts";
+export { createQueryWorker, type QueryShadow, type QueryWorker } from "./query-worker.ts";
 export { QUESTION_ANSWER_PROMPT_PREFIX } from "./question-answer.ts";
 export {
   QUESTION_STEP_BUDGET,
@@ -39,5 +39,6 @@ export {
 } from "./question-turn-prompt.ts";
 export {
   WholeCatalogReadCancelledError,
+  type WholeCatalogReadScopeDeps,
   withWholeCatalogReadScope,
 } from "./whole-catalog-read-scope.ts";

@@ -114,7 +114,7 @@ function stepOf(
   plan: QuestionStepPlan,
   collections: readonly string[] = [EXPENSES_CAPABILITY.label],
 ): QuestionStep {
-  return { call: null, collections, plan, result: { outcome: "rows", rows } };
+  return { call: null, collections, plan, result: { outcome: "rows", rows, fileKeys: new Set() } };
 }
 
 beforeEach(() => {
@@ -171,7 +171,11 @@ describe("NULL from a sum over no rows", () => {
   test("is a search that matched nothing, and she says so about her search", async () => {
     const run = await askUnder(refundDesk(), TOTAL_UNDER);
 
-    expect(run.steps[0]?.result).toEqual({ outcome: "rows", rows: [{ total: null }] });
+    expect(run.steps[0]?.result).toEqual({
+      outcome: "rows",
+      rows: [{ total: null }],
+      fileKeys: new Set(),
+    });
     expect(questionStepMatchedRows(run.steps[0] as QuestionStep)).toBe(false);
     expect(run.result.ending).toBe("nothing_found");
     expect(said(run)).toBe(
@@ -192,7 +196,11 @@ describe("zero from a count", () => {
   test("is the same situation through a different result, and ends the same way", async () => {
     const run = await askUnder(refundDesk(), COUNT_UNDER);
 
-    expect(run.steps[0]?.result).toEqual({ outcome: "rows", rows: [{ how_many: 0 }] });
+    expect(run.steps[0]?.result).toEqual({
+      outcome: "rows",
+      rows: [{ how_many: 0 }],
+      fileKeys: new Set(),
+    });
     expect(questionStepMatchedRows(run.steps[0] as QuestionStep)).toBe(false);
     expect(run.result.ending).toBe("nothing_found");
     expect(said(run)).toContain(QUESTION_NOTHING_FOUND);
@@ -201,7 +209,11 @@ describe("zero from a count", () => {
   test("and a count that is not zero is rows, so the ordinary answer is written", async () => {
     const run = await askUnder(refundDesk(), COUNT_UNDER, [REFUNDED]);
 
-    expect(run.steps[0]?.result).toEqual({ outcome: "rows", rows: [{ how_many: 3 }] });
+    expect(run.steps[0]?.result).toEqual({
+      outcome: "rows",
+      rows: [{ how_many: 3 }],
+      fileKeys: new Set(),
+    });
     expect(run.result.ending).toBe("answered");
   });
 });
@@ -210,7 +222,11 @@ describe("rows that matched and total zero", () => {
   test("are a zero the data supports, so the answer is written the ordinary way", async () => {
     const run = await askUnder(refundDesk(), TOTAL_UNDER, [REFUNDED]);
 
-    expect(run.steps[0]?.result).toEqual({ outcome: "rows", rows: [{ total: 0 }] });
+    expect(run.steps[0]?.result).toEqual({
+      outcome: "rows",
+      rows: [{ total: 0 }],
+      fileKeys: new Set(),
+    });
     expect(questionStepMatchedRows(run.steps[0] as QuestionStep)).toBe(true);
     expect(run.result.ending).toBe("answered");
     // The figure crosses whole, which is what lets her state it.
@@ -240,7 +256,7 @@ describe("a read that came back with no rows at all", () => {
   test("matched nothing, whatever its plan says", async () => {
     const run = await askUnder(refundDesk(), ROWS_UNDER);
 
-    expect(run.steps[0]?.result).toEqual({ outcome: "rows", rows: [] });
+    expect(run.steps[0]?.result).toEqual({ outcome: "rows", rows: [], fileKeys: new Set() });
     expect(run.result.ending).toBe("nothing_found");
   });
 });

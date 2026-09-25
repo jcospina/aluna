@@ -17,10 +17,10 @@ import type { Provider } from "../../platform/provider/index.ts";
 import type { ActiveCatalogReader } from "../../registry/index.ts";
 import type { ReadGateCoordinator } from "../../runtime/concurrency/read-gates.ts";
 import {
-  type QueryWorker,
   type QuestionLoopResult,
   type QuestionStep,
   runQuestionLoop,
+  type WholeCatalogReadScopeDeps,
   withWholeCatalogReadScope,
 } from "../../runtime/query/index.ts";
 import type { IntentClassification } from "../intent/index.ts";
@@ -36,7 +36,7 @@ export interface DataQueryDeps {
   /** Where the catalog snapshot and the table bound's `EXPLAIN` are read. */
   readonly database?: PlatformDatabase["readonly"];
   readonly readActiveCatalog?: ActiveCatalogReader;
-  readonly createWorker?: () => QueryWorker;
+  readonly createWorker?: WholeCatalogReadScopeDeps["createWorker"];
 }
 
 export interface DataQuestion {

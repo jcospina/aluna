@@ -83,6 +83,33 @@ export function isFileKey(value: unknown): value is string {
   return typeof value === "string" && FILE_KEY_PATTERN.test(value);
 }
 
+/** Every key the ledger holds, whatever its state: what a question's rows are read against. */
+export function readFileLedgerKeys(database: Database): string[] {
+  return database
+    .query<{ key: string }, []>(`SELECT "key" FROM ${FILE_LEDGER_TABLE}`)
+    .all()
+    .map((row) => row.key);
+}
+
+/**
+ * What changes whenever a key is added or removed, so a reader can tell its copy is stale. The
+ * newest key is part of it because a rowid is reused once the row that held it is deleted.
+ */
+export interface FileLedgerSignature {
+  readonly rows: number;
+  readonly newest: string | null;
+}
+
+export function readFileLedgerSignature(database: Database): FileLedgerSignature {
+  return database
+    .query<FileLedgerSignature, []>(
+      `SELECT count(*) AS rows,
+              (SELECT "key" FROM ${FILE_LEDGER_TABLE} ORDER BY rowid DESC LIMIT 1) AS newest
+       FROM ${FILE_LEDGER_TABLE}`,
+    )
+    .get() as FileLedgerSignature;
+}
+
 export function readFileLedgerRow(database: Database, key: string): FileLedgerRow | null {
   return database
     .query(`SELECT * FROM ${FILE_LEDGER_TABLE} WHERE "key" = ?`)

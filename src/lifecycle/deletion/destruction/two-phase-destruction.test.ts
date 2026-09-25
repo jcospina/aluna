@@ -185,7 +185,7 @@ describe("two-phase capability destruction", () => {
         {
           readGates,
           database: conns.readonly,
-          createWorker: () => createQueryWorker(join(dir, "test.db")),
+          createWorker: (shadow) => createQueryWorker(join(dir, "test.db"), shadow),
         },
         async (scope) => {
           const { runaway } = await startRunawayQuery(scope);

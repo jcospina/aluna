@@ -16,7 +16,8 @@ import {
 import type { CapabilitySpec } from "../../registry/index.ts";
 import { createReadGateCoordinator } from "../concurrency/read-gates.ts";
 import { deriveCapabilityTableDdl } from "../data/index.ts";
-import { createQueryWorker, QueryWorkerConnectionError } from "./query-worker.ts";
+import { NO_SHADOW } from "./query-worker.test-support.ts";
+import { createQueryWorker, type QueryShadow, QueryWorkerClosedError } from "./query-worker.ts";
 import {
   catalogueWithRecords,
   EXPENSES_TABLE,
@@ -28,6 +29,7 @@ import {
   providerResolving,
   reads,
   registeredSpecs,
+  rowsRead,
   scriptedProvider,
   UNREADABLE_STEP,
 } from "./question.test-support.ts";
@@ -77,7 +79,7 @@ function desk(): Desk {
   const scopeDeps = {
     readGates,
     database: platform.database.readonly,
-    createWorker: () => createQueryWorker(platform.path),
+    createWorker: (shadow: QueryShadow) => createQueryWorker(platform.path, shadow),
   };
 
   return {
@@ -118,7 +120,7 @@ describe("one turn", () => {
     );
 
     expect(step.call?.tool).toBe(READ_ONLY_QUERY_TOOL);
-    expect(step.result).toEqual({ outcome: "rows", rows: [{ total: 3 }] });
+    expect(step.result).toEqual(rowsRead([{ total: 3 }]));
     expect(prompts).toHaveLength(1);
     expect(prompts[0]).toStartWith(QUESTION_TURN_PROMPT_PREFIX);
     // The prompt is where the offer is made, so this counts the tool headings it renders rather
@@ -148,13 +150,12 @@ describe("one turn", () => {
       ),
     );
 
-    expect(step.result).toEqual({
-      outcome: "rows",
-      rows: [
+    expect(step.result).toEqual(
+      rowsRead([
         { label: "groceries", spends: 2 },
         { label: "rent", spends: 1 },
-      ],
-    });
+      ]),
+    );
   });
 
   test("refuses a statement that reads a table outside the scope", async () => {
@@ -204,7 +205,7 @@ describe("one turn", () => {
 
     // And the same read, written the way the prompt asks for it, is admitted.
     const rewritten = await desk().run(call(`SELECT count(*) AS total FROM ${NOTES_TABLE}`));
-    expect(rewritten.step.result).toEqual({ outcome: "rows", rows: [{ total: 3 }] });
+    expect(rewritten.step.result).toEqual(rowsRead([{ total: 3 }]));
   });
 });
 
@@ -215,7 +216,7 @@ describe("values are bound, never interpolated", () => {
     );
 
     // Three notes exist. Pasted, this predicate returns all of them; bound, it returns none.
-    expect(step.result).toEqual({ outcome: "rows", rows: [{ total: 0 }] });
+    expect(step.result).toEqual(rowsRead([{ total: 0 }]));
   });
 
   test("the statement keeps its placeholder and the value travels beside it", async () => {
@@ -226,7 +227,7 @@ describe("values are bound, never interpolated", () => {
     expect(step.call?.sql).toContain("?");
     expect(step.call?.sql).not.toContain("rent");
     expect(step.call?.parameters).toEqual(["rent"]);
-    expect(step.result).toEqual({ outcome: "rows", rows: [{ text: "rent" }] });
+    expect(step.result).toEqual(rowsRead([{ text: "rent" }]));
   });
 });
 
@@ -236,8 +237,8 @@ describe("a failed statement is a turn, not an ending", () => {
 
     expect(step.result.outcome).toBe("failed");
     if (step.result.outcome !== "failed") throw new Error("unreachable");
-    // SQLite's own words, from the read-only connection — not a classifier's.
-    expect(step.result.message).toContain("readonly database");
+    // SQLite's own words — the view's over the read-only file — not a classifier's.
+    expect(step.result.message).toContain("because it is a view");
   });
 
   test("an insert and a delete reach the same seam", async () => {
@@ -248,7 +249,7 @@ describe("a failed statement is a turn, not an ending", () => {
       const { step } = await desk().run(call(sql));
       expect(step.result.outcome).toBe("failed");
       if (step.result.outcome !== "failed") throw new Error("unreachable");
-      expect(step.result.message).toContain("readonly database");
+      expect(step.result.message).toContain("because it is a view");
     }
   });
 
@@ -367,7 +368,7 @@ describe("the result reaches the model", () => {
       call: call(`SELECT DISTINCT text FROM ${NOTES_TABLE}`),
       collections: [NOTES_CAPABILITY.label],
       plan: { empty: "no rows" },
-      result: { outcome: "rows", rows: [{ text: "groceries" }] },
+      result: rowsRead([{ text: "groceries" }]),
     };
     const { prompts } = await desk().run(
       call(`SELECT sum(amount) AS total FROM ${EXPENSES_TABLE} WHERE text = ?`, ["groceries"]),
@@ -399,7 +400,7 @@ describe("the worker reads the same desk the catalog came from", () => {
         ),
     );
 
-    expect(step.result).toEqual({ outcome: "rows", rows: [{ total: 3 }] });
+    expect(step.result).toEqual(rowsRead([{ total: 3 }]));
   });
 });
 
@@ -514,17 +515,17 @@ describe("the user's own words in the prompt", () => {
 
 describe("a database that is not answering is not a bad query", () => {
   test("a connection fault ends the question instead of asking the model to rewrite", async () => {
-    // A file that opens but is not a database: SQLite answers SQLITE_NOTADB (26) at query time,
-    // a fault of the connection. Folded in with a syntax error, a loop rewrites SQL until spent.
+    // A file that is not a database: SQLite refuses to attach it (SQLITE_NOTADB), so the worker
+    // never opens. Folded in with a syntax error, a loop would rewrite SQL until spent.
     const platform = platforms.migrated();
     // Catalogued, or the scope is empty and refuses before the worker is ever reached.
     catalogueWithRecords(platform.database.readwrite);
     const garbage = join(dirname(platform.path), "not-a-database.db");
     writeFileSync(garbage, "this is definitely not a sqlite database");
 
-    const worker = createQueryWorker(garbage);
+    const worker = createQueryWorker(garbage, NO_SHADOW);
     try {
-      await expect(worker.read("SELECT 1")).rejects.toBeInstanceOf(QueryWorkerConnectionError);
+      await expect(worker.read("SELECT 1")).rejects.toBeInstanceOf(QueryWorkerClosedError);
     } finally {
       worker.close();
     }
@@ -533,7 +534,7 @@ describe("a database that is not answering is not a bad query", () => {
       {
         readGates: gatesFor(platform.database),
         database: platform.database.readonly,
-        createWorker: () => createQueryWorker(garbage),
+        createWorker: (shadow) => createQueryWorker(garbage, shadow),
       },
       (scope) =>
         oneTurn(
@@ -546,7 +547,7 @@ describe("a database that is not answering is not a bad query", () => {
         ),
     );
 
-    await expect(turn).rejects.toBeInstanceOf(QueryWorkerConnectionError);
+    await expect(turn).rejects.toBeInstanceOf(QueryWorkerClosedError);
     rmSync(garbage, { force: true });
   });
 
@@ -596,7 +597,7 @@ describe("a turn creates nothing", () => {
       {
         readGates,
         database: platform.database.readonly,
-        createWorker: () => createQueryWorker(platform.path),
+        createWorker: (shadow) => createQueryWorker(platform.path, shadow),
       },
       (scope) =>
         oneTurn(

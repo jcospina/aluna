@@ -15,7 +15,14 @@ import {
   ReadGateReleasedError,
   ReadGateUnavailableError,
 } from "../concurrency/read-gates.ts";
-import { createQueryWorker, type QueryWorker, QueryWorkerClosedError } from "./query-worker.ts";
+import { CAPABILITY_TABLE_PREFIX } from "../data/index.ts";
+import { NO_SHADOW } from "./query-worker.test-support.ts";
+import {
+  createQueryWorker,
+  type QueryShadow,
+  type QueryWorker,
+  QueryWorkerClosedError,
+} from "./query-worker.ts";
 import {
   addCapability,
   createScratchPlatforms,
@@ -252,8 +259,9 @@ describe("what a whole-catalog read scope takes back", () => {
       {
         readGates,
         database: database.readonly,
+        // This desk registers capabilities it gives no table, so there is nothing to view.
         createWorker: () => {
-          started = createQueryWorker(path);
+          started = createQueryWorker(path, NO_SHADOW);
           return started;
         },
       },
@@ -382,7 +390,11 @@ describe("what a whole-catalog read scope hands the worker, and what it leaves b
     const before = sweepPlatformStores(database.readonly, join(path, ".."));
 
     await withWholeCatalogReadScope(
-      { readGates, database: database.readonly, createWorker: () => createQueryWorker(path) },
+      {
+        readGates,
+        database: database.readonly,
+        createWorker: () => createQueryWorker(path, NO_SHADOW),
+      },
       async (scope) => {
         await scope.read("SELECT count(*) AS total FROM capability_registry");
         await expect(
@@ -407,7 +419,7 @@ describe("what a whole-catalog read scope hands the worker, and what it leaves b
     );
   });
 
-  test("the worker is handed statements and never a token, an incarnation or the catalog", async () => {
+  test("the worker is handed statements and the views to read through, never a token or an incarnation", async () => {
     const { database } = catalogued();
     const readGates = gatesFor(database);
     const { log, createWorker } = fakeWorkers();
@@ -421,7 +433,13 @@ describe("what a whole-catalog read scope hands the worker, and what it leaves b
       },
     );
 
-    expect(log.factoryArguments).toEqual([[]]);
+    // What it is told at birth is table and column names and how to read each: no token.
+    const [[shadow]] = log.factoryArguments as [[QueryShadow]];
+    const catalog = readActiveRegistryCatalog(database.readonly);
+    expect(shadow.tables.map(({ table }) => table)).toEqual(
+      catalog.capabilities.map(({ id }) => `${CAPABILITY_TABLE_PREFIX}${id}`),
+    );
+    expect(JSON.stringify(shadow)).not.toMatch(/incarnation|token/i);
     expect(log.calls).toEqual([
       {
         sql: "SELECT count(*) AS total FROM capability_registry WHERE id = ?",

@@ -1099,9 +1099,11 @@ nothing. It resolves through a bounded loop of read-only steps: the model receiv
 one tool — a parameterized query against the physically read-only connection — and
 uses its turns to find where the subject lives, read what the user's values are
 actually called, and compute. SQL carries the whole computation; the model never
-does arithmetic by reading rows. The loop's queries execute in a worker holding its
-own read-only connection, so a clumsy query cannot block the desk and a closing read
-gate can actually cancel one. The query creates no registry row, no logo on the
+does arithmetic by reading rows. The loop's queries execute in a worker that attaches
+the database read-only and reads every table through views that show no file's key,
+so a clumsy query cannot block the desk, a closing read gate can actually cancel one,
+and no statement reaches a file's key, or a copy of one kept whole in text with only
+common separators between its digits, to disguise it (ADR-0008, ADR-0009). The query creates no registry row, no logo on the
 ground, and no version, artifact, cache, or persisted read dependency. Once M10
 exists the Event Log may still record the ordinary user action, which does not turn
 the query into a built capability. Scope follows the context-aware prompt bar: the

@@ -13,6 +13,7 @@ import {
   createQueryWorker,
   QUESTION_OPEN_WINDOW_HEADING,
   QUESTION_STEP_BUDGET,
+  type QueryShadow,
   type QuestionDecision,
   type QuestionStep,
   READ_ONLY_QUERY_TOOL,
@@ -64,7 +65,7 @@ function desk() {
         provider: scriptedProvider(...decisions),
         readGates,
         database: platform.database.readonly,
-        createWorker: () => createQueryWorker(platform.path),
+        createWorker: (shadow: QueryShadow) => createQueryWorker(platform.path, shadow),
       };
     },
   };
@@ -99,7 +100,11 @@ describe("a classified data_query", () => {
 
     expect(loop.ending).toBe("answered");
     expect(steps.map((step) => step.call?.tool)).toEqual([READ_ONLY_QUERY_TOOL]);
-    expect(steps[0]?.result).toEqual({ outcome: "rows", rows: [{ spent: 12.5 }] });
+    expect(steps[0]?.result).toEqual({
+      outcome: "rows",
+      rows: [{ spent: 12.5 }],
+      fileKeys: new Set(),
+    });
   });
 
   test("keeps taking turns inside the one scope until the model stops reading", async () => {
@@ -121,7 +126,11 @@ describe("a classified data_query", () => {
 
     if (loop.ending !== "answered") throw new Error("the fixture answers");
     expect(loop.steps).toHaveLength(2);
-    expect(loop.steps[1]?.result).toEqual({ outcome: "rows", rows: [{ total: 2 }] });
+    expect(loop.steps[1]?.result).toEqual({
+      outcome: "rows",
+      rows: [{ total: 2 }],
+      fileKeys: new Set(),
+    });
   });
 
   test("hands each result back where the model reads it", async () => {
@@ -392,7 +401,11 @@ describe("the open capability is context, never a filter", () => {
     // words steer nothing here — the scripted model asks for this statement whatever was typed —
     // so what this proves is the platform's half: no bound of the window's reaches the read.
     if (loop.ending !== "answered") throw new Error("the fixture answers");
-    expect(loop.steps[0]?.result).toEqual({ outcome: "rows", rows: [{ spent: 12.5 }] });
+    expect(loop.steps[0]?.result).toEqual({
+      outcome: "rows",
+      rows: [{ spent: 12.5 }],
+      fileKeys: new Set(),
+    });
     expect(loop.steps[0]?.collections).toEqual([EXPENSES_CAPABILITY.label]);
     const [first] = (deps.provider as { prompts: readonly string[] }).prompts;
     expect(first).toContain(`${QUESTION_OPEN_WINDOW_HEADING} ${NOTES_CAPABILITY.label}`);
