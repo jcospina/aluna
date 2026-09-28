@@ -15,11 +15,11 @@
  *
  * The single source of truth for the allow-list is `design/design-system.md`; the
  * allow-list itself is `src/presentation/vocabulary.ts`, which the runtime enforcer and
- * the design-lint gate rung both key on, and `vocabulary.test.ts` pins the two
+ * the design-lint gate rung both key on, and `vocabulary.policy.ts` pins the two
  * together. Imported after the components in `index.css` so a utility wins its tie with
  * one, and above `ink.css`, which stays last. That ordering settles the manifest only —
  * the temporary shell under `public/css/` is linked after the whole of it, so no rule
- * there may take a name from this file. `layout-kit.test.ts` holds that line.
+ * there may take a name from this file. `layout-kit.policy.ts` holds that line.
  *
  * Everything below is product vocabulary, not page chrome: platform chrome is named
  * by the other stylesheets under `design/styles/`.

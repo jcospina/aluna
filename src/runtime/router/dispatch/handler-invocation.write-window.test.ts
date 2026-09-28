@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
-import { createApp } from "../../../server/app.ts";
+import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import { CapabilityDataValidationError } from "../../data/index.ts";
 import type { CapabilityCreateContext } from "../contract.ts";
 import {
@@ -27,7 +27,7 @@ beforeEach(() => {
 afterEach(() => teardownRouterTest(dir, databases));
 
 async function create(loadHandler: HandlerLoader): Promise<Response> {
-  return createApp({ capabilityRouter: { databases, loadHandler } }).request(
+  return createTestApp({ capabilityRouter: { databases, loadHandler } }).request(
     "/capability/notes/create",
     formBody({ text: "Answered" }),
   );

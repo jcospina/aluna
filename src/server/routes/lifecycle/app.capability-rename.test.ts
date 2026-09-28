@@ -28,9 +28,9 @@ import {
   setupRouterTest,
   teardownRouterTest,
 } from "../../../runtime/router/dispatch/router.test-support.ts";
-import { createApp } from "../../app.ts";
 import { renderCapabilityLogo } from "../../http/fragments.ts";
 import { unescapeHtml } from "../../http/html.ts";
+import { createTestApp } from "../../isolated-app.test-support.ts";
 
 const NOTES_INCARNATION = FIRST_INCARNATION_ID;
 
@@ -61,7 +61,7 @@ afterEach(() => {
 });
 
 function app() {
-  return createApp({ capabilityRouter: { databases: conns } });
+  return createTestApp({ capabilityRouter: { databases: conns } });
 }
 
 function row() {

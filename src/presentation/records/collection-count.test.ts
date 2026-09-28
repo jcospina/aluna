@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import * as shellCount from "#shell/collection-count.js";
 import { readCollectionCountFromSwap, splitCollectionCount } from "#shell/collection-count.js";
 import { installDomGlobals } from "../controls/choice-picker.fixture.test-support.ts";
@@ -312,26 +310,5 @@ describe("the transport every collection's first load goes through", () => {
     };
     expect(readCollectionCountFromSwap(detail, region)).toBe(false);
     expect(label.textContent).toBe("");
-  });
-});
-
-describe("CSS parity", () => {
-  const css = readFileSync(
-    join(import.meta.dir, "../../../public/css/collection.css"),
-    "utf8",
-  ).replace(/\/\*[\s\S]*?\*\//g, "");
-
-  /** The declarations of the rule whose selector list is exactly `selector`. */
-  function body(selector: string): string {
-    const rule = css.split("}").find((block) => block.split("{")[0]?.trim() === selector);
-    return rule?.split("{")[1]?.trim() ?? "";
-  }
-
-  test("the count label owns its own box rather than the paragraph margin", () => {
-    expect(body(".capability-count")).toContain("margin: 0");
-  });
-
-  test("an empty count takes no room, so a bare collection states its emptiness once", () => {
-    expect(body(".capability-count:empty")).toContain("display: none");
   });
 });

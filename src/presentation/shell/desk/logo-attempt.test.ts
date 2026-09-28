@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
 import { disarmLogoAttempt, startLogoAttemptDisarm } from "#shell/logo-attempt.js";
 import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
@@ -8,6 +6,9 @@ import {
   DESK_LOGO_LAYER_ELEMENT_ID,
   renderCapabilityLogo,
 } from "../../../server/http/fragments.ts";
+import { byId, elementsOf, moduleSources } from "../../../server/http/served-page.test-support.ts";
+import { El, parseHtml } from "../../controls/choice-picker.test-support.ts";
+import { readSource } from "../../safety/source.test-support.ts";
 
 // Only a fresh desk render or a newly activated tile may arm one attempt (ADR-0007). This holds
 // the arming source the server cannot reach: htmx replaying a snapshot taken mid-attempt.
@@ -37,26 +38,36 @@ class Root {
   }
 }
 
-function armedTile(): Node {
-  return new Node({
-    class: "logo-tile logo-tile--pending",
-    "hx-post": `/capability/notes/${FIRST_INCARNATION_ID}/logo-attempt`,
-    "hx-trigger": "load",
-    "hx-target": "#capability-logo-notes",
-    "hx-swap": "outerHTML",
-  });
+/** The tile a fresh desk render arms, exactly as the server renders it. */
+function armedTile(): El {
+  const slot = parseHtml(
+    renderCapabilityLogo({
+      id: "notes",
+      label: "Notes",
+      incarnation_id: FIRST_INCARNATION_ID,
+      version: 1,
+      logo: { status: "absent", attempts: 0 },
+      display_label_override: null,
+    }),
+    new El("div"),
+  );
+  const [tile, ...more] = slot.querySelectorAll("[hx-post][hx-trigger]");
+  if (tile === undefined || more.length > 0) throw new Error("expected one armed tile");
+  return tile;
 }
 
 describe("a tile disarms itself when its attempt starts", () => {
   test("both arming attributes come off", () => {
     const tile = armedTile();
+    const target = tile.getAttribute("hx-target");
 
     expect(disarmLogoAttempt(tile)).toBe(true);
 
     expect(tile.getAttribute("hx-trigger")).toBeNull();
     expect(tile.getAttribute("hx-post")).toBeNull();
     // The swap it is already performing is untouched.
-    expect(tile.getAttribute("hx-target")).toBe("#capability-logo-notes");
+    expect(target).not.toBeNull();
+    expect(tile.getAttribute("hx-target")).toBe(target);
   });
 
   test("it is idempotent, and a second pass finds nothing to do", () => {
@@ -97,32 +108,17 @@ describe("a tile disarms itself when its attempt starts", () => {
   });
 });
 
-describe("the module and the markup agree", () => {
-  test("the attributes it strips are the ones the server renders", () => {
-    const rendered = renderCapabilityLogo({
-      id: "notes",
-      label: "Notes",
-      incarnation_id: FIRST_INCARNATION_ID,
-      version: 1,
-      logo: { status: "absent", attempts: 0 },
-      display_label_override: null,
-    });
-
-    expect(rendered).toContain(`hx-post="/capability/notes/${FIRST_INCARNATION_ID}/logo-attempt"`);
-    expect(rendered).toContain('hx-trigger="load"');
-  });
-
-  test("the shell loads it", () => {
-    const shell = readFileSync(resolve(import.meta.dir, "../../../../public/index.html"), "utf8");
-
-    expect(shell).toContain('src="/static/logo-attempt.js"');
+describe("the shell it runs in", () => {
+  test("the shell loads it", async () => {
+    expect(moduleSources(await elementsOf(readSource("public/index.html")))).toContain(
+      "/static/logo-attempt.js",
+    );
   });
 
   // The element the attempts queue against has to actually be in the shell, or `hx-sync`
   // names nothing and every tile fires at once again.
-  test("the layer an attempt queues against is the one the shell ships", () => {
-    const shell = readFileSync(resolve(import.meta.dir, "../../../../public/index.html"), "utf8");
-
-    expect(shell).toContain(`id="${DESK_LOGO_LAYER_ELEMENT_ID}"`);
+  test("the layer an attempt queues against is the one the shell ships", async () => {
+    const shell = await elementsOf(readSource("public/index.html"));
+    expect(byId(shell, DESK_LOGO_LAYER_ELEMENT_ID).tag).toBe("div");
   });
 });

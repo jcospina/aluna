@@ -15,15 +15,15 @@ import type { Context } from "hono";
 
 import { enforceHandlerFragment } from "../../../presentation/index.ts";
 import { BEHAVIORAL_ERROR_MARKERS, type CapabilitySpec } from "../../../registry/index.ts";
-import { declaredRefusal } from "./failure-responses.ts";
+import { type DeclaredRefusal, declaredRefusal } from "./failure-responses.ts";
 import type { WireProtocolAction } from "./wire-protocol.ts";
 
 export interface HandlerFragmentOutcome {
   readonly html: string;
   /** True when executable markup had to be removed — logged, never shown to the user. */
   readonly neutralized: boolean;
-  /** The declared behavioral-error code this fragment refuses with, if it refuses. */
-  readonly refusalCode?: string;
+  /** The declared behavioral error this fragment refuses with, if it refuses. */
+  readonly refusal?: DeclaredRefusal;
 }
 
 /**
@@ -38,8 +38,8 @@ export function readHandlerFragment(
 ): HandlerFragmentOutcome {
   const { html, neutralized } = enforceHandlerFragment(fragment);
   const declared = declaredErrorCodes(spec, action);
-  const refusalCode = declared.size === 0 ? undefined : findDeclaredRefusal(html, declared);
-  return refusalCode === undefined ? { html, neutralized } : { html, neutralized, refusalCode };
+  const refusal = declared.size === 0 ? undefined : findDeclaredRefusal(html, declared);
+  return refusal === undefined ? { html, neutralized } : { html, neutralized, refusal };
 }
 
 function declaredErrorCodes(spec: CapabilitySpec, action: WireProtocolAction): ReadonlySet<string> {
@@ -51,27 +51,118 @@ function declaredErrorCodes(spec: CapabilitySpec, action: WireProtocolAction): R
 }
 
 /**
- * The first element carrying both markers with a declared code, or `undefined`. Parsed rather
- * than pattern-matched: a regex cannot say the two markers sit on the *same* element.
+ * The first element carrying both markers with a declared code, with its words, or `undefined`.
+ * Parsed rather than pattern-matched: a regex cannot say the two markers sit on the *same* element.
  */
-function findDeclaredRefusal(html: string, declared: ReadonlySet<string>): string | undefined {
-  let found: string | undefined;
+function findDeclaredRefusal(
+  html: string,
+  declared: ReadonlySet<string>,
+): DeclaredRefusal | undefined {
+  const { role_attribute, role, code_attribute, fields_attribute, fields_separator } =
+    BEHAVIORAL_ERROR_MARKERS;
+  const read: RefusalReading = { opened: 0, reading: false, words: "" };
+  const isRefusal = (element: HTMLRewriterTypes.Element): string | undefined => {
+    if (read.code !== undefined || element.getAttribute(role_attribute) !== role) return undefined;
+    const code = element.getAttribute(code_attribute);
+    return code !== null && declared.has(code) ? code : undefined;
+  };
   new HTMLRewriter()
     .on("*", {
       element(element) {
-        if (found !== undefined) return;
-        if (
-          element.getAttribute(BEHAVIORAL_ERROR_MARKERS.role_attribute) !==
-          BEHAVIORAL_ERROR_MARKERS.role
-        ) {
-          return;
-        }
-        const code = element.getAttribute(BEHAVIORAL_ERROR_MARKERS.code_attribute);
-        if (code !== null && declared.has(code)) found = code;
+        const index = read.opened++;
+        whenItEnds(element, () => {
+          if (index <= (read.at ?? -1)) read.reading = false;
+        });
+        if (read.reading && endsTheSentence(element.tagName, read.tag)) read.reading = false;
+        const code = isRefusal(element);
+        if (code === undefined) return;
+        const fields = element.getAttribute(fields_attribute)?.split(fields_separator);
+        Object.assign(read, {
+          code,
+          fields: fields?.filter(Boolean),
+          at: index,
+          tag: element.tagName,
+          reading: element.canHaveContent,
+        });
+      },
+      text(chunk) {
+        if (read.reading) read.words += chunk.text;
       },
     })
     .transform(html);
-  return found;
+  if (read.code === undefined) return undefined;
+  // Words inside a raw-text element arrive with their markup unparsed; no `<` may reach the page.
+  const sentence = read.words.replace(/\s+/g, " ").trim().replaceAll("<", "&lt;");
+  return { code: read.code, sentence, fields: read.fields };
+}
+
+interface RefusalReading {
+  code?: string;
+  fields?: readonly string[];
+  /** The refusal element's place in document order, and its tag. */
+  at?: number;
+  tag?: string;
+  opened: number;
+  reading: boolean;
+  words: string;
+}
+
+/** Elements a sentence runs through; any other start tag is a new block, which ends it. */
+const PHRASING = new Set([
+  "a",
+  "abbr",
+  "b",
+  "bdi",
+  "bdo",
+  "br",
+  "button",
+  "cite",
+  "code",
+  "data",
+  "del",
+  "dfn",
+  "em",
+  "i",
+  "img",
+  "input",
+  "ins",
+  "kbd",
+  "label",
+  "mark",
+  "meter",
+  "output",
+  "progress",
+  "q",
+  "s",
+  "samp",
+  "select",
+  "small",
+  "span",
+  "strong",
+  "sub",
+  "sup",
+  "textarea",
+  "time",
+  "u",
+  "var",
+  "wbr",
+]);
+
+/**
+ * Where a browser stops reading the refusal though no end tag says so: lol-html reports an
+ * implicitly closed element's end late or never, so a new block or a sibling of the same tag ends it.
+ */
+function endsTheSentence(tagName: string, refusalTag: string | undefined): boolean {
+  return tagName === refusalTag || !PHRASING.has(tagName);
+}
+
+function whenItEnds(element: HTMLRewriterTypes.Element, then: () => void): void {
+  if (!element.canHaveContent) return;
+  try {
+    element.onEndTag(then);
+  } catch {
+    // A self-closed foreign element has no end tag to wait for.
+  }
 }
 
 /**
@@ -94,8 +185,8 @@ export function answerWithHandlerFragment(
       `Capability ${id}/${action} returned executable markup; it was neutralized before the response.`,
     );
   }
-  if (outcome.refusalCode !== undefined && isRefusableAction(action)) {
-    return declaredRefusal(c, id, action, outcome.html);
+  if (outcome.refusal !== undefined && isRefusableAction(action)) {
+    return declaredRefusal(c, id, action, outcome.refusal);
   }
   return c.html(`${countSidecar(outcome.html)}${outcome.html}`);
 }

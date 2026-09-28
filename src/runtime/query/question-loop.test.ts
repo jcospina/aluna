@@ -6,12 +6,9 @@
 // between the counting.
 //
 // Two of these are pinned by absence rather than by behaviour — no timeout, and no rows past
-// a spent budget — and both are written as sweeps, because "we did not add one" is a claim
-// that stays true right up until somebody adds one as a convenience.
+// a spent budget. The source sweep behind the first is `question-loop.policy.ts`.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 
 import { warpClocks } from "./clock-warp.test-support.ts";
 import {
@@ -51,11 +48,6 @@ beforeEach(() => {
 afterEach(() => {
   platforms.disposeAll();
 });
-
-/** Every module of the read path, off the directory: a new one is swept the day it arrives. */
-const QUERY_SOURCE = readdirSync(import.meta.dir).filter(
-  (name) => name.endsWith(".ts") && !name.includes(".test"),
-);
 
 describe("the loop runs the model's chosen steps in sequence", () => {
   test("feeds each result back and keeps going until the model answers", async () => {
@@ -111,11 +103,7 @@ describe("the loop runs the model's chosen steps in sequence", () => {
   });
 });
 
-describe("the budget is ten steps", () => {
-  test("is ten", () => {
-    expect(QUESTION_STEP_BUDGET).toBe(10);
-  });
-
+describe("the step budget", () => {
   test("a question that never converges stops at exactly ten reads", async () => {
     // The script runs out after one entry and repeats it, which is a model that keeps
     // deciding to read and never decides it has enough.
@@ -241,50 +229,6 @@ describe("no timeout exists on a step or on the loop", () => {
     }
 
     expect(armed).toEqual([]);
-  });
-
-  test("and no source on the path holds a construct a deadline is built from", () => {
-    // The pins prove nothing fired for these fixtures; the sweep proves there is no code to fire
-    // for any other. The worker's thread is swept too: its globals are out of the spies' reach.
-    //
-    // Read off the directory rather than typed out, so a module added to this path is swept the
-    // day it arrives. `.test` drops both the suites and their support, which warp clocks on
-    // purpose. `question-pipeline.ts` is deliberately outside: it arms the presenter's own bound.
-    const source = [...QUERY_SOURCE, "../../pipeline/query/data-query.ts"];
-
-    for (const file of source) {
-      const text = readFileSync(join(import.meta.dir, file), "utf8");
-      for (const construct of [
-        "setTimeout",
-        "setInterval",
-        "setImmediate",
-        "AbortSignal.timeout",
-        "Bun.sleep",
-        "Date.now",
-        "new Date",
-        "performance.now",
-        "nanoseconds",
-        "hrtime",
-        "node:timers",
-      ]) {
-        expect({ file, construct, present: text.includes(construct) }).toEqual({
-          file,
-          construct,
-          present: false,
-        });
-      }
-    }
-  });
-
-  test("the sweep is looking at every file on the path, and they exist", () => {
-    // A sweep over a mistyped path passes by reading nothing, and one over an empty listing
-    // passes by reading nothing at all. Both ends are pinned here.
-    expect(QUERY_SOURCE).toContain("question-loop.ts");
-    expect(QUERY_SOURCE).toContain("query-worker-thread.ts");
-    expect(QUERY_SOURCE.length).toBeGreaterThan(10);
-    for (const file of [...QUERY_SOURCE, "../../pipeline/query/data-query.ts"]) {
-      expect(readFileSync(join(import.meta.dir, file), "utf8").length).toBeGreaterThan(0);
-    }
   });
 });
 

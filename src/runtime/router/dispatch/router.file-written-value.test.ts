@@ -10,7 +10,7 @@ import {
   INVALID_FILE_REFERENCE_ERROR_CODE,
   RECORD_CHANGED_ERROR_CODE,
 } from "../../../registry/index.ts";
-import { createApp } from "../../../server/app.ts";
+import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import { createReadGateCoordinator } from "../../concurrency/read-gates.ts";
 import {
   CapabilityDataValidationError,
@@ -324,7 +324,7 @@ describe("an edit racing its capability's deletion", () => {
     readGates.synchronizeCatalog([incarnation]);
     await readGates.closeAndDrain(incarnation);
     photos.conns().readwrite.exec(`DROP TABLE "cap_photos"`);
-    const app = createApp({ readGates, capabilityRouter: { databases: photos.conns() } });
+    const app = createTestApp({ readGates, capabilityRouter: { databases: photos.conns() } });
 
     const response = await app.request(
       "/capability/photos/update",

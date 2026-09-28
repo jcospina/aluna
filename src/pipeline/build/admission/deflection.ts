@@ -6,6 +6,7 @@
 
 import { type CapabilityRow, canonicalCapabilityLabel } from "../../../registry/index.ts";
 import type { IntentClassification } from "../../intent/index.ts";
+import { sameWords, wordForms } from "./word-forms.ts";
 
 /** What she says to a sentence she could not make anything of. 6.6/03 is where this is used. */
 export const REJECT_DEFLECTION =
@@ -25,7 +26,7 @@ export function deflectionNarration(intent: IntentClassification): string {
   throw new NotDeflectableError(`A ${intent.type} intent is acted on, never deflected.`);
 }
 
-const DUPLICATE_PROMPT_STOP_WORDS = new Set([
+export const DUPLICATE_PROMPT_STOP_WORDS: ReadonlySet<string> = new Set([
   "add",
   "and",
   "build",
@@ -48,30 +49,18 @@ const DUPLICATE_PROMPT_STOP_WORDS = new Set([
   "with",
 ]);
 
-function normalizeDuplicateToken(token: string): string {
-  if (token.length > 4 && token.endsWith("ies")) {
-    return `${token.slice(0, -3)}y`;
-  }
-  if (token.length > 3 && token.endsWith("s")) {
-    return token.slice(0, -1);
-  }
-  return token;
-}
-
 function duplicateMatchTokens(value: string, applyStopWords: boolean): Set<string> {
   const tokens = value
     .toLowerCase()
     .match(/[a-z0-9]+/g)
-    ?.map(normalizeDuplicateToken)
-    .filter(
-      (token) => token.length >= 3 && (!applyStopWords || !DUPLICATE_PROMPT_STOP_WORDS.has(token)),
+    ?.filter(
+      (token) =>
+        token.length >= 3 &&
+        (!applyStopWords ||
+          !wordForms(token).some((form) => DUPLICATE_PROMPT_STOP_WORDS.has(form))),
     );
 
   return new Set(tokens ?? []);
-}
-
-function sameTokens(left: Set<string>, right: Set<string>): boolean {
-  return left.size === right.size && [...left].every((token) => right.has(token));
 }
 
 /**
@@ -95,7 +84,7 @@ function findPromptOverlapCapability(
 
   const matches = capabilities.filter((capability) =>
     duplicateCapabilityIdentityTokens(capability).some((identity) =>
-      sameTokens(promptTokens, identity),
+      sameWords(promptTokens, identity),
     ),
   );
   return matches.length === 1 ? matches[0] : undefined;

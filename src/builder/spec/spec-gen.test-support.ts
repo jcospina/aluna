@@ -5,6 +5,7 @@
 // to the raw value *unparsed* on purpose — it makes the stage's own Zod gate the thing
 // under test.
 
+import { zodSchema } from "ai";
 import type { ZodType } from "zod";
 
 import type { IntentClassification } from "../../pipeline/intent/index.ts";
@@ -20,6 +21,7 @@ import {
   type CapabilitySpec,
   FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  promptCapabilitySpecSchema,
 } from "../../registry/index.ts";
 
 export interface RecordedCall {
@@ -124,4 +126,17 @@ export function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySp
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
+}
+
+/** Every property name the provider's structured-output schema asks the model to fill. */
+export async function structuredOutputKeys(): Promise<string[]> {
+  const keys = new Set<string>();
+  const visit = (node: unknown): void => {
+    if (node === null || typeof node !== "object") return;
+    const { properties } = node as { properties?: Record<string, unknown> };
+    for (const key of Object.keys(properties ?? {})) keys.add(key);
+    for (const child of Object.values(node)) visit(child);
+  };
+  visit(await zodSchema(promptCapabilitySpecSchema).jsonSchema);
+  return [...keys];
 }

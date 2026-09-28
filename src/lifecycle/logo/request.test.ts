@@ -21,7 +21,7 @@ import {
 } from "./request.ts";
 
 // The contract this file guards is `docs/adr/0007-capability-logo-contract.md` plus the art
-// contract it points at, `design/logo.html`. Both fix exact strings, so these tests pin literals.
+// contract it points at, `design/logo.html`. The prompt block is checked against that page itself.
 
 /** A shade of some other family — every request must carry two colours that differ. */
 function other(shade: LogoShade): LogoShade {
@@ -36,14 +36,6 @@ const INPUTS = {
 } as const;
 
 describe("the fields no caller may vary", () => {
-  test("model, style, substyle, size and response format are the contract's literals", () => {
-    expect(LOGO_GENERATION_MODEL).toBe("recraftv3_vector");
-    expect(LOGO_GENERATION_STYLE).toBe("vector_illustration");
-    expect(LOGO_GENERATION_SUBSTYLE).toBe("bold_stroke");
-    expect(LOGO_GENERATION_SIZE).toBe("1024x1024");
-    expect(LOGO_GENERATION_RESPONSE_FORMAT).toBe("b64_json");
-  });
-
   test("every request carries them, whatever the capability", () => {
     for (const ground of LOGO_SHADES) {
       const request = buildLogoGenerationRequest({
@@ -52,20 +44,18 @@ describe("the fields no caller may vary", () => {
         companion: other(ground),
         seed: 7,
       });
-      expect(request.model).toBe("recraftv3_vector");
-      expect(request.style).toBe("vector_illustration");
-      expect(request.substyle).toBe("bold_stroke");
-      expect(request.size).toBe("1024x1024");
-      expect(request.response_format).toBe("b64_json");
+      expect(request.model).toBe(LOGO_GENERATION_MODEL);
+      expect(request.style).toBe(LOGO_GENERATION_STYLE);
+      expect(request.substyle).toBe(LOGO_GENERATION_SUBSTYLE);
+      expect(request.size).toBe(LOGO_GENERATION_SIZE);
+      expect(request.response_format).toBe(LOGO_GENERATION_RESPONSE_FORMAT);
       expect(request.controls.no_text).toBe(true);
     }
   });
 
-  // "No caller may vary them" holds because there is nowhere to put an override: no second
-  // parameter, no knob in the returned request. Both are checked; an added field is likelier.
-  test("the builder takes one input and the request carries no knob", () => {
-    expect(buildLogoGenerationRequest.length).toBe(1);
-
+  // "No caller may vary them" holds because there is nowhere to put an override: the request is
+  // the wire payload, so its closed key set is the contract.
+  test("the request carries no knob", () => {
     const request = buildLogoGenerationRequest(INPUTS);
     expect(Object.keys(request).sort()).toEqual([
       "controls",
@@ -345,5 +335,37 @@ describe("the block matches the contract page it comes from", () => {
     expect(
       buildLogoPrompt("an open notebook", "golden", "amethyst").replace(/\s+/g, " ").trim(),
     ).toBe(authored);
+  });
+});
+
+// The settings table on the same page states what every request fixes. Read off the page, so the
+// code and the contract cannot part without one of them being edited to match.
+describe("the fixed settings match the contract page's table", () => {
+  /** Every row whose cells are code alone, field to value; `a / b` pairs two fields with two. */
+  function fixedSettings(page: string): Record<string, string> {
+    const codeCell = /<td>((?:<code>[^<]+<\/code>(?: \/ )?)+)<\/td>/g;
+    const codes = (cell = "") => [...cell.matchAll(/<code>([^<]+)<\/code>/g)].map(([, c]) => c);
+    const stated: Record<string, string> = {};
+    for (const [row] of page.matchAll(/<tr>[\s\S]*?<\/tr>/g)) {
+      const [fields = [], values = []] = [...row.matchAll(codeCell)].map(([, cell]) => codes(cell));
+      fields.forEach((field, at) => {
+        if (field !== undefined && values[at] !== undefined) stated[field] = values[at];
+      });
+    }
+    return stated;
+  }
+
+  test("each field the table fixes, at the value the table gives", () => {
+    const page = readFileSync(resolve(import.meta.dir, "../../../design/logo.html"), "utf8");
+    const request = buildLogoGenerationRequest(INPUTS);
+
+    expect(fixedSettings(page)).toEqual({
+      model: LOGO_GENERATION_MODEL,
+      style: LOGO_GENERATION_STYLE,
+      substyle: LOGO_GENERATION_SUBSTYLE,
+      size: LOGO_GENERATION_SIZE,
+      response_format: LOGO_GENERATION_RESPONSE_FORMAT,
+      "controls.no_text": String(request.controls.no_text),
+    });
   });
 });

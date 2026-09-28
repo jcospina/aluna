@@ -3,8 +3,7 @@
 // `fragments.test.ts`, which had grown past what one file should hold.
 
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { WINDOW_CONTENT_ID as DESK_WINDOW_CONTENT_ID } from "#shell/desk-window.js";
 import { WINDOW_CONTENT_ID } from "#shell/shell-dom.js";
 import {
   LOGO_ABSENT,
@@ -54,15 +53,10 @@ describe("the tile inside a logo", () => {
   });
 
   test("the region a press owns is the one the shell's window creates", () => {
-    // One declaration now, in `public/shell-dom.js`, so this asks that both sides still read it
-    // rather than that two copies happen to say the same thing.
+    // One declaration, in `public/shell-dom.js`: the server and the window module both hand back
+    // that value rather than two copies that happen to say the same thing.
     expect(WINDOW_CONTENT_ELEMENT_ID).toBe(WINDOW_CONTENT_ID);
-    const windowModule = readFileSync(
-      resolve(import.meta.dir, "../../../public/desk-window.js"),
-      "utf8",
-    );
-
-    expect(windowModule).toContain('export { WINDOW_CONTENT_ID } from "./shell-dom.js"');
+    expect(DESK_WINDOW_CONTENT_ID).toBe(WINDOW_CONTENT_ID);
   });
 
   test("an absent tile arms one incarnation-bound attempt", () => {

@@ -94,22 +94,10 @@ function outranksTheSeam(selector: string): boolean {
   return ids > 0 || classish > 1;
 }
 
-/**
- * Reserved by a stylesheet and never drawn. Each one is a boundary this issue does not
- * reach, and each says what reaches it.
- */
+/** Reserved by a stylesheet and never drawn, each saying why no line belongs there. */
 const RULED_ON_PURPOSE = new Set([
-  // still the bare <input>; the shell-and-input split is 5.10/03
-  "field__control",
   // a spinning circle: the shape of an object, not a boundary
   "capability-search__loading",
-  // this page's own furniture, deliberately named apart from the drawn `.swatch`
-  "preview-item",
-  "preview-swatch",
-  // the gallery preview's layout chip and raw readouts: a developer page's own furniture in a
-  // page-local `<style>` after the seam, so a drawn line there would sit beside a true edge.
-  "gallery-example__layout",
-  "gallery-code",
 ]);
 
 describe("the ink seam holds in the shipped product", () => {

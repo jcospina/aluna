@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { code, readSource, shippedStylesheets } from "../../safety/source.test-support.ts";
+import { code, readSource, shippedStylesheets, under } from "../../safety/source.test-support.ts";
 
 // The button set, as a closed set: seven variants, three heights and a full-width modifier. The
 // product's sheet restates the colours on top, so what is pinned is that no eighth face exists.
@@ -86,15 +86,18 @@ describe("the button set", () => {
 describe("every button the product renders", () => {
   /** Every `class="btn …"` in shipped markup. */
   function renderedButtons(): string[] {
-    const under = (root: string, pattern: string): string[] =>
-      [...new Bun.Glob(pattern).scanSync({ cwd: root })].map((name: string) => `${root}/${name}`);
     // The design pages included. They are where the set is authored, so a bare `.btn` in
     // the gallery is the rule being broken by the page that states it.
     const sources = [
       ...under("src", "**/*.{ts,js,html}"),
       ...under("public", "*.{js,html}"),
       ...under("design", "*.html"),
-    ].filter((path) => !path.endsWith(".test.ts") && !path.includes(".test-support."));
+    ].filter(
+      (path) =>
+        !path.endsWith(".test.ts") &&
+        !path.endsWith(".policy.ts") &&
+        !path.includes(".test-support."),
+    );
     // `\bbtn\b` anywhere in the list rather than `btn` at the front: `class="field-list__action
     // btn"` is the same button, and matching the leading token let row actions drop modifiers.
     return sources.flatMap((path) =>

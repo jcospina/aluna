@@ -301,14 +301,7 @@ describe("capability artifact lifecycle — manifest digests and provenance", ()
     }
     expect(manifest.snapshot_content_digest).toBe(aggregateSnapshotDigest(manifest.files));
 
-    expect(Object.keys(manifest.unit_provenance)).toEqual([
-      "item.ts",
-      "create.ts",
-      "read.ts",
-      "update.ts",
-      "delete.ts",
-      "search.ts",
-    ]);
+    expect(Object.keys(manifest.unit_provenance)).toEqual(units.map((unit) => unit.filename));
     for (const unit of units) {
       const descriptor: UnitDescriptor =
         unit.kind === "handler"

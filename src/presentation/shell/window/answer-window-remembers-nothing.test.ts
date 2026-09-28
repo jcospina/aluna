@@ -15,10 +15,10 @@ import {
   dismissAnswerWindow,
   OPEN_THE_ANSWER_WINDOW_EVENT,
   openAnswerWindow,
-  startDeskAnswerWindow,
 } from "#shell/desk-answer-window.js";
 import { closePanel, DEV_STORAGE_KEY, openPanel } from "#shell/desk-dev-panel.js";
 import { openWindow, putAway, WINDOW_STORAGE_KEY } from "#shell/desk-window.js";
+import { startedOn } from "../../controls/started-module.test-support.ts";
 import {
   deskTrace,
   dragBy,
@@ -38,13 +38,18 @@ const KEPT = {
 const QUESTION = "how many notes did I write in July?";
 const SAYING = "Let me look at what you've saved.";
 
+type AnswerWindowModule = typeof import("#shell/desk-answer-window.js");
+
 let desk: StandingDesk;
+/** Fresh instances a test started, each dismissed before its desk is taken down. */
+const started: AnswerWindowModule[] = [];
 
 beforeEach(() => {
   desk = standingDesk(KEPT);
 });
 
 afterEach(() => {
+  for (const answer of started.splice(0)) answer.dismissAnswerWindow();
   dismissAnswerWindow();
   putAway();
   closePanel();
@@ -210,18 +215,22 @@ describe("nothing about an answer leaves the page", () => {
   });
 });
 
-/** Start the desk's windows the way the page does, so the records really are read back. */
-function reload(): void {
+/**
+ * Start the desk's windows the way the page does, so the records really are read back. The answer
+ * window is a fresh instance, because the page a module was started on is module state.
+ */
+async function reload(): Promise<void> {
   openPanel(desk.doc);
-  startDeskAnswerWindow(desk.doc as never);
+  const answer = await startedOn<AnswerWindowModule>("desk-answer-window.js", desk.doc);
+  started.push(answer);
 }
 
 describe("a reload restores nothing of it", () => {
-  test("a desk starting up brings back the window that has a record, and no answer", () => {
+  test("a desk starting up brings back the window that has a record, and no answer", async () => {
     liveAndDie();
     desk.restore();
     desk = standingDesk(KEPT);
-    reload();
+    await reload();
 
     expect(desk.store.reads).not.toEqual([]);
     expect(desk.windows()).toHaveLength(1);
@@ -229,12 +238,12 @@ describe("a reload restores nothing of it", () => {
     expect(everythingSaid(desk.root)).not.toContain(QUESTION);
   });
 
-  test("a record shaped like an answer's is not read back into one", () => {
+  test("a record shaped like an answer's is not read back into one", async () => {
     // Nothing writes this key, so nothing should ever find it — but a desk that grew one from an
     // older build, a second tab or a hand-edited store must still come back with no answer on it.
     desk.restore();
     desk = standingDesk({ ...KEPT, "aluna.desk.answer.v1": `{"question":"${QUESTION}"}` });
-    reload();
+    await reload();
 
     expect(desk.root.querySelector(ANSWER_WINDOW_SELECTOR)).toBeNull();
     expect(desk.store.reads).not.toContain("aluna.desk.answer.v1");
@@ -275,6 +284,9 @@ describe("the other two windows are untouched by it", () => {
 
     expect(clay(answer.el as unknown as El)).toBe(`${ANSWER_DISMISS_LABEL} — ${QUESTION}`);
     expect(clay(capability)).toContain("Put away");
+    // Two words, not one word twice: the capability's is read off its own lamp.
+    const [putAwayWord = ""] = clay(capability)?.split(" — ") ?? [];
+    expect(clay(answer.el as unknown as El)).not.toContain(putAwayWord);
   });
 
   test("dismissing the answer puts neither of them away, and forgets neither record", () => {
@@ -299,8 +311,8 @@ describe("the other two windows are untouched by it", () => {
 });
 
 describe("the question reaches the window and lands nowhere else", () => {
-  test("the desk's own event opens it, and every way off the page stays shut", () => {
-    startDeskAnswerWindow(desk.doc as never);
+  test("the desk's own event opens it, and every way off the page stays shut", async () => {
+    started.push(await startedOn<AnswerWindowModule>("desk-answer-window.js", desk.doc));
     desk.root.dispatchEvent({
       type: OPEN_THE_ANSWER_WINDOW_EVENT,
       detail: { question: QUESTION },

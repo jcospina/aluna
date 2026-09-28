@@ -13,6 +13,7 @@ import { describe, expect, test } from "bun:test";
 
 import { createCapabilityActionRecord } from "../../runtime/data/index.ts";
 import { escapeHtml } from "../../server/http/html.ts";
+import { Doc, type El, parseHtml } from "../controls/choice-picker.test-support.ts";
 import type { RenderableCapability } from "../fields/field-renderer.ts";
 import {
   createPlatformPresentationAdapter,
@@ -21,7 +22,8 @@ import {
   type PresentableRecord,
   RECORD_TEMPLATE_ID_PREFIX,
 } from "./adapter.ts";
-import { ITEM_PAYLOAD_ATTR, ITEM_TRIGGER_CLASS } from "./list-container.ts";
+import { ITEM_PAYLOAD_ATTR, ITEM_RECORD_VIEW_ATTR, ITEM_TRIGGER_CLASS } from "./list-container.ts";
+import { RECORD_BACK_ATTR } from "./record-view.ts";
 
 // The schema contains one inactive field so the adapter can prove the record's form
 // follows active form-field order without leaking stored retired values.
@@ -103,6 +105,16 @@ function innerMarkupOf(html: string): string {
   return html.slice(openEnd + 1, close);
 }
 
+/** What the adapter emits for one record, parsed: the item, then its inert view template. */
+function presented(html: string) {
+  const root = parseHtml(html, new Doc());
+  return {
+    root,
+    item: root.children[0] as El,
+    template: root.children.find((node) => node.tag === "template") as El,
+  };
+}
+
 describe("createPresentationAdapter — composition", () => {
   test("treats user fields named fields and handle as ordinary capability data", () => {
     const collisionCapability: RenderableCapability = {
@@ -154,14 +166,15 @@ describe("createPresentationAdapter — composition", () => {
 
     // The wrapper chrome (platform-authored, trusted). A record is a real button, so it
     // carries no role, no tabindex and no dialog ARIA.
-    expect(html).toContain(`<button type="button"`);
-    expect(html).toContain(`class="${ITEM_TRIGGER_CLASS}"`);
-    expect(html).not.toContain('role="button"');
-    expect(html).not.toContain("tabindex=");
-    expect(html).not.toContain("aria-haspopup");
+    const { item, template } = presented(html);
+    expect(item.tag).toBe("button");
+    expect(item.getAttribute("type")).toBe("button");
+    expect(item.classList.contains(ITEM_TRIGGER_CLASS)).toBe(true);
+    for (const attribute of ["role", "tabindex", "aria-haspopup"]) {
+      expect(item.hasAttribute(attribute), attribute).toBe(false);
+    }
 
     // The renderer's conforming inner markup passes through unchanged.
-    expect(html).toContain('<div class="stack">');
     expect(html).toContain('<span class="text-lg truncate">Piranesi</span>');
 
     // The client receives only the record target, timestamp, and active schema values.
@@ -176,8 +189,8 @@ describe("createPresentationAdapter — composition", () => {
 
     // The click-to-open hook: the record's view template id.
     const templateId = `${RECORD_TEMPLATE_ID_PREFIX}-reading-rec-1`;
-    expect(html).toContain(`data-record-view-template="${templateId}"`);
-    expect(html).toContain(`<template id="${templateId}">`);
+    expect(item.getAttribute(ITEM_RECORD_VIEW_ATTR)).toBe(templateId);
+    expect(template.id).toBe(templateId);
   });
 
   test("emits the item wrapper first, then the record's view template", () => {
@@ -185,12 +198,12 @@ describe("createPresentationAdapter — composition", () => {
       capability: CAPABILITY,
       renderItem: renderReadingItem,
     });
-    const html = present(record());
-    expect(html.indexOf("<button")).toBe(0);
-    expect(html.indexOf("<button")).toBeLessThan(html.indexOf("<template"));
-    const collectionItem = html.slice(0, html.indexOf("<template"));
-    expect(collectionItem).not.toContain("data-record-back");
-    expect(collectionItem).not.toContain("capability-edit-form");
+    const { root, item, template } = presented(present(record()));
+    expect(root.children.map((node) => node.tag)).toEqual(["button", "template"]);
+    // The record's own surface travels inert in the template, never in the item.
+    expect(item.querySelector(`[${RECORD_BACK_ATTR}]`)).toBeNull();
+    expect(item.querySelector("form")).toBeNull();
+    expect(template.content?.querySelector(`[${RECORD_BACK_ATTR}]`)).not.toBeNull();
   });
 
   test("keys the record template to the record id and namespaces it by capability", () => {
@@ -198,29 +211,37 @@ describe("createPresentationAdapter — composition", () => {
       capability: CAPABILITY,
       renderItem: renderReadingItem,
     });
-    const first = present(record({ id: "aaa" }));
-    const second = present(record({ id: "bbb" }));
+    const first = presented(present(record({ id: "aaa" })));
+    const second = presented(present(record({ id: "bbb" })));
 
     // Each wrapper's hook matches its own template, and the two records never collide.
-    expect(first).toContain('data-record-view-template="record-reading-aaa"');
-    expect(first).toContain('<template id="record-reading-aaa">');
-    expect(second).toContain('data-record-view-template="record-reading-bbb"');
-    expect(second).not.toContain("record-reading-aaa");
+    for (const { item, template } of [first, second]) {
+      expect(item.getAttribute(ITEM_RECORD_VIEW_ATTR)).toBe(template.id);
+    }
+    expect(first.template.id).toBe(`${RECORD_TEMPLATE_ID_PREFIX}-${CAPABILITY.id}-aaa`);
+    expect(second.template.id).not.toBe(first.template.id);
   });
+});
 
+describe("createPresentationAdapter — what reaches the form and the item", () => {
   test("routes active schema fields into the record's form in form order", () => {
     const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
     });
     const html = present(record());
-    const body = recordTemplateBody(html, "record-reading-rec-1");
+    const form = presented(html).template.content?.querySelector("form") as El;
 
     // The record's form follows active form-field order and excludes only the inactive
     // stored field.
-    expect(body).not.toContain("still stored");
-    expect(body).toContain('name="title" value="Piranesi"');
-    expect(body).toContain('name="author" value="Susanna Clarke"');
+    expect(recordTemplateBody(html, "record-reading-rec-1")).not.toContain("still stored");
+    const named = form
+      .querySelectorAll("input")
+      .map((input) => input.getAttribute("name"))
+      .filter((name) => CAPABILITY.schema.fields.some((field) => field.name === name));
+    expect(named).toEqual(["title", "author", "rating", "note"]);
+    expect(form.querySelector('input[name="title"]')?.value).toBe("Piranesi");
+    expect(form.querySelector('input[name="author"]')?.value).toBe("Susanna Clarke");
     expect(readBackPayload(html)).toMatchObject({ author: "Susanna Clarke" });
   });
 
@@ -276,11 +297,12 @@ describe("createPresentationAdapter — enforcement on every rendered record", (
     expect(html).not.toContain("color:red");
     expect(html).toContain("padding:var(--space-2)");
     // Allow-listed classes and the record's text survive.
-    expect(html).toContain('class="stack"');
-    expect(html).toContain("Piranesi");
+    const { item } = presented(html);
+    expect(item.children[0]?.classList.contains("stack")).toBe(true);
+    expect(item.textContent).toContain("Piranesi");
     // The wrapper chrome itself is untouched (the enforcer runs on inner markup, not it).
-    expect(html).toContain(`class="${ITEM_TRIGGER_CLASS}"`);
-    expect(html).toContain(`${ITEM_PAYLOAD_ATTR}=`);
+    expect(item.classList.contains(ITEM_TRIGGER_CLASS)).toBe(true);
+    expect(item.hasAttribute(ITEM_PAYLOAD_ATTR)).toBe(true);
   });
 
   test("a hostile field value a renderer forgot to escape cannot escape as executable markup", () => {

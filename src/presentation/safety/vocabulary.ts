@@ -1,7 +1,7 @@
 // The closed allow-list the runtime enforcer keys on — the data half of the closed-value design
 // contract. It mirrors the vocabulary whose single source of truth is design/design-system.md
 // (classes) and design/styles/layout-kit.css (their CSS). The enforcer and the design-lint gate
-// rung both key on these sets, and vocabulary.test.ts cross-checks `ALLOWED_CLASSES` against the
+// rung both key on these sets, and vocabulary.policy.ts cross-checks `ALLOWED_CLASSES` against the
 // layout kit so the two cannot silently drift.
 //
 // Closed values, open composition: the closed thing is the design-value space and the executable

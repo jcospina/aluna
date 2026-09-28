@@ -176,7 +176,7 @@ export function carriedResolverMeasurement(
 
 /**
  * What one question cost (PLAN decision 33, ADR-0008). The clock is read here because decision
- * 9's sweep (`../runtime/query/question-loop.test.ts`) refuses one on the query path. A reading
+ * 9's sweep (`../runtime/query/question-loop.policy.ts`) refuses one on the query path. A reading
  * the row could not hold is dropped rather than carried: the cost is an addition to a row that
  * lands without it, and a broken clock may not take the resolver measurement down with it.
  */

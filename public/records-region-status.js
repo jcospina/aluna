@@ -14,7 +14,7 @@
 /** @typedef {"search" | "refresh"} RecordsRegionAct */
 
 /** @param {RecordsRegionState} state @param {RecordsRegionAct} act @returns {string} */
-function recordsRegionStatusMessage(state, act) {
+export function recordsRegionStatusMessage(state, act) {
   switch (state) {
     case "loading":
       return "I’m searching…";

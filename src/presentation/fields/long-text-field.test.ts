@@ -11,9 +11,11 @@
 // a hand-assembled fixture proves the module against a second author's idea of the markup.
 
 import { describe, expect, test } from "bun:test";
+import { elementsOf, moduleSources } from "../../server/http/served-page.test-support.ts";
 import { installDomGlobals } from "../controls/choice-picker.fixture.test-support.ts";
 import { Doc, El, parseHtml } from "../controls/choice-picker.test-support.ts";
-import { codeOf, readSource } from "../safety/source.test-support.ts";
+import { startedOn } from "../controls/started-module.test-support.ts";
+import { readSource } from "../safety/source.test-support.ts";
 import { characterCountSentence as serverSentence } from "./field-chrome.ts";
 import { oneField, probeField } from "./field-renderer.test-support.ts";
 import { renderCreateForm, renderEditForm } from "./field-renderer.ts";
@@ -74,44 +76,30 @@ type Scene = Awaited<ReturnType<typeof scene>>;
 const tick = () => new Promise((done) => setTimeout(done, 0));
 
 /**
- * A form reset in the browser's order: the event goes out first and the values go back
- * after it, which is why the repaint waits a turn.
+ * A form reset, which announces itself before it puts the values back — the double's `reset()`
+ * does it in that order too, which is why the repaint waits a turn.
  */
 async function resetForm(one: Scene): Promise<void> {
-  one.doc.fire("reset", one.form);
   one.form.reset();
   await tick();
 }
 
 /* ── the seam ──────────────────────────────────────────────────────────────── */
 
+// Every suite below runs the module on the renderer's own markup, so a hook it queries by that
+// the server stopped writing fails them; this is only the page's half.
 describe("the shipped page runs the module against what the server writes", () => {
-  const MODULE = codeOf("public/long-text-field.js");
-
-  test("the shell loads it and it starts itself", () => {
-    expect(readSource("public/index.html")).toContain(
-      '<script type="module" src="/static/long-text-field.js"></script>',
+  test("the shell loads it, and it starts itself on the document it finds", async () => {
+    expect(moduleSources(await elementsOf(readSource("public/index.html")))).toContain(
+      "/static/long-text-field.js",
     );
-    expect(MODULE).toContain('if (typeof document !== "undefined") startLongTextFields(document);');
-  });
-
-  test("every hook the module queries by is one the renderer emits", () => {
-    const rendered = longTextForm();
-    expect(MODULE).toContain("textarea[data-grow]");
-    expect(MODULE).toContain("[data-length-limit][data-length-counter]");
-    for (const hook of [
-      "data-grow",
-      'data-grow-max="',
-      'data-length-limit="',
-      "data-length-counter=",
-    ]) {
-      expect(rendered).toContain(hook);
-    }
-    expect(rendered).toContain('class="field__guidance field__guidance--count"');
-    // The dataset spellings, which are the same attributes read the other way round.
-    for (const key of ["growMax", "lengthLimit", "lengthCounter", "longTextMounted"]) {
-      expect(MODULE).toContain(key);
-    }
+    const doc = new Doc();
+    const root = new El("html");
+    doc.append(root);
+    parseHtml(longTextForm("hello"), root);
+    await startedOn("long-text-field.js", doc);
+    expect(mountedFlag(doc)).not.toBeNull();
+    expect(areaOf(doc).style.overflowY).toBe("hidden");
   });
 });
 
@@ -317,6 +305,7 @@ describe("how a control gets its script", () => {
     const one = await scene(longTextForm());
     const arriving = parseHtml(longTextForm("hello", "late"), new El("div"));
     one.root.append(arriving);
+    await one.doc.arrivals();
 
     const late = areaOf(arriving);
     expect(mountedFlag(arriving)).toBe("true");
@@ -347,7 +336,9 @@ describe("how a control gets its script", () => {
     const broken = parseHtml(longTextForm(undefined, "broken"), new El("div"));
     broken.querySelector(".field__guidance--count")?.remove();
 
-    expect(() => one.root.append(broken)).toThrow('Length counter "cap-probe-broken-count"');
+    one.root.append(broken);
+    await one.doc.arrivals();
+    expect(String(one.doc.reported)).toContain('Length counter "cap-probe-broken-count"');
     expect(mountedFlag(broken)).toBe(null);
   });
 
@@ -366,6 +357,7 @@ describe("how a control gets its script", () => {
 
     const sound = parseHtml(longTextForm("hello", "sound"), new El("div"));
     root.append(sound);
+    await doc.arrivals();
     expect(mountedFlag(sound)).toBe("true");
   });
 
@@ -375,7 +367,9 @@ describe("how a control gets its script", () => {
     broken.querySelector(".field__guidance--count")?.remove();
     const sound = parseHtml(longTextForm("hello", "sound"), new El("div"));
 
-    expect(() => one.root.append(broken, sound)).toThrow("Length counter");
+    one.root.append(broken, sound);
+    await one.doc.arrivals();
+    expect(String(one.doc.reported)).toContain("Length counter");
 
     expect(mountedFlag(sound)).toBe("true");
     expect(mountedFlag(broken)).toBe(null);

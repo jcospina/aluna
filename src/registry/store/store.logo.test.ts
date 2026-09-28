@@ -11,7 +11,7 @@ import {
   teardownScratchDbEnv,
 } from "../../platform/persistence/scratch-db.test-support.ts";
 import { FIRST_INCARNATION_ID, SECOND_INCARNATION_ID } from "../incarnations.test-support.ts";
-import { LOGO_MAX_CLAIMED_ATTEMPTS, resolveLogoShades } from "../logo.ts";
+import { LOGO_MAX_CLAIMED_ATTEMPTS, LOGO_STATUSES, resolveLogoShades } from "../logo.ts";
 import { validSpec } from "../spec/spec.test-support.ts";
 import {
   abandonMissingCapabilityLogo,
@@ -172,6 +172,7 @@ describe("the registry's logo inputs and state", () => {
     // What the migration leaves behind for a row predating the cut: no subject, ground, noun or
     // seed. A survivor must not be repaired into a capability describing artwork nobody drew.
     insertCapability(write(), conns.readwrite);
+    expect(getCapability("notes", conns.readonly)?.seed).toBe(write().seed);
     conns.readwrite.run(
       `UPDATE ${REGISTRY_TABLE}
        SET subject = NULL, ground = NULL, noun = NULL, seed = NULL
@@ -181,8 +182,14 @@ describe("the registry's logo inputs and state", () => {
     expect(() => getCapability("notes", conns.readonly)).toThrow();
   });
 
-  test("the stored logo status is confined to the four the contract names", () => {
+  test("the stored logo status is confined to the ones the contract names", () => {
     insertCapability(write(), conns.readwrite);
+    for (const status of LOGO_STATUSES) {
+      conns.readwrite.run(`UPDATE ${REGISTRY_TABLE} SET logo_status = ? WHERE id = 'notes'`, [
+        status,
+      ]);
+      expect(getCapability("notes", conns.readonly)?.logo.status).toBe(status);
+    }
     expect(() =>
       conns.readwrite.run(`UPDATE ${REGISTRY_TABLE} SET logo_status = 'queued' WHERE id = 'notes'`),
     ).toThrow();

@@ -13,10 +13,23 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
+import { elementsOf, scriptsOf } from "../../server/http/served-page.test-support.ts";
 import { shellScripts } from "../safety/source.test-support.ts";
 
 const ROOT = resolve(import.meta.dir, "../../..");
 const SHELL = readFileSync(join(ROOT, "public/index.html"), "utf8");
+
+/**
+ * The page's classic scripts, in load order. The vendored builds are bundles that set the
+ * `htmx` and `Alpine` globals, and `app.js` is the glue that reads them; none holds an `import` or
+ * `export`. Every other shell script imports, and a classic tag makes that a SyntaxError.
+ */
+const CLASSIC = [
+  "/static/vendor/htmx.min.js",
+  "/static/vendor/htmx-ext-sse.min.js",
+  "/static/app.js",
+  "/static/vendor/alpine.min.js",
+];
 
 /** Every `from "…"` in one module, import and re-export alike. */
 function specifiersIn(source: string): string[] {
@@ -36,6 +49,17 @@ describe("what a shipped module is allowed to import", () => {
         // And it names a file. A browser does no extension resolution either.
         expect(specifier.endsWith(".js"), `${name} → ${specifier}`).toBe(true);
       }
+    }
+  });
+
+  test("every shell script the page loads is a module, except the classic four", async () => {
+    const scripts = scriptsOf(await elementsOf(SHELL)).filter(({ src }) =>
+      src.startsWith("/static/"),
+    );
+    expect(scripts.filter(({ type }) => type !== "module").map(({ src }) => src)).toEqual(CLASSIC);
+    for (const src of CLASSIC) {
+      const source = readFileSync(join(ROOT, "public", src.slice("/static/".length)), "utf8");
+      expect(source, src).not.toMatch(/^\s*(?:import|export)\b/m);
     }
   });
 

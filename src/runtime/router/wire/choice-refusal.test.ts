@@ -2,11 +2,10 @@
 // the platform, before any generated Handler runs and before canonical state moves.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { ChoiceOption } from "../../../registry/index.ts";
-import { createApp } from "../../../server/app.ts";
+import { answerArrives, desk, El } from "../../../server/app.shell-double.test-support.ts";
+import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import { applyCapabilityTableDdl } from "../../data/index.ts";
 import {
   createCapabilityDataTool,
@@ -81,7 +80,7 @@ describe("an undeclared choice value on the wire", () => {
   function appForStagedNotes(spec = stagedNotesSpec(), onLoad: () => void = () => {}) {
     install(conns, notesRow(spec));
     applyCapabilityTableDdl(spec, conns.readwrite);
-    return createApp({
+    return createTestApp({
       capabilityRouter: {
         databases: conns,
         loadHandler: async () => {
@@ -162,9 +161,31 @@ describe("an undeclared choice value on the wire", () => {
     expect(createCapabilityDataTool(retired, conns).select()).toEqual([]);
   });
 
-  test("the shell claims the code, or htmx drops the answer on the floor", () => {
-    expect(readFileSync(join(import.meta.dir, "../../../../public/app.js"), "utf8")).toContain(
-      '"choice_disabled"',
-    );
+  test("the shell swaps it into the form it came from, where htmx would have dropped it", async () => {
+    const retired = stagedNotesSpec([
+      { value: "draft", label: "Draft" },
+      { value: "sent", label: "Sent", disabled: true },
+    ]);
+    for (const [spec, stage] of [
+      [stagedNotesSpec(), "paid"],
+      [retired, "sent"],
+    ] as const) {
+      teardownRouterTest(dir, conns);
+      ({ dir, conns } = setupRouterTest());
+      const response = await appForStagedNotes(spec).request(
+        "/capability/notes/create",
+        stagedBody(stage),
+      );
+      const scene = desk();
+      const form = new El("form", { id: "notes-create" });
+      scene.region.append(form);
+
+      const answer = answerArrives(scene, form, {
+        status: response.status,
+        body: await response.text(),
+      });
+
+      expect({ stage, answer }).toEqual({ stage, answer: { swapped: true, successful: false } });
+    }
   });
 });

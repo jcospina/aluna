@@ -7,10 +7,15 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { splitCollectionCount } from "#shell/collection-count.js";
+import {
+  ACTIVE_CAPABILITY_ATTRIBUTE,
+  PROMPT_NOTICE_ID,
+  WINDOW_CONTENT_ID,
+} from "#shell/shell-dom.js";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { FULL_CAPABILITY_TOOLS, insertCapability } from "../../../registry/index.ts";
-import { createApp } from "../../../server/app.ts";
 import { NOT_FOUND_NOTICE } from "../../../server/http/index.ts";
+import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import type { CapabilityContext } from "../contract.ts";
 import {
   boomRow,
@@ -59,7 +64,7 @@ describe("deterministic capability router — loader keying", () => {
     const firstPath = writeIncarnation(firstIncarnation, "first");
     const secondPath = writeIncarnation(secondIncarnation, "second");
     install(conns, notesRow({ incarnation_id: firstIncarnation, artifacts_path: firstPath }));
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     expect(await (await app.request("/capability/notes/read")).text()).toContain("first handler");
 
@@ -93,7 +98,7 @@ describe("deterministic capability router — presentation adapter and empty rea
     // Regression: a read handler authoring its own empty state defeats the platform's `:empty`
     // one (ADR-0005 §1) and lingers below the first record create prepends with `afterbegin`.
     install(conns, notesRow());
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const res = await app.request("/capability/notes/read");
     expect(res.status).toBe(200);
@@ -107,7 +112,7 @@ describe("deterministic capability router — presentation adapter and empty rea
   test("the count creates nothing — no table, no registry or version state", async () => {
     install(conns, notesRow());
     createCapabilityDataTool(notesSpec(), conns).insert({ text: "Buy milk", pinned: false });
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
     // Every table and how many rows each holds — so a new version, artifact, cache or
     // read-dependency row would be seen, not just a new table.
     const rowsPerTable = () =>
@@ -146,7 +151,7 @@ describe("deterministic capability router — presentation adapter and empty rea
           .map(({ record }) => present(record))
           .join("");
 
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: { databases: conns, loadHandler, loadItemRenderer },
     });
 
@@ -177,7 +182,7 @@ describe("deterministic capability router — presentation adapter and empty rea
     const loadItemRenderer: ItemRendererLoader = async () => {
       throw new Error("ENOENT item.ts");
     };
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: { databases: conns, loadHandler, loadItemRenderer },
     });
 
@@ -208,7 +213,7 @@ describe("deterministic capability router — what a collection says it holds", 
     install(conns, notesRow());
     const records = createCapabilityDataTool(notesSpec(), conns);
     records.insert({ text: "Buy milk", pinned: false });
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const one = splitCollectionCount(await (await app.request("/capability/notes/read")).text());
     expect(one.sentence).toBe("1 note");
@@ -229,7 +234,7 @@ describe("deterministic capability router — what a collection says it holds", 
     records.insert({ text: "Buy milk", pinned: false });
     records.insert({ text: "Call Ana", pinned: false });
     records.insert({ text: "Buy bread", pinned: false });
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const hit = splitCollectionCount(
       await (await app.request("/capability/notes/search?q=milk")).text(),
@@ -256,7 +261,7 @@ describe("deterministic capability router — what a collection says it holds", 
     // different facts, and only the second is a claim about the user's own notes.
     install(conns, notesRow());
     createCapabilityDataTool(notesSpec(), conns).insert({ text: "Buy milk", pinned: false });
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const none = splitCollectionCount(
       await (await app.request("/capability/notes/search?q=zzzz")).text(),
@@ -269,7 +274,7 @@ describe("deterministic capability router — what a collection says it holds", 
     // Nothing to qualify: the platform empty state is what a collection with no records
     // says, and 6.1/01's rule is that it says it once.
     install(conns, notesRow());
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const searched = splitCollectionCount(
       await (await app.request("/capability/notes/search?q=milk")).text(),
@@ -293,7 +298,7 @@ describe("deterministic capability router — view scaffolding", () => {
 
   test("serves the spec-rendered data-free list scaffolding with its live read region and create form", async () => {
     install(conns, notesRow());
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     // A logo click serves the platform list scaffolding rendered live from the spec
     // — no served list.html/create.html — as a bare content fragment.
@@ -325,7 +330,7 @@ describe("deterministic capability router — view scaffolding", () => {
       read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
       behavioral_errors: [createRequired, { ...createRequired, action: "update" }],
     });
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases: conns,
         lookupCapability: () => fullRow,
@@ -346,7 +351,7 @@ describe("deterministic capability router — view scaffolding", () => {
 
   test("the spec-rendered View is data-free: a committed record never enters the chrome", async () => {
     install(conns, notesRow());
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     // Persist a record through the real create action, so live user data exists.
     await app.request(
@@ -377,7 +382,7 @@ describe("deterministic capability router — view scaffolding", () => {
 
   test("direct capability navigation returns the styled desk, and the window asks for the view", async () => {
     install(conns, notesRow());
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const res = await app.request("/capability/notes");
     const body = await res.text();
@@ -396,9 +401,9 @@ describe("deterministic capability router — view scaffolding", () => {
     expect(body).toContain('hx-get="/capability/notes"');
     expect(body).toContain('class="desk__windows"');
     expect(body).toContain('src="/static/desk-window.js"');
-    expect(body).not.toContain('id="spec-build-output"');
+    expect(body).not.toContain(`id="${WINDOW_CONTENT_ID}"`);
     expect(body).not.toContain("capability-surface");
-    expect(body).not.toContain("data-active-capability-id");
+    expect(body).not.toContain(ACTIVE_CAPABILITY_ATTRIBUTE);
     expect(await collectCapabilityLogoText(body)).toEqual(["Notes"]);
 
     // The view the window then asks for, at the same address the browser is already on.
@@ -433,7 +438,7 @@ describe("deterministic capability router — logo rehydration and labels", () =
     // sibling looked lost. A full-page `/capability/:id` must restore the desk `GET /` does.
     install(conns, notesRow());
     install(conns, boomRow());
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const body = await (await app.request("/capability/notes")).text();
 
@@ -450,7 +455,7 @@ describe("deterministic capability router — logo rehydration and labels", () =
     // The second-tab, bookmark and reload cases after a deletion, and a link that was never right:
     // one page load, since a finished deletion takes its row and the two look alike (decision 21).
     install(conns, boomRow());
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const res = await app.request("/capability/notes");
     const body = await res.text();
@@ -465,9 +470,9 @@ describe("deterministic capability router — logo rehydration and labels", () =
     // The sentence, in the prompt bar's own slot — no window, and no second notice
     // element anywhere on the page.
     expect(body).toContain(
-      `<div id="prompt-notice" class="prompt__notice" aria-live="polite">${NOT_FOUND_NOTICE}</div>`,
+      `<div id="${PROMPT_NOTICE_ID}" class="prompt__notice" aria-live="polite">${NOT_FOUND_NOTICE}</div>`,
     );
-    expect(body.match(/id="prompt-notice"/g)).toHaveLength(1);
+    expect(body.match(new RegExp(`id="${PROMPT_NOTICE_ID}"`, "g"))).toHaveLength(1);
 
     // Still a 404: the desk is what the person gets instead, not a claim the address
     // was good.
@@ -477,7 +482,7 @@ describe("deterministic capability router — logo rehydration and labels", () =
   test("a press on a tile that has gone is answered with the fragment, never a document", async () => {
     // An `HX-Request` is a press inside a desk that is already up. Answering it with a
     // whole page would swap a document into the window.
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const res = await app.request("/capability/notes", { headers: { "HX-Request": "true" } });
     const body = await res.text();
@@ -485,11 +490,11 @@ describe("deterministic capability router — logo rehydration and labels", () =
     expect(res.status).toBe(404);
     expect(body).toMatch(/can’t find that/i);
     expect(body).not.toContain("<!doctype html>");
-    expect(body).not.toContain("prompt-notice");
+    expect(body).not.toContain(PROMPT_NOTICE_ID);
   });
 
   test("an empty registry answers a stale link with a desk that has nothing on it", async () => {
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const body = await (await app.request("/capability/notes")).text();
 
@@ -501,7 +506,7 @@ describe("deterministic capability router — logo rehydration and labels", () =
   test("direct capability navigation writes a canonical short name under a legacy sentence label", async () => {
     const sentenceLabel = "We'll set up a space to capture and organize all your notes.";
     insertCapability(notesRow({ label: sentenceLabel }), conns.readwrite);
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const res = await app.request("/capability/notes");
     const body = await res.text();

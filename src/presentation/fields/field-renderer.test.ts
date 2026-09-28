@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
 import { FILE_FIELD_HOOKS } from "#design/file-field.js";
-import { CREATE_CANCELLED_EVENT } from "#shell/shell-dom.js";
+import { BUSY_LABEL_ATTRIBUTE } from "#shell/shell-dom.js";
 import { fieldTypeSchema, isFileFieldType } from "../../registry/index.ts";
-import { ADDING_LABEL, busyLabelAttribute } from "../controls/busy-label.ts";
+import { ADDING_LABEL } from "../controls/busy-label.ts";
+import { Doc, El, parseHtml } from "../controls/choice-picker.test-support.ts";
+import { collectionPage, inOrder, named, shown } from "../records/collection-page.test-support.ts";
 import { oneField, probeField, SAMPLE, sampleFieldValue } from "./field-renderer.test-support.ts";
 import {
   capabilityCreateErrorId,
@@ -15,6 +17,18 @@ import {
 
 // Every pantry type in both modes from one fixture, the create-form wiring, and the escaping. The
 // sweep ties the renderer to `fieldTypeSchema`, so a new type breaks a test, not a live view.
+
+const parsed = (html: string) => parseHtml(html, new Doc());
+
+/** The control a field posts under `name`, the one a person types or ticks into. */
+const control = (html: string, name: string) =>
+  parsed(html)
+    .querySelectorAll(`[name="${name}"]`)
+    .find((node) => node.getAttribute("type") !== "hidden") as El;
+
+/** What the label pointing at `input` says. */
+const labelFor = (html: string, input: El) =>
+  parsed(html).querySelector(`label[for="${input.id}"]`)?.textContent.trim();
 
 describe("create form — platform wiring + close-on-success", () => {
   const form = renderCreateForm(SAMPLE);
@@ -51,35 +65,48 @@ describe("create form — platform wiring + close-on-success", () => {
   test("carries an accessible name and puts add beside cancel, in that order", () => {
     // Save and cancel sit together on the left, save first, so a destructive action can
     // be kept away from them on the right (design/index.html, "The record form").
-    expect(form).toContain('aria-label="Add to Tasks"');
-    const cancel =
-      `<button class="btn btn--outline" type="button" data-create-cancel` +
-      ` @click="$el.ownerDocument.defaultView.HTMLFormElement.prototype.reset.call($el.form);` +
-      ` $el.ownerDocument.getElementById('${capabilityCreateErrorId("tasks")}').replaceChildren();` +
-      ` $dispatch('${CREATE_CANCELLED_EVENT}')">Cancel</button>`;
-    expect(form).toContain(cancel);
-    const add =
-      `<button class="btn btn--primary" type="submit"` +
-      `${busyLabelAttribute(ADDING_LABEL)}>Add</button>`;
-    expect(form).toContain(add);
-    expect(form.indexOf(add)).toBeLessThan(form.indexOf(cancel));
+    const { form } = collectionPage(SAMPLE);
+    const add = named(form, "button", "Add");
+    const cancel = named(form, "button", "Cancel");
+    expect(add.getAttribute("type")).toBe("submit");
+    expect(add.getAttribute(BUSY_LABEL_ATTRIBUTE)).toBe(ADDING_LABEL);
+    expect(cancel.getAttribute("type")).toBe("button");
+    const [addAt, cancelAt] = inOrder(form, add, cancel);
+    expect(addAt).toBeLessThan(cancelAt as number);
   });
 
-  test("cancel cannot be DOM-clobbered by a valid field named reset", () => {
-    const resetFieldForm = renderCreateForm({
+  test("Cancel puts the draft down and clears the refusal it was showing", () => {
+    const page = collectionPage(SAMPLE);
+    page.press(page.newButton);
+    page.field("title").value = "half a thought";
+    const refusal = page.doc.getElementById(capabilityCreateErrorId(SAMPLE.id)) as El;
+    const said = new El("p");
+    said.textContent = "Not that.";
+    refusal.append(said);
+    page.press(named(page.form, "button", "Cancel"));
+    expect(page.field("title").value).toBe("");
+    expect(refusal.children).toHaveLength(0);
+  });
+
+  test("Cancel still puts the draft down when a field is named reset", () => {
+    // A control named `reset` is what `form.reset` means in a browser, so calling the method off
+    // the form would throw; the prototype's is the one a field cannot shadow.
+    const capability = {
       ...SAMPLE,
       schema: {
         fields: [
           { name: "reset", label: "Reset", type: "string", required: false, lifecycle: "active" },
         ],
       },
-    });
-
-    expect(resetFieldForm).toContain('name="reset"');
-    expect(resetFieldForm).toContain(
-      "$el.ownerDocument.defaultView.HTMLFormElement.prototype.reset.call($el.form)",
-    );
-    expect(resetFieldForm).not.toContain("$el.form.reset()");
+    } as const satisfies RenderableCapability;
+    const page = collectionPage(capability);
+    const field = page.field("reset");
+    Object.defineProperty(page.form, "reset", { value: field });
+    page.press(page.newButton);
+    field.value = "half a thought";
+    page.press(named(page.form, "button", "Cancel"));
+    expect(field.value).toBe("");
+    expect(shown(page.form)).toBe(false);
   });
 
   test("holds no record data — the create surface is data-free", () => {
@@ -110,10 +137,11 @@ describe("create form — one control per pantry type — scalar and list contro
   test("string renders a text input named for the field", () => {
     // The shell carries the boundary and the fill; the input carries the caret and the
     // text (`design/design-system.md`, "Forms").
-    expect(form).toContain(
-      '<span class="field__control"><input class="field__input" id="cap-tasks-title" type="text"',
-    );
-    expect(form).toContain('name="title"');
+    const input = control(form, "title");
+    expect(input.tag).toBe("input");
+    expect(input.getAttribute("type")).toBe("text");
+    expect(input.parent?.tag).toBe("span");
+    expect(labelFor(form, input)).toBe("Title");
   });
 
   test("emits one reserved presence marker for every rendered active field", () => {
@@ -128,17 +156,25 @@ describe("create form — one control per pantry type — scalar and list contro
   });
 
   test("number renders a decimal-capable number input", () => {
-    expect(form).toContain('id="cap-tasks-priority" type="number"');
-    expect(form).toContain('step="any"');
+    const input = control(form, "priority");
+    expect(input.getAttribute("type")).toBe("number");
+    expect(input.getAttribute("step")).toBe("any");
   });
 
   test("boolean renders an inline checkbox", () => {
-    expect(form).toContain('<div class="field field--inline">');
-    expect(form).toContain('<input class="field__checkbox" id="cap-tasks-done" type="checkbox"');
+    const root = parsed(form);
+    const input = root.querySelector('input[type="checkbox"]') as El;
+    expect(input.getAttribute("name")).toBe("done");
+    // The label comes after the box it names, on the same line.
+    const label = root.querySelector(`label[for="${input.id}"]`) as El;
+    expect(label.parent).toBe(input.parent);
+    expect(input.parent?.children.indexOf(input)).toBeLessThan(
+      input.parent?.children.indexOf(label) ?? -1,
+    );
   });
 
   test("datetime renders a datetime-local input", () => {
-    expect(form).toContain('id="cap-tasks-due_date" type="datetime-local"');
+    expect(control(form, "due_date").getAttribute("type")).toBe("datetime-local");
   });
 
   test("date renders a date-only input, distinct from datetime-local", () => {
@@ -151,7 +187,7 @@ describe("create form — one control per pantry type — scalar and list contro
         lifecycle: "active",
       }),
     );
-    expect(dateForm).toContain('id="cap-probe-due_on" type="date"');
+    expect(control(dateForm, "due_on").getAttribute("type")).toBe("date");
     expect(dateForm).not.toContain("datetime-local");
   });
 
@@ -165,15 +201,14 @@ describe("create form — one control per pantry type — scalar and list contro
         lifecycle: "active",
       }),
     );
-    expect(listForm).toContain("data-list-field");
-    expect(listForm).toContain('name="tags"');
-    expect(listForm).toContain("data-list-field-add>Add another</button>");
-    expect(listForm).toContain("data-list-field-remove");
-    expect(listForm).not.toContain('name="tags" required');
-    // `syncListFieldRows` (list-field.js) reads both attributes to re-key every row's `input.id`
-    // and `aria-label`. Drop either and rows fall back to "Value 1" and collide on their ids.
-    expect(listForm).toContain('data-list-field-label="Tags"');
-    expect(listForm).toContain('data-list-input-id="cap-probe-tags"');
+    // What the rows do with these hooks is run on this markup in `list-field.test.ts`.
+    const rows = parsed(listForm).querySelectorAll('input[name="tags"]');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.hasAttribute("required")).toBe(false);
+    const buttons = (rows[0]?.closest("[data-list-input-mode]") as El)
+      .querySelectorAll("button")
+      .map((button) => button.getAttribute("aria-label") ?? button.textContent.trim());
+    expect(buttons).toEqual(["Reorder Tags 1 of 1", "Remove Tags value 1", "Add another"]);
   });
 
   test("comma-separated string[] renders one accessible control with associated guidance", () => {
@@ -189,15 +224,17 @@ describe("create form — one control per pantry type — scalar and list contro
         "comma_separated",
       ),
     );
-    expect(html).toContain('data-list-input-mode="comma_separated"');
+    const input = control(html, "tags");
+    expect(input.hasAttribute("required")).toBe(true);
     // The platform's own separator hint keeps an id of its own, so a field that also
     // declares `guidance` can carry both lines rather than one overwriting the other.
-    expect(html).toContain(
-      'name="tags" aria-describedby="cap-probe-tags-list-hint cap-probe-tags-guidance" required',
-    );
-    expect(html).toContain('id="cap-probe-tags-list-hint">Separate values with commas.</p>');
-    expect(html).not.toContain("data-list-field-add");
-    expect(html).not.toContain("data-list-field-remove");
+    const described = (input.getAttribute("aria-describedby") ?? "").split(" ");
+    expect(described).toHaveLength(2);
+    const root = input.ownerDoc as El;
+    const [hint, guidance] = described.map((id) => root.querySelector(`#${id}`));
+    expect(hint?.textContent.trim()).not.toBe("");
+    expect(guidance).not.toBeNull();
+    expect((input.closest("[data-list-input-mode]") as El).querySelectorAll("button")).toEqual([]);
   });
 });
 
@@ -205,9 +242,7 @@ describe("create form — one control per pantry type — labels, lifecycle, and
   const form = renderCreateForm(SAMPLE);
 
   test("uses the authored field label and ties it to the stable field-name control", () => {
-    expect(form).toContain(
-      '<label class="field__label caps" for="cap-tasks-due_date">Due date</label>',
-    );
+    expect(labelFor(form, control(form, "due_date"))).toBe("Due date");
     const custom = renderCreateForm(
       oneField({
         name: "due_date",
@@ -217,8 +252,7 @@ describe("create form — one control per pantry type — labels, lifecycle, and
         lifecycle: "active",
       }),
     );
-    expect(custom).toContain('for="cap-probe-due_date">Finish by</label>');
-    expect(custom).toContain('name="due_date"');
+    expect(labelFor(custom, control(custom, "due_date"))).toBe("Finish by");
   });
 
   test("does not render inactive fields", () => {
@@ -254,7 +288,7 @@ describe("create form — one control per pantry type — labels, lifecycle, and
   const withoutFormTag = (html: string) => html.slice(html.indexOf(">") + 1);
 
   test("required fields carry the required attribute; optional ones do not", () => {
-    expect(form).toContain('name="title" aria-describedby="cap-tasks-title-guidance" required>');
+    expect(control(form, "title").hasAttribute("required")).toBe(true);
     // The lone optional field renders without the word on any control. The form's open tag is cut
     // off first, because `data-required-message` says nothing about this field.
     expect(

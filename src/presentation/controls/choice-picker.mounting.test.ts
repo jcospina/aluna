@@ -19,8 +19,9 @@ import {
   labelOf,
   OPTIONS,
   openPicker,
+  scene,
 } from "./choice-picker.fixture.test-support.ts";
-import { El, parseHtml, scene } from "./choice-picker.test-support.ts";
+import { El, parseHtml } from "./choice-picker.test-support.ts";
 
 installDomGlobals();
 
@@ -50,6 +51,7 @@ describe("what happens around the control", () => {
     picker.doc.append(outgoing);
     const arriving = template.cloneNode(true);
     outgoing.replaceWith(arriving);
+    await picker.doc.arrivals();
 
     const field = arriving.querySelector("[data-choice-presentation]") as El;
     expect(field.getAttribute("data-choice-picker-mounted")).toBe("true");
@@ -89,7 +91,9 @@ describe("what happens around the control", () => {
     broken.querySelector("[data-choice-value]")?.remove();
     const sound = parseHtml(form("picker", "second"), new El("div"));
 
-    expect(() => picker.doc.append(broken, sound)).toThrow("data-choice-value");
+    picker.doc.append(broken, sound);
+    await picker.doc.arrivals();
+    expect(String(picker.doc.reported)).toContain("data-choice-value");
 
     const soundField = sound.querySelector("[data-choice-presentation]") as El;
     expect(soundField.getAttribute("data-choice-picker-mounted")).toBe("true");
@@ -103,6 +107,7 @@ describe("what happens around the control", () => {
     expect(picker.panel?.hidden).toBe(false);
     picker.form.remove();
     picker.doc.append(new El("div"));
+    await picker.doc.arrivals();
 
     expect(picker.panel?.hidden).toBe(true);
     // Nothing left holding it: the next press has no detached subtree to walk.
@@ -260,6 +265,17 @@ describe("putting a finished form back", () => {
     expect(picker.panel?.hidden).toBe(true);
     expect(picker.button?.getAttribute("aria-expanded")).toBe("false");
     expect(picker.button?.getAttribute("aria-activedescendant")).toBe(null);
+  });
+
+  test("a picker called `contains` is put back too", async () => {
+    // A form answers to its fields' names first, so `form.contains` would be this field's carrier.
+    const picker = await scene(form("picker", undefined, { name: "contains" }));
+    picker.press(picker.button as El);
+    picker.press(picker.options().find((o) => labelOf(o) === "fourth") as El);
+    picker.doc.fire(RECORD_CREATED_EVENT, picker.form);
+    expect(picker.valueEl?.textContent).toBe(
+      picker.field.getAttribute("data-choice-placeholder") as string,
+    );
   });
 
   test("an edit form's picker goes back to the record's own value, not to empty", async () => {

@@ -22,8 +22,8 @@ export { PROMPT_NOTICE_ID };
  */
 const PROMPT_REFUSAL_ATTRIBUTE = "data-prompt-refusal";
 export const PROMPT_REFUSAL_SELECTOR = `[${PROMPT_REFUSAL_ATTRIBUTE}]`;
-const PROMPT_REFUSED_CLASS = "is-refused";
-const PROMPT_REFUSAL_FLASH_MS = 400;
+export const PROMPT_REFUSED_CLASS = "is-refused";
+export const PROMPT_REFUSAL_FLASH_MS = 400;
 
 /**
  * What the desk says here, and what it asks (PLAN decisions 24, 26). Both are restated in

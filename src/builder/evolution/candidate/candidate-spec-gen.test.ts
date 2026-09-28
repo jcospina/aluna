@@ -8,7 +8,21 @@
 import { describe, expect, test } from "bun:test";
 
 import type { SendBuildEvent } from "../../../pipeline/jobs/build-jobs.ts";
-import { promptCapabilitySpecSchema } from "../../../registry/index.ts";
+import { addedLines, linesNaming } from "../../../platform/provider/prompt-lines.test-support.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  CHOICE_PRESENTATIONS,
+  FORM_SHADOWING_FIELD_NAMES,
+  FULL_CAPABILITY_TOOLS,
+  fieldTypeSchema,
+  LIST_INPUT_MODES,
+  MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  PLATFORM_COLUMNS,
+  PLATFORM_OWNED_ERROR_CODES,
+  promptCapabilitySpecSchema,
+  uiCollectionLayoutSchema,
+} from "../../../registry/index.ts";
+import { structuredOutputKeys } from "../../spec/spec-gen.test-support.ts";
 import { buildDependencyGenerationCatalog } from "../dependency-catalog.ts";
 import {
   candidateFrom,
@@ -25,7 +39,7 @@ import {
   type GenerateCandidateSpecInput,
   generateCandidateSpec,
 } from "./candidate-spec-gen.ts";
-import { CandidateValidationError } from "./candidate-validation.ts";
+import { CandidateValidationError, committedSpecView } from "./candidate-validation.ts";
 
 function collectingSend(): { send: SendBuildEvent; events: Array<[string, string]> } {
   const events: Array<[string, string]> = [];
@@ -35,6 +49,13 @@ function collectingSend(): { send: SendBuildEvent; events: Array<[string, string
       events.push([event, data]);
     },
   };
+}
+
+/** The prompt with its two JSON payloads taken out: only what the builder itself says. */
+function instructionsOf(input: GenerateCandidateSpecInput): string {
+  return buildCandidateSpecPrompt(input)
+    .replace(JSON.stringify(committedSpecView(input.committed), null, 2), "")
+    .replace(JSON.stringify(input.dependencyCatalog, null, 2), "");
 }
 
 function promptInput(
@@ -53,14 +74,14 @@ function promptInput(
 
 describe("the generation context (decision 1, pinned)", () => {
   test("the prompt carries the committed spec with its own inactive fields present", () => {
-    const prompt = buildCandidateSpecPrompt(promptInput());
-    // Own inactive fields are candidate-spec context.
-    expect(prompt).toContain("archived_reason");
-    expect(prompt).toContain("old_labels");
-    expect(prompt).toContain("old_rating");
-    // The field-lifecycle catalog names every committed field with its state.
-    expect(prompt).toContain("- archived_reason (string) — lifecycle inactive");
-    expect(prompt).toContain("- title (string) — lifecycle active");
+    const input = promptInput();
+    const prompt = buildCandidateSpecPrompt(input);
+    expect(prompt).toContain(JSON.stringify(committedSpecView(input.committed), null, 2));
+    // The field-lifecycle catalog names every committed field with its state, one line each.
+    for (const field of input.committed.schema.fields) {
+      const facts = [field.name, field.type, field.lifecycle, field.label];
+      expect(linesNaming(instructionsOf(input), facts), field.name).toHaveLength(1);
+    }
     // Platform lifecycle values are never generation context: the committed spec JSON carries no
     // lifecycle-metadata key. (The bare words appear only in the "never return" instruction.)
     expect(prompt).not.toContain('"artifacts_path"');
@@ -69,65 +90,73 @@ describe("the generation context (decision 1, pinned)", () => {
   });
 
   test("the dependency catalog rides along with active external fields only", () => {
-    const prompt = buildCandidateSpecPrompt(promptInput());
+    const input = promptInput();
+    const prompt = buildCandidateSpecPrompt(input);
+    expect(prompt).toContain(JSON.stringify(input.dependencyCatalog, null, 2));
     expect(prompt).toContain('"capability_id": "shelves"');
     expect(prompt).toContain(`"incarnation_id": "${SHELVES_INCARNATION_ID}"`);
-    expect(prompt).toContain('"prompt_context": "Stores the user\'s labelled shelves."');
     expect(prompt).toContain("shelf_name");
     // Inactive external fields are not generation context.
     expect(prompt).not.toContain("shelf_secret");
   });
 
-  test("the resolved intent and the evolution contract are in the prompt", () => {
-    const prompt = buildCandidateSpecPrompt(promptInput());
-    expect(prompt).toContain("proposed_action: Add a mood field to my journal");
-    expect(prompt).toContain("type: extend_capability");
-    expect(prompt).toContain('Return exactly "journal"');
-    expect(prompt).toContain("Return every committed field exactly once");
-    expect(prompt).toContain('A newly introduced field must start lifecycle "active"');
-    // The append-only option contract, stated where the model authors the candidate.
-    expect(prompt).toContain("option values are stored data and are immutable");
-    expect(prompt).toContain("Never remove or rename a committed value");
-    // Order, notes, groups and disabled are presentation and move freely; retiring an
-    // option is how it is taken out of use, because removing it is refused.
-    expect(prompt).toContain("Set an option's disabled to true to retire it");
-    expect(prompt).toContain("A committed option group's id is fixed");
-    expect(prompt).toContain(
-      "keep its label, required and any declared values exactly as committed",
-    );
-    expect(prompt).toContain(
-      "ui_intent.form.choice_inputs contains exactly one { field, presentation } entry",
-    );
-    expect(prompt).toContain("choice presentation is exactly picker");
-    expect(prompt).toContain("tools: exactly [create, read, update, delete, search]");
-    expect(prompt).toContain("Never return incarnation, version, build id, snapshot metadata");
-    expect(prompt).toContain("comma_separated | repeatable");
-    expect(prompt).toContain(
-      "Preserve the committed behavior byte-for-byte unless the resolved intent explicitly changes",
-    );
-    expect(prompt).toContain('"make it stand out" in ui_intent');
-    expect(prompt).toContain(
-      "Preserve it byte-for-byte unless the resolved intent changes the capability's purpose",
+  test("an empty catalog says so in one line of its own, and takes nothing else away", () => {
+    const withCatalog = buildCandidateSpecPrompt(promptInput());
+    const empty = buildCandidateSpecPrompt(promptInput({ dependencyCatalog: [] }));
+    const [none, ...more] = addedLines(withCatalog, empty);
+    expect(more).toEqual([]);
+    expect(empty.replace(none ?? "", JSON.stringify(evolutionDependencyCatalog(), null, 2))).toBe(
+      withCatalog,
     );
   });
 
-  test("the logo's birth facts are quoted back as the exact values to return", () => {
+  test("the resolved intent is in the prompt, and its target defaults to the committed id", () => {
+    const input = promptInput();
+    const instructions = instructionsOf(input);
+    expect(instructions).toContain(input.intent.type);
+    expect(instructions).toContain(input.intent.proposed_action);
+
+    const untargeted = { ...input, intent: { ...input.intent, target_capability: null } };
+    expect(buildCandidateSpecPrompt(untargeted)).toBe(buildCandidateSpecPrompt(input));
+    const elsewhere = { ...input, intent: { ...input.intent, target_capability: "elsewhere" } };
+    expect(
+      linesNaming(
+        addedLines(buildCandidateSpecPrompt(input), buildCandidateSpecPrompt(elsewhere)).join("\n"),
+        ["elsewhere"],
+      ),
+    ).toHaveLength(1);
+  });
+
+  test("names every closed vocabulary off the registry, and every key the output asks for", async () => {
+    const prompt = buildCandidateSpecPrompt(promptInput());
+    for (const vocabulary of [
+      FULL_CAPABILITY_TOOLS,
+      fieldTypeSchema.options,
+      uiCollectionLayoutSchema.options,
+      CHOICE_PRESENTATIONS,
+      LIST_INPUT_MODES,
+      PLATFORM_COLUMNS,
+      FORM_SHADOWING_FIELD_NAMES,
+      PLATFORM_OWNED_ERROR_CODES,
+    ]) {
+      expect(linesNaming(prompt, vocabulary), vocabulary.join()).not.toEqual([]);
+    }
+    for (const key of await structuredOutputKeys()) expect(prompt, key).toContain(key);
+    const markers = JSON.stringify(BEHAVIORAL_ERROR_MARKERS);
+    expect(linesNaming(prompt, [MISSING_REQUIRED_FIELDS_ERROR_CODE, markers])).not.toEqual([]);
+  });
+
+  test("the immutable id and the logo's birth facts are quoted back as the values to return", () => {
     // The contract the platform then enforces: the model is told the three values and told they
     // cannot move, so a rejection is never a surprise about an unseen rule.
-    const prompt = buildCandidateSpecPrompt(promptInput());
-    expect(prompt).toContain(
-      'subject, ground and companion are the logo\'s birth facts and are immutable. Return exactly "an open notebook", "grass_green" and "coral_orange".',
-    );
-    expect(prompt).toContain("The artwork was drawn once from them and is never redrawn");
-    // The noun is the one logo-adjacent value that may move — as View copy, never as
-    // a reason to draw anything.
-    expect(prompt).toContain("noun is the singular common noun for one stored record");
-    expect(prompt).not.toContain("regenerate the logo");
-  });
-
-  test("an empty catalog states there is nothing to depend on", () => {
-    const prompt = buildCandidateSpecPrompt(promptInput({ dependencyCatalog: [] }));
-    expect(prompt).toContain("- none: declare no external dependencies.");
+    const input = promptInput();
+    const { id, subject, ground, companion } = input.committed;
+    const instructions = instructionsOf(input);
+    expect(instructions).toContain(`"${id}"`);
+    expect(
+      linesNaming(instructions, [`"${subject}"`, `"${ground}"`, `"${companion}"`]),
+    ).toHaveLength(1);
+    expect(instructions).not.toContain("regenerate the logo");
   });
 });
 

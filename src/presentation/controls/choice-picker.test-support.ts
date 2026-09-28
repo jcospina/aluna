@@ -6,39 +6,23 @@
 // second author's idea of the markup.
 //
 // Everything here is the operation the browser performs — `append` moves a node out of wherever
-// it was, `focus` is what `activeElement` then answers, `closest` walks the real parent chain,
-// and an event dispatched on a node runs that node's listeners and then every ancestor's.
+// it was, `focus` lands only where the browser would let it and is what `activeElement` then
+// answers, `closest` walks the real parent chain, and an event travels the capture and bubble
+// phases the shared dispatcher (`src/server/dom-events.test-support.ts`) runs for every double.
 
-import { unescapeHtml } from "../../server/http/html.ts";
-
-/** One parsed selector step: a tag, some classes, and some attribute tests. */
-interface Step {
-  readonly tag: string | null;
-  readonly classes: readonly string[];
-  readonly attributes: readonly (readonly [string, string | null])[];
-}
-
-/* HTML's void elements. SVG children like `<path>` are not among them — the renderer
- * closes those explicitly, and treating one as void would pop a tag nobody opened. */
-const VOID_TAGS = new Set(["input", "br", "img", "hr", "meta", "link"]);
-
-function parseSelector(selector: string): Step[] {
-  return selector
-    .trim()
-    .split(/\s+(?![^[]*\])/)
-    .map((part) => {
-      // A pseudo-class is refused rather than ignored: skipping one turned
-      // `button:not([disabled])` into `button[disabled]`, the exact inverse.
-      if (/:/.test(part)) throw new Error(`Unsupported selector in the DOM double: ${selector}`);
-      return {
-        tag: /^[a-zA-Z][a-zA-Z0-9-]*/.exec(part)?.[0] ?? null,
-        classes: [...part.matchAll(/\.([a-zA-Z0-9_-]+)/g)].map((match) => match[1] as string),
-        attributes: [...part.matchAll(/\[([a-zA-Z0-9_-]+)(?:="?([^\]"]*)"?)?\]/g)].map(
-          (match) => [match[1] as string, match[2] ?? null] as const,
-        ),
-      };
-    });
-}
+import {
+  assertAttributeName,
+  canTakeFocus,
+  type DispatchedEvent,
+  dispatchAlong,
+  type EventNode,
+  type ListenerOptions,
+  Listeners,
+} from "../../server/dom-events.test-support.ts";
+import { parseInto, type TreeBuilder } from "../../server/html-parse.test-support.ts";
+import { parseSelector, type Step } from "./choice-picker.selectors.test-support.ts";
+import { formElements, withNamedAccess } from "./form-named-access.test-support.ts";
+import { LaidOut } from "./layout-box.test-support.ts";
 
 type Listener = (event: Record<string, unknown>) => void;
 
@@ -57,7 +41,7 @@ export const ELEMENT_CLASSES = {
  */
 const REFLECTED_VALUE_TYPES = new Set(["hidden", "submit", "reset", "button", "image"]);
 
-export class El {
+export class El extends LaidOut implements EventNode {
   readonly children: El[] = [];
   parent: El | null = null;
   ownText = "";
@@ -92,8 +76,9 @@ export class El {
     return this.tag === "input" && REFLECTED_VALUE_TYPES.has(this.getAttribute("type") ?? "text");
   }
 
-  /** What `form.reset()` does: every control back to the default its markup declared. */
+  /** What `form.reset()` does: a cancellable `reset`, then every control back to its markup's. */
   reset(): void {
+    if (!this.dispatchEvent({ type: "reset", bubbles: true, cancelable: true })) return;
     for (const node of this.descendants()) {
       // A textarea's default is the content, not an attribute, so a reset is the dirty
       // flag going out rather than a value being copied in.
@@ -107,7 +92,9 @@ export class El {
   }
 
   checked = false;
-  readonly listeners: { type: string; run: Listener; capture: boolean }[] = [];
+  /** A `<template>`'s inert fragment: parsed apart from the tree, so no query reaches into it. */
+  content: El | null = null;
+  readonly listeners = new Listeners();
 
   /**
    * Written through to the `style` attribute, because the browser's is: a test that reads
@@ -129,104 +116,17 @@ export class El {
       },
     });
   }
-  /** What `place()` measures. Fixed: what it decides is above-or-below, not a pixel. */
-  offsetHeight = 36;
-  private ownContentHeight = 200;
-  scrollWidth = 200;
-
-  /**
-   * The height the content needs, floored at the box the element has been given, which is what a
-   * browser reports. That floor is why a growing textarea measures itself at `height: auto`.
-   */
-  get scrollHeight(): number {
-    const given = Number.parseFloat(this.ownStyle.height ?? "");
-    return Math.max(this.ownContentHeight, Number.isFinite(given) ? given : 0);
+  /** The height the element has been given, which is the floor under what it reports. */
+  protected override givenHeight(): number {
+    return Number.parseFloat(this.ownStyle.height ?? "");
   }
-
-  /** A fixture sets the content height; the floor above is the browser's, not its. */
-  set scrollHeight(next: number) {
-    this.ownContentHeight = next;
-  }
-  /**
-   * The scrollport, the border box less its scrollbars — the distinction the reveal turns on.
-   * Defaulted from `box` and settable by a fixture that wants a scrollbar.
-   */
-  clientTop = 0;
-  clientLeft = 0;
-  private ownClientHeight: number | null = null;
-  private ownClientWidth: number | null = null;
-
-  get clientHeight(): number {
-    return this.ownClientHeight ?? this.box.bottom - this.box.top;
-  }
-
-  set clientHeight(next: number) {
-    this.ownClientHeight = next;
-  }
-
-  get clientWidth(): number {
-    return this.ownClientWidth ?? this.box.right - this.box.left;
-  }
-
-  set clientWidth(next: number) {
-    this.ownClientWidth = next;
-  }
-
-  /**
-   * What the reveal moves, clamped the way a real scroller clamps it. There is no
-   * `scrollIntoView` here: the picker gave it up, because it scrolls every ancestor.
-   */
-  private ownScrollTop = 0;
-  private ownScrollLeft = 0;
-
-  get scrollTop(): number {
-    return this.ownScrollTop;
-  }
-
-  set scrollTop(next: number) {
-    const room = Math.max(this.scrollHeight - this.clientHeight, 0);
-    this.ownScrollTop = Math.min(Math.max(next, 0), room);
-  }
-
-  get scrollLeft(): number {
-    return this.ownScrollLeft;
-  }
-
-  set scrollLeft(next: number) {
-    const room = Math.max(this.scrollWidth - this.clientWidth, 0);
-    this.ownScrollLeft = Math.min(Math.max(next, 0), room);
-  }
-
-  /**
-   * The box this element reports, and the few computed properties the placement walk asks about.
-   * Both are settable by a fixture, since the walk's decisions depend entirely on them.
-   */
-  box: { top: number; bottom: number; left: number; right: number; width: number; height: number } =
-    { top: 100, bottom: 136, left: 0, right: 200, width: 200, height: 36 };
-  computed: {
-    overflowX: string;
-    overflowY: string;
-    position: string;
-    transform: string;
-    translate: string;
-    scale: string;
-    rotate: string;
-  } = {
-    overflowX: "visible",
-    overflowY: "visible",
-    position: "static",
-    // The four properties that make a containing block for a fixed panel. The surface states its
-    // motion in the individual three, so a double carrying only `transform` would miss it.
-    transform: "none",
-    translate: "none",
-    scale: "none",
-    rotate: "none",
-  };
 
   constructor(
     readonly tag: string,
     readonly attributes: Record<string, string> = {},
-  ) {}
+  ) {
+    super();
+  }
 
   /* ── the tree ───────────────────────────────────────────────────────────── */
 
@@ -240,6 +140,18 @@ export class El {
     return this;
   }
 
+  /** `ChildNode.before`: each node moved out of wherever it was, to just ahead of this one. */
+  before(...nodes: El[]): void {
+    const host = this.parent;
+    if (host === null) return;
+    for (const node of nodes) {
+      node.remove();
+      host.children.splice(host.children.indexOf(this), 0, node);
+      node.parent = host;
+    }
+    host.ownerDoc?.report(nodes);
+  }
+
   remove(): void {
     const siblings = this.parent?.children;
     if (siblings) siblings.splice(siblings.indexOf(this), 1);
@@ -248,7 +160,7 @@ export class El {
 
   /** Deep, like the clone a record view is taken from its template by. */
   cloneNode(deep = false): El {
-    const copy = new El(this.tag, { ...this.attributes });
+    const copy = element(this.tag, { ...this.attributes });
     copy.ownText = this.ownText;
     // The raw value and the dirty flag both travel, as the cloning steps for a value-carrying
     // control say: a clone of an untouched control still resets to what its markup declares.
@@ -257,6 +169,7 @@ export class El {
     copy.box = { ...this.box };
     copy.computed = { ...this.computed };
     if (deep) for (const child of this.children) copy.append(child.cloneNode(true));
+    if (this.content) copy.content = this.content.cloneNode(true);
     return copy;
   }
 
@@ -278,6 +191,10 @@ export class El {
     return false;
   }
 
+  get firstElementChild(): El | null {
+    return this.children.find((child) => child.tag !== "#text") ?? null;
+  }
+
   /** Null at the document, exactly as a real element's is. The clipping walk needs it. */
   get parentElement(): El | null {
     return this.parent === null || this.parent instanceof Doc ? null : this.parent;
@@ -289,6 +206,10 @@ export class El {
    */
   get form(): El | null {
     return this.closest("form");
+  }
+
+  get elements() {
+    return formElements(this);
   }
 
   contains(other: El): boolean {
@@ -315,7 +236,8 @@ export class El {
   }
 
   setAttribute(name: string, value: string): void {
-    this.attributes[name] = value;
+    assertAttributeName(name);
+    this.attributes[name] = String(value);
   }
 
   removeAttribute(name: string): void {
@@ -328,6 +250,10 @@ export class El {
 
   get id(): string {
     return this.attributes.id ?? "";
+  }
+
+  set id(next: string) {
+    this.setAttribute("id", next);
   }
 
   get disabled(): boolean {
@@ -346,11 +272,25 @@ export class El {
       {
         get: (_target, key: string) => own[`data-${kebab(key)}`],
         set: (_target, key: string, value: string) => {
-          own[`data-${kebab(key)}`] = value;
+          own[`data-${kebab(key)}`] = String(value);
+          return true;
+        },
+        has: (_target, key: string) => `data-${kebab(key)}` in own,
+        deleteProperty: (_target, key: string) => {
+          delete own[`data-${kebab(key)}`];
           return true;
         },
       },
     );
+  }
+
+  /** Reflected, like the real property: a script writing `className` writes the attribute. */
+  get className(): string {
+    return this.attributes.class ?? "";
+  }
+
+  set className(next: string) {
+    this.setAttribute("class", next);
   }
 
   get classList() {
@@ -390,9 +330,29 @@ export class El {
   }
 
   /** What a control that redraws itself writes, read by the double's own parser. */
-  set innerHTML(html: string) {
+  replaceChildren(...nodes: El[]): void {
     this.textContent = "";
-    parseHtml(html, this);
+    this.append(...nodes);
+  }
+
+  /** A `<template>`'s markup is parsed into its inert content, as the browser parses it. */
+  set innerHTML(html: string) {
+    const into = this.content ?? this;
+    into.textContent = "";
+    parseHtml(html, into);
+  }
+
+  get tagName(): string {
+    return this.tag.toUpperCase();
+  }
+
+  get parentNode(): El | null {
+    return this.parent;
+  }
+
+  /** What `x-show` writes to hide a node, and what a script's `style.display` does. */
+  get displayNone(): boolean {
+    return this.ownStyle.display === "none";
   }
 
   /* ── matching ───────────────────────────────────────────────────────────── */
@@ -400,14 +360,17 @@ export class El {
   matchesStep(step: Step): boolean {
     if (step.tag && step.tag !== this.tag) return false;
     if (!step.classes.every((name) => this.classList.contains(name))) return false;
-    return step.attributes.every(
-      ([name, value]) =>
-        this.hasAttribute(name) && (value === null || this.getAttribute(name) === value),
-    );
+    const holds = ([name, value]: readonly [string, string | null]) =>
+      this.hasAttribute(name) && (value === null || this.getAttribute(name) === value);
+    return step.attributes.every(holds) && !step.refused.some(holds);
   }
 
   matches(selector: string): boolean {
-    return selector.split(",").some((one) => this.matchesSteps(parseSelector(one)));
+    // Every alternative parsed before any is tried: `p,` is a syntax error even where `p` matches.
+    return selector
+      .split(",")
+      .map(parseSelector)
+      .some((steps) => this.matchesSteps(steps));
   }
 
   /** The last step must match this; every earlier step must match some ancestor. */
@@ -425,36 +388,60 @@ export class El {
 
   closest(selector: string): El | null {
     for (let node: El | null = this; node; node = node.parent)
-      if (node.matches(selector)) return node;
+      if (matching(node, selector)) return node;
     return null;
   }
 
   querySelector(selector: string): El | null {
-    for (const node of this.descendants()) if (node.matches(selector)) return node;
+    for (const node of this.scopedTo(selector))
+      if (matching(node, childStep(selector))) return node;
     return null;
   }
 
   querySelectorAll(selector: string): El[] {
-    return [...this.descendants()].filter((node) => node.matches(selector));
+    return [...this.scopedTo(selector)].filter((node) => matching(node, childStep(selector)));
+  }
+
+  /** `:scope > x` asks only this node's children; anything else asks every descendant. */
+  private scopedTo(selector: string): Iterable<El> {
+    return SCOPED_CHILD.test(selector) ? this.children : this.descendants();
   }
 
   /* ── behavior ───────────────────────────────────────────────────────────── */
 
-  focus(): void {
+  /** What the last `focus()` that took was asked with: `focusVisible` is behaviour. */
+  focusOptions: unknown;
+
+  /** The browser's rules: a detached, hidden, disabled or unfocusable node refuses in silence. */
+  focus(options?: unknown): void {
     const doc = this.ownerDoc;
-    if (doc) doc.activeElement = this;
+    if (doc === null || (this as El) === doc || !canTakeFocus(this, true)) return;
+    doc.focusOn(this);
+    this.focusOptions = options;
+  }
+
+  blur(): void {
+    const doc = this.ownerDoc;
+    if (doc?.activeElement === this) doc.focusOn(null);
   }
 
   getBoundingClientRect() {
     return { ...this.box };
   }
 
-  addEventListener(type: string, run: Listener, capture: unknown = false): void {
-    this.listeners.push({ type, run, capture: capture === true });
+  addEventListener(type: string, run: Listener, options?: ListenerOptions): void {
+    this.listeners.add(type, run, options);
   }
 
-  dispatchEvent(event: { type: string; detail?: unknown }): void {
-    this.ownerDoc?.fire(event.type, this, { detail: event.detail });
+  removeEventListener(type: string, run: Listener, options?: ListenerOptions): void {
+    this.listeners.remove(type, run, options);
+  }
+
+  /** The target, then every ancestor up to the document, in the phases the event travels. */
+  dispatchEvent(event: DispatchedEvent): boolean {
+    const path: El[] = [];
+    for (let node: El | null = this; node; node = node.parent) path.push(node);
+    return dispatchAlong(path, event);
   }
 
   get ownerDoc(): Doc | null {
@@ -467,6 +454,33 @@ export class El {
   }
 }
 
+/** A child query of one step: `:scope > [attr]`, the one relative form the shell writes. */
+const SCOPED_CHILD = /^:scope\s*>\s*(?=\S+$)/;
+const childStep = (selector: string) => selector.replace(SCOPED_CHILD, "");
+
+/** The browser's own matching, which no control a form holds can stand in front of. */
+const matching = (node: El, selector: string) => El.prototype.matches.call(node, selector);
+
+/** What the double reads off a node to work at all, so no control name may shadow it. */
+const DOUBLE_OWN = new Set([
+  "parent",
+  "tag",
+  "children",
+  "attributes",
+  "listeners",
+  "descendants",
+  "content",
+  "box",
+  "computed",
+]);
+
+/** An element as the parser, a clone and `createElement` make one: a form answers to its controls. */
+export function element(tag: string, attributes: Record<string, string> = {}): El {
+  const node = new El(tag, attributes);
+  if (tag === "template") node.content = new El("#template");
+  return tag === "form" ? withNamedAccess(node, DOUBLE_OWN) : node;
+}
+
 function textNode(text: string): El {
   const node = new El("#text");
   node.ownText = text;
@@ -476,7 +490,8 @@ function textNode(text: string): El {
 const kebab = (key: string) => key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 
 export class Doc extends El {
-  activeElement: El | null = null;
+  private focusedNode: El | null = null;
+  /** Every `change` that reached the document, which is where a consumer of one hears it. */
   readonly changes: { value: unknown }[] = [];
   /** The arrival watches running on this document, and what each one asked to watch. */
   private readonly observers: ((records: { addedNodes: El[] }[]) => void)[] = [];
@@ -484,12 +499,57 @@ export class Doc extends El {
 
   constructor() {
     super("#document");
+    this.addEventListener("change", (event) => {
+      this.changes.push({ value: (event.target as El).value });
+    });
+  }
+
+  /**
+   * The document stands in for its body: a scene parses straight into it, so the node every
+   * query starts from is also where focus rests when nothing holds it.
+   */
+  get body(): El {
+    return this;
+  }
+
+  /** What `focus()` last landed on while it is still on the page, and the body otherwise. */
+  get activeElement(): El {
+    const held = this.focusedNode;
+    return held !== null && held.ownerDoc === this ? held : this.body;
+  }
+
+  /** Where a `focus()` the rules let through lands: nothing else writes it. */
+  focusOn(node: El | null): void {
+    this.focusedNode = node;
   }
 
   /** Tell every watch what just entered the tree. */
   report(added: readonly El[]): void {
     if (added.length === 0 || this.observers.length === 0) return;
-    for (const observer of [...this.observers]) observer([{ addedNodes: [...added] }]);
+    const pending = this.pendingRecords.length > 0;
+    this.pendingRecords.push({ addedNodes: [...added] });
+    if (pending) return;
+    // Delivered on a microtask, batched, the way the browser delivers mutation records; a
+    // callback that throws is reported, as the browser reports it, and the others still run.
+    queueMicrotask(() => {
+      const records = this.pendingRecords.splice(0);
+      for (const observer of [...this.observers]) {
+        try {
+          observer(records);
+        } catch (error) {
+          this.reported.push(error);
+        }
+      }
+    });
+  }
+
+  private readonly pendingRecords: { addedNodes: El[] }[] = [];
+  /** What a mutation callback threw, which the browser reports rather than hands anyone. */
+  readonly reported: unknown[] = [];
+
+  /** Every mutation record queued so far, delivered: the microtask the browser would run. */
+  async arrivals(): Promise<void> {
+    await Promise.resolve();
   }
 
   /** Every live box watch, and the fixture's way of telling one its element has a size. */
@@ -511,8 +571,8 @@ export class Doc extends El {
       innerWidth: 1200,
       innerHeight: 900,
       /**
-       * Synchronous where the browser's is a microtask; nothing the picker does depends on the
-       * order. `observe` keeps its arguments: a watch that is not `childList` hears nothing.
+       * Delivered on a microtask, as the browser delivers it. `observe` keeps its arguments: a
+       * watch that is not `childList` hears nothing.
        */
       MutationObserver: class {
         constructor(private readonly run: (records: { addedNodes: El[] }[]) => void) {}
@@ -538,7 +598,9 @@ export class Doc extends El {
           }
         }
       },
-      getComputedStyle: (node: El) => ({ ...node.computed, filter: "none" }),
+      getComputedStyle: (node: El) => ({ filter: "none", ...node.computed }),
+      /** The prototype a control named `reset` cannot shadow, which is why the platform calls it. */
+      HTMLFormElement: { prototype: { reset: El.prototype.reset } },
       addEventListener: (type: string, run: Listener) => {
         this.addEventListener(type, run);
       },
@@ -553,7 +615,13 @@ export class Doc extends El {
     return this.children[0] ?? null;
   }
 
-  readonly createElement = (tag: string): El => new El(tag);
+  /** The browser refuses a name no element could have, rather than making one. */
+  readonly createElement = (tag: string): El => {
+    if (!/^[a-zA-Z][a-zA-Z0-9-]*$/.test(tag)) {
+      throw new DOMException(`"${tag}" is not a valid element name.`, "InvalidCharacterError");
+    }
+    return element(tag);
+  };
 
   getElementById(id: string): El | null {
     for (const node of this.descendants()) if (node.getAttribute("id") === id) return node;
@@ -561,24 +629,16 @@ export class Doc extends El {
   }
 
   /**
-   * Dispatch one event the way the browser does: capture from the document down, then bubble from
-   * the target up. Capture matters because an inner scroller's `scroll` does not bubble.
+   * Send one event the way the user agent sends it: capture from the document down, then bubble
+   * from the target up, unless its type is one that never bubbles (an inner scroller's `scroll`).
+   * @returns whether a listener cancelled it, and whether one stopped it on the way
    */
   fire(type: string, target: El, extra: Record<string, unknown> = {}) {
-    let prevented = false;
     let stopped = false;
     const event = {
       type,
       target,
       ...extra,
-      // Readable as well as writable, because a listener may need to know whether an
-      // earlier one in the same phase has already refused what it is looking at.
-      get defaultPrevented() {
-        return prevented;
-      },
-      preventDefault: () => {
-        prevented = true;
-      },
       stopPropagation: () => {
         stopped = true;
       },
@@ -586,111 +646,43 @@ export class Doc extends El {
         stopped = true;
       },
     };
-    const path: El[] = [];
-    for (let node: El | null = target; node; node = node.parent) path.push(node);
-
-    const bubbles = type !== "scroll";
-    const chain = [
-      ...[...path].reverse().flatMap((node) => node.listeners.filter((one) => one.capture)),
-      ...(bubbles ? path : [target]).flatMap((node) =>
-        node.listeners.filter((one) => !one.capture),
-      ),
-    ];
-    for (const listener of chain) {
-      if (stopped) break;
-      if (listener.type === type) listener.run(event);
-    }
-    if (type === "change") this.changes.push({ value: (target as El).value });
+    const prevented = !target.dispatchEvent(event);
     return { prevented, stopped };
   }
 }
 
 /* ── the parser ────────────────────────────────────────────────────────────── */
 
-const TOKEN =
-  /<\/([a-zA-Z0-9-]+)\s*>|<([a-zA-Z0-9-]+)((?:\s+[^\s=/>]+(?:="[^"]*")?)*)\s*(\/?)>|([^<]+)/g;
+/** How the shared parser makes this double's nodes. */
+const BUILDER: TreeBuilder<El> = {
+  element(tag, attributes) {
+    const node = element(tag);
+    for (const [name, value] of attributes) node.attributes[name] = value;
+    // An input's `value` attribute is what the browser seeds the property from, and the property
+    // is what a form posts. A textarea is seeded from its content, which is not parsed yet.
+    if (tag !== "textarea") node.value = node.getAttribute("value") ?? "";
+    node.checked = node.hasAttribute("checked");
+    return node;
+  },
+  contentOf(element, tag) {
+    if (tag !== "template") return element;
+    element.content = new El("#template");
+    return element.content;
+  },
+  append: (holder, node) => {
+    holder.append(node);
+  },
+  text: (holder, words) => appendText(holder, words),
+};
 
-/** Parse the renderer's markup into the double. Every tag it emits is closed or void. */
+/** Parse the renderer's markup into the double, refusing anything a browser would build apart. */
 export function parseHtml(html: string, into: El): El {
-  const stack: El[] = [into];
-  for (const match of html.matchAll(TOKEN)) {
-    consumeToken(stack, match);
-  }
+  parseInto(html, into, BUILDER);
   return into;
 }
 
-function consumeToken(stack: El[], match: RegExpMatchArray): void {
-  const [, closing, opening, rawAttributes, selfClosed, text] = match;
-  const top = stack.at(-1) as El;
-  if (closing) {
-    // Only a close tag that matches what is open pops it, so a stray one can never
-    // silently reparent everything after it.
-    if (stack.length > 1 && top.tag === closing) stack.pop();
-    return;
-  }
-  if (text) {
-    appendText(top, unescapeHtml(text));
-    return;
-  }
-  if (opening) openElement(stack, top, opening, rawAttributes ?? "", selfClosed === "/");
-}
-
-function openElement(
-  stack: El[],
-  top: El,
-  tag: string,
-  rawAttributes: string,
-  selfClosed: boolean,
-): void {
-  const node = new El(tag, parseAttributes(rawAttributes));
-  // An input's `value` attribute is what the browser seeds the property from, and the property is
-  // what a form posts. A textarea is seeded from its content, which is not parsed yet.
-  if (tag !== "textarea") node.value = node.getAttribute("value") ?? "";
-  node.checked = node.hasAttribute("checked");
-  top.append(node);
-  if (!selfClosed && !VOID_TAGS.has(tag)) stack.push(node);
-}
-
-function parseAttributes(raw: string): Record<string, string> {
-  const attributes: Record<string, string> = {};
-  for (const match of raw.matchAll(/([^\s=]+)(?:="([^"]*)")?/g)) {
-    const name = match[1];
-    if (name) attributes[name] = unescapeHtml(match[2] ?? "");
-  }
-  return attributes;
-}
-
-/**
- * Text before a child becomes the element's own text; text after it becomes a text node. A
- * `<textarea>`'s first text drops one leading U+000A, the way HTML's tree construction does.
- */
+/** Text before a child becomes the element's own text; text after it becomes a text node. */
 function appendText(parent: El, text: string): void {
-  const first = parent.children.length === 0 && parent.ownText === "";
-  const content = first && parent.tag === "textarea" ? text.replace(/^\n/, "") : text;
-  if (parent.children.length === 0) parent.ownText += content;
-  else parent.append(textNode(content));
-}
-
-/** A document holding one rendered form, with the module started against it. */
-export async function scene(formHtml: string) {
-  const { startChoiceControls } = await import("#shell/choice-picker.js");
-  const doc = new Doc();
-  parseHtml(formHtml, doc);
-  startChoiceControls(doc as never);
-  const form = doc.querySelector("form") as El;
-  const field = doc.querySelector("[data-choice-presentation]") as El;
-  return {
-    doc,
-    form,
-    field,
-    button: field.querySelector(".listbox__button"),
-    panel: field.querySelector(".listbox__panel"),
-    valueEl: field.querySelector(".listbox__value"),
-    carrier: field.querySelector("[data-choice-value]"),
-    options: () => field.querySelectorAll('[role="option"]'),
-    press: (on: El) => doc.fire("click", on),
-    /** Returns what the browser would: whether the control took the key for itself. */
-    key: (key: string, on: El) => doc.fire("keydown", on, { key }),
-    scrollWithin: (on: El) => doc.fire("scroll", on),
-  };
+  if (parent.children.length === 0) parent.ownText += text;
+  else parent.append(textNode(text));
 }

@@ -1,4 +1,10 @@
+import { PROMPT_FORM_ID } from "#shell/desk-window.js";
 import { LONG_PRESS_MS, startLogoMenu } from "#shell/logo-menu.js";
+import { PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
+
+import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
+import { renderCapabilityLogo } from "../../../server/http/fragments.ts";
+import { El, parseHtml } from "../../controls/choice-picker.test-support.ts";
 
 /**
  * A document small enough to run the menu's rules in Bun. Every operation is the one the browser
@@ -10,6 +16,7 @@ export class Node {
   root: Doc | null = null;
   value = "";
   ownText = "";
+  tag = "";
   /** Whether a press on this lands the keyboard on it, the way a real control does. */
   focusable = false;
   /** What the browser writes an inline style through, and reads one back from. */
@@ -194,29 +201,67 @@ export class Doc extends Node {
   }
 }
 
-/** One capability's slot, built the way the server renders it. */
+/** The server's markup, carried into this document node for node with its words and values. */
+function adopt(from: El): Node {
+  const node = new Node({ ...from.attributes });
+  node.tag = from.tag;
+  node.ownText = from.ownText;
+  node.value = from.value;
+  const role = from.getAttribute("role");
+  node.focusable = from.tag === "button" || from.tag === "input" || role === "menuitem";
+  node.append(...from.children.map(adopt));
+  return node;
+}
+
+/** The one node under `root` that `holds`, or a failure saying which was looked for. */
+function only(root: Node, what: string, holds: (node: Node) => boolean): Node {
+  const found = [...root.descendants()].filter(holds);
+  if (found.length !== 1)
+    throw new Error(`expected one ${what} in the slot, found ${found.length}`);
+  return found[0] as Node;
+}
+
+/**
+ * One capability's slot, exactly as the server renders it, with its controls found the way a
+ * person finds them — by role and name — so the module's own hooks are what is under test.
+ */
 export function slotFor(id: string, label: string) {
-  const logoLabel = new Node({ "data-logo-label": "", class: "logo-label" });
-  logoLabel.ownText = label;
-  const logo = new Node({ "data-capability-logo": "", "data-capability-id": id }).append(logoLabel);
-  const rename = new Node({ role: "menuitem", "data-logo-menu-rename": "" });
-  const remove = new Node({ role: "menuitem", "data-capability-delete": "" });
-  for (const control of [logo, rename, remove]) control.focusable = true;
-  const menu = new Node({ "data-logo-menu": "", hidden: "" }).append(rename, remove);
-  const input = new Node({ "data-logo-rename-input": "" });
-  input.value = label;
-  const error = new Node({ "data-logo-rename-error": "" });
-  const cancel = new Node({ "data-logo-rename-cancel": "" });
-  const save = new Node({ "data-logo-rename-save": "", "data-busy-label": "Saving…" });
-  save.ownText = "Save";
-  for (const control of [input, cancel, save]) control.focusable = true;
-  const form = new Node({ "data-logo-rename": "", hidden: "" }).append(input, save, cancel, error);
-  const slot = new Node({ "data-logo-slot": "", "data-capability-id": id }).append(
+  const html = renderCapabilityLogo({
+    id,
+    label,
+    display_label_override: null,
+    incarnation_id: FIRST_INCARNATION_ID,
+    version: 1,
+    logo: { status: "absent", attempts: 0 },
+  });
+  const slot = adopt(parseHtml(html, new El("div")).children[0] as El);
+  const is = (tag: string, name: string) => (node: Node) =>
+    node.tag === tag && (node.getAttribute("aria-label") ?? node.textContent.trim()) === name;
+  const role = (name: string) => (node: Node) => node.getAttribute("role") === name;
+  const logo = only(slot, "logo", is("button", `Open ${label}`));
+  const menu = only(slot, "menu", role("menu"));
+  const form = only(slot, "rename form", (node) => node.tag === "form");
+  return {
+    slot,
     logo,
+    logoLabel: only(logo, "label", (node) => node.tag === "span" && node.textContent === label),
     menu,
+    rename: only(
+      menu,
+      "Rename",
+      (node) => role("menuitem")(node) && node.textContent.trim() === "Rename",
+    ),
+    remove: only(
+      menu,
+      "Delete",
+      (node) => role("menuitem")(node) && node.textContent.trim() === "Delete",
+    ),
     form,
-  );
-  return { slot, logo, logoLabel, menu, rename, remove, form, input, error, cancel, save };
+    input: only(form, "name field", is("input", `Rename ${label}`)),
+    error: only(form, "refusal", role("alert")),
+    cancel: only(form, "Cancel", is("button", "Cancel")),
+    save: only(form, "Save", is("button", "Save")),
+  };
 }
 
 /** A desk with two capabilities on it, wired to the real module. */
@@ -228,11 +273,14 @@ export function desk() {
   const menus = new Node({ id: "capability-menus" });
   // The desk's floor. A floating panel stops above it, so the sentence the bar speaks
   // about a refused name is never covered by the editor it is about.
-  const promptBar = new Node({ id: "spec-build-form" });
+  const promptBar = new Node({ id: PROMPT_FORM_ID });
   promptBar.box = { left: 0, top: 400, right: 500, bottom: 460, width: 500, height: 60 };
-  root.append(layer, menus, promptBar, root.body);
+  // The slot the bar speaks in, empty — and so boxless — until a test puts a sentence in it.
+  const notice = new Node({ id: PROMPT_NOTICE_ID });
+  notice.box = { left: 0, top: 400, right: 500, bottom: 400, width: 500, height: 0 };
+  root.append(layer, menus, notice, promptBar, root.body);
   startLogoMenu(root as never, root.outer as never);
-  return { root, notes, recipes, menus, layer, promptBar };
+  return { root, notes, recipes, menus, layer, promptBar, notice };
 }
 
 /** The gesture a finger makes: down, held past the interval, then up. */

@@ -4,10 +4,11 @@
 // a real question never approaches; bytes are the second budget, in `question-payload.ts`.
 //
 // Nothing on this path arms a wall-clock deadline (decision 9); `question-loop.test.ts` pins the
-// absence by warping every clock years forward, watching a whole budget finish, then sweeping ten
-// files. Waiting is a cost the user accepts; freezing was the liveness bug, which epic 6.2 fixed by
-// moving execution into a worker. The one clock that does bound a question is ADR-0003's
-// five-minute per-generation deadline, inherited because the SDK leaves handles pending on a fault.
+// absence by warping every clock years forward and watching a whole budget finish, and
+// `question-loop.policy.ts` sweeps the files. Waiting is a cost the user accepts; freezing was the
+// liveness bug, which epic 6.2 fixed by moving execution into a worker. The one clock that does
+// bound a question is ADR-0003's five-minute per-generation deadline, inherited because the SDK
+// leaves handles pending on a fault.
 //
 // The sentence a person reads is Aluna's (decision 15, ADR-0001), in `question-narration.ts`.
 //

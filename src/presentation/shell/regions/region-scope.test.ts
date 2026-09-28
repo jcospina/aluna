@@ -1,14 +1,25 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
+import { recoverSeveredCapabilityDeletion } from "#shell/capability-deletion.js";
 import { createRecordsRegionRequestCoordinator } from "#shell/records-region-requests.js";
 import {
   abortTransportUnder,
   CONTENT_REGION_SELECTOR,
   createRegionReleaseRegistry,
   RELEASE_REGION_EVENT,
+  registerRegionRelease,
+  startRegionScopes,
 } from "#shell/region-scope.js";
+import { renderCapabilityDeletionConfirmation } from "../../../lifecycle/deletion/index.ts";
+import { notesRow } from "../../../runtime/router/dispatch/router.test-support.ts";
+import {
+  El as ShellEl,
+  desk as shellDesk,
+  Template,
+} from "../../../server/app.shell-double.test-support.ts";
+import { elementsOf, moduleSources } from "../../../server/http/served-page.test-support.ts";
+import { readSource } from "../../safety/source.test-support.ts";
+import type { El as DeskEl } from "../window/standing-desk.test-support.ts";
+import { viewportDesk } from "../window/viewport-desk.test-support.ts";
 import { document, Node } from "./region-scope.test-support.ts";
 
 describe("a content region releases what its content started", () => {
@@ -204,51 +215,104 @@ describe("a records region's request is the scope entry", () => {
   });
 });
 
-// `app.js` is a classic script and cannot import the module, so what keeps the shell's own
-// replacements inside the rule is that both sides spell the release event the same way.
-describe("the shell's classic-script glue speaks the release vocabulary", () => {
-  const glue = readFileSync(join(import.meta.dir, "../../../../public/app.js"), "utf8");
-  const shell = readFileSync(join(import.meta.dir, "../../../../public/index.html"), "utf8");
+/** Stand `globals` up while `run` runs, and put back exactly what was there. */
+async function withGlobals(globals: Record<string, unknown>, run: () => Promise<void>) {
+  const host = globalThis as Record<string, unknown>;
+  const before = Object.keys(globals).map(
+    (name) => [name, Reflect.getOwnPropertyDescriptor(host, name)] as const,
+  );
+  for (const [name, value] of Object.entries(globals)) {
+    Object.defineProperty(host, name, { value, configurable: true, writable: true });
+  }
+  try {
+    await run();
+  } finally {
+    for (const [name, descriptor] of before) {
+      if (descriptor) Object.defineProperty(host, name, descriptor);
+      else Reflect.deleteProperty(host, name);
+    }
+  }
+}
 
-  test("dispatches the exact event the region scope listens for", () => {
-    expect(glue).toContain(`"${RELEASE_REGION_EVENT}"`);
-  });
+// The shell's own replacements of the region go through the rule. The build ending's is run in
+// `app.shell-glue.test.ts` ("an activation takes the window…", which reads the release event this
+// module listens for); the severed deletion's is run here.
+describe("the shell's own replacements release through the rule", () => {
+  test("a severed deletion's answer releases the window's region before it replaces it", async () => {
+    const stage = shellDesk();
+    stage.subscriber.remove();
+    const swapped = new Template();
+    swapped.innerHTML = renderCapabilityDeletionConfirmation(notesRow(), []);
+    const forms = (node: ShellEl): ShellEl[] => [
+      ...(node.tag === "form" ? [node] : []),
+      ...node.children.flatMap(forms),
+    ];
+    const [confirm] = forms(swapped.content) as [ShellEl];
+    stage.region.append(confirm);
 
-  test("releases the content area before it replaces it wholesale", () => {
-    // Re-answering a severed deletion confirmation is the one place the shell replaces the whole
-    // region itself. It dispatches rather than calling, because the scope may be an ancestor's.
-    const recovery = readFileSync(
-      join(import.meta.dir, "../../../../public/capability-deletion.js"),
-      "utf8",
+    const order: string[] = [];
+    // Heard where `region-scope.js` listens, at the document: a release that does not climb is
+    // one no scope ever hears.
+    stage.root.addEventListener(RELEASE_REGION_EVENT, (event: Event) => {
+      if (event.target === stage.region) order.push(event.type);
+    });
+    await withGlobals(
+      {
+        document: stage.root,
+        HTMLElement: ShellEl,
+        window: { htmx: { swap: () => order.push("swap") }, history: { replaceState: () => {} } },
+        fetch: () => Promise.resolve(new Response("<p>answered</p>")),
+      },
+      async () => {
+        recoverSeveredCapabilityDeletion(
+          { detail: { elt: confirm } } as never,
+          stage.root as never,
+        );
+        for (let waited = 0; !order.includes("swap") && waited < 40; waited += 1) {
+          await Bun.sleep(25);
+        }
+      },
     );
-    expect(recovery.match(/askRegionToRelease\(output\);/g)).toHaveLength(1);
-    expect(recovery).toContain("import { RELEASE_REGION_EVENT, registerRegionRelease }");
+    expect(order).toEqual([RELEASE_REGION_EVENT, "swap"]);
   });
 
-  test("promoting a build's ending releases through this rule and not around it", () => {
-    // The other replacement keeps something: a restoration's View may already be reading, so the
-    // ending is moved out first and the release runs node by node over what is left.
-    expect(glue).toContain("releaseRegionContent(node)");
-    expect(glue).not.toContain("reloadRestoredRecords");
+  test("putting a window away releases its region's work, heard where the scopes listen", async () => {
+    const screen = await viewportDesk();
+    try {
+      startRegionScopes(screen.desk.root as never);
+      const region = screen.module.openWindow(
+        "Notes",
+        screen.desk.doc as never,
+      ) as unknown as DeskEl;
+      const reading = screen.desk.doc.createElement("section");
+      region.append(reading);
+      const released: string[] = [];
+      registerRegionRelease(reading as never, "records read", () => released.push("records read"));
+
+      screen.module.putAway();
+
+      expect(released).toEqual(["records read"]);
+    } finally {
+      screen.restore();
+    }
   });
 
-  test("the window marks the one region, and the shell starts the system", () => {
+  test("the window marks the one region, and the shell starts the system", async () => {
     // The shell marks nothing: the region lives inside the window, which the client creates and
     // destroys, so putting the window away is the only way a region disappears.
-    expect(shell).not.toContain("data-content-region");
-    expect(shell).toContain('<script type="module" src="/static/region-scope.js"></script>');
-    expect(shell).toContain('<script type="module" src="/static/desk-window.js"></script>');
+    const shell = readSource("public/index.html");
+    const scripts = moduleSources(await elementsOf(shell));
+    expect(scripts).toContain("/static/region-scope.js");
+    expect(scripts).toContain("/static/desk-window.js");
 
-    const windowModule = readFileSync(
-      join(import.meta.dir, "../../../../public/desk-window.js"),
-      "utf8",
-    );
-    expect(windowModule).toContain("region.dataset.contentRegion = WINDOW_CONTENT_REGION");
-    // Put-away is the release plus the removal, and never a hook of its own.
-    expect(windowModule).toContain(`new CustomEvent(RELEASE_REGION_EVENT`);
-
-    // The marker the module looks for and the marker the window writes are the same one.
-    expect(CONTENT_REGION_SELECTOR).toBe("[data-content-region]");
+    // The marker the module looks for is the one the window writes on the region it makes.
+    const screen = await viewportDesk();
+    try {
+      const region = screen.module.openWindow("Notes", screen.desk.doc as never);
+      expect((region as unknown as DeskEl).matches(CONTENT_REGION_SELECTOR)).toBe(true);
+    } finally {
+      screen.restore();
+    }
   });
 });
 

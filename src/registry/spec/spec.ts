@@ -40,8 +40,6 @@ import { capabilityToolsSchema, readDependenciesSchema } from "../tools.ts";
 import {
   allUnique,
   nonBlankText,
-  SQL_NAME_MESSAGE,
-  SQL_NAME_PATTERN,
   sameOrderedStrings,
   singleLinePhrase,
   sqlNameText,
@@ -52,6 +50,12 @@ import {
  * `created_at` (uniform, pre-paying M6's NL→SQL catalog), `extra` (the JSON escape hatch).
  */
 export const PLATFORM_COLUMNS = ["id", "created_at", "extra"] as const;
+
+/**
+ * Names a form control cannot carry: it would shadow the form's own method of that name, which
+ * the vendored htmx calls on every form it submits, and the save would throw.
+ */
+export const FORM_SHADOWING_FIELD_NAMES = ["matches", "closest"] as const;
 
 export {
   BEHAVIORAL_ERROR_MARKERS,
@@ -175,9 +179,7 @@ export type FieldLifecycle = z.infer<typeof fieldLifecycleSchema>;
  * recorded deviation; the wire spelling of absence is {@link promptCapabilitySpecSchema}.
  */
 const specFieldShape = {
-  name: z
-    .string()
-    .regex(SQL_NAME_PATTERN, SQL_NAME_MESSAGE)
+  name: sqlNameText
     .refine(
       (name) => !name.startsWith(ALUNA_RESERVED_FIELD_PREFIX),
       `uses the reserved ${ALUNA_RESERVED_FIELD_PREFIX} prefix`,
@@ -185,6 +187,10 @@ const specFieldShape = {
     .refine(
       (name) => !(PLATFORM_COLUMNS as readonly string[]).includes(name),
       `is platform-owned (${PLATFORM_COLUMNS.join(", ")}) and cannot be a spec field`,
+    )
+    .refine(
+      (name) => !(FORM_SHADOWING_FIELD_NAMES as readonly string[]).includes(name),
+      `would hide the form's own ${FORM_SHADOWING_FIELD_NAMES.join(" and ")} from the browser`,
     ),
   label: nonBlankText,
   type: fieldTypeSchema,

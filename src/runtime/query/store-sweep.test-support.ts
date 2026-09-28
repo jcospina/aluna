@@ -9,21 +9,32 @@
 // `capability_registry` rather than a table, so a persisted read dependency would land as an edit
 // inside an existing row and leave every count untouched.
 //
-// The roots are absolute so the sweep cannot degrade to nothing from another directory, and the
-// walk is recursive so a file written one level in is still seen. Not run as a test by bun.
+// The roots are the test preload's scratch copies, never the user's corpus, and the walk is
+// recursive so a file written one level in is still seen. Not run as a test by bun.
 
 import type { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { DEFAULT_ARTIFACTS_ROOT } from "../../builder/artifacts/artifacts-root.ts";
-import { OBJECT_STORE_ROOT } from "../../platform/files/object-store-root.ts";
+import { dirname, join, relative, resolve } from "node:path";
+import { resolveArtifactsRoot } from "../../builder/artifacts/artifacts-root.ts";
+import { resolveObjectStoreRoot } from "../../platform/files/object-store-root.ts";
+import { resolveDbPath } from "../../platform/persistence/db-path.ts";
 
-const REPO_ROOT = join(import.meta.dir, "..", "..", "..");
-/** Where capability artifacts, generated code and stored logos land, if they ever do. */
-const PLATFORM_ARTIFACT_ROOTS = ["artifacts", DEFAULT_ARTIFACTS_ROOT, OBJECT_STORE_ROOT].map(
-  (root) => join(REPO_ROOT, root),
-);
+const REPO_ROOT = resolve(import.meta.dir, "..", "..", "..");
+
+/**
+ * Where the platform database, capability artifacts, generated code, stored logos and uploads land,
+ * if they ever do: absolute, so the sweep cannot degrade to nothing from another directory.
+ * @throws when one resolves inside the repo, which means the test preload did not run.
+ */
+export function platformRoots(): readonly string[] {
+  const roots = [dirname(resolveDbPath()), resolveArtifactsRoot(), resolveObjectStoreRoot()].map(
+    (root) => resolve(root),
+  );
+  const real = roots.filter((root) => !relative(REPO_ROOT, root).startsWith(".."));
+  if (real.length > 0) throw new Error(`The store sweep would read the real ${real.join(", ")}`);
+  return roots;
+}
 
 export interface PlatformStoreEntry {
   readonly type: string;
@@ -67,9 +78,11 @@ export function sweepPlatformStores(database: Database, directory: string): Plat
   };
 }
 
-/** Everything under the platform's artifact roots right now, absolute and recursive. */
+/** Everything under the platform's roots right now, absolute and recursive, sidecars aside. */
 export function sweepPlatformArtifacts(): readonly string[] {
-  return PLATFORM_ARTIFACT_ROOTS.flatMap(entries);
+  return platformRoots()
+    .flatMap(entries)
+    .filter((entry) => !SQLITE_SIDECAR.test(entry));
 }
 
 /**

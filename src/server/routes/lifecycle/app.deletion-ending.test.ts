@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
+import { DELETION_RECHECK_ASKING } from "#shell/capability-deletion.js";
 import {
   DELETION_ENDING_ATTRIBUTE,
   DELETION_EXIT_ATTRIBUTE,
@@ -8,31 +9,22 @@ import {
   renderCapabilityDeletionPreCommitFailure,
 } from "../../../lifecycle/deletion/index.ts";
 import { notesRow } from "../../../runtime/router/dispatch/router.test-support.ts";
-import { desk, El } from "../../app.shell-double.test-support.ts";
+import { desk, El, Template } from "../../app.shell-double.test-support.ts";
 
 // The deletion that did not happen, run rather than grepped. `public/capability-deletion.js` is a
 // module of the desk, so it runs on the same document double the shell's own glue is proved on.
-const { focusCapabilityDeletion, rescueCapabilityDeletionEnding, startCapabilityDeletionRecovery } =
-  await import("#shell/capability-deletion.js");
+const { rescueCapabilityDeletionEnding, startCapabilityDeletionRecovery } = await import(
+  "#shell/capability-deletion.js"
+);
 
 const SENTENCE = "I couldn’t delete Notes. Everything you had there is still safe.";
 
-/**
- * The ending exactly as the server writes it, rebuilt as nodes the double can hold. One element
- * carries sentence, focus mark and name, so a fixture with a heading would prove the wrong focus.
- */
+/** The ending exactly as the server writes it, parsed into the double the way a swap is parsed. */
 function endingIn(region: El): El {
-  const sentence = new El("p", {
-    class: "capability-deletion__ending",
-    id: "capability-deletion-ending",
-    tabindex: "-1",
-    "data-capability-deletion-focus": "",
-    [DELETION_SENTENCE_ATTRIBUTE]: "",
-  });
-  sentence.ownText = SENTENCE;
-  const dismiss = new El("button", { [DELETION_EXIT_ATTRIBUTE]: "" });
-  const ending = new El("section", { [DELETION_ENDING_ATTRIBUTE]: "" });
-  ending.append(sentence, dismiss);
+  const swapped = new Template();
+  swapped.innerHTML = renderCapabilityDeletionPreCommitFailure(notesRow(), { kind: "neutral" });
+  const ending = swapped.content.querySelector(`[${DELETION_ENDING_ATTRIBUTE}]`);
+  if (!ending) throw new Error("the server wrote no deletion ending");
   region.append(ending);
   return ending;
 }
@@ -52,6 +44,8 @@ function scene() {
 }
 
 let frames: Array<() => void>;
+/** What the page had before this suite lent it a frame clock, put back exactly after each test. */
+const hadFrames = Reflect.getOwnPropertyDescriptor(globalThis, "requestAnimationFrame");
 
 beforeEach(() => {
   frames = [];
@@ -63,38 +57,24 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame = undefined;
+  if (hadFrames) Object.defineProperty(globalThis, "requestAnimationFrame", hadFrames);
+  else Reflect.deleteProperty(globalThis, "requestAnimationFrame");
 });
 
 describe("a deletion that did not happen", () => {
-  test("what the server writes is what the shell looks for, in the shape it writes it", () => {
-    const html = renderCapabilityDeletionPreCommitFailure(notesRow(), { kind: "neutral" });
-
-    for (const mark of [
-      DELETION_ENDING_ATTRIBUTE,
-      DELETION_SENTENCE_ATTRIBUTE,
-      DELETION_EXIT_ATTRIBUTE,
-      "data-capability-deletion-focus",
-    ]) {
-      expect(html).toContain(mark);
-    }
-    // The double below stands one element in for the sentence, the focus target and the
-    // accessible name. That is only honest while the server writes them on one element.
-    const sentenceElement = /<p [^>]*data-capability-deletion-sentence[^>]*>/.exec(html)?.[0] ?? "";
-    expect(sentenceElement).toContain("data-capability-deletion-focus");
-    expect(sentenceElement).toContain('tabindex="-1"');
-    expect(html).not.toContain("<h1");
-    expect(html).toContain(SENTENCE);
-  });
-
-  test("the ending takes the keyboard by its own heading when it lands", () => {
+  test("the ending takes the keyboard by its own sentence when it lands", () => {
     const stage = scene();
     const ending = endingIn(stage.region);
 
     stage.fire("htmx:afterSwap", { detail: { target: stage.region } });
     for (const frame of frames.splice(0)) frame();
 
-    expect(ending.querySelector("[data-capability-deletion-focus]")?.focused).toBe(true);
+    // The sentence is the focus target and the ending's accessible name, one element for both.
+    const sentence = ending.querySelector(`[${DELETION_SENTENCE_ATTRIBUTE}]`);
+    expect(sentence?.focused).toBe(true);
+    expect(sentence?.getAttribute("tabindex")).toBe("-1");
+    expect(ending.getAttribute("aria-labelledby")).toBe(sentence?.id ?? null);
+    expect(sentence?.textContent).toBe(SENTENCE);
   });
 
   test("dismissing it hands the keyboard back to the desk and says nothing twice", () => {
@@ -177,7 +157,7 @@ describe("a deletion that did not happen", () => {
     // started. The abort is the browser's alone, so an aborted confirm fires no swap event at all.
     stage.fire("htmx:sendAbort", { detail: { elt: confirm } });
 
-    expect(spoken(stage)).toBe("Something interrupted that. Let me check what happened…");
+    expect(spoken(stage)).toBe(DELETION_RECHECK_ASKING);
   });
 
   test("a swap that is not a deletion leaves the keyboard and the bar alone", () => {
@@ -192,17 +172,4 @@ describe("a deletion that did not happen", () => {
     expect(stage.promptField.focused).toBe(false);
     expect(spoken(stage)).toBe("");
   });
-});
-
-// Every mark this shell reads is a mark the server writes, so the two copies are pinned
-// against each other the way every other shell/server pair on this desk is.
-test("the shell restates the deletion's marks exactly as the server writes them", async () => {
-  const module = await Bun.file("public/capability-deletion.js").text();
-
-  expect(module).toContain(`const DELETION_ENDING_ATTRIBUTE = "${DELETION_ENDING_ATTRIBUTE}";`);
-  expect(module).toContain(
-    `const DELETION_SENTENCE_SELECTOR = "[${DELETION_SENTENCE_ATTRIBUTE}]";`,
-  );
-  expect(module).toContain(`const DELETION_EXIT_SELECTOR = "[${DELETION_EXIT_ATTRIBUTE}]";`);
-  expect(focusCapabilityDeletion).toBeInstanceOf(Function);
 });

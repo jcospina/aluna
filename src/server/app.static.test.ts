@@ -5,13 +5,13 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { createApp } from "./app.ts";
+import { createTestApp } from "./isolated-app.test-support.ts";
 
 describe("the architecture tour", () => {
   // It ships from its own top-level folder for the reason High Meadow does: the page a
   // reader opens is the file in the tree, so neither can drift from the other.
   test("serves the page and its scripts, and sends /architecture to the folder", async () => {
-    const app = createApp();
+    const app = createTestApp();
 
     const page = await app.request("/architecture/");
     expect(page.status).toBe(200);

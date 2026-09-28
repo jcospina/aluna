@@ -7,13 +7,28 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { READ_UNAVAILABLE_FRAGMENT } from "../runtime/router/wire/failure-responses.ts";
+import { DEV_SEED_SELECTOR, DEV_TILE_SELECTOR } from "#shell/desk-dev-panel.js";
+import { PROMPT_FORM_ID, WINDOW_LAYER_SELECTOR } from "#shell/desk-window.js";
+import {
+  PROMPT_FIELD_ID,
+  PROMPT_NOTICE_ID,
+  PROMPT_TRIGGER_ID,
+  WINDOW_CONTENT_ID,
+} from "#shell/shell-dom.js";
+import { code } from "../presentation/safety/source.test-support.ts";
 import { responseText } from "./app.test-support.ts";
-import { createApp } from "./app.ts";
+import {
+  byId,
+  elementsOf,
+  moduleSources,
+  type ServedElement,
+  scriptSources,
+} from "./http/served-page.test-support.ts";
+import { createTestApp } from "./isolated-app.test-support.ts";
 
 describe("platform security headers", () => {
   test("every app response carries the policy, on a page and on a fragment", async () => {
-    const app = createApp();
+    const app = createTestApp();
 
     for (const path of ["/", "/capability/does-not-exist", "/nope"]) {
       const res = await app.request(path);
@@ -42,14 +57,18 @@ describe("developer surfaces", () => {
     const previous = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     try {
-      const app = createApp();
+      const app = createTestApp();
       const html = await responseText(await app.request("/"));
+      const elements = await elementsOf(html);
 
       // The slot the shell ships is still there and still empty: nothing is seeded into it.
-      expect(html).toContain('<div id="dev-stage-seed" data-dev-stage-seed="metrics" hidden>');
+      const seeds = elements.filter(carrying(DEV_SEED_SELECTOR));
+      expect(seeds.map(({ attributes, text }) => [attributes.has("hidden"), text])).toEqual([
+        [true, ""],
+      ]);
       expect(html).not.toContain("lifecycles");
       expect(html).not.toContain("committedVersions");
-      expect(html).toContain("data-dev-tile");
+      expect(elements.filter(carrying(DEV_TILE_SELECTOR))).toHaveLength(1);
     } finally {
       if (previous === undefined) delete process.env.NODE_ENV;
       else process.env.NODE_ENV = previous;
@@ -57,330 +76,185 @@ describe("developer surfaces", () => {
   });
 });
 
-describe("GET / (shell)", () => {
-  test("uses the prompt bar for the build-job flow and removes the old greeting button", async () => {
-    const app = createApp();
-    const res = await app.request("/");
-    const html = await res.text();
+/** Whether an element answers an attribute selector a shell module exports, `[name]` alone. */
+function carrying(selector: string) {
+  const name = /^\[([\w-]+)\]$/.exec(selector)?.[1];
+  if (name === undefined) throw new Error(`not a bare attribute selector: ${selector}`);
+  return (element: ServedElement) => element.attributes.has(name);
+}
 
-    expect(res.status).toBe(200);
-    expect(html).toContain('id="spec-build-form"');
-    expect(html).toContain('hx-post="/prompt"');
-    expect(html).toContain('hx-target="#spec-build-output"');
-    expect(html).toContain('hx-swap="beforeend"');
-    expect(html).not.toContain("@htmx:sseOpen.window");
-    expect(html).not.toContain("@htmx:sseClose.window");
-    expect(html).not.toContain("@htmx:sseError.window");
-    expect(html).toContain("promptBusy ? 'Making it' : 'Make it'");
-    expect(html).toContain('id="spec-build-prompt"');
-    expect(html).toContain('placeholder="What would you like to keep track of?"');
-    expect(html).not.toContain('value="I want to keep track of my notes"');
-    expect(html).toContain('id="spec-build-trigger"');
-    expect(html).toContain("Make it");
+/** The shell page, parsed. */
+async function shellPage(): Promise<readonly ServedElement[]> {
+  return elementsOf(await responseText(await createTestApp().request("/")));
+}
+
+describe("GET / (shell)", () => {
+  test("the prompt bar posts a build into the window", async () => {
+    const app = createTestApp();
+    const html = await responseText(await app.request("/"));
+    const elements = await elementsOf(html);
+    const form = byId(elements, PROMPT_FORM_ID);
+
+    expect(form.tag).toBe("form");
+    expect(
+      Object.fromEntries(
+        ["hx-post", "hx-target", "hx-swap"].map((name) => [name, form.attributes.get(name)]),
+      ),
+    ).toEqual({
+      "hx-post": "/prompt",
+      "hx-target": `#${WINDOW_CONTENT_ID}`,
+      "hx-swap": "beforeend",
+    });
+    const field = byId(elements, PROMPT_FIELD_ID);
+    expect(field.within).toContain(PROMPT_FORM_ID);
+    expect(field.attributes.get("placeholder")).toBeTruthy();
+    expect(field.attributes.has("value")).toBe(false);
+    expect(byId(elements, PROMPT_NOTICE_ID).within).toContain(PROMPT_FORM_ID);
     // The developer panel's eight readouts left the page with the rail; they are code blocks in
     // the panel's own window now (public/desk-dev-panel.js). The page still carries the tile.
-    expect(html).toContain("data-dev-tile");
-    expect(html).toContain('id="dev-stage-seed"');
-    expect(html).toContain('data-dev-stage-seed="metrics"');
-    expect(html).toContain("/static/desk-dev-panel.js");
-    expect(html).not.toContain('class="devbar"');
-    expect(html).not.toContain('id="spec-metrics-preview"');
-    expect(html).not.toContain('id="spec-gate-preview"');
-    expect(html).not.toContain("panel-toggle");
-    expect(html).toContain('id="prompt-notice"');
-    expect(html).not.toContain("Meet Aluna");
-    expect(html).not.toContain('id="intro-trigger"');
-    expect(html).not.toContain('id="intro-output"');
+    expect(elements.filter(carrying(DEV_TILE_SELECTOR))).toHaveLength(1);
+    expect(elements.filter(carrying(DEV_SEED_SELECTOR))).toHaveLength(1);
+    expect(moduleSources(elements)).toContain("/static/desk-dev-panel.js");
+  });
+
+  test("the bar's button says it is working exactly while the shell is busy", async () => {
+    const elements = await shellPage();
+    const trigger = byId(elements, PROMPT_TRIGGER_ID);
+    const label = elements.find(
+      (element) => element.attributes.has("x-text") && element.within.includes(PROMPT_TRIGGER_ID),
+    );
+    const expression = label?.attributes.get("x-text") ?? "";
+    const labelWhen = (promptBusy: boolean) =>
+      String(Function("promptBusy", `return (${expression});`)(promptBusy));
+
+    expect(trigger.within).toContain(PROMPT_FORM_ID);
+    expect(trigger.attributes.get("type")).toBe("submit");
+    // What stands before Alpine runs is what Alpine says of an idle bar, so nothing flickers.
+    expect(labelWhen(false)).toBe(label?.text ?? "no label stands before Alpine");
+    expect(labelWhen(true)).not.toBe(labelWhen(false));
+    expect(labelWhen(true)).toBeTruthy();
   });
 
   test("loads the vendored htmx SSE extension after htmx", async () => {
-    const app = createApp();
-    const html = await responseText(await app.request("/"));
+    const scripts = scriptSources(await shellPage());
 
-    // The extension is vendored locally and its <script> loads after htmx's (it calls
-    // htmx.defineExtension at load). Full src attributes, so nearby prose cannot skew the order.
-    expect(html).toContain('src="/static/vendor/htmx-ext-sse.min.js"');
-    expect(html.indexOf('src="/static/vendor/htmx.min.js"')).toBeLessThan(
-      html.indexOf('src="/static/vendor/htmx-ext-sse.min.js"'),
+    // The extension calls htmx.defineExtension at load, so its script has to come second.
+    expect(scripts.indexOf("/static/vendor/htmx.min.js")).toBeGreaterThanOrEqual(0);
+    expect(scripts.indexOf("/static/vendor/htmx.min.js")).toBeLessThan(
+      scripts.indexOf("/static/vendor/htmx-ext-sse.min.js"),
     );
   });
 
   test("loads the shell's Alpine component before Alpine itself", async () => {
-    const app = createApp();
-    const html = await responseText(await app.request("/"));
+    const elements = await shellPage();
+    const deferred = elements
+      .filter((element) => element.tag === "script" && element.attributes.has("defer"))
+      .map((element) => element.attributes.get("src"));
 
     // app.js registers the Alpine `shell` component on `alpine:init`, so it must load before
     // alpine.min.js, which initializes on load. Both are `defer`, so document order is run order.
-    expect(html).toContain('<script defer src="/static/app.js"></script>');
-    expect(html).toContain('<script defer src="/static/vendor/alpine.min.js"></script>');
-    expect(html.indexOf('src="/static/app.js"')).toBeLessThan(
-      html.indexOf('src="/static/vendor/alpine.min.js"'),
+    expect(deferred).toContain("/static/app.js");
+    expect(deferred.indexOf("/static/app.js")).toBeLessThan(
+      deferred.indexOf("/static/vendor/alpine.min.js"),
     );
   });
 
-  test("serves the vendored htmx SSE extension as JavaScript at its static path", async () => {
-    const app = createApp();
-    const res = await app.request("/static/vendor/htmx-ext-sse.min.js");
-    const body = await res.text();
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type") ?? "").toContain("javascript");
-    // It is the htmx SSE extension: it registers itself on htmx at load.
-    expect(body).toContain('defineExtension("sse"');
-  });
-
   test("mounts no modal and loads the record view's own glue instead", async () => {
-    const app = createApp();
-    const html = await responseText(await app.request("/"));
+    const html = await responseText(await createTestApp().request("/"));
+    const elements = await elementsOf(html);
+    const modules = elements
+      .filter((element) => element.tag === "script" && element.attributes.get("type") === "module")
+      .map((element) => element.attributes.get("src"));
 
     // Nothing opens over anything else: a record opens through a view swap inside the
     // window, so the shell mounts no dialog and nothing is ever made inert.
-    expect(html).not.toContain("<dialog");
-    expect(html).not.toContain("detail-modal");
-    expect(html).not.toMatch(/\binert\s*(=|>)/);
+    expect(elements.filter((element) => element.tag === "dialog")).toEqual([]);
+    // Alpine's `:inert` and `x-bind:inert` make an element inert as surely as the bare attribute.
+    const inert = elements.filter((element) =>
+      [...element.attributes.keys()].some((name) => /(?:^|:)inert$/.test(name)),
+    );
+    expect(inert).toEqual([]);
     // The dumb glue files load: the record swap, its mutation feedback, and search.
-    expect(html).toContain('<script type="module" src="/static/record-view.js"></script>');
-    expect(html).toContain('<script type="module" src="/static/record-mutations.js"></script>');
-    expect(html).toContain('<script type="module" src="/static/search-chrome.js"></script>');
+    for (const glue of ["record-view.js", "record-mutations.js", "search-chrome.js"]) {
+      expect(modules).toContain(`/static/${glue}`);
+    }
   });
 
-  test("serves the record swap as JavaScript at its static path", async () => {
-    const app = createApp();
-    const res = await app.request("/static/record-view.js");
-    const body = await res.text();
+  test("serves every file the page loads, and every file those reach, byte for byte", async () => {
+    const app = createTestApp();
+    const elements = await shellPage();
+    const loaded = [
+      ...scriptSources(elements),
+      ...elements
+        .filter(
+          (element) => element.tag === "link" && element.attributes.get("rel") === "stylesheet",
+        )
+        .map((element) => element.attributes.get("href") as string),
+    ];
+    const pending = [...loaded];
+    const served = new Set<string>();
 
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type") ?? "").toContain("javascript");
-    // It swaps a record's form in for the collection, releasing what the collection held.
-    expect(body).toContain(".capability-item");
-    expect(body).toContain("releaseRegionContent");
-  });
+    while (pending.length > 0) {
+      const path = pending.pop() as string;
+      if (served.has(path)) continue;
+      served.add(path);
+      const res = await app.request(path);
+      const body = await res.text();
 
-  test("serves the record mutation feedback module", async () => {
-    const app = createApp();
-    const res = await app.request("/static/record-mutations.js");
-    const body = await res.text();
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type") ?? "").toContain("javascript");
-    expect(body).toContain("data-record-edit-form");
-    expect(body).toContain("leaveRecordView");
-  });
-
-  test("serves the committed-read refresh module imported by create and search", async () => {
-    const app = createApp();
-    const res = await app.request("/static/records-refresh.js");
-    const body = await res.text();
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type") ?? "").toContain("javascript");
-    expect(body).toContain("refreshCommittedRecords");
-    expect(body).toContain('"HX-Request": "true"');
-  });
-
-  test("serves the shared records-region request owner imported by search and refresh", async () => {
-    const app = createApp();
-    const res = await app.request("/static/records-region-requests.js");
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toContain("javascript");
-    expect(await res.text()).toContain("createRecordsRegionRequestCoordinator");
-  });
-
-  test("serves the debounced search controller as JavaScript at its static path", async () => {
-    const app = createApp();
-    const res = await app.request("/static/search-chrome.js");
-    const body = await res.text();
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-type") ?? "").toContain("javascript");
-    expect(body).toContain("createDebouncedCapabilitySearch");
-    expect(body).toContain("data-capability-search-input");
-    expect(body).toContain('"HX-Request": "true"');
+      expect({ path, status: res.status }).toEqual({ path, status: 200 });
+      expect(res.headers.get("content-type") ?? "", path).toContain(
+        path.endsWith(".css") ? "text/css" : "javascript",
+      );
+      expect(body, path).toBe(await Bun.file(onDisk(path)).text());
+      pending.push(...reachedFrom(path, body));
+    }
+    // The walk followed the modules' own imports, not only the tags on the page.
+    expect(served.size).toBeGreaterThan(loaded.length);
   });
 });
+
+const REPO_ROOT = resolve(import.meta.dir, "../..");
+
+/** Where a served path is read from: the two static mounts `app.ts` declares. */
+function onDisk(path: string): string {
+  const mount = /^\/(static|design)\/(.+)$/.exec(path);
+  if (mount === null) throw new Error(`not a static path: ${path}`);
+  return resolve(REPO_ROOT, mount[1] === "static" ? "public" : "design", mount[2] as string);
+}
+
+/** The paths a served module imports or a served stylesheet `@import`s, resolved as a browser would. */
+function reachedFrom(path: string, body: string): string[] {
+  const specifiers = path.endsWith(".css")
+    ? [...body.matchAll(/@import url\("([^"]+)"\)/g)]
+    : [...code(body).matchAll(/(?:\bfrom|\bimport)\s*\(?\s*"(\.{1,2}\/[^"]+)"/g)];
+  return specifiers.map(
+    ([, specifier]) => new URL(specifier as string, `http://shell${path}`).pathname,
+  );
+}
 
 describe("GET / (shell) — the window layer", () => {
   test("the page carries the layer the window opens on, and no region of its own", async () => {
-    const app = createApp();
-    const html = await responseText(await app.request("/"));
+    const elements = await shellPage();
+    const layerClass = WINDOW_LAYER_SELECTOR.slice(1);
+    const layers = elements.filter((element) =>
+      (element.attributes.get("class") ?? "").split(/\s+/).includes(layerClass),
+    );
 
     // The target the prompt form and every logo name is created by the client, inside the window.
     // The page carries the ground it stands on and the module that stands it there, nothing else.
-    expect(html).toContain('<div class="desk__windows"></div>');
-    expect(html).toContain('<script type="module" src="/static/desk-window.js"></script>');
-    expect(html).not.toContain('id="spec-build-output"');
-    expect(html).not.toContain("<main");
+    expect(layers.map(({ text }) => text)).toEqual([""]);
+    expect(moduleSources(elements)).toContain("/static/desk-window.js");
+    expect(
+      elements.filter((element) => element.attributes.get("id") === WINDOW_CONTENT_ID),
+    ).toEqual([]);
+    expect(elements.filter((element) => element.tag === "main")).toEqual([]);
   });
 });
-
-describe("removed transitional installer", () => {});
 
 describe("GET /stream (the Module 1 greeting liveness route, removed in 4.8/06)", () => {
   test("is not registered — the provider round-trip is proved by the prompt bar", async () => {
-    expect((await createApp().request("/stream")).status).toBe(404);
+    expect((await createTestApp().request("/stream")).status).toBe(404);
   });
-});
-
-describe("GET / (shell) — browser glue", () => {
-  test("browser prompt glue leaves the prompt request and stream connection to HTMX", async () => {
-    const app = createApp();
-    const js = await responseText(await app.request("/static/app.js"));
-    const html = await responseText(await app.request("/"));
-
-    expect(js).toContain('document.addEventListener("htmx:sseBeforeMessage"');
-    expect(js).toContain('document.addEventListener("htmx:sseOpen"');
-    expect(js).toContain('document.addEventListener("htmx:sseClose"');
-    expect(js).toContain('document.addEventListener("htmx:sseError"');
-    expect(js).toContain("tellDeskTheWindowTookCapability");
-    expect(js).toContain('new CustomEvent("aluna:window-took-capability"');
-    expect(js).toContain('document.addEventListener("htmx:configRequest"');
-    expect(js).toContain("__aluna_restore_capability_id");
-    expect(js).toContain("__aluna_restore_incarnation_id");
-    expect(js).toContain("finishTerminalPresentation");
-    expect(js).toContain("data-build-restoration-behavior");
-    expect(js).toContain("preserveActiveView");
-    expect(js).toContain("activeViewIsCanonical");
-    expect(js).toContain("outputHasOnlyDormantSubscriber");
-    expect(js).toContain("promoteElement");
-    expect(js).toContain("subscriber.remove()");
-    expect(js).toContain("output.append(...promoted)");
-    expect(js).toContain("releaseDisplacedContent(output, promoted)");
-    // The promoted View is wired up rather than re-fetched, so its own `load` trigger is
-    // the one canonical read — whether or not htmx's 20ms settle got there first.
-    expect(js).toContain("processPromotedContent(promoted)");
-    expect(js).toContain("htmx.process(node)");
-    expect(js).toContain("commit.childNodes.length > 0");
-    expect(js).toContain('subscriber.querySelector(".build-stream__narration")');
-    // The window has no refresh verb, so the glue has no hand-rebuilt read: the restoration's own
-    // View read is kept alive by promoting before releasing (PLAN decision 15; ARCH §8).
-    expect(js).not.toContain("reloadRestoredRecords");
-    expect(js).not.toContain('.ajax("GET"');
-    expect(js).not.toContain('removeAttribute("hx-trigger")');
-    // Both closes are asked the same question, and only a stream the server finished is a run
-    // with something to say: `nodeReplaced`/`nodeMissing` are the desk taking a run down.
-    expect(js.match(/closeTypeOf\(event\) !== "message"/g)).toHaveLength(2);
-    expect(js).toContain("window.history.replaceState");
-    // The address is the desk's to write: the glue reports what happened and never pushes.
-    expect(js).not.toContain("history.pushState");
-    expect(js).toContain(":scope > [data-active-capability-id]");
-    // A stage name, not an element id: the developer panel is a window that may not be
-    // standing, so the glue hands the payload over rather than writing it into a <pre>.
-    expect(js).toContain("dataset.previewStage");
-    expect(js).not.toContain("dataset.previewTarget");
-    expect(js).toContain('STAGE_PAYLOAD_EVENT = "aluna:stage-payload"');
-    expect(js).toContain('STAGES_CLEARED_EVENT = "aluna:stages-cleared"');
-    // A run that ended with something to tell you holds the window there; the press is
-    // what gives back what it displaced (PLAN decisions 23 and 25).
-    expect(js).toContain('BUILD_ENDING_SELECTOR = "[data-build-ending]"');
-    expect(js).toContain('BUILD_DISMISS_SELECTOR = "[data-build-dismiss]"');
-    expect(js).toContain("holdRestoration");
-    expect(js).toContain("giveBackTheWindow");
-    expect(js).toContain("dropHeldRun");
-    expect(js).toContain("rescueHeldEnding");
-    // The repeated-value rows are a module of their own now (public/list-field.js), so
-    // the glue neither owns them nor knows they exist.
-    expect(js).not.toContain("collapseListFieldRows");
-    expect(js).not.toContain("data-list-field");
-    // Recovering a severed capability deletion is its own module (`public/capability-deletion.js`)
-    // and took its half of `htmx:configRequest` with it; the glue captures only a prompt's.
-    expect(js).not.toContain("focusCapabilityDeletion");
-    expect(js).not.toContain("[data-capability-deletion-focus]");
-    expect(js).not.toContain("restore_surface");
-    // The rail and the gate it hid behind are gone from the page and from the glue.
-    expect(js).not.toContain("hasCapabilities");
-    expect(html).not.toContain("has-capabilities");
-    expect(html).not.toContain('id="capability-toolbar"');
-    expect(html).toContain('id="capability-logos"');
-    expect(js).not.toContain("new EventSource");
-    expect(js).not.toContain('fetch("/prompt"');
-    expect(js).not.toContain('addEventListener("submit"');
-  });
-
-  test("structured create validation swaps into its retarget without becoming a successful create", () => {
-    const listeners = new Map<string, (event: { detail: Record<string, unknown> }) => void>();
-    const documentStub = {
-      addEventListener(
-        name: string,
-        listener: (event: { detail: Record<string, unknown> }) => void,
-      ) {
-        listeners.set(name, listener);
-      },
-      querySelector() {
-        return null;
-      },
-      getElementById() {
-        return null;
-      },
-    };
-    const windowStub = {
-      Alpine: { data() {} },
-      matchMedia() {
-        return { matches: true, addEventListener() {} };
-      },
-    };
-    const appScript = readFileSync(resolve("public/app.js"), "utf8");
-    Function(
-      "document",
-      "window",
-      "requestAnimationFrame",
-      "HTMLInputElement",
-      "Element",
-      appScript,
-      // `Element` because the rescue asks which surface asked before it decides where the refusal
-      // lands. Nothing was recorded for this request, so the answer is the window it was aimed at.
-    )(documentStub, windowStub, () => undefined, class InputStub {}, class ElementStub {});
-
-    for (const [code, status] of [
-      ["missing_required_fields", 422],
-      ["mutation_busy", 422],
-      ["record_not_found", 404],
-      ["mutation_failed", 500],
-    ] as const) {
-      const detail = {
-        xhr: {
-          status,
-          responseText: `<p data-role="error" data-error-code="${code}">Try again</p>`,
-        },
-        shouldSwap: false,
-        isError: true,
-        successful: false,
-      };
-      listeners.get("htmx:beforeSwap")?.({ detail });
-
-      expect(detail.shouldSwap).toBe(true);
-      expect(detail.isError).toBe(true);
-      expect(detail.successful).toBe(false);
-    }
-  });
-});
-
-test("keeps a pending stream dormant until foreground narration begins", async () => {
-  const app = createApp();
-  const css = await responseText(await app.request("/static/css/demo.css"));
-
-  expect(css).toMatch(/\.build-stream\s*\{[^}]*display:\s*none/s);
-  expect(css).toContain(".build-stream__narration:not(:empty)");
-  expect(css).toContain("#spec-build-output:has(> .build-stream");
-
-  // The shell's own content area is gone with the window: a window that holds nothing does not
-  // exist, so every rule that kept a surface quiet until it did is retired rather than ported.
-  expect(css).not.toContain(".content__active");
-  expect(css).not.toContain(".intro__output");
-  expect(css).not.toMatch(/:has\([^)]*:has\(/);
-});
-
-test("permanent deletion captures neutral or exact-capability restoration in browser glue", async () => {
-  const app = createApp();
-  // Its own module since M5 plan 1 — deletion recovery is a subject, reached only
-  // through events, and nothing about it has to be in place before Alpine starts.
-  const js = await responseText(await app.request("/static/capability-deletion.js"));
-  const css = await responseText(await app.request("/static/css/demo.css"));
-  const shell = await responseText(await app.request("/"));
-
-  expect(js).toContain('detail.parameters.restore_surface = "neutral"');
-  expect(js).toContain('detail.parameters.restore_surface = "capability"');
-  expect(shell).toContain('<script type="module" src="/static/capability-deletion.js"></script>');
-  expect(css).not.toContain("data-capability-deletion-neutral");
 });
 
 describe("GET / (shell) — prompt admission", () => {
@@ -399,52 +273,6 @@ describe("GET / (shell) — prompt admission", () => {
     expect(shouldPreserve("capability", v1, { ...v1 }, false, false)).toBe(false);
     expect(shouldPreserve("neutral", null, null, false, true)).toBe(true);
     expect(shouldPreserve("neutral", null, null, false, false)).toBe(false);
-  });
-
-  // htmx will not swap any 4xx on its own, so a refusal the shell does not rescue is a
-  // refusal the user never sees. This drives the real handler with the real fragments.
-  test("the shell rescues the read-gate refusal the router actually sends", async () => {
-    const listeners = new Map<string, (event: { detail: Record<string, unknown> }) => void>();
-    const appScript = readFileSync(resolve("public/app.js"), "utf8");
-    Function(
-      "document",
-      "window",
-      "requestAnimationFrame",
-      "HTMLInputElement",
-      "HTMLFormElement",
-      "Element",
-      appScript,
-    )(
-      {
-        addEventListener(name: string, listener: (event: { detail: never }) => void) {
-          listeners.set(name, listener as never);
-        },
-        querySelector: () => null,
-        getElementById: () => null,
-      },
-      { matchMedia: () => ({ matches: false, addEventListener() {} }) },
-      () => undefined,
-      class {},
-      class {},
-      class {},
-    );
-
-    const beforeSwap = listeners.get("htmx:beforeSwap");
-    expect(beforeSwap).toBeDefined();
-    const swapDecision = (status: number, responseText: string) => {
-      const detail = { xhr: { status, responseText }, shouldSwap: false };
-      beforeSwap?.({ detail } as never);
-      return detail.shouldSwap;
-    };
-
-    // The exact body src/runtime/router/wire/failure-responses.ts returns for a closing
-    // incarnation.
-    const readRefusal = READ_UNAVAILABLE_FRAGMENT;
-
-    expect(swapDecision(409, readRefusal)).toBe(true);
-    expect(swapDecision(422, readRefusal)).toBe(true);
-    // An unmarked 4xx body is still none of the shell's business.
-    expect(swapDecision(409, '<p class="notice">something else entirely</p>')).toBe(false);
   });
 });
 
@@ -469,7 +297,7 @@ describe("GET / (shell) — stream close glue", () => {
         return null;
       },
       getElementById(id: string) {
-        return id === "spec-build-prompt" ? promptField : null;
+        return id === PROMPT_FIELD_ID ? promptField : null;
       },
       // The close asks the prompt bar whether it was still saying anything about the run. No bar
       // stands in this scene, so nothing is cancelled and the prompt wakes and clears as always.
@@ -537,7 +365,7 @@ describe("the retired /demo surfaces are gone", () => {
     // router.read-gates.test.ts, fragments.test.ts and swap-target.test.ts now hold it.
     for (const nodeEnv of ["production", "development"]) {
       process.env.NODE_ENV = nodeEnv;
-      const app = createApp();
+      const app = createTestApp();
       for (const path of [
         "/demo/few-shot-gallery",
         "/demo/region-lifecycle",
@@ -560,7 +388,7 @@ describe("the retired /demo surfaces are gone", () => {
     // router.read-gates.test.ts, and the cleanup seam by the deletion fault battery.
     for (const nodeEnv of ["production", "development"]) {
       process.env.NODE_ENV = nodeEnv;
-      const app = createApp();
+      const app = createTestApp();
       for (const path of [
         "/demo/read-gates",
         "/demo/read-gates/state",
@@ -585,7 +413,7 @@ describe("the retired /demo surfaces are gone", () => {
     // and 6.5/05 took it down; every claim it carried about the loop is proved elsewhere now.
     for (const nodeEnv of ["production", "development"]) {
       process.env.NODE_ENV = nodeEnv;
-      const app = createApp();
+      const app = createTestApp();
       expect((await app.request("/demo/question")).status).toBe(404);
       expect(
         (
@@ -604,7 +432,7 @@ describe("the retired /demo surfaces are gone", () => {
     // is the single admission path. 404 here is Hono's "no such route", not an unknown capability.
     for (const nodeEnv of ["production", "development"]) {
       process.env.NODE_ENV = nodeEnv;
-      const app = createApp();
+      const app = createTestApp();
       expect((await app.request("/demo/spec-build")).status).toBe(404);
       expect((await app.request("/demo/evolution/build/nope/stream")).status).toBe(404);
       expect(

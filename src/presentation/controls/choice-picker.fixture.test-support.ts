@@ -11,7 +11,7 @@ import { afterAll, beforeAll } from "bun:test";
 import type { ChoicePresentation, SpecField } from "../../registry/index.ts";
 import { oneField, probeField } from "../fields/field-renderer.test-support.ts";
 import { renderCreateForm, renderEditForm } from "../fields/field-renderer.ts";
-import { El, scene } from "./choice-picker.test-support.ts";
+import { Doc, El, parseHtml } from "./choice-picker.test-support.ts";
 
 export const OPTIONS = [
   { value: "first", label: "First" },
@@ -134,4 +134,28 @@ export function deskChrome() {
   chrome.append(body);
   body.append(scroller);
   return { chrome, body, scroller };
+}
+
+/** A document holding one rendered form, with the module started against it. */
+export async function scene(formHtml: string) {
+  const { startChoiceControls } = await import("#shell/choice-picker.js");
+  const doc = new Doc();
+  parseHtml(formHtml, doc);
+  startChoiceControls(doc as never);
+  const form = doc.querySelector("form") as El;
+  const field = doc.querySelector("[data-choice-presentation]") as El;
+  return {
+    doc,
+    form,
+    field,
+    button: field.querySelector(".listbox__button"),
+    panel: field.querySelector(".listbox__panel"),
+    valueEl: field.querySelector(".listbox__value"),
+    carrier: field.querySelector("[data-choice-value]"),
+    options: () => field.querySelectorAll('[role="option"]'),
+    press: (on: El) => doc.fire("click", on),
+    /** Returns what the browser would: whether the control took the key for itself. */
+    key: (key: string, on: El) => doc.fire("keydown", on, { key }),
+    scrollWithin: (on: El) => doc.fire("scroll", on),
+  };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-
+import { PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
 import { createMutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 import { renderBuildEnding } from "../../server/http/index.ts";
 import {
@@ -110,6 +110,7 @@ describe("deliverFailedPresentation", () => {
   test("delivers developer evidence before the product-safe terminal failure", async () => {
     const events: Array<{ event: string; data: string }> = [];
     const failure = new Error("Behavioral gate exposed internal evidence.");
+    const restoration = '<div data-build-restoration="neutral"></div>';
 
     const delivered = await deliverFailedPresentation(
       async (event, data) => {
@@ -117,7 +118,7 @@ describe("deliverFailedPresentation", () => {
       },
       "build-1",
       failure,
-      '<div data-build-restoration="neutral"></div>',
+      restoration,
       20,
     );
 
@@ -139,8 +140,8 @@ describe("deliverFailedPresentation", () => {
     expect(events[1]?.data).not.toMatch(/behavioral|gate|internal/i);
     // The window holds on the ending, so the line is not also left on the desk as a notice: the
     // log is the live region and where the person is already looking (PLAN decision 23).
-    expect(events[2]?.data).not.toContain("prompt-notice");
-    expect(events[2]?.data).toBe('<div data-build-restoration="neutral"></div>');
+    expect(events[2]?.data).not.toContain(PROMPT_NOTICE_ID);
+    expect(events[2]?.data).toBe(restoration);
     expect(events[3]?.data).toBe("error");
   });
 });
@@ -208,7 +209,7 @@ describe("a terminal the window holds", () => {
 
       expect(fragment).toHaveLength(1);
       expect(fragment[0]?.data).toBe(RESTORATION);
-      expect(fragment[0]?.data).not.toContain("prompt-notice");
+      expect(fragment[0]?.data).not.toContain(PROMPT_NOTICE_ID);
 
       // The ending is the last thing said, and nothing commits behind it.
       const names = events.map(({ event }) => event);

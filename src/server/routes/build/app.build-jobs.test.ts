@@ -5,6 +5,7 @@
 // in app.test-support.ts; the id-sequence and deferred helpers are local to these tests.
 
 import { describe, expect, test } from "bun:test";
+import { PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
 import {
   type BuildJob,
   type BuildPipeline,
@@ -24,7 +25,7 @@ import {
   teardownScratchDbEnv,
   wait,
 } from "../../app.test-support.ts";
-import { createApp } from "../../app.ts";
+import { createTestApp } from "../../isolated-app.test-support.ts";
 
 function createIdSequence(ids: readonly string[]): () => string {
   let index = 0;
@@ -48,7 +49,7 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — admission and 
   test("an abandoned prompt job owns no mutation state", async () => {
     let providerCalls = 0;
     const mutationCoordinator = createMutationCoordinator();
-    const app = createApp({
+    const app = createTestApp({
       mutationCoordinator,
       getProvider: () => {
         providerCalls += 1;
@@ -66,7 +67,7 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — admission and 
   test("POST returns the subscriber fragment immediately without touching the provider", async () => {
     let providerCalls = 0;
     const buildJobs = createBuildJobQueue({ createId: createIdSequence(["job-one"]) });
-    const app = createApp({
+    const app = createTestApp({
       buildJobs,
       getProvider: () => {
         providerCalls += 1;
@@ -99,7 +100,7 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — admission and 
     expect(fragment).toContain('sse-swap="build-error-preview"');
     expect(fragment).toContain('data-preview-stage="commit"');
     expect(fragment).not.toContain("data-preview-target");
-    expect(fragment).toContain('id="prompt-notice" hx-swap-oob="innerHTML"');
+    expect(fragment).toContain(`id="${PROMPT_NOTICE_ID}" hx-swap-oob="innerHTML"`);
     // Proven in Epic 2.6a: htmx-ext-sse wraps a native EventSource that auto-reconnects on a
     // server-closed stream, so the subscriber must close on `done` or keep reconnecting to a
     // deleted job that answers each reconnect with a lone `done: missing`.
@@ -120,7 +121,7 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — admission and 
           return "terminal-sent";
         },
       });
-      const app = createApp({
+      const app = createTestApp({
         buildJobs,
         capabilityRouter: { databases: env.conns },
       });
@@ -146,7 +147,7 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — admission and 
   test("the job stream emits typed monotonic SSE events and closes on done", async () => {
     let providerCalls = 0;
     const buildJobs = createBuildJobQueue({ createId: createIdSequence(["job-stream"]) });
-    const app = createApp({
+    const app = createTestApp({
       buildJobs,
       getProvider: () => {
         providerCalls += 1;
@@ -180,7 +181,7 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — streaming life
       createId: createIdSequence(["job-heartbeat"]),
       pipeline,
     });
-    const app = createApp({ buildJobs, sseHeartbeatMs: 20 });
+    const app = createTestApp({ buildJobs, sseHeartbeatMs: 20 });
 
     await postPrompt(app, "track notes");
     const events = collectSseEvents(
@@ -209,7 +210,7 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — streaming life
       createId: createIdSequence(["job-active", "job-after"]),
       pipeline,
     });
-    const app = createApp({
+    const app = createTestApp({
       buildJobs,
       getProvider: () => {
         providerCalls += 1;
@@ -244,7 +245,7 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — streaming life
 
   test("unknown and completed job streams end cleanly with done", async () => {
     const buildJobs = createBuildJobQueue({ createId: createIdSequence(["job-complete"]) });
-    const app = createApp({ buildJobs });
+    const app = createTestApp({ buildJobs });
 
     const unknownEvents = collectSseEvents(
       await readSse(await app.request("/build/missing/stream")),

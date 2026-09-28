@@ -3,6 +3,8 @@
 
 import { describe, expect, test } from "bun:test";
 
+import { linesNaming } from "../../../platform/provider/prompt-lines.test-support.ts";
+
 import { PHOTO_FIELD } from "../../../registry/fields/file.test-support.ts";
 import { fieldTypeSchema } from "../../../registry/index.ts";
 import { FILE_FIELD_PROMPT_LINES } from "../../spec/file-field-guidance.ts";
@@ -37,7 +39,7 @@ function withPhoto(): CandidateDraft {
 describe("the candidate prompt", () => {
   test("offers the file type and says what it accepts", () => {
     const prompt = buildCandidateSpecPrompt(stageInput(candidateFrom(journalCapabilityRow())));
-    expect(prompt).toContain(`- a field's type is one of: ${fieldTypeSchema.options.join(" | ")}.`);
+    expect(linesNaming(prompt, fieldTypeSchema.options)).not.toEqual([]);
     for (const line of FILE_FIELD_PROMPT_LINES) expect(prompt).toContain(line);
   });
 });

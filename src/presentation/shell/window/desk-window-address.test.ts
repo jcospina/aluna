@@ -1,9 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { answerTraversal, travelled } from "#shell/desk-address.js";
+import { answerTraversal, startDeskHistory, travelled } from "#shell/desk-address.js";
 import {
   ACTIVE_CAPABILITY_ATTRIBUTE,
   addressAsks,
-  CAPABILITY_LOGO_SELECTOR,
   capabilityAddress,
   capabilityIdFromAddress,
   capabilityInWindow,
@@ -11,24 +10,23 @@ import {
   DESK_HISTORY_STATE,
   deskHistory,
   isAnotherPlace,
+  PROMPT_FORM_ID,
   pressWouldOpen,
   pushAddress,
   replaceAddress,
-  WINDOW_TOOK_CAPABILITY_EVENT,
 } from "#shell/desk-window.js";
-import { renderCapabilityLogo } from "../../../server/http/fragments.ts";
-import { codeOf as code, readSource as read, under } from "../../safety/source.test-support.ts";
+import { WINDOW_CONTENT_ID } from "#shell/shell-dom.js";
+import {
+  El as ShellEl,
+  desk as shellDesk,
+  streamRestoration,
+} from "../../../server/app.shell-double.test-support.ts";
+import { renderCapabilityLogo, renderPromptNotice } from "../../../server/http/fragments.ts";
+import { byId, elementsOf } from "../../../server/http/served-page.test-support.ts";
+import { readSource as read } from "../../safety/source.test-support.ts";
 
 // The address, and the whole of what it may say: `/capability/:id` and nothing below it. A search
 // term, an open record and a draft die with the tab (design D14; PLAN decision 6; ARCH §6.1).
-
-const SHELL = read("public/index.html");
-const MODULE = code("public/desk-window.js");
-/** The address and the history it is written into, lifted out of the module above. */
-const ADDRESS = code("public/desk-address.js");
-const STORE = code("public/desk-window-store.js");
-const PANEL = code("public/desk-dev-panel.js");
-const GLUE = code("public/app.js");
 
 /** The address bar and its history, recorded rather than driven. */
 function barAt(pathname: string, search = "") {
@@ -60,6 +58,39 @@ function here(): number {
 function back() {
   const at = here();
   return { here: at, event: { state: { ...DESK_HISTORY_STATE, index: at - 1 } } };
+}
+
+/** One capability's identity, as the surface standing in the window carries it. */
+const TASKS = {
+  [ACTIVE_CAPABILITY_ATTRIBUTE]: "tasks",
+  "data-active-capability-incarnation": "inc-1",
+  "data-active-capability-version": "1",
+};
+
+/** A run that ended by deflecting back to the exact view it would restore. */
+const deflection = () =>
+  `<div data-build-restoration="capability" data-build-restoration-behavior="preserve">` +
+  `<div ${Object.entries(TASKS)
+    .map(([name, value]) => `${name}="${value}"`)
+    .join(" ")}></div></div>${renderPromptNotice("Already here.", "refusal")}`;
+
+/** Stand `globals` up for the length of `run`, and put back exactly what was there. */
+function withGlobals(globals: Record<string, unknown>, run: () => void): void {
+  const host = globalThis as Record<string, unknown>;
+  const before = Object.keys(globals).map(
+    (name) => [name, Reflect.getOwnPropertyDescriptor(host, name)] as const,
+  );
+  for (const [name, value] of Object.entries(globals)) {
+    Object.defineProperty(host, name, { value, configurable: true, writable: true });
+  }
+  try {
+    run();
+  } finally {
+    for (const [name, descriptor] of before) {
+      if (descriptor) Object.defineProperty(host, name, descriptor);
+      else Reflect.deleteProperty(host, name);
+    }
+  }
 }
 
 /** A desk with nothing running: every traversal is taken as it always was. */
@@ -103,7 +134,6 @@ describe("the address names the capability and nothing else", () => {
       logo: { status: "absent", attempts: 0 },
       display_label_override: null,
     });
-    expect(logo).toContain(`hx-get="${capabilityAddress("my notes")}"`);
     // The address is the desk's to write. htmx would push on every press, the open
     // logo's included, and snapshot the whole body under the address it left.
     expect(logo).not.toContain('hx-push-url="');
@@ -170,24 +200,37 @@ describe("the address names the capability and nothing else", () => {
     expect(DESK_HISTORY_STATE).not.toHaveProperty("htmx");
   });
 
-  test("what the window holds is read off the surface, and only the one standing there", () => {
+  test("what the window holds is read off the surface, and only the one standing there", async () => {
     // A build narrates beside what it displaced, so the displaced surface is still the window's.
     // The copy the run carries to put back is nested in its own subscriber and stands nowhere.
-    expect(ACTIVE_CAPABILITY_ATTRIBUTE).toBe("data-active-capability-id");
     expect(capabilityInWindow(windowHolding("notes"))).toBe("notes");
     expect(capabilityInWindow(windowHolding(null))).toBeNull();
     expect(capabilityInWindow(null)).toBeNull();
 
-    // The fact that makes the direct-child rule true, pinned where it is written: the
-    // run's subscriber is appended to the region rather than swapped over it.
-    expect(SHELL).toMatch(
-      /hx-post="\/prompt"[\s\S]{0,300}hx-target="#spec-build-output"[\s\S]{0,120}hx-swap="beforeend"/,
-    );
-    expect(read("src/server/http/fragments.ts")).toContain(`${ACTIVE_CAPABILITY_ATTRIBUTE}="`);
-    // The glue reads it back the same way everywhere it reads it — the restoration
-    // descriptor names what a build displaces, so it may not find the nested copy either.
-    expect(GLUE).not.toContain('document.querySelector("[data-active-capability-id]")');
-    expect(GLUE).toContain(":scope > [data-active-capability-id]");
+    // The fact that makes the direct-child rule true: the run's subscriber is appended to the
+    // region rather than swapped over it.
+    const bar = byId(await elementsOf(read("public/index.html")), PROMPT_FORM_ID);
+    expect(bar.attributes.get("hx-target")).toBe(`#${WINDOW_CONTENT_ID}`);
+    expect(bar.attributes.get("hx-swap")).toBe("beforeend");
+  });
+
+  test("the glue reads the surface standing in the window, never the copy a run nests", () => {
+    // The restoration descriptor names what a build displaces, so it may not find that copy.
+    const untouched = () => {
+      const surface = new ShellEl("div", TASKS);
+      surface.append(new ShellEl("div", { "data-search-state": "idle" }));
+      surface.append(new ShellEl("input", { "data-capability-search-input": "" }));
+      return surface;
+    };
+    const standing = shellDesk();
+    standing.displaced.remove();
+    standing.region.append(untouched());
+    expect(streamRestoration(standing, deflection())).toBe(true);
+
+    const nested = shellDesk();
+    nested.displaced.remove();
+    nested.subscriber.append(untouched());
+    expect(streamRestoration(nested, deflection())).toBe(false);
   });
 
   test("an address asks for one of three things, and never for a push", () => {
@@ -221,23 +264,32 @@ describe("the address names the capability and nothing else", () => {
 // Back and Forward, and what they cost when a run is standing in the window (PLAN decision 17).
 // The traversal is answered in `desk-address.js`, handed the desk's own answers.
 describe("Back and Forward are the desk's to answer", () => {
-  test("Back and Forward are the desk's to answer, and answering pushes nothing", () => {
+  test("Back and Forward are the desk's to answer, before htmx has loaded and after", () => {
     // htmx installs its own `window.onpopstate` on `DOMContentLoaded` and chains what it finds,
-    // so the property is taken on both sides of that moment, whichever script ran first.
-    expect(ADDRESS).toContain("window.onpopstate = (event) =>");
-    expect(ADDRESS).toContain(
-      'document.addEventListener("DOMContentLoaded", take, { once: true })',
-    );
-    expect(ADDRESS).toMatch(/take\(\);\s*if \(typeof document !== "undefined"/);
-
-    // The load-time opener and the answer to Back are one function, so the frame and the address
-    // cannot drift and neither writes history. The history module is handed that one function.
-    expect(MODULE).toMatch(/render: \(landed\) => renderAddress\(root, landed\),/);
-    expect(MODULE).toMatch(/\}\);\s*renderAddress\(root, pathname\);/);
-    const answer = /function renderAddress\(root, pathname\) \{[\s\S]*?\n\}/.exec(MODULE)?.[0];
-    expect(answer, "no `renderAddress`").toBeDefined();
-    expect(answer).not.toContain("pushAddress");
-    expect(answer).not.toContain("replaceAddress");
+    // so the property is taken on both sides of that moment, whichever script ran first. A
+    // module script runs at "interactive", after parsing and before that event, so both count.
+    for (const readyState of ["loading", "interactive"]) {
+      const loaded: (() => void)[] = [];
+      const rendered: string[] = [];
+      const browser = {
+        ...barAt("/capability/notes"),
+        onpopstate: null as ((event: unknown) => void) | null,
+      };
+      const page = {
+        readyState,
+        body: { addEventListener: () => {} },
+        addEventListener: (type: string, run: () => void) => {
+          if (type === "DOMContentLoaded") loaded.push(run);
+        },
+      };
+      withGlobals({ window: browser, document: page }, () => {
+        startDeskHistory({ render: (at) => rendered.push(at), ...nothingHeld });
+        browser.onpopstate = () => rendered.push("htmx answered");
+        for (const run of loaded) run();
+        browser.onpopstate?.({ state: null });
+      });
+      expect(rendered, `started while the page was ${readyState}`).toEqual(["/capability/notes"]);
+    }
   });
 
   test("a traversal knows how far it moved, or says it cannot tell", () => {
@@ -370,143 +422,21 @@ describe("who moves the address", () => {
     // A logo the desk cannot name is never the one already open.
     expect(pressWouldOpen(logoNode("", "Blank"), null)).toBe(true);
 
-    // htmx resolves a press into a request from a listener on the logo itself, without consulting
-    // `defaultPrevented`, so cancelling `htmx:beforeRequest` is the only thing that stops it.
-    expect(MODULE).toContain('root.addEventListener("htmx:beforeRequest"');
-    expect(MODULE).toContain(
-      "if (!pressWouldOpen(elt, settledCapabilityInWindow(mounted)) || leavingIsBeingAsked()) {",
-    );
-    // Matched, never `closest`: a faceless tile's one-attempt POST fires from a span
-    // inside the logo and must not be cancelled with it.
-    expect(MODULE).toContain("elt.matches(CAPABILITY_LOGO_SELECTOR)");
-    expect(MODULE).not.toContain("elt.closest(CAPABILITY_LOGO_SELECTOR)");
-    expect(CAPABILITY_LOGO_SELECTOR).toBe("[data-capability-logo]");
-
-    // A run in the window is not a capability standing in it: the press may take the window back
-    // off the build it displaced, and off an ending still covering that collection.
-    expect(MODULE).toMatch(
-      /function settledCapabilityInWindow\(entry\) \{[\s\S]{0,160}buildRunIn\(entry\.el\) !== null\) return null;/,
-    );
+    // What the press does with that answer is run on a started desk in
+    // `desk-window-address.desk.test.ts` ("a press on a logo").
   });
 
-  test("the press and the clay lamp are the two gestures that push", () => {
-    expect(MODULE).toContain(
-      'const attempted = id !== null && id !== "" ? capabilityAddress(id) : null;',
-    );
-    expect(MODULE).toContain("pushAddress(attempted, deskHistory())");
-    expect(MODULE).toMatch(
-      /action === "putaway"[\s\S]{0,80}pushAddress\(DESK_ADDRESS, deskHistory\(\)\)/,
-    );
-    // A press that answered unsuccessfully never took the window: the entry it made is written
-    // back over rather than stepped off, and only while the bar is still carrying it.
-    expect(MODULE).toContain("standDownUnsuccessfulPress(root, logo, region, attempted, cameFrom)");
-    expect(MODULE).toMatch(
-      /putAwayUnfilledWindow\(region\) && attempted !== null\)[\s\S]{0,60}correctUnfilledAddress\(attempted, cameFrom \?\? DESK_ADDRESS\)/,
-    );
-    // An addressed open that never fills leaves the bare desk rather than a live address
-    // naming a capability nobody is looking at.
-    expect(MODULE).toMatch(
-      /putAwayUnfilledWindow\(region\)\) correctUnfilledAddress\(pathname, DESK_ADDRESS\)/,
-    );
-    // The correction stands down where the user has moved on since. It lives with the other verbs
-    // that move the bar, and `desk-window.js` re-exports it so the rules keep one face.
-    expect(ADDRESS).toMatch(
-      /export function correctUnfilledAddress\(attempted, back\) \{[\s\S]{0,200}isAnotherPlace\(bar\.location\.pathname, attempted\)\) return;/,
-    );
-  });
-
-  test("a Back onto the bare desk cancels an open still waiting for a desk to measure", () => {
-    // A press and a submit cancel a waiting open by mounting a window. A Back takes a window down,
-    // so without this a Back during a cold load is answered by the window opening anyway.
-    const source = code("public/desk-window.js");
-    const bare = /ask === "bare desk"\) \{([\s\S]*?)\n {4}return;/.exec(source)?.[1] ?? "";
-    expect(bare).toContain("stopWaitingForDesk();");
-    const waiting = /function whenDeskIsLaidOut\([\s\S]*?\n\}/.exec(source)?.[0] ?? "";
-    expect(waiting, "no `whenDeskIsLaidOut`").not.toBe("");
-    // Overtaken as well as ended: a second addressed open may not leave the first
-    // observer watching the layer for the life of the page.
-    expect(waiting).toMatch(
-      /function whenDeskIsLaidOut\(root, open\) \{\s*stopWaitingForDesk\(\);/,
-    );
-    expect(waiting).toContain("waitingForDesk = observer;");
-  });
-
-  test("the answer to a swap corrects the spelling, and only a real activation pushes", () => {
-    // A correction asks whether the bar is exactly right where a push asks only whether it is
-    // somewhere else, which is what strips a query string and a trailing slash.
-    expect(MODULE).toContain(
-      'if (bar.location.pathname !== next || bar.location.search !== "") replaceAddress(next, bar);',
-    );
-    // A `commit` is a real pointer activation; every restoration puts back what the build
-    // displaced and navigated nowhere, even when it lands after the address has moved on.
-    expect(GLUE).toContain("restorationKind: undefined, activated: true");
-    expect(GLUE).toContain(
-      "tellDeskTheWindowTookCapability(finishTerminalPresentation(event.target))",
-    );
-    // One ending navigates, and it is the commit. A second `activated: true` in the glue would
-    // push the address for something that only put back what a build displaced.
-    expect(GLUE.match(/activated: true/g)?.length).toBe(1);
-  });
-
-  test("history is written in one place, and only ever with an address", () => {
-    // Two verbs, one call each, in the module that owns the address, so nothing below capability
-    // identity has anywhere to be written. (`app.js` still applies `HX-Replace-Url`.)
-    expect(ADDRESS.match(/history\.pushState/g)).toHaveLength(1);
-    expect(ADDRESS.match(/history\.replaceState/g)).toHaveLength(1);
-    expect(MODULE).not.toContain("history.pushState");
-    expect(MODULE).not.toContain("history.replaceState");
-    expect(MODULE).not.toContain("window.history");
-    expect(ADDRESS).not.toContain("window.history");
-  });
-
-  test("no page of this desk is ever written outside the DOM", () => {
+  test("no page of this desk is ever written outside the DOM", async () => {
     // htmx snapshots the whole body into `sessionStorage` before it touches history, which it
     // does on every `HX-Replace-Url`, so the search term and a draft would outlive the tab.
-    expect(SHELL).toContain('<body hx-history="false">');
+    const [body] = (await elementsOf(read("public/index.html"))).filter((el) => el.tag === "body");
+    expect(body?.attributes.get("hx-history")).toBe("false");
   });
 
-  test("the glue says what happened and the desk decides what the address does", () => {
-    // One rule for "already there", in one place. The glue cannot import the module, so it
-    // reports what happened rather than keeping a second copy of the rule.
-    expect(WINDOW_TOOK_CAPABILITY_EVENT).toBe("aluna:window-took-capability");
-    expect(GLUE).toContain(`new CustomEvent("${WINDOW_TOOK_CAPABILITY_EVENT}"`);
-    expect(GLUE).not.toContain("history.pushState");
-    // A swap corrects; the one terminal that is a navigation pushes. An evolution's commit
-    // and every non-activating terminal carry the id the address already names.
-    expect(GLUE).toMatch(/htmx:afterSwap[\s\S]{0,300}tellDeskTheWindowTookCapability\(false\)/);
-    expect(GLUE).toContain(
-      "tellDeskTheWindowTookCapability(finishTerminalPresentation(event.target))",
-    );
-    expect(MODULE).toMatch(
-      /addEventListener\(WINDOW_TOOK_CAPABILITY_EVENT[\s\S]{0,200}addressTheWindow\(/,
-    );
-  });
-
-  test("nothing below capability identity is written down anywhere", () => {
-    // The address, the two storage keys and the Builder's restoration descriptor are the three
-    // places something could survive the tab, and none may carry a search term or a draft.
+  test("an address below capability identity names no capability", () => {
+    // What the storage keys and the restoration descriptor may carry is swept in
+    // `desk-window-address.policy.ts`; the address itself names nothing below identity.
     expect(capabilityIdFromAddress("/capability/notes/record/7")).toBeNull();
-    expect(STORE).toContain('WINDOW_STORAGE_KEY = "aluna.desk.window.v1"');
-    expect(PANEL).toContain('DEV_STORAGE_KEY = "aluna.desk.dev.v1"');
-
-    // Two records, one per allowed window, and no third (design D9). Read off every key the whole
-    // shell names, so a third key added anywhere in `public/` is what fails this.
-    const shellKeys = new Set(
-      under("public", "*.js")
-        .flatMap((path) => [...code(path).matchAll(/"aluna\.desk\.[^"]+"/g)])
-        .map((match) => match[0]),
-    );
-    expect([...shellKeys].sort()).toEqual(['"aluna.desk.dev.v1"', '"aluna.desk.window.v1"']);
-
-    // And no write names a key inline: every one goes through `savePresentation`, which
-    // is handed one of the two constants above.
-    expect(MODULE + PANEL).not.toMatch(/setItem\(\s*"/);
-    const descriptor = read("src/pipeline/jobs/restoration.ts");
-    expect(descriptor).toContain("readonly capabilityId: string;");
-    expect(descriptor).toContain("readonly incarnationId: string;");
-    for (const below of ["search", "record", "draft", "query"]) {
-      expect(descriptor).not.toContain(`readonly ${below}`);
-    }
   });
 
   test("the browser's own bar is what the verbs are handed", () => {

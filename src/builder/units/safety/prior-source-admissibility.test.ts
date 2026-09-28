@@ -495,8 +495,6 @@ describe("prior source in the regeneration prompt", () => {
     const withoutPrior = buildUnitPrompt(spec, CREATE, undefined, []);
 
     expect(withPrior).toContain(CLEAN_CREATE);
-    expect(withPrior).toContain("Prior committed source for this create.ts handler");
-    expect(withoutPrior).not.toContain("Prior committed source");
     expect(withPrior.startsWith(withoutPrior)).toBe(true);
   });
 
@@ -511,8 +509,9 @@ describe("prior source in the regeneration prompt", () => {
     );
 
     expect(prompt).toContain(CLEAN_CREATE);
-    expect(prompt.indexOf(CLEAN_CREATE)).toBeLessThan(prompt.indexOf("Previous attempt failed."));
-    expect(prompt.trimEnd().endsWith("Generated handlers must not import anything.")).toBe(true);
+    const failure = "Generated handlers must not import anything.";
+    expect(prompt.indexOf(CLEAN_CREATE)).toBeLessThan(prompt.lastIndexOf(failure));
+    expect(prompt.trimEnd().endsWith(failure)).toBe(true);
   });
 
   // The backstop: a caller that hands over inadmissible source gets a prompt with none of
@@ -535,7 +534,7 @@ describe("prior source in the regeneration prompt", () => {
     ).rejects.toThrow();
 
     expect(prompts).toHaveLength(1);
-    expect(prompts[0]).not.toContain("Prior committed source");
+    expect(prompts[0]).toBe(buildUnitPrompt(candidateSpec(), CREATE));
     expect(prompts[0]).not.toContain("legacy_note");
     expect(prompts[0]).not.toContain('if ("text" in input.values)');
   });
@@ -558,7 +557,7 @@ describe("prior source in the regeneration prompt", () => {
     ).rejects.toThrow();
 
     expect(prompts).toHaveLength(1);
-    expect(prompts[0]).not.toContain("Prior committed source");
+    expect(prompts[0]).toBe(buildUnitPrompt(candidateWithPinnedInactive(), CREATE));
     expect(prompts[0]).not.toContain('const stale = "pin" + "ned"');
   });
 

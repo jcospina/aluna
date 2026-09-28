@@ -20,7 +20,7 @@ import {
   responseText,
   teardownScratchDbEnv,
 } from "../../app.test-support.ts";
-import { createApp } from "../../app.ts";
+import { createTestApp } from "../../isolated-app.test-support.ts";
 
 /** A provider the refused submissions must never reach, and the admitted ones stop short of. */
 function forbiddenProvider(calls: { count: number }): Provider {
@@ -46,7 +46,7 @@ describe("a prompt from somewhere other than this desk", () => {
   });
 
   function submittingApp(calls: { count: number }, issued: { ids: number }) {
-    return createApp({
+    return createTestApp({
       getProvider: () => forbiddenProvider(calls),
       recordMetrics: makeMetricsRecorder().recordMetrics,
       buildDatabases: conns,

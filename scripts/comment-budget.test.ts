@@ -3,13 +3,7 @@
 
 import { describe, expect, test } from "bun:test";
 
-import {
-  auditRepository,
-  BLOCK_BUDGET,
-  commentBlocks,
-  HEADER_BUDGET,
-  overBudget,
-} from "./comment-budget.ts";
+import { BLOCK_BUDGET, commentBlocks, HEADER_BUDGET, overBudget } from "./comment-budget.ts";
 
 const line = (text: string, count: number) => Array.from({ length: count }, () => text);
 const jsdoc = (prose: number) => ["/**", ...line(" * a sentence.", prose), " */"].join("\n");
@@ -68,13 +62,5 @@ describe("what costs nothing", () => {
 
   test("a trailing comment beside code is not a block at all", () => {
     expect(commentBlocks("const a = 1; // why\n")).toEqual([]);
-  });
-});
-
-describe("the repository", () => {
-  test("spends no more comment than the budget allows", () => {
-    expect(auditRepository().map((one) => `${one.file}:${one.startLine} (${one.prose})`)).toEqual(
-      [],
-    );
   });
 });

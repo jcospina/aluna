@@ -10,7 +10,7 @@
  *
  * It is copied as TypeScript rather than bundled, because the URL in the bundle names
  * `./query-worker-thread.ts` and Bun runs that file directly. The copy stays self-contained
- * only while the thread imports `bun:sqlite` and nothing else, which `build.test.ts` asserts.
+ * only while the thread imports `bun:sqlite` and nothing else, which `build.policy.ts` asserts.
  */
 
 import { copyFileSync, mkdirSync, rmSync } from "node:fs";

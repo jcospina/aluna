@@ -2,10 +2,19 @@ import { describe, expect, test } from "bun:test";
 import type { ZodType } from "zod";
 import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
 import {
+  addedLines,
+  linesNaming,
+  occurrences,
+} from "../../platform/provider/prompt-lines.test-support.ts";
+import {
   SECOND_INCARNATION_ID,
   THIRD_INCARNATION_ID,
 } from "../../registry/incarnations.test-support.ts";
-import { type CapabilityRow, fingerprintActiveRegistryCatalog } from "../../registry/index.ts";
+import {
+  type CapabilityRow,
+  fingerprintActiveRegistryCatalog,
+  LIST_INPUT_MODES,
+} from "../../registry/index.ts";
 import { notesCapabilityRow } from "../../server/app.test-support.ts";
 import { buildIntentPrompt, classifyIntent, INTENT_DATA_QUERY_CONTEXT_RULE } from "./resolver.ts";
 import type { IntentClassification } from "./schema.ts";
@@ -88,6 +97,21 @@ const catalog = {
   capabilities: catalogRows,
   fingerprint: fingerprintActiveRegistryCatalog(catalogRows),
 };
+
+/** Each field of `row` on a line of its own, with its list-input mode only where it has one. */
+function expectContentFreeCatalog(prompt: string, row: CapabilityRow): void {
+  const modes = new Map(row.ui_intent.form.list_inputs.map((entry) => [entry.field, entry.mode]));
+  for (const field of row.schema.fields) {
+    const lines = linesNaming(prompt, [`${field.name}:`, field.type, field.lifecycle]);
+    expect(lines, field.name).not.toEqual([]);
+    const mode = modes.get(field.name);
+    for (const line of lines) {
+      for (const offered of LIST_INPUT_MODES) {
+        expect(line.includes(offered), `${field.name} ${offered}`).toBe(offered === mode);
+      }
+    }
+  }
+}
 
 interface Fixture {
   readonly name: string;
@@ -300,36 +324,29 @@ describe("intent resolver fixture catalog", () => {
 
       expect(intent).toEqual(fixture.expected);
       expect(prompts).toHaveLength(1);
-      expect(prompts[0]).toContain(
-        fixture.activeCapabilityId === null
-          ? "Active capability:\nnone"
-          : `Active capability:\nid: ${fixture.activeCapabilityId}`,
-      );
-      expect(prompts[0]).toContain(INTENT_DATA_QUERY_CONTEXT_RULE);
-      expect(prompts[0]).toContain(`Prompt bar text:\n${fixture.prompt}`);
+      const prompt = prompts[0] ?? "";
+      expect(prompt).toContain(INTENT_DATA_QUERY_CONTEXT_RULE);
+      expect(prompt.endsWith(`\n${fixture.prompt}`)).toBe(true);
       for (const row of catalogRows) {
-        expect(prompts[0]).toContain(`prompt_context: ${row.prompt_context}`);
+        const standing = row.id === fixture.activeCapabilityId;
+        expect(occurrences(prompt, row.prompt_context), row.id).toBe(standing ? 2 : 1);
       }
-      expect(prompts[0]).toContain("title: string, lifecycle active");
-      expect(prompts[0]).toContain(
-        "genres: string[], lifecycle active, list_input comma_separated",
-      );
-      expect(prompts[0]).toContain("quotes: string[], lifecycle active, list_input repeatable");
-      expect(prompts[0]).toContain("legacy_tags: string[], lifecycle inactive");
+      expectContentFreeCatalog(prompt, recipes);
     });
   }
 
   test("no logo-specific rule was added — the closed ui_change scope is the whole defence", () => {
     // The two refusal fixtures above are refused by the general rule, not one about logos. A
     // logo-specific branch in this prompt is the second rule the contract does not owe.
+    // With no registry and nothing standing, all that is left besides the user's own words is
+    // the rules the resolver states.
+    const request = "make the notes icon blue and bigger";
     const prompt = buildIntentPrompt({
-      prompt: "make the notes icon blue and bigger",
-      activeCapabilityId: "notes",
-      capabilities: catalogRows,
+      prompt: request,
+      activeCapabilityId: null,
+      capabilities: [],
     });
-    // Only the rules the resolver states — the user's own words and the registry
-    // context sit after this marker and are not the classifier's instructions.
-    const rules = prompt.slice(0, prompt.indexOf("Registry context:")).toLowerCase();
+    const rules = prompt.slice(0, -request.length).toLowerCase();
 
     // The refusing rule is about presentation in general, so it names ordinary presentation words.
     // The logo's own vocabulary would be the second, logo-specific rule the contract never owes.
@@ -345,16 +362,34 @@ describe("intent resolver fixture catalog", () => {
     ]) {
       expect(rules).not.toContain(word);
     }
-    // What actually does the refusing: presentation choices the user may state are a
-    // closed list, and art direction is not on it.
-    expect(prompt).toContain(
-      "ui_change is limited to capability labels, the word a capability calls one of its records, field labels, detail visibility/order, item direction/dependencies, feed or grid layout, active string[] list input modes, whether an active string field is typed into a multi-line box, and the one line of guidance shown under a field.",
-    );
-    expect(prompt).toContain(
-      "Ignore requests to choose field types, migrations, frameworks, generated code, CSS tokens, or repair steps.",
-    );
-    expect(prompt).toContain(
-      "A presentation request outside that closed list is reject, never ui_change.",
-    );
+  });
+});
+
+describe("the registry and the active capability, as the resolver states them", () => {
+  const build = (activeCapabilityId: string | null, capabilities = catalogRows) =>
+    buildIntentPrompt({ prompt: "add a due date", activeCapabilityId, capabilities });
+
+  test("a standing capability adds its own entry again, and a desk showing none says so in one line", () => {
+    const none = build(null);
+    const standing = build("notes");
+    const [nothingStanding, ...rest] = addedLines(standing, none);
+    expect(rest).toEqual([]);
+    // A desk showing none is not a missing id, so the line names no id at all.
+    expect(nothingStanding).not.toContain(String(null));
+    const context = notesCapabilityRow().prompt_context;
+    expect(occurrences(standing, context) - occurrences(none, context)).toBe(1);
+  });
+
+  test("an active id the registry does not hold is still named, and borrows no other entry", () => {
+    const ghost = build("ghost");
+    const added = addedLines(build(null), ghost);
+    expect(linesNaming(added.join("\n"), ["ghost"])).toHaveLength(1);
+    for (const row of catalogRows) expect(occurrences(ghost, row.prompt_context)).toBe(1);
+  });
+
+  test("an empty registry is one line, and the rest of the prompt is the same", () => {
+    const empty = build(null, []);
+    expect(addedLines(build(null), empty)).toHaveLength(1);
+    for (const row of catalogRows) expect(empty).not.toContain(row.prompt_context);
   });
 });

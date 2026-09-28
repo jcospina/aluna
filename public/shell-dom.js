@@ -22,6 +22,9 @@ export const BUILD_JOB_ID_ATTRIBUTE = "data-build-job-id";
 /** The field a sentence is typed into, which the bar guards and the desk gives focus back to. */
 export const PROMPT_FIELD_ID = "spec-build-prompt";
 
+/** The bar's own submit button, whose label says the shell is working while a build has it. */
+export const PROMPT_TRIGGER_ID = "spec-build-trigger";
+
 /** Where the prompt bar says what happened to the sentence that was typed into it. */
 export const PROMPT_NOTICE_ID = "prompt-notice";
 

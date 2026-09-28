@@ -113,6 +113,7 @@ export {
   capabilitySpecSchema,
   type FieldLifecycle,
   type FieldType,
+  FORM_SHADOWING_FIELD_NAMES,
   fieldLifecycleSchema,
   fieldTypeSchema,
   isListFieldType,

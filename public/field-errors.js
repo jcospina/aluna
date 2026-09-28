@@ -238,13 +238,14 @@ function holdsNothing(field) {
 
 /**
  * The platform's sentence for an empty field, as the server wrote it onto this form. A form
- * without it is a rendering bug: the alternative is a client authoring copy of its own.
+ * without it is a rendering bug: the alternative is a client authoring copy of its own. Read as
+ * the attribute: `form.dataset` is a field, for a capability with one called `dataset`.
  *
  * @param {HTMLElement} form
  * @returns {string}
  */
 function requiredSentence(form) {
-  const sentence = form.dataset.requiredMessage ?? "";
+  const sentence = form.getAttribute("data-required-message") ?? "";
   if (sentence === "") {
     throw new Error("A capability form must carry the platform's required sentence.");
   }

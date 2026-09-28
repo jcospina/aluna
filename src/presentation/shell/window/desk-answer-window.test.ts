@@ -1,65 +1,73 @@
 // The answer window: the third window, and the second exception to there being one.
 //
-// What is pinned here is everything that would turn the exception into a window manager or into
-// a fourth kind of thing — a second answer window, a stored box, a logo, an address — plus the
-// property the whole module exists for: opening one displaces nothing. The capability being asked
+// What is run here is everything that would turn the exception into a window manager or into a
+// fourth kind of thing — a second answer window, a stored box, a logo, an address — plus the
+// property the whole module exists for: opening one displaces nothing. What the module may never
+// reach for is swept in `desk-answer-window.policy.ts`. The capability being asked
 // about is still open, still showing what it showed, and still called what it was called.
 //
 // 6.5/02 is where "it remembers nothing" is proved end to end, storage sweep included. What is
 // here is only what this module had to build to make that possible.
 
 import { describe, expect, test } from "bun:test";
-import { PROMPT_CLEARANCE } from "#design/desk-geometry.js";
+import { PROMPT_CLEARANCE, refreshGeometry } from "#design/desk-geometry.js";
 import {
-  ANSWER_BODY_SELECTOR,
   ANSWER_DISMISS_LABEL,
   ANSWER_WINDOW_SELECTOR,
   answerDefaultBox,
   dismissAnswerWindow,
   OPEN_THE_ANSWER_WINDOW_EVENT,
   openAnswerWindow,
-  REFUSE_IN_THE_ANSWER_WINDOW_EVENT,
   refuseInAnswerWindow,
   SAY_IN_THE_ANSWER_WINDOW_EVENT,
   sayInAnswerWindow,
-  startDeskAnswerWindow,
   syncAnswerForm,
 } from "#shell/desk-answer-window.js";
 import { joinStack, leaveStack, raise } from "#shell/desk-stack.js";
-import {
-  fitBox,
-  openingGeometry,
-  WINDOW_CONTENT_ID,
-  WINDOW_STORAGE_KEY,
-} from "#shell/desk-window.js";
+import { fitBox, openingGeometry, openWindow, putAway } from "#shell/desk-window.js";
+import { buildRunIn } from "#shell/leaving-a-run.js";
 import { REJECT_DEFLECTION } from "../../../pipeline/build/admission/deflection.ts";
 import { questionLabelNarration } from "../../../runtime/query/index.ts";
 import {
-  ANSWER_WINDOW_ATTRIBUTE,
+  eventAt,
+  openStream,
+  desk as shellDesk,
+} from "../../../server/app.shell-double.test-support.ts";
+import {
   ANSWER_WINDOW_OPENING,
-  ANSWER_WINDOW_SAYING_ATTRIBUTE,
-  REFUSED_PROMPT_ATTRIBUTE,
+  renderAnswerWindowOpening,
   renderAnswerWindowSaying,
 } from "../../../server/http/index.ts";
-import {
-  codeOf as code,
-  flat,
-  readSource as read,
-  rules,
-} from "../../safety/source.test-support.ts";
+import { elementsOf, moduleSources } from "../../../server/http/served-page.test-support.ts";
+import { startedOn } from "../../controls/started-module.test-support.ts";
+import { readSource as read } from "../../safety/source.test-support.ts";
 import { desk, fakeEl, stackMember } from "./desk-window.test-support.ts";
-import { standingDesk } from "./standing-desk.test-support.ts";
+import { El, pressLamp, standingDesk } from "./standing-desk.test-support.ts";
 
-const ANSWER = code("public/desk-answer-window.js");
-const WINDOW = code("public/desk-window.js");
-const PANEL = code("public/desk-dev-panel.js");
-const GLUE = code("public/app.js");
 const SHELL = read("public/index.html");
-const FRAGMENTS = read("src/server/http/fragments.ts");
-const PIPELINE = code("src/pipeline/build/prompt-pipeline.ts");
-const DEFLECTION = code("src/pipeline/build/admission/deflection-pipeline.ts");
-const QUESTION = code("src/pipeline/query/question-pipeline.ts");
-const SHELL_CSS = rules("public/css/shell.css");
+
+/** A frame arriving on this run's stream, and whether the glue kept it off the page. */
+function frameArrives(scene: ReturnType<typeof shellDesk>, data: string): boolean {
+  const event = eventAt("htmx:sseBeforeMessage", scene.surface, { data });
+  scene.fire("htmx:sseBeforeMessage", event);
+  return event.defaultPrevented;
+}
+
+/** Whether the answer window carries every class the capability window's frame carries. */
+function framesShareClasses(): boolean {
+  const desk = standingDesk();
+  try {
+    openWindow("Notes", desk.doc as never);
+    const answer = openAnswerWindow(desk.doc, "how many notes?", "You have 22 notes.");
+    const [capability] = desk.windows().filter((el) => el !== (answer.el as unknown as El));
+    const frame = (capability?.names() ?? []).filter((name) => !name.startsWith("is-"));
+    return frame.length > 0 && frame.every((name) => answer.el.classList.contains(name));
+  } finally {
+    dismissAnswerWindow();
+    putAway();
+    desk.restore();
+  }
+}
 
 /** A window, as much of one as `syncAnswerForm` touches — lamp, bar, and the gestures. */
 function fakeWindow() {
@@ -78,7 +86,7 @@ function fakeWindow() {
  * As much of a browser as start-up touches: the breakpoint it asks about, and the observer it
  * watches the desk with. Put back exactly as found, because these are globals a shell module reads.
  */
-function withBrowser<T>(run: () => T): T {
+async function withBrowser<T>(run: () => Promise<T>): Promise<T> {
   const before = Reflect.getOwnPropertyDescriptor(globalThis, "window");
   const observer = Reflect.getOwnPropertyDescriptor(globalThis, "ResizeObserver");
   const put = (name: string, value: unknown) =>
@@ -98,7 +106,7 @@ function withBrowser<T>(run: () => T): T {
     },
   );
   try {
-    return run();
+    return await run();
   } finally {
     for (const [name, had] of [
       ["window", before],
@@ -112,15 +120,15 @@ function withBrowser<T>(run: () => T): T {
   }
 }
 
-/** Every rule `startDeskAnswerWindow` registers, by the event it listens for. */
-function wiring(layer: unknown) {
+/** Every rule a fresh instance registers when it starts itself, by the event it listens for. */
+async function wiring(layer: unknown) {
   const listeners = new Map<string, Array<(event: unknown) => void>>();
-  withBrowser(() =>
-    startDeskAnswerWindow({
+  await withBrowser(() =>
+    startedOn("desk-answer-window.js", {
       querySelector: () => layer,
       addEventListener: (type: string, fn: (event: unknown) => void) =>
         listeners.set(type, [...(listeners.get(type) ?? []), fn]),
-    } as never),
+    }),
   );
   return listeners;
 }
@@ -143,18 +151,19 @@ function withDocument<T>(run: () => T): T {
 
 describe("it is the third window, and there is no fourth", () => {
   test("one answer window is built, and a second question never builds another", () => {
-    // One `<section>` per window module, the way the other two each build exactly one.
-    expect(ANSWER.match(/document\.createElement\("section"\)/g)).toHaveLength(1);
-    expect(WINDOW.match(/document\.createElement\("section"\)/g)).toHaveLength(1);
-    expect(PANEL.match(/document\.createElement\("section"\)/g)).toHaveLength(1);
-    // And the standing one is handed the new question rather than replaced: `??=` mounts only
-    // when there is nothing standing, so the frame is never closed and reopened.
-    expect(ANSWER).toMatch(/mounted \?\?= mount\(root\);\s*const entry = mounted;/);
-  });
-
-  test("no answer window is ever the window that may not be covered", () => {
-    // It stacks like the other two. `desk-stack.test.ts` holds the slots themselves.
-    expect(ANSWER).not.toContain("top: true");
+    // The standing one is handed the new question rather than replaced, so the frame is never
+    // closed and reopened. The other two windows keep the same promise in their own suites.
+    const desk = standingDesk();
+    try {
+      const first = openAnswerWindow(desk.doc, "how many notes?", "You have 22 notes.");
+      const second = openAnswerWindow(desk.doc, "and in August?", ANSWER_WINDOW_OPENING);
+      expect(second.el).toBe(first.el);
+      expect(desk.doc.querySelectorAll(ANSWER_WINDOW_SELECTOR)).toHaveLength(1);
+      expect(second.win.titleEl.textContent).toBe("and in August?");
+    } finally {
+      dismissAnswerWindow();
+      desk.restore();
+    }
   });
 });
 
@@ -164,69 +173,21 @@ describe("it shows words and nothing else", () => {
     expect(renderAnswerWindowSaying('<img src="/files/x"><a href="/files/x">x</a>')).not.toMatch(
       /<(img|a)\b/,
     );
-    // Nothing it builds can show an image, embed a page or follow a link, no attribute it sets can
-    // point anywhere, and no sink it reaches parses markup.
-    const built = [...ANSWER.matchAll(/createElement(?:NS)?\(\s*[^,)]*?["'`]([\w-]+)["'`]\s*\)/g)];
-    const showing =
-      /^(?:a|img|image|picture|source|video|audio|iframe|object|embed|link|svg|use|frame)$/i;
-    expect(built.length).toBeGreaterThan(0);
-    expect(built.map(([, tag]) => tag).filter((tag) => showing.test(tag ?? ""))).toEqual([]);
-    const named = [...ANSWER.matchAll(/setAttribute(?:NS)?\(\s*[^,)]*?["'`]([\w:-]+)["'`]/g)];
-    expect(named.length).toBeGreaterThan(0);
-    expect(
-      named.map(([, name]) => name).filter((name) => /href|src|data|action/i.test(name ?? "")),
-    ).toEqual([]);
-    const sinks =
-      /\b(?:innerHTML|outerHTML|insertAdjacentHTML|DOMParser|createContextualFragment|srcdoc)\b|document\.write\b|\.(?:href|src)\s*=/;
-    expect(ANSWER.match(sinks)).toBeNull();
   });
 });
 
 describe("it displaces nothing", () => {
-  test("it never reaches for the capability window's own open, name or put-away", () => {
-    // The whole point of the third window: opening an answer must not put away, displace,
-    // re-title or restore the window the user was already looking at.
-    for (const name of [
-      "openWindow",
-      "putAway",
-      "dismissWindow",
-      "nameWindow",
-      "releaseWindowName",
-      "putAwayUnfilled",
-    ]) {
-      expect(ANSWER, `the answer window calls \`${name}\``).not.toContain(name);
-    }
-    // Nor for the developer panel's.
-    expect(ANSWER).not.toContain("openPanel");
-    expect(ANSWER).not.toContain("closePanel");
-    // And it never writes into the capability window's content region.
-    expect(ANSWER).not.toContain(WINDOW_CONTENT_ID);
-  });
-
-  test("a question gives the borrowed frame back rather than restoring over it", () => {
-    // The submit borrowed the capability window and called it `Thinking…`. A question restores
-    // nothing — a restoration would put the *canonical collection* back, which replaces a record
-    // the user had open. The glue marks the run instead, so at close only the run's own subscriber
-    // goes and whatever the region was holding is still exactly what it was holding.
-    expect(PIPELINE).toMatch(/if \(intent\.type === "data_query"\) \{\s*return streamQuestion\(/);
-    // The question path has no restoration to render, and no way to reach for one: a deflection
-    // is the only non-build outcome that puts anything back, and it no longer knows what a
-    // question is.
-    expect(QUESTION).not.toContain("renderRestorationFragment");
-    expect(QUESTION).not.toContain("restoration");
-    expect(DEFLECTION).not.toContain("question");
-    expect(GLUE).toContain('subscriber.dataset.preserveActiveView = "true";');
-    expect(GLUE).toMatch(
-      /preserveActiveView = "true";\s*if \(!outputHasOnlyDormantSubscriber\(output, subscriber\)\)\s*nameTheWindow\(null\);/,
-    );
-  });
-
   test("a refusal opens no window, and a desk holding none is told so", () => {
     // Still true of a refusal that nothing opens for it: this mounts no window and reaches for
     // nothing that would. What it answers is whether there was one — a desk with no answer on it
     // says no, and the glue puts the sentence on the prompt bar instead (PLAN decision 31).
-    expect(refuseInAnswerWindow("delete everything", REJECT_DEFLECTION)).toBe(false);
-    expect(ANSWER).not.toMatch(/function refuseInAnswerWindow[\s\S]*?mount\(/);
+    const desk = standingDesk();
+    try {
+      expect(refuseInAnswerWindow("delete everything", REJECT_DEFLECTION)).toBe(false);
+      expect(desk.windows()).toEqual([]);
+    } finally {
+      desk.restore();
+    }
   });
 
   test("and it comes forward, because on this desk nothing else is saying it", () => {
@@ -270,59 +231,22 @@ describe("it displaces nothing", () => {
   });
 });
 
-describe("nothing writes down where it is, or that it was", () => {
-  test("no store, no key, no record", () => {
-    for (const name of [
-      "localStorage",
-      "localStore",
-      "savePresentation",
-      "loadPresentation",
-      "forgetPresentation",
-      "forgetOnDismissal",
-      "sessionStorage",
-      WINDOW_STORAGE_KEY,
-    ]) {
-      expect(ANSWER, `the answer window reaches for \`${name}\``).not.toContain(name);
-    }
-    // It opens on the box this desk computes, never on one that was written down.
-    expect(ANSWER).toContain(
-      "const NOTHING_REMEMBERED = Object.freeze({ box: null, max: false });",
-    );
-  });
-
-  test("a finished drag is not remembered, because there is nowhere to remember it", () => {
-    // The gesture host the other two windows build carries an `onEnd` that writes the box. This
-    // one has none: where the window is left is simply where it still is.
-    const host = /const host = \{([\s\S]*?)\};/.exec(ANSWER)?.[1] ?? "";
-    expect(host, "no gesture host in the answer window").not.toBe("");
-    expect(host).not.toContain("onEnd");
-    expect(PANEL, "the panel stopped remembering its box").toContain("onEnd: () => remember()");
-  });
-
-  test("nothing on the desk names it — no logo, no tile, no address", () => {
-    // Comments stripped: the shell describes the window in prose, and prose is not a tile.
-    const markup = SHELL.replace(/<!--[\s\S]*?-->/g, "");
-    expect(markup).not.toContain("data-answer");
-    expect(markup).not.toContain("answer-tile");
-    for (const name of ["pushAddress", "replaceAddress", "capabilityAddress", "deskHistory"]) {
-      expect(ANSWER, `the answer window writes the address through \`${name}\``).not.toContain(
-        name,
-      );
-    }
-  });
-});
-
 describe("dismissing it leaves no route back", () => {
   test("the clay lamp says what it does, and what it does is destroy the answer", () => {
-    expect(ANSWER_DISMISS_LABEL).toBe("Dismiss");
-    expect(ANSWER).toMatch(/if \(action === "putaway"\) dismissAnswerWindow\(\);/);
-    expect(ANSWER).toContain("lamp.dataset.lampLabel = ANSWER_DISMISS_LABEL;");
-    // And the frame goes with it: there is no route left to what it held.
-    expect(ANSWER).toMatch(/mounted = null;\s*leaveStack\(entry\);/);
-    // The frame's own observer goes with it, or every dismissed answer leaves one watching a
-    // window that is not on the page.
-    expect(ANSWER).toContain("entry.win.destroy();");
-    expect(ANSWER).toContain("entry.el.remove();");
+    const desk = standingDesk();
+    try {
+      const answer = openAnswerWindow(desk.doc, "how many notes?", "You have 22 notes.");
+      const lamp = answer.el.querySelector('.lamp[data-action="putaway"]') as El;
+      expect(lamp.dataset.lampLabel).toBe(ANSWER_DISMISS_LABEL);
+      expect(lamp.getAttribute("aria-label")).toContain(ANSWER_DISMISS_LABEL);
+      pressLamp(answer.el as unknown as El, "putaway");
+      // And the frame goes with it: there is no route left to what it held.
+      expect(answer.el.isConnected).toBe(false);
+      expect(desk.doc.querySelectorAll(ANSWER_WINDOW_SELECTOR)).toEqual([]);
+      expect(dismissAnswerWindow()).toBe(false);
+    } finally {
+      desk.restore();
+    }
   });
 
   test("there is nothing to dismiss until a question opens one", () => {
@@ -331,13 +255,23 @@ describe("dismissing it leaves no route back", () => {
     expect(dismissAnswerWindow()).toBe(false);
   });
 
-  test("focus goes back to the bar rather than to the body", () => {
-    // A keyboard user who presses the clay lamp otherwise loses focus to `<body>` and tabs the
-    // whole desk again — the same promise the capability window's `focusOpener` keeps.
-    expect(ANSWER).toContain("document.getElementById(PROMPT_FORM_ID)");
-    // And whichever of the bar's controls can actually take it: `focus()` on a disabled one is a
-    // no-op, so a question dismissed while a build has the bar would otherwise land on `<body>`.
-    expect(ANSWER).toContain('"input:not(:disabled), button:not(:disabled)"');
+  test("focus goes back to whichever of the bar's controls can take it", () => {
+    // `focus()` on a disabled control is a no-op, so a question dismissed while a build has the
+    // bar would otherwise land on `<body>`. The enabled field is run next door, in
+    // `answer-window-remembers-nothing.test.ts`.
+    const desk = standingDesk();
+    try {
+      const field = desk.bar.querySelector("input") as El;
+      field.disabled = true;
+      const send = new El("button");
+      desk.bar.append(send);
+      openAnswerWindow(desk.doc, "how many notes?", "You have 22 notes.");
+      dismissAnswerWindow();
+      expect(field.focused).toBe(false);
+      expect(send.focused).toBe(true);
+    } finally {
+      desk.restore();
+    }
   });
 });
 
@@ -353,19 +287,42 @@ describe("it obeys the desk", () => {
     expect(box.w).toBeLessThan(Math.round(1440 * 0.62));
   });
 
+  test("the floor is the one the token layer declares, read when the box is asked for", () => {
+    const host = globalThis as unknown as Record<string, unknown>;
+    const saved = ["window", "document", "getComputedStyle"].map(
+      (name) => [name, Reflect.getOwnPropertyDescriptor(host, name)] as const,
+    );
+    const underClearance = (clearance: string) => {
+      host.getComputedStyle = () => ({
+        getPropertyValue: (name: string) => (name === "--prompt-clearance" ? clearance : ""),
+      });
+      return { box: answerDefaultBox(desk(1440, 900)), floor: 900 - PROMPT_CLEARANCE };
+    };
+    Object.assign(host, { window: host, document: { documentElement: {} } });
+    try {
+      const floors = new Set<number>();
+      for (const clearance of ["40px", "300px"]) {
+        const { box, floor } = underClearance(clearance);
+        floors.add(floor);
+        expect(floor).toBe(900 - Number.parseFloat(clearance));
+        expect(Math.abs(box.y + box.h / 2 - floor / 2)).toBeLessThanOrEqual(1);
+      }
+      expect(floors.size).toBe(2);
+    } finally {
+      for (const [name, descriptor] of saved) {
+        if (descriptor) Object.defineProperty(host, name, descriptor);
+        else Reflect.deleteProperty(host, name);
+      }
+      refreshGeometry();
+    }
+  });
+
   test("a desk too small for it still gets a clamped box, never a negative one", () => {
     const box = answerDefaultBox(desk(320, 240));
     expect(box.w).toBeGreaterThan(0);
     expect(box.h).toBeGreaterThan(0);
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.y).toBeGreaterThanOrEqual(0);
-  });
-
-  test("the clearance is read from the token layer rather than restated", () => {
-    // Through `centredBox`, which is where the three windows' shared frame reads the token.
-    expect(ANSWER).toContain("centredBox(");
-    expect(code("public/desk-window-frame.js")).toContain("bounds.height - PROMPT_CLEARANCE");
-    expect(ANSWER).not.toMatch(/4\.875rem|78px/);
   });
 
   test("a box the user authored survives a resize tick that does not have to move it", () => {
@@ -389,9 +346,10 @@ describe("it obeys the desk", () => {
   });
 
   test("below the breakpoint it is the screen, and no phone behaviour is invented for it", () => {
-    // It carries `window--desk`, so every phone rule the other two obey already governs it:
-    // the window is the screen, the grip is gone, and only the frontmost is in the page.
-    expect(ANSWER).toMatch(/el\.className = `window window--desk \$\{ANSWER_WINDOW_CLASS\}`;/);
+    // It carries every class the capability window's frame does, so every phone rule the other
+    // two obey already governs it: the window is the screen, the grip is gone, and only the
+    // frontmost is in the page.
+    expect(framesShareClasses()).toBe(true);
 
     const { entry, lamp, bar } = fakeWindow();
     withDocument(() => syncAnswerForm(entry as never, true));
@@ -404,68 +362,39 @@ describe("it obeys the desk", () => {
     expect(lamp.attrs.has("hidden")).toBe(false);
     expect(bar.classList.contains("window__bar--draggable")).toBe(true);
   });
-
-  test("a long answer's tail is not left under the prompt bar on a phone", () => {
-    // The geometry that stops a window above the bar is overridden below the breakpoint, so the
-    // strip is reserved as content — the same rule the capability window's region keeps.
-    const literal = (selector: string) => selector.replaceAll(".", "\\.");
-    expect(SHELL_CSS).toMatch(
-      new RegExp(
-        `@media \\(max-width: 720px\\) \\{[^@]*?${literal(ANSWER_WINDOW_SELECTOR)} ${literal(ANSWER_BODY_SELECTOR)}::after \\{[^}]*height: var\\(--prompt-clearance\\);`,
-      ),
-    );
-    // And the class is a hook the stylesheet actually uses, not a name on an element nothing reads.
-    expect(SHELL_CSS).toContain(`${ANSWER_WINDOW_SELECTOR} ${ANSWER_BODY_SELECTOR} {`);
-  });
 });
 
 describe("the seam a classic script reaches the answer window across", () => {
-  test("both ends agree on the event, and on what rides it", () => {
-    expect(OPEN_THE_ANSWER_WINDOW_EVENT).toBe("aluna:open-the-answer-window");
-    expect(GLUE).toContain(`OPEN_THE_ANSWER_WINDOW_EVENT = "${OPEN_THE_ANSWER_WINDOW_EVENT}"`);
-    expect(GLUE).toContain(`ANSWER_WINDOW_ATTRIBUTE = "${ANSWER_WINDOW_ATTRIBUTE}"`);
-    expect(FRAGMENTS).toContain(
-      `export const ANSWER_WINDOW_ATTRIBUTE = "${ANSWER_WINDOW_ATTRIBUTE}";`,
-    );
-    // It lands nowhere, like the window's name: the desk owns its windows (ARCH §6.1).
-    expect(GLUE).toMatch(/openTheAnswerWindowFrom\(listener, message\.data\) \|\|/);
+  test("an opening on the stream opens the window with her words, and lands nowhere else", () => {
+    const scene = shellDesk();
+    scene.startShell();
+    openStream(scene);
+    expect(frameArrives(scene, renderAnswerWindowOpening("how many notes?"))).toBe(true);
+    expect(scene.dispatched).toContainEqual({
+      type: OPEN_THE_ANSWER_WINDOW_EVENT,
+      detail: { question: "how many notes?", saying: ANSWER_WINDOW_OPENING },
+    });
+    // The borrowed frame is given back: the run no longer counts as using the window.
+    expect(buildRunIn(scene.region as never)).toBeNull();
   });
 
-  test("both ends agree on the mark a later sentence rides, and on where it lands", () => {
-    expect(SAY_IN_THE_ANSWER_WINDOW_EVENT).toBe("aluna:say-in-the-answer-window");
-    expect(GLUE).toContain(`SAY_IN_THE_ANSWER_WINDOW_EVENT = "${SAY_IN_THE_ANSWER_WINDOW_EVENT}"`);
-    expect(GLUE).toContain(`ANSWER_WINDOW_SAYING_ATTRIBUTE = "${ANSWER_WINDOW_SAYING_ATTRIBUTE}"`);
-    expect(FRAGMENTS).toContain(
-      `export const ANSWER_WINDOW_SAYING_ATTRIBUTE = "${ANSWER_WINDOW_SAYING_ATTRIBUTE}";`,
-    );
-    // It lands nowhere either, and it is asked before the parked restoration is.
-    expect(GLUE).toMatch(/sayInTheAnswerWindowFrom\(listener, message\.data\) \|\|/);
+  test("a later sentence on the stream goes to the window, and lands nowhere else", () => {
+    const scene = shellDesk();
+    scene.startShell();
+    openStream(scene);
+    const counting = questionLabelNarration("counting");
+    expect(frameArrives(scene, renderAnswerWindowSaying(counting))).toBe(true);
+    expect(scene.dispatched).toContainEqual({
+      type: SAY_IN_THE_ANSWER_WINDOW_EVENT,
+      detail: { saying: counting },
+    });
   });
 
-  test("both ends agree on the mark a refusal rides, and that it may find nowhere", () => {
-    expect(REFUSE_IN_THE_ANSWER_WINDOW_EVENT).toBe("aluna:refuse-in-the-answer-window");
-    expect(GLUE).toContain(
-      `REFUSE_IN_THE_ANSWER_WINDOW_EVENT = "${REFUSE_IN_THE_ANSWER_WINDOW_EVENT}"`,
-    );
-    expect(GLUE).toContain(`REFUSED_PROMPT_ATTRIBUTE = "${REFUSED_PROMPT_ATTRIBUTE}"`);
-    expect(FRAGMENTS).toContain(
-      `export const REFUSED_PROMPT_ATTRIBUTE = "${REFUSED_PROMPT_ATTRIBUTE}";`,
-    );
-    // Asked before the parked restoration, like the other two, and cancellable — which is the one
-    // thing this mark needs that they do not: an unanswered offer is how the bar learns to speak.
-    // The whole statement, because `cancelable: true` alone is a string this file already carries
-    // for the retire-the-run-sentence event, and would pass with the offer's own dropped.
-    expect(GLUE).toMatch(/placeTheRefusalFrom\(listener, message\.data\) \|\|/);
-    expect(flat(GLUE)).toContain(
-      "new CustomEvent(REFUSE_IN_THE_ANSWER_WINDOW_EVENT, { detail, cancelable: true })",
-    );
-  });
-
-  test("a sentence for a window nobody is holding open goes nowhere at all", () => {
+  test("a sentence for a window nobody is holding open goes nowhere at all", async () => {
     // Dismissing destroys the answer, and a question still running says the rest of what it had
     // to say into a desk that is no longer listening. Nothing reopens (ADR-0008).
     expect(sayInAnswerWindow(questionLabelNarration("counting"))).toBe(false);
-    const say = wiring({})?.get(SAY_IN_THE_ANSWER_WINDOW_EVENT)?.[0];
+    const say = (await wiring({})).get(SAY_IN_THE_ANSWER_WINDOW_EVENT)?.[0];
     expect(say).toBeDefined();
     for (const detail of [undefined, null, {}, { saying: 7 }, { question: "how many?" }]) {
       expect(() => say?.({ detail })).not.toThrow();
@@ -509,37 +438,16 @@ describe("the seam a classic script reaches the answer window across", () => {
     }
   });
 
-  test("a list in an answer is read as a list rather than run into one line", () => {
-    // An answer that is a list runs over lines exactly as she wrote it, so the breaks have to
-    // survive to the desk — `textContent` alone would collapse them (PLAN decision 3).
-    expect(SHELL_CSS).toMatch(
-      new RegExp(
-        `${ANSWER_WINDOW_SELECTOR.replaceAll(".", "\\.")} ${ANSWER_BODY_SELECTOR.replaceAll(".", "\\.")} \\{[^}]*white-space: pre-wrap;`,
-      ),
-    );
-  });
-
-  test("one prompt bar and no way to pre-classify a sentence", () => {
-    // PLAN decision 1: no mode switch, no slash command, no ask-versus-build control. The composer
-    // is where such a control would have to live, and it carries one field and one submit.
-    const composer = SHELL.slice(SHELL.indexOf("prompt__composer"));
-    const bar = composer.slice(0, composer.indexOf("</form>"));
-    for (const control of ["<select", "<option", 'type="radio"', 'type="checkbox"', 'role="tab"']) {
-      expect({ control, present: bar.includes(control) }).toEqual({ control, present: false });
-    }
-    expect(bar.match(/<input\b/g) ?? []).toHaveLength(1);
-  });
-
-  test("the layer is demanded at start-up, not at the first question", () => {
+  test("the layer is demanded at start-up, not at the first question", async () => {
     // A shell shipped without one would otherwise look entirely normal until the first thing the
     // user asked, which is the confusion the throw prevents — the same promise the window keeps.
-    expect(() => wiring(null)).toThrow("The desk's window layer is missing.");
+    await expect(wiring(null)).rejects.toThrow("The desk's window layer is missing.");
   });
 
-  test("a detail that names no question opens nothing", () => {
+  test("a detail that names no question opens nothing", async () => {
     // The event carries what the server said. Anything else reaching it is not a question, and a
     // window opened for one would be a frame with nothing in it and no way to know what it was.
-    const open = wiring({})?.get(OPEN_THE_ANSWER_WINDOW_EVENT)?.[0];
+    const open = (await wiring({})).get(OPEN_THE_ANSWER_WINDOW_EVENT)?.[0];
     expect(open).toBeDefined();
     for (const detail of [undefined, null, {}, { question: 7 }, { saying: "hello" }]) {
       expect(() => open?.({ detail })).not.toThrow();
@@ -549,11 +457,19 @@ describe("the seam a classic script reaches the answer window across", () => {
     expect(() => open?.({ detail: { question: "how many notes?" } })).toThrow();
   });
 
-  test("the page loads it, and it starts itself the way every other shell module does", () => {
-    expect(SHELL).toContain('<script type="module" src="/static/desk-answer-window.js"></script>');
-    // Through `onDeskReady`, which is the guard every shell module now boots behind: it is where
-    // the `typeof document` check lives, so Bun can import this file for what it exports.
-    expect(ANSWER).toContain("onDeskReady(() => startDeskAnswerWindow(document))");
-    expect(code("public/desk-window-frame.js")).toContain('typeof document === "undefined"');
+  test("the page loads it, and it starts itself on the document it finds", async () => {
+    expect(moduleSources(await elementsOf(SHELL))).toContain("/static/desk-answer-window.js");
+    const desk = standingDesk();
+    const started = await startedOn<typeof import("#shell/desk-answer-window.js")>(
+      "desk-answer-window.js",
+      desk.doc,
+    );
+    try {
+      desk.root.dispatchEvent({ type: OPEN_THE_ANSWER_WINDOW_EVENT, detail: { question: "how?" } });
+      expect(desk.doc.querySelectorAll(ANSWER_WINDOW_SELECTOR)).toHaveLength(1);
+    } finally {
+      started.dismissAnswerWindow();
+      desk.restore();
+    }
   });
 });

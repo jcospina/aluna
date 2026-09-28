@@ -8,14 +8,7 @@
 // its way out — is `src/pipeline/query/data-query.test.ts` and `question-pipeline.test.ts`.
 
 import { describe, expect, test } from "bun:test";
-import {
-  ANSWER_BODY_SELECTOR,
-  ANSWER_WINDOW_SELECTOR,
-  dismissAnswerWindow,
-  openAnswerWindow,
-  refuseInAnswerWindow,
-  startDeskAnswerWindow,
-} from "#shell/desk-answer-window.js";
+import { ANSWER_BODY_SELECTOR, ANSWER_WINDOW_SELECTOR } from "#shell/desk-answer-window.js";
 import { openWindow, PROMPT_FORM_ID, putAway, startDeskWindow } from "#shell/desk-window.js";
 import {
   buildCancelUrl,
@@ -36,7 +29,10 @@ import {
   renderAnswerWindowOpening,
   renderBuildWindowTitle,
 } from "../../../server/http/index.ts";
+import { startedOn } from "../../controls/started-module.test-support.ts";
 import { El, standingDesk } from "./standing-desk.test-support.ts";
+
+type AnswerWindowModule = typeof import("#shell/desk-answer-window.js");
 
 const QUESTION = "how many notes did I add last week?";
 
@@ -100,7 +96,7 @@ describe("the prompt bar while a question runs", () => {
     saysItIsAQuestion(scene);
     settle(scene);
     scene.promptField.value = "how many teas do I have?";
-    scene.promptField.focused = false;
+    scene.promptField.blur();
 
     closeStream(scene);
     settle(scene);
@@ -152,19 +148,23 @@ function regionHolding(jobId: string | null) {
   };
 }
 
-/** The module started on a page of its own, with every rule it binds kept by the event it answers. */
-function startedOn(jobId: string | null) {
+/**
+ * A fresh instance of the module started on a page of its own, with every rule it binds kept by
+ * the event it answers. Fresh, because the page it was started on is module state.
+ */
+async function questionDesk(jobId: string | null) {
   const listeners = new Map<string, Array<(event: unknown) => void>>();
   const captured: string[] = [];
-  startDeskAnswerWindow({
+  const module = await startedOn<AnswerWindowModule>("desk-answer-window.js", {
     querySelector: () => ({ getBoundingClientRect: () => ({ width: 0, height: 0 }) }),
     addEventListener: (type: string, fn: (event: unknown) => void, capture?: boolean) => {
       listeners.set(type, [...(listeners.get(type) ?? []), fn]);
       if (capture === true) captured.push(type);
     },
     getElementById: (id: string) => (id === WINDOW_CONTENT_ID ? regionHolding(jobId) : null),
-  } as never);
+  });
   return {
+    module,
     captured,
     fire: (type: string, event: unknown = { detail: {} }) => {
       for (const listener of listeners.get(type) ?? []) listener(event);
@@ -195,7 +195,7 @@ function withCancelling<T>(run: (asked: { posted: string[]; detached: number }) 
   });
   put("fetch", (url: string) => {
     asked.posted.push(url);
-    return Promise.resolve();
+    return Promise.resolve({ ok: true });
   });
   try {
     return run(asked);
@@ -208,8 +208,8 @@ function withCancelling<T>(run: (asked: { posted: string[]; detached: number }) 
 }
 
 describe("the two ways a person gives up on a question", () => {
-  test("asking something else stops it, from the capture phase, before anything is sent", () => {
-    const desk = startedOn("question-7");
+  test("asking something else stops it, from the capture phase, before anything is sent", async () => {
+    const desk = await questionDesk("question-7");
     // Capture, so the shell's own one-run guard reads the window after this (`public/app.js`).
     // On the way back up it would already have refused the second question.
     expect(desk.captured).toEqual(["htmx:beforeRequest"]);
@@ -228,10 +228,10 @@ describe("the two ways a person gives up on a question", () => {
     });
   });
 
-  test("dismissing the answer stops it too, and leaves the story its own ending", () => {
-    startedOn("question-7");
+  test("dismissing the answer stops it too, and leaves the story its own ending", async () => {
+    const { module } = await questionDesk("question-7");
     withCancelling((asked) => {
-      dismissAnswerWindow();
+      module.dismissAnswerWindow();
 
       // The same cancel a desk action reaches. The story stays where it stands, because nothing
       // is coming to take its place: the close the server sends is what puts the frame it stood
@@ -241,10 +241,10 @@ describe("the two ways a person gives up on a question", () => {
     });
   });
 
-  test("and a desk with no question running is left alone", () => {
-    const desk = startedOn(null);
+  test("and a desk with no question running is left alone", async () => {
+    const desk = await questionDesk(null);
     withCancelling((asked) => {
-      dismissAnswerWindow();
+      desk.module.dismissAnswerWindow();
       desk.fire("htmx:beforeRequest", ASKING_AGAIN);
       expect(asked.posted).toEqual([]);
       expect(asked.detached).toBe(0);
@@ -260,7 +260,7 @@ describe("the two ways a person gives up on a question", () => {
  */
 describe("a question given up on for something that is not a question", () => {
   /** A real desk, with one question standing in its window region. */
-  function askingDesk() {
+  async function askingDesk() {
     const scene = standingDesk();
     const region = new El("div");
     region.id = WINDOW_CONTENT_ID;
@@ -269,8 +269,8 @@ describe("a question given up on for something that is not a question", () => {
     run.setAttribute(QUESTION_RUN_ATTRIBUTE, "true");
     region.append(run);
     scene.root.append(region);
-    startDeskAnswerWindow(scene.doc as never);
-    openAnswerWindow(
+    const answer = await startedOn<AnswerWindowModule>("desk-answer-window.js", scene.doc);
+    answer.openAnswerWindow(
       scene.doc as never,
       "how many notes did I add last week?",
       ANSWER_WINDOW_OPENING,
@@ -278,6 +278,7 @@ describe("a question given up on for something that is not a question", () => {
     return {
       scene,
       run,
+      answer,
       windows: () => scene.windows().filter((w) => w.matches(ANSWER_WINDOW_SELECTOR)),
     };
   }
@@ -289,8 +290,8 @@ describe("a question given up on for something that is not a question", () => {
     scene.doc.dispatchEvent(closed as never);
   }
 
-  test("takes the window down when the run that replaced it ends", () => {
-    const { scene, run, windows } = askingDesk();
+  test("takes the window down when the run that replaced it ends", async () => {
+    const { scene, run, answer, windows } = await askingDesk();
     try {
       withCancelling(() => {
         scene.doc.dispatchEvent(new CustomEvent("htmx:beforeRequest", ASKING_AGAIN) as never);
@@ -307,41 +308,45 @@ describe("a question given up on for something that is not a question", () => {
       closeFrom(scene, build);
       expect(windows()).toHaveLength(0);
     } finally {
-      dismissAnswerWindow();
+      answer.dismissAnswerWindow();
       scene.restore();
     }
   });
 
-  test("and a question asked next takes the window over instead", () => {
-    const { scene, windows } = askingDesk();
+  test("and a question asked next takes the window over instead", async () => {
+    const { scene, answer, windows } = await askingDesk();
     try {
       withCancelling(() => {
         scene.doc.dispatchEvent(new CustomEvent("htmx:beforeRequest", ASKING_AGAIN) as never);
       });
       // The sentence turned out to be a question too. It opens in the frame already standing
       // (decision 25), and the window is about her question now rather than the abandoned one.
-      openAnswerWindow(scene.doc as never, "how many teas do I have?", ANSWER_WINDOW_OPENING);
+      answer.openAnswerWindow(
+        scene.doc as never,
+        "how many teas do I have?",
+        ANSWER_WINDOW_OPENING,
+      );
 
       const next = new El("section");
       next.setAttribute(RUN_ID_ATTRIBUTE, "question-8");
       closeFrom(scene, next);
       expect(windows()).toHaveLength(1);
     } finally {
-      dismissAnswerWindow();
+      answer.dismissAnswerWindow();
       scene.restore();
     }
   });
 
-  test("and a refusal takes it over the same way, rather than going down with the run", () => {
+  test("and a refusal takes it over the same way, rather than going down with the run", async () => {
     // The sentence that replaced her question was refused, and the refusal is what the window is
     // showing. Taking it down at the close would destroy the only place that sentence was said —
     // the prompt bar stayed silent for it, because there was a window (6.6/03).
-    const { scene, windows } = askingDesk();
+    const { scene, answer, windows } = await askingDesk();
     try {
       withCancelling(() => {
         scene.doc.dispatchEvent(new CustomEvent("htmx:beforeRequest", ASKING_AGAIN) as never);
       });
-      expect(refuseInAnswerWindow("delete everything", REJECT_DEFLECTION)).toBe(true);
+      expect(answer.refuseInAnswerWindow("delete everything", REJECT_DEFLECTION)).toBe(true);
 
       const refused = new El("section");
       refused.setAttribute(RUN_ID_ATTRIBUTE, "refusal-8");
@@ -352,13 +357,13 @@ describe("a question given up on for something that is not a question", () => {
         REJECT_DEFLECTION,
       );
     } finally {
-      dismissAnswerWindow();
+      answer.dismissAnswerWindow();
       scene.restore();
     }
   });
 
-  test("but a question that answered is the person's to keep", () => {
-    const { scene, windows } = askingDesk();
+  test("but a question that answered is the person's to keep", async () => {
+    const { scene, answer, windows } = await askingDesk();
     try {
       const build = new El("section");
       build.setAttribute(RUN_ID_ATTRIBUTE, "build-9");
@@ -366,7 +371,7 @@ describe("a question given up on for something that is not a question", () => {
       // Nothing was given up on, so nothing about this run is the answer window's business.
       expect(windows()).toHaveLength(1);
     } finally {
-      dismissAnswerWindow();
+      answer.dismissAnswerWindow();
       scene.restore();
     }
   });

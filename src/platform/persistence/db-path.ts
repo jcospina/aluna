@@ -7,3 +7,10 @@
  * one just by naming it.
  */
 export const DB_PATH = "data/omni-crud.db";
+
+export const DB_PATH_ENV_VAR = "OMNI_DB_PATH";
+
+/** The configured file, a relative one read from the working directory; `DB_PATH` when unset. */
+export function resolveDbPath(env: NodeJS.ProcessEnv = process.env): string {
+  return env[DB_PATH_ENV_VAR]?.trim() || DB_PATH;
+}

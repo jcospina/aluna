@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 
 import { PHONE, PROMPT_CLEARANCE } from "#design/desk-geometry.js";
 import {
@@ -8,19 +8,16 @@ import {
   openingGeometry,
   PHONE_CLASS,
   syncForm,
+  WINDOW_STORAGE_KEY,
 } from "#shell/desk-window.js";
-import {
-  codeOf as code,
-  readSource as read,
-  rules,
-  under,
-} from "../../safety/source.test-support.ts";
+import { elementsOf } from "../../../server/http/served-page.test-support.ts";
+import { readSource as read } from "../../safety/source.test-support.ts";
 import { desk, fakeEl, type Stored } from "./desk-window.test-support.ts";
+import { dragBy, type El } from "./standing-desk.test-support.ts";
+import { designDesk, type ViewportDesk, viewportDesk } from "./viewport-desk.test-support.ts";
 
 // Below the breakpoint the window is the screen, and the script is told so (PLAN decisions 47 and
-// 48; design D9). What the script does when told, plus the two widths sheets may break on.
-
-const MODULE = code("public/desk-window.js");
+// 48; design D9). What the script does when told; the two widths sheets may break on are policy.
 
 /** A window, as much of one as `syncForm` touches — lamp, bar, and the gestures. */
 function fakeWindow() {
@@ -50,26 +47,58 @@ function withDocument<T>(run: () => T): T {
   }
 }
 
+/** The one window on a started desk, opened the way a logo opens one. */
+function mounted(screen: ViewportDesk): El {
+  screen.module.openWindow("Notes", screen.desk.doc as never);
+  return screen.desk.windows()[0] as El;
+}
+
+/** The leaf lamp, the one a keyboard maximises with. */
+const leafLamp = (el: El) => el.querySelector('.lamp[data-action="maximise"]') as El;
+
+/** What a grip is to the page: a box the window holds that is hidden from assistive tech. */
+const gripsOf = (el: El) =>
+  el.children.filter(
+    (child) => child.tagName === "div" && child.getAttribute("aria-hidden") === "true",
+  );
+
 describe("below the breakpoint the window is the screen, and the script is told so", () => {
-  test("the breakpoint the script reads is the one the stylesheet breaks on", () => {
-    expect(PHONE).toBe("(max-width: 720px)");
-    expect(rules("design/styles/components/desk.css")).toContain("@media (max-width: 720px)");
+  let screen: ViewportDesk | undefined;
+  afterEach(() => {
+    screen?.restore();
+    screen = undefined;
   });
 
-  test("the phone class is set on the ground rather than only read", () => {
-    expect(PHONE_CLASS).toBe("desk--phone");
-    expect(DESK_GROUND_SELECTOR).toBe(".shell");
-    expect(read("public/index.html")).toContain('class="shell"');
-    expect(MODULE).toContain("ground?.classList.toggle(PHONE_CLASS, phone)");
+  test("the phone class is set on the ground rather than only read", async () => {
+    screen = await viewportDesk(true);
+    expect(screen.asked).toEqual([PHONE]);
+    expect(screen.ground.classList.contains(PHONE_CLASS)).toBe(true);
+    screen.setPhone(false);
+    expect(screen.ground.classList.contains(PHONE_CLASS)).toBe(false);
+  });
+
+  test("the ground the script sets it on is one the shell serves", async () => {
+    const served = await elementsOf(read("public/index.html"));
+    const [ground] = served.filter((element) =>
+      (element.attributes.get("class") ?? "").split(/\s+/).includes(DESK_GROUND_SELECTOR.slice(1)),
+    );
+    expect(ground, `the shell serves no ${DESK_GROUND_SELECTOR}`).toBeDefined();
 
     // And the ground is found structurally, so a page without one is not a crash.
-    const ground = fakeEl();
-    expect(deskGround({ querySelector: (s: string) => (s === ".shell" ? ground : null) })).toBe(
-      ground as never,
-    );
+    const found = fakeEl();
+    const root = { querySelector: (s: string) => (s === DESK_GROUND_SELECTOR ? found : null) };
+    expect(deskGround(root)).toBe(found as never);
     expect(deskGround({ querySelector: () => null })).toBeNull();
     expect(deskGround({ querySelector: () => ({ notAnElement: true }) })).toBeNull();
     expect(deskGround({} as never)).toBeNull();
+  });
+});
+
+describe("what a window may do below the breakpoint", () => {
+  let screen: ViewportDesk | undefined;
+  afterEach(() => {
+    screen?.restore();
+    screen = undefined;
   });
 
   test("the drag and the grip do not bind at all below the breakpoint", () => {
@@ -96,14 +125,8 @@ describe("below the breakpoint the window is the screen, and the script is told 
   });
 
   test("the title bar stops claiming a phone's touches when it stops being draggable", () => {
-    // `.window__bar--draggable` carries `touch-action: none`. Left on a phone, the browser hands
-    // every touch starting on the title bar to a drag that stands itself down.
-    const draggable = /\.window__bar--draggable\s*\{([^}]*)\}/.exec(
-      rules("design/styles/components/desk.css"),
-    )?.[1];
-    expect(draggable, "no `.window__bar--draggable` rule").toBeDefined();
-    expect(draggable).toMatch(/touch-action:\s*none/);
-
+    // The class carries `touch-action: none` (held by the policy beside this file), so it has to
+    // come off on a phone or the browser hands every title-bar touch to a drag that stands down.
     const { entry, bar } = fakeWindow();
     withDocument(() => syncForm(entry as never, false));
     expect(bar.classList.contains("window__bar--draggable")).toBe(true);
@@ -119,22 +142,54 @@ describe("below the breakpoint the window is the screen, and the script is told 
     expect(lamp.attrs.has("hidden")).toBe(true);
     withDocument(() => syncForm(entry as never, false));
     expect(lamp.attrs.has("hidden")).toBe(false);
-
-    // `.lamp` declares no `display` of its own, so `[hidden]` is not overridden.
-    expect(rules("design/styles/components/window.css")).not.toMatch(/\.lamp\s*\{[^}]*display:/);
-    // And the action is shut too, for a `window:lamp` that arrives some other way.
-    expect(MODULE).toMatch(/function toggleMaximise\(entry\) \{\s*if \(phone\) return;/);
   });
 
-  test("a maximised window that is already up stands its gestures down when narrowed", () => {
-    // The half a listener can do: `addWindowDrag` binds to the bar and offers no way
-    // back off it, so a window carried into the phone form answers through the host.
-    expect(MODULE).toContain("standDown: () => entry.maximised || phone");
-    expect(
-      code("design/scripts/window-gestures.js").match(/if \(host\.standDown\?\.\(\)\) return;/g),
-    ).toHaveLength(2);
+  test("a maximise that arrives some other way is refused on a phone", async () => {
+    screen = await viewportDesk(true);
+    const el = mounted(screen);
+    el.dispatchEvent({ type: "window:lamp", detail: { action: "maximise" } });
+    expect(leafLamp(el).getAttribute("aria-pressed")).toBe("false");
+    screen.setPhone(false);
+    el.dispatchEvent({ type: "window:lamp", detail: { action: "maximise" } });
+    expect(leafLamp(el).getAttribute("aria-pressed")).toBe("true");
   });
 
+  test("a window standing when the screen crosses changes form with it", async () => {
+    screen = await viewportDesk(false);
+    const el = mounted(screen);
+    screen.setPhone(true);
+    expect(leafLamp(el).hasAttribute("hidden")).toBe(true);
+    screen.setPhone(false);
+    expect(leafLamp(el).hasAttribute("hidden")).toBe(false);
+  });
+
+  test("a window born on a phone is placed and remembered only when the screen crosses up", async () => {
+    screen = await viewportDesk(true);
+    const el = mounted(screen);
+    const placed = () => el.props.get("--win-w");
+    expect(placed()).toBeUndefined();
+    screen.setPhone(true);
+    expect(screen.desk.store.writes).toEqual([]);
+    screen.setPhone(false);
+    expect(placed()).toBeDefined();
+    expect(screen.desk.store.writes).toEqual([`set ${WINDOW_STORAGE_KEY}`]);
+  });
+
+  test("a window that is already up stands its gestures down when narrowed", async () => {
+    // The half a listener can do: `addWindowDrag` binds to the bar and offers no way back off
+    // it, so a window carried into the phone form answers through the host.
+    screen = await viewportDesk(false);
+    const el = mounted(screen);
+    const placed = () => [...el.props.entries()].filter(([name]) => name.startsWith("--win-"));
+    screen.setPhone(true);
+    const before = placed();
+    dragBy(el.querySelector("header") as El, 120, 80);
+    for (const grip of gripsOf(el)) dragBy(grip, 120, 80);
+    expect(placed()).toEqual(before);
+  });
+});
+
+describe("the desktop box survives the phone", () => {
   test("the crossing down leaves the desktop box exactly as it found it", () => {
     const box = { x: 240, y: 18, w: 794, h: 462 };
     const state = { box: { ...box }, maximised: false, sized: true };
@@ -196,134 +251,52 @@ describe("below the breakpoint the window is the screen, and the script is told 
 });
 
 describe("the focus order advertises nothing it cannot do", () => {
-  test("the corner grip is pointer geometry rather than a keyboard control", () => {
-    const gestures = code("design/scripts/window-gestures.js");
-    expect(gestures).toContain('const grip = document.createElement("div")');
-    expect(gestures).toContain('grip.setAttribute("aria-hidden", "true")');
-    expect(gestures).not.toContain("tabIndex");
-    expect(gestures).not.toContain("tabindex");
-    expect(gestures).not.toContain('createElement("button")');
-    // And it is not reachable by pointer on a phone either.
-    expect(rules("design/styles/components/desk.css")).toMatch(
-      /@media \(max-width: 720px\)[\s\S]*?\.window__grip \{\s*display: none;/,
-    );
+  let screen: ViewportDesk | undefined;
+  afterEach(() => {
+    screen?.restore();
+    screen = undefined;
   });
 
-  test("what is left in the window's focus order is two real buttons", () => {
+  test("the corner grip is pointer geometry rather than a keyboard control", async () => {
+    screen = await viewportDesk(false);
+    const [grip, ...more] = gripsOf(mounted(screen));
+    expect(more).toHaveLength(0);
+    expect(grip?.tagName).toBe("div");
+    expect(grip?.hasAttribute("tabindex")).toBe(false);
+    expect((grip as unknown as { tabIndex?: number }).tabIndex).toBeUndefined();
+  });
+
+  test("what is left in the window's focus order is two real buttons", async () => {
     // The lamps are the whole of the window's chrome and both are `<button>`. The leaf lamp is the
     // size change a keyboard can make, which lets the grip stay out of the order entirely.
-    const windowScript = code("design/scripts/window.js");
-    expect(windowScript).toContain('const button = document.createElement("button")');
-    expect(windowScript).toContain('button.type = "button"');
-    expect(windowScript.match(/{ action: "\w+"/g)).toHaveLength(2);
-    expect(code("public/desk-window-frame.js")).toContain('setAttribute("aria-pressed"');
+    screen = await viewportDesk(false);
+    const el = mounted(screen);
+    const buttons = el.querySelectorAll("button");
+    expect(buttons.map((button) => button.type)).toEqual(["button", "button"]);
+    expect(leafLamp(el).getAttribute("aria-pressed")).toBe("false");
   });
 
-  test("the design page's own desk keeps the same two promises", () => {
+  test("the design page's own desk keeps the same two promises", async () => {
     // `design/scripts/desk.js` is the other consumer of the shared gestures (PLAN decision 47).
     // It bound both gestures on a phone and left the maximise lamp in the focus order.
-    const deskScript = code("design/scripts/desk.js");
-    expect(deskScript).toContain('toggleAttribute("hidden", phone)');
-    expect(deskScript).toContain('classList.toggle("window__bar--draggable", !phone)');
-    expect(deskScript).toMatch(/if \(phone \|\| entry\.gestures\) return;/);
-    expect(deskScript.match(/addWindowGrip\(/g)).toHaveLength(1);
-    expect(deskScript.match(/addWindowDrag\(/g)).toHaveLength(1);
-  });
-});
-
-describe("the desk breaks at 720px and forms at 620px", () => {
-  /** Every stylesheet the product's own page loads, read off disk rather than listed. */
-  const SHEETS = ["public/app.css", ...under("public/css", "*.css").sort()];
-
-  test("the sweep looks at every sheet the shell imports, not a list that can go stale", () => {
-    // A literal list is a sweep that stops sweeping the day someone adds a file.
-    const entry = read("public/app.css");
-    for (const sheet of SHEETS) {
-      if (sheet === "public/app.css") continue;
-      expect(entry, `${sheet} is not imported by app.css`).toContain(sheet.replace("public/", ""));
+    const design = await designDesk(true);
+    try {
+      const el = design.design.open("notes").el as El;
+      expect(gripsOf(el)).toHaveLength(0);
+      expect(leafLamp(el).hasAttribute("hidden")).toBe(true);
+      expect(el.querySelector("header")?.classList.contains("window__bar--draggable")).toBe(false);
+      design.setPhone(false);
+      design.setPhone(true);
+      design.setPhone(false);
+      expect(gripsOf(el)).toHaveLength(1);
+      expect(leafLamp(el).hasAttribute("hidden")).toBe(false);
+      // The bar is a drag handle again, and a handle with one drag bound to it however often
+      // the screen crossed: two would each move the window by the whole of every move.
+      const header = el.querySelector("header") as El;
+      expect(header.classList.contains("window__bar--draggable")).toBe(true);
+      expect(header.listeners.count("pointerdown")).toBe(1);
+    } finally {
+      design.restore();
     }
-    expect(SHEETS.length).toBeGreaterThan(8);
-  });
-
-  test("every media query on the shipped surface is one of those two numbers", () => {
-    // The built app's 768 and 480 were derived for the sidebar-and-modal layout being deleted, as
-    // was the 639.98 beside them. Two numbers now, both the design's.
-    for (const path of SHEETS) {
-      for (const [, width] of rules(path).matchAll(
-        /@media[^{]*?(?:max|min)-width:\s*([\d.]+)px/g,
-      )) {
-        expect([path, width]).toEqual([path, expect.stringMatching(/^(720|620)$/)]);
-      }
-    }
-  });
-
-  test("the design's own two are the same two, and its other queries never reach the desk", () => {
-    expect(rules("design/styles/components/desk.css")).toContain("@media (max-width: 720px)");
-    expect(rules("design/styles/components/form-controls.css")).toContain(
-      "@media (max-width: 620px)",
-    );
-
-    // `layout.css` and `doc.css` ship with the token layer and carry 900px and 760px, which is
-    // the handbook's own document furniture and not a third breakpoint on the desk.
-    const shell = read("public/index.html") + read("src/server/http/fragments.ts");
-    for (const selector of ["cols", "numbers", "gallery"]) {
-      expect(shell, `the shell renders \`.${selector}\``).not.toMatch(
-        new RegExp(`class="[^"]*\\b${selector}\\b`),
-      );
-    }
-  });
-
-  test("the surfaces that carried a retired breakpoint now carry a live one", () => {
-    // Named individually, because a sweep dropping a rule would satisfy the query test above.
-    // Below the breakpoint the window is the screen, so the one behind is taken out of the page.
-    expect(rules("design/styles/components/desk.css")).toMatch(
-      /@media \(max-width: 720px\)[\s\S]*?\.window--desk\.is-unfocused \{\s*display: none;/,
-    );
-    // The modal's own three width rules left with the modal. A record fills the window it opened
-    // in, so no shipped sheet sizes a record against the screen.
-    for (const path of SHEETS) {
-      for (const [query] of rules(path).matchAll(/@media[^{]*\{[^@]*?\}/gs)) {
-        expect(query, `${path} sizes the record against the viewport`).not.toContain(
-          "capability-record-view",
-        );
-      }
-    }
-  });
-
-  test("what is inside the window asks the window, not the screen behind it", () => {
-    // The window is resized to any width on a viewport of any width, so a rule inside it that
-    // asks the viewport is asking the wrong box: a 276px window on 1920px kept the 1920px layout.
-    expect(rules("public/css/shell.css")).toMatch(
-      /\.desk-window__region \{[^}]*container: window \/ inline-size/,
-    );
-    expect(rules("public/css/collection.css")).toMatch(
-      /@container window \(max-width: 620px\) \{\s*\.capability-collection__header \{/,
-    );
-    expect(rules("public/css/deletion.css")).toMatch(
-      /@container window \(max-width: 620px\) \{\s*\.capability-deletion \{/,
-    );
-  });
-
-  test("only what the viewport really decides is left on a viewport query", () => {
-    // What is left on a viewport query is genuinely the screen's: the phone form and the
-    // panel that floats over the whole page.
-    const inWindow = ["capability-collection__header", "capability-deletion"];
-    for (const path of SHEETS) {
-      for (const [query] of rules(path).matchAll(/@media[^{]*\{[^@]*?\}/gs)) {
-        for (const selector of inWindow) {
-          expect(query, `${path} still asks the viewport about .${selector}`).not.toContain(
-            selector,
-          );
-        }
-      }
-    }
-  });
-
-  test("the phone still gets the prompt bar's strip reserved under the window's list", () => {
-    // Below the breakpoint the stylesheet places the window and the geometry that stops
-    // one above the bar is overridden, so the strip is reserved again as content.
-    expect(rules("public/css/shell.css")).toMatch(
-      /@media \(max-width: 720px\) \{\s*\.desk-window__region::after \{[^}]*height: var\(--prompt-clearance\);/,
-    );
   });
 });

@@ -15,10 +15,14 @@ import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { FILE_URL_PREFIX } from "../../platform/files/file-url.ts";
-import { DB_PATH, openDatabase, type PlatformDatabase } from "../../platform/persistence/db.ts";
+import {
+  DB_PATH,
+  openDatabase,
+  type PlatformDatabase,
+  resolveDbPath,
+} from "../../platform/persistence/db.ts";
 import { runMigrations } from "../../platform/persistence/migrations.ts";
 import { FILE_LEDGER_TABLE } from "../../platform/persistence/table-names.ts";
-import { codeOf, flat } from "../../presentation/safety/source.test-support.ts";
 import { NO_SHADOW, wholeTables } from "./query-worker.test-support.ts";
 import {
   createQueryWorker,
@@ -32,7 +36,6 @@ import { QUESTION_FILE_WITHHELD } from "./question-file-scrub.ts";
 import { QUESTION_DESK_SCHEMA, type QuestionViewColumn, questionView } from "./question-views.ts";
 import { RUNAWAY_QUERY_SQL } from "./runaway-query.test-support.ts";
 import { addedPaths, sweepPlatformStores } from "./store-sweep.test-support.ts";
-import { SQL_LITERALS_AND_COMMENTS, STATEMENT_RESULT_CODES } from "./whole-catalog-query-scope.ts";
 
 const HEARTBEAT_INTERVAL_MS = 20;
 const LIVENESS_WINDOW_MS = 1_000;
@@ -100,15 +103,17 @@ describe("the query worker", () => {
     ]);
   });
 
-  test("opens the one documented database file when given its path", async () => {
-    // Importing `db.ts` for DB_PATH is what makes the file openable: its module scope creates the
-    // file and the WAL `-shm` index a read-only connection can attach to but never create.
+  test("opens the platform's database file when given its path", async () => {
+    // Importing `db.ts` is what makes the file openable: its module scope creates the file and the
+    // WAL `-shm` index a read-only connection can attach to but never create. The path is the one
+    // the preload configured; the documented default is only resolved, since it is the user's own.
     // `main` is the thread's own empty schema; the file is the one other it holds.
-    const [row] = await start(DB_PATH, NO_SHADOW).read(
+    const [row] = await start(resolveDbPath(), NO_SHADOW).read(
       "SELECT file FROM pragma_database_list WHERE file <> ''",
     );
 
-    expect(realpathSync(String(row?.file))).toBe(realpathSync(DB_PATH));
+    expect(realpathSync(String(row?.file))).toBe(realpathSync(resolveDbPath()));
+    expect(resolveDbPath({})).toBe(DB_PATH);
   });
 
   test("a write through the worker's connection fails at the SQLite seam", async () => {
@@ -358,24 +363,6 @@ describe("the query worker's connection cannot leave its own file", () => {
     const rows = await start(path).read("SELECT ';  ATTACH' AS text, 1 AS ok;");
 
     expect(rows).toEqual([{ text: ";  ATTACH", ok: 1 }]);
-  });
-});
-
-describe("the two things the thread mirrors rather than imports", () => {
-  // It is copied beside the bundle and run directly (`scripts/build.ts`), and `build.test.ts`
-  // refuses it a relative import of any kind. So the copies stay and this is what keeps them
-  // honest: a code added on one side and not the other splits one read's two ends over whether
-  // a failure is the model's to fix.
-  const THREAD = codeOf("src/runtime/query/query-worker-thread.ts");
-
-  test("classifies a statement fault by the same result codes", () => {
-    const mirrored = `new Set([${[...STATEMENT_RESULT_CODES].join(", ")}])`;
-
-    expect(flat(THREAD)).toContain(mirrored);
-  });
-
-  test("and reads a literal with the same expression", () => {
-    expect(THREAD).toContain(SQL_LITERALS_AND_COMMENTS.source);
   });
 });
 

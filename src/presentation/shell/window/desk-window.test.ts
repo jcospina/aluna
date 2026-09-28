@@ -5,44 +5,15 @@ import {
   PUT_WINDOW_AWAY_EVENT,
   startDeskWindow,
   tearDownWindow,
-  WINDOW_CONTENT_ID,
-  WINDOW_CONTENT_REGION,
   WINDOW_LAYER_SELECTOR,
   windowLayer,
 } from "#shell/desk-window.js";
-import {
-  ruleBody as body,
-  codeOf as code,
-  readSource as read,
-  rules,
-} from "../../safety/source.test-support.ts";
+import { RELEASE_REGION_EVENT } from "#shell/region-scope.js";
 
-// The window, checked where it is written down. It is created and destroyed by the client, so
-// most of this is a statement about a file (PLAN decisions 1 and 2; design D1, D3, D12).
-
-const SHELL = read("public/index.html");
-const MODULE = read("public/desk-window.js");
-/** The frame the desk's three windows share, and where what they share is read. */
-const FRAME = read("public/desk-window-frame.js");
+// The window, which the client creates and destroys (PLAN decisions 1 and 2; design D1, D3, D12).
+// What the shell, the module and the sheets must say about it is `desk-window.policy.ts`.
 
 describe("the shell ships a window layer and no content area", () => {
-  test("the layer is in the page and the window is not", () => {
-    expect(SHELL).toContain('<div class="desk__windows"></div>');
-    expect(SHELL).toContain('<script type="module" src="/static/desk-window.js"></script>');
-
-    // The window, its title bar, its lamps and its region are all made by the client.
-    // A shell that carried any of them would be a second implementation to keep in step.
-    expect(SHELL).not.toContain("window__bar");
-    expect(SHELL).not.toContain("window--desk");
-    expect(SHELL).not.toContain(`id="${WINDOW_CONTENT_ID}"`);
-    expect(SHELL).not.toContain("data-content-region");
-  });
-
-  test("the module finds the layer by the selector the shell writes", () => {
-    expect(WINDOW_LAYER_SELECTOR).toBe(".desk__windows");
-    expect(SHELL).toContain('class="desk__windows"');
-  });
-
   test("a missing layer throws rather than opening nothing in silence", () => {
     // The other half of 5.3/02's promise. A desk that cannot mount a window looks
     // exactly like a capability that refused to open, and the two want opposite fixes.
@@ -81,31 +52,9 @@ describe("the shell ships a window layer and no content area", () => {
     expect(captured).toEqual(["click", "submit"]);
     expect(bubbled).toContain(PUT_WINDOW_AWAY_EVENT);
   });
-
-  test("the shell's own content area is gone from every surface that styled it", () => {
-    for (const path of ["public/index.html", "public/css/shell.css", "public/css/demo.css"]) {
-      const source = read(path).replace(/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\//g, "");
-      expect(source, `${path} still carries the retired content area`).not.toMatch(
-        /content__active|intro__output|class="intro"/,
-      );
-    }
-    expect(rules("public/css/shell.css")).not.toContain(".content ");
-    expect(rules("public/css/shell.css")).not.toContain(".content::after");
-  });
 });
 
 describe("the window holds the one content region", () => {
-  test("the region is created by the client, named, and marked", () => {
-    expect(WINDOW_CONTENT_ID).toBe("spec-build-output");
-    expect(WINDOW_CONTENT_REGION).toBe("the window's content");
-    expect(MODULE).toContain("region.id = WINDOW_CONTENT_ID");
-    expect(MODULE).toContain("region.dataset.contentRegion = WINDOW_CONTENT_REGION");
-  });
-
-  test("the release event is the region rule's own, imported rather than restated", () => {
-    expect(MODULE).toContain('import { RELEASE_REGION_EVENT } from "./region-scope.js"');
-  });
-
   test("the teardown releases, then lets htmx clean up, then detaches", () => {
     // The release is the only moment an htmx request inside the region can be aborted, and htmx
     // closes a build's EventSource only while the node carrying it is still connected.
@@ -127,7 +76,7 @@ describe("the window holds the one content region", () => {
     });
 
     expect(order).toEqual([
-      "release:aluna:release-region",
+      `release:${RELEASE_REGION_EVENT}`,
       "htmx cleanup:emptied:innerHTML",
       "stop observing",
       "detach",
@@ -153,195 +102,6 @@ describe("the window holds the one content region", () => {
     const gone: string[] = [];
     tearDownWindow(build(false, gone), undefined);
     expect(gone).toEqual([]);
-  });
-
-  test("the classic-script glue and the window agree on both strings", () => {
-    // `app.js` is a classic script and cannot import a module, so it restates the region's id and
-    // the put-away event. Neither may drift from the module that owns them.
-    const glue = read("public/app.js");
-    expect(glue).toContain(`const WINDOW_REGION_ID = "${WINDOW_CONTENT_ID}";`);
-    expect(glue).toContain(`const PUT_WINDOW_AWAY_EVENT = "${PUT_WINDOW_AWAY_EVENT}";`);
-    expect(MODULE).toContain("root.addEventListener(PUT_WINDOW_AWAY_EVENT");
-  });
-
-  test("a window left holding nothing is put away", () => {
-    // A deletion with nothing to restore empties the region: the capability is gone, and an empty
-    // frame still titled with what was deleted is the one thing left saying otherwise.
-    const glue = code("public/app.js");
-    expect(glue).toContain("function regionHoldsNothing(region)");
-    expect(glue).toContain("putAwayEmptyWindow(output)");
-    expect(glue).toMatch(/target\.id === WINDOW_REGION_ID/);
-  });
-
-  test("the window is never detached with htmx's `remove`", () => {
-    // `htmx.remove` is `removeChild` and runs no cleanup, so detaching with it would leave the SSE
-    // extension holding an EventSource and fire `htmx:sseClose` from a detached node.
-    expect(code("public/desk-window.js")).not.toMatch(/htmx\(\)\?\.remove/);
-    expect(code("public/desk-window.js")).toContain('swapStyle: "innerHTML"');
-  });
-});
-
-describe("two lamps, and there is no minimise", () => {
-  test("the design ships exactly maximise and put away", () => {
-    const window = read("design/scripts/window.js");
-    const lamps = /const LAMPS = \[([\s\S]*?)\];/.exec(window)?.[1] ?? "";
-
-    expect(lamps).toContain('action: "maximise"');
-    expect(lamps).toContain("lamp--leaf");
-    expect(lamps).toContain('action: "putaway"');
-    expect(lamps).toContain("lamp--clay");
-    expect(lamps.match(/action:/g)).toHaveLength(2);
-  });
-
-  test("nothing anywhere on the shipped surface offers a minimise", () => {
-    // Asked past the comments, which say at length why there is none.
-    for (const path of [
-      "public/index.html",
-      "public/desk-window.js",
-      "public/app.js",
-      "design/scripts/window.js",
-      "design/styles/components/window.css",
-      "design/styles/components/desk.css",
-    ]) {
-      const source = code(path).replace(/<!--[\s\S]*?-->/g, "");
-      expect(source, `${path} offers a minimise`).not.toMatch(/minimi[sz]e/i);
-    }
-  });
-
-  test("the leaf lamp reports whether it is pressed", () => {
-    // Maximise is a toggle. Without this the only way to know a window is maximised is
-    // to look at it, which is not a way a screen reader has.
-    expect(FRAME).toContain('setAttribute("aria-pressed"');
-  });
-
-  test("the clay lamp dismisses, and a dismissed window is not remembered", () => {
-    const source = code("public/desk-window.js");
-    expect(source).toMatch(/action === "maximise"\) toggleMaximise\(entry\)/);
-    // The lamp still means *put away*, and it is no longer silent when there is a run
-    // to lose: it asks first, and does exactly the same thing on a yes (5.8/04).
-    expect(source).toMatch(
-      /action === "putaway"\) \{\s*const away = \(\) => \{\s*dismissWindow\(\);/,
-    );
-    expect(source).toContain("if (!askBeforeLeaving(entry.el, away)) away();");
-    // The logo stays where it was and the same click brings the window back, centred. A dismissed
-    // window is over, so the box it stood in is not a preference the next one inherits.
-    const putAway = /export function putAway\(\) \{([\s\S]*?)\n\}/.exec(source)?.[1] ?? "";
-    expect(putAway, "no `putAway`").not.toBe("");
-    expect(putAway).not.toContain("savePresentation");
-    const tearDown = /export function tearDownWindow\([\s\S]*?\n\}/.exec(source)?.[0] ?? "";
-    expect(tearDown).not.toContain("savePresentation");
-  });
-});
-
-describe("the frame is drawn, and drawn once", () => {
-  test("the window declares no border of its own", () => {
-    const css = rules("design/styles/components/window.css");
-    expect(body(css, ".window")).toContain("background: transparent");
-    expect(body(css, ".window")).not.toContain("border");
-    // The two SVG layers the frame is actually drawn on.
-    expect(css).toContain(".window__ground");
-    expect(css).toContain(".window__ink");
-  });
-
-  test("the product borrows the design's window rather than drawing a second one", () => {
-    expect(MODULE).toContain('import { AlunaWindow } from "../design/scripts/window.js"');
-    expect(MODULE).not.toContain("createElementNS");
-    expect(MODULE).not.toContain("<path");
-    expect(MODULE).not.toContain("buildFrame");
-  });
-
-  test("the geometry module ships with the page that uses it", () => {
-    // 5.4/01 left this module written and unwired, for the window to be its first
-    // consumer. The floor it reads is the prompt bar's, and every clamp goes through it.
-    expect(MODULE).toContain('from "../design/scripts/desk-geometry.js"');
-    for (const helper of ["fillDesk", "fitToDesk", "placeWindow"]) {
-      expect(MODULE, `the window does not use ${helper}`).toContain(helper);
-    }
-    // The floor arrives through the frame the three windows share, which reads the token.
-    expect(FRAME).toContain("PROMPT_CLEARANCE");
-    // The clamps reach it through the shared gestures rather than a second copy.
-    expect(code("design/scripts/window-gestures.js")).toContain(
-      'import { clampPosition, clampSize, placeWindow } from "./desk-geometry.js"',
-    );
-  });
-});
-
-describe("the window's content region scrolls, and only when it should", () => {
-  test("the region is the scroller and the window is not", () => {
-    const region = body(rules("public/css/shell.css"), ".desk-window__region");
-    expect(region).toMatch(/overflow-y:\s*auto/);
-    expect(region).toMatch(/min-height:\s*0/);
-  });
-
-  test("it scrolls down and never sideways", () => {
-    // A collection is a vertical list, so a sideways scrollbar is always a bug, and `auto` makes
-    // it routine: a drawn element keeps its old layer width until the redraw lands.
-    const region = body(rules("public/css/shell.css"), ".desk-window__region");
-    expect(region).toMatch(/overflow-x:\s*hidden/);
-    expect(region).not.toMatch(/overflow:\s*auto/);
-
-    // The one thing a clip could otherwise put out of reach.
-    expect(region).toMatch(/overflow-wrap:\s*anywhere/);
-  });
-
-  test("a pressed or focused record does not grow a sideways scrollbar", () => {
-    // `:hover` and `:active` nudge a record 1-2px and `:focus-visible` rings it 5px out. The
-    // window body's padding is outside the scroller, so that reach needs a gutter of its own.
-    const collection = rules("public/css/collection.css");
-    // The press states its distance as a travel token (PLAN decision 44), so the gutter is
-    // measured from the token the rule names, and Reduce Motion does not shrink it.
-    const token = /\.capability-item:active\s*\{[^}]*translate:\s*var\((--travel-[a-z-]+)\)/.exec(
-      collection,
-    );
-    const press = token
-      ? new RegExp(`${token[1]}:\\s*calc\\((\\d+)px`).exec(rules("design/styles/tokens.css"))
-      : null;
-    // The card states no ring of its own — there is one, in the token layer's base
-    // stylesheet — so the gutter is sized against that one rather than a copy of it.
-    const ring = /:focus-visible\s*\{[^}]*outline:\s*(\d+)px[^}]*outline-offset:\s*(\d+)px/.exec(
-      rules("design/styles/base.css"),
-    );
-    expect(token?.[1], "the press states a raw distance rather than the travel axis").toBeDefined();
-    expect(press?.[1], "no `:active` press travel to size the gutter against").toBeDefined();
-    expect(ring?.[1], "no focus ring to size the gutter against").toBeDefined();
-    const reach = Math.max(
-      Number(press?.[1] ?? 0),
-      Number(ring?.[1] ?? 0) + Number(ring?.[2] ?? 0),
-    );
-
-    // The gutter is on a child of the scroller rather than the scroller itself: a scroll
-    // container's own bottom padding is often left out of the scrollable overflow area.
-    const surface = body(rules("public/css/demo.css"), ".capability-surface");
-    const gutter = /padding:\s*var\(--(space-\d)\)/.exec(surface)?.[1];
-    expect(gutter, "the capability surface has no gutter").toBeDefined();
-    const tokens = read("design/styles/tokens.css");
-    const rem = Number(new RegExp(`--${gutter}:\\s*([\\d.]+)rem`).exec(tokens)?.[1]);
-    expect(rem * 16).toBeGreaterThanOrEqual(reach);
-  });
-
-  test("the records region is a second scroller, and it is guttered on all four sides", () => {
-    // The records region is a second scroller and needs the same two things: a gutter as wide as
-    // a card's reach, and a sideways clip. Without them the last card's line came out half-weight.
-    const region = body(rules("public/css/collection.css"), ".capability-records");
-    expect(region).toMatch(/overflow-x:\s*hidden/);
-    expect(region).not.toMatch(/overflow:\s*auto/);
-
-    const gutter = /padding:\s*var\(--(space-\d)\)/.exec(region)?.[1];
-    expect(gutter, "the records region has no gutter").toBeDefined();
-    const tokens = read("design/styles/tokens.css");
-    const rem = Number(new RegExp(`--${gutter}:\\s*([\\d.]+)rem`).exec(tokens)?.[1]);
-    // The furthest a card reaches out of its box: the 3px ring at its 2px offset. The
-    // drawn line reaches ~2px and the press 2px, and both are inside that.
-    expect(rem * 16).toBeGreaterThanOrEqual(5);
-
-    // Pulled back out by exactly as much, and on every side, so nothing moves: the cards keep
-    // their alignment with the rail above and the list keeps its height.
-    expect(region).toMatch(new RegExp(`margin:\\s*calc\\(-1 \\* var\\(--${gutter}\\)\\)`));
-    for (const side of ["inline", "block", "top", "bottom", "left", "right"]) {
-      expect(region, `a one-sided \`padding-${side}\` leaves an edge to clip against`).not.toMatch(
-        new RegExp(`padding-${side}:`),
-      );
-    }
   });
 });
 
@@ -393,92 +153,5 @@ describe("the three gestures", () => {
     expect(box).toMatchObject({ x: 300, y: 40, w: 470, h: 330, max: false });
     expect(box.restore).toBeUndefined();
     expect(classes.has("is-maximised")).toBe(false);
-  });
-});
-
-describe("the create form takes the window", () => {
-  const fields = rules("public/css/fields.css");
-
-  test("the height chain from the window to the action row is unbroken", () => {
-    // Only a definite height can put anything on the window's bottom edge, and a flex item that
-    // forgets `min-height: 0` refuses to shrink below its content and pushes the scroll up.
-    const links: [string, string][] = [
-      ["public/css/shell.css", ".desk-window__region"],
-      ["public/css/demo.css", ".capability-surface"],
-      ["public/css/collection.css", ".capability-collection"],
-      [
-        "public/css/collection.css",
-        ".capability-collection__list,\n.capability-collection__create",
-      ],
-      // The record view is the third thing the window can hold, and it is a link in the
-      // same chain: the collection's place, taken by a column that ends on the same edge.
-      ["public/css/record-view.css", ".capability-record-view"],
-      ["public/css/fields.css", ".capability-create-form,\n.capability-edit-form"],
-      ["public/css/fields.css", ".capability-create-form__fields,\n.capability-edit-form__fields"],
-    ];
-    for (const [sheet, selector] of links) {
-      const rule = body(rules(sheet), selector);
-      expect(rule, `${selector} does not claim the height`).toMatch(/flex:\s*1 1 auto/);
-      expect(rule, `${selector} cannot give the height back`).toMatch(/min-height:\s*0/);
-    }
-    // The two views are shown by the same flag, so they are the same link twice.
-    expect(rules("public/css/collection.css")).toContain(".capability-collection__list,");
-  });
-
-  test("the fields scroll and the action row is stuck to the bottom", () => {
-    // Stated as `sticky` rather than left to flex order: a row that merely came last
-    // scrolls away with the last field on a form longer than the window.
-    const actions = body(
-      fields,
-      ".capability-create-form__actions,\n.capability-edit-form__actions",
-    );
-    expect(actions).toMatch(/position:\s*sticky/);
-    expect(actions).toMatch(/bottom:\s*0/);
-    expect(actions).toMatch(/background:\s*var\(--surface\)/);
-
-    const scroller = body(
-      fields,
-      ".capability-create-form__fields,\n.capability-edit-form__fields",
-    );
-    expect(scroller).toMatch(/overflow-y:\s*auto/);
-    expect(scroller).toMatch(/min-height:\s*0/);
-  });
-
-  test("create and edit are one shape, not two", () => {
-    // They diverged while create was a panel above the list and edit filled a modal. Both fill the
-    // surface they arrive on now, so the shape is stated once, in one rule, with no exception.
-    const form = body(fields, ".capability-create-form,\n.capability-edit-form");
-    expect(form).toMatch(/flex:\s*1 1 auto/);
-    expect(form).toMatch(/min-height:\s*0/);
-    expect(fields).not.toMatch(/height:\s*100%/);
-  });
-});
-
-describe("the title bar", () => {
-  test("a long title truncates rather than growing the bar", () => {
-    const title = body(rules("design/styles/components/window.css"), ".window__title");
-
-    // `min-width: 0` is the load-bearing one: without it a flex item refuses to shrink
-    // below its content, and the title pushes the lamps off the end of a locked bar.
-    expect(title).toMatch(/min-width:\s*0/);
-    expect(title).toMatch(/overflow:\s*hidden/);
-    expect(title).toMatch(/text-overflow:\s*ellipsis/);
-    expect(title).toMatch(/white-space:\s*nowrap/);
-  });
-
-  test("the full title stays readable where a truncated one cannot be", () => {
-    expect(read("design/scripts/window.js")).toContain("this.titleEl.title = title");
-  });
-
-  test("a retitled window retitles its lamps", () => {
-    // A lamp announcing the capability before last is worse than one announcing
-    // nothing, because it is confidently wrong.
-    const window = read("design/scripts/window.js");
-    expect(window).toContain("#nameLamps()");
-    expect(window).toMatch(/setTitle\(title\) \{[\s\S]*?this\.#nameLamps\(\);/);
-  });
-
-  test("the window is a named landmark", () => {
-    expect(MODULE).toContain('el.setAttribute("aria-labelledby", win.titleEl.id)');
   });
 });

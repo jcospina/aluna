@@ -15,6 +15,7 @@ import {
   type ScratchDbEnv,
   teardownScratchDbEnv,
 } from "../../../platform/persistence/scratch-db.test-support.ts";
+import { withDefaultRoots } from "../../../platform/persistence/test-roots.test-support.ts";
 import {
   FIRST_INCARNATION_ID,
   SECOND_INCARNATION_ID,
@@ -240,7 +241,7 @@ describe("reconcileCapabilityArtifacts", () => {
 
     const proc = Bun.spawn(["bun", join(import.meta.dir, "../..", "..", "index.ts")], {
       cwd: bootDirectory,
-      env: { ...process.env, PORT: "0" },
+      env: { ...withDefaultRoots(), PORT: "0" },
       stdout: "pipe",
       stderr: "pipe",
     });

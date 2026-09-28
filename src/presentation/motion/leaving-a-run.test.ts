@@ -6,24 +6,28 @@ import {
   backOutOfLeaving,
   buildCancelUrl,
   buildJobIdIn,
-  cancelQuestionIn,
-  detachQuestionIn,
+  endRunIn,
   endTheRun,
   goAheadAndLeave,
   LEAVING_A_RUN_UNAVAILABLE,
   LEAVING_BACK_SELECTOR,
   leavingIsBeingAsked,
-  questionJobIdIn,
   standDownWith,
   startLeavingGuard,
 } from "#shell/leaving-a-run.js";
-import { codeOf as code } from "../safety/source.test-support.ts";
-import { node, windowWithQuestion, windowWithRun } from "./leaving-a-run.test-support.ts";
+import { renderBuildSubscriber } from "../../server/http/fragments.ts";
+import { El, parseHtml } from "../controls/choice-picker.test-support.ts";
+import {
+  itemElementIdForTemplate,
+  renderCollection,
+  renderItemWrapper,
+} from "../records/list-container.ts";
+import { CAPABILITY, RECORD, recordDesk } from "../records/record-view.test-support.ts";
+import { renderRecordViewTemplate } from "../records/record-view.ts";
+import { node, windowWithRun } from "./leaving-a-run.test-support.ts";
 
 // Leaving a live build or evolution warns first, and confirming ends it once (PLAN decision 17,
 // amending design D3). Written against plain objects, so the order an ending owes is proved.
-
-const MODULE = code("public/leaving-a-run.js");
 
 /** A desk with nothing running: the window holds no subscriber at all. */
 const bareWindow = { querySelector: () => null };
@@ -91,13 +95,28 @@ describe("what a run is, and where it is cancelled", () => {
   test("the story is taken down through htmx, never detached in silence", () => {
     // `remove` is `removeChild` and runs no cleanup, so the SSE extension would hold an open
     // `EventSource` and `htmx:sseClose` would never reach the document.
-    expect(MODULE).toContain('swapStyle: "outerHTML"');
-    expect(MODULE).not.toMatch(/\.remove\(\)/);
-    expect(MODULE).toContain('fetch(url, { method: "POST", keepalive: true })');
-    // One cancel route, reached one way. A second `fetch` here would be a second way a
-    // run ends, which is the whole thing this module exists to prevent.
-    expect(MODULE.match(/fetch\(/g)).toHaveLength(1);
-    expect(MODULE.match(/buildCancelUrl\(/g)).toHaveLength(1);
+    const win = parseHtml(renderBuildSubscriber("build-7"), new El("div"));
+    const run = win.querySelector("section") as El;
+    const posted: [unknown, unknown][] = [];
+    const swapped: [El, unknown][] = [];
+    const fetchBefore = globalThis.fetch;
+    globalThis.fetch = ((url: unknown, init: unknown) => {
+      posted.push([url, init]);
+      return Promise.resolve(new Response(null));
+    }) as typeof fetch;
+    try {
+      const api = {
+        swap: (target: unknown, _: string, spec: { swapStyle: string }) =>
+          void swapped.push([target as El, spec.swapStyle]),
+      };
+      expect(endRunIn(win as never, { api, release: () => {} })).toBe(true);
+    } finally {
+      globalThis.fetch = fetchBefore;
+    }
+    // The page may be on its way out behind the press, so the cancel outlives it.
+    expect(posted).toEqual([[buildCancelUrl("build-7"), { method: "POST", keepalive: true }]]);
+    expect(swapped).toEqual([[run, "outerHTML"]]);
+    expect(run.isConnected || run.parent === win).toBe(true);
   });
 });
 
@@ -196,21 +215,6 @@ describe("the question stands inside the run, and swaps nothing", () => {
     const held = windowWithRun(focused, { committed: true });
     expect(buildJobIdIn(held.el)).toBeNull();
     expect(askBeforeLeaving(held.el, () => focused.push("navigated"))).toBe(false);
-  });
-
-  test("no draft persistence and no dirty-form tracker came with it", () => {
-    // 5.6/03's contract is explicit: search, record subviews and half-typed forms are DOM-only
-    // and die with the window. The question is scoped to a running build or an evolution.
-    for (const path of ["public/leaving-a-run.js", "public/desk-address.js"]) {
-      const source = code(path);
-      for (const store of ["localStorage", "sessionStorage", "beforeunload", "onbeforeunload"]) {
-        expect(source, `${path} must not reach for ${store}`).not.toContain(store);
-      }
-    }
-    // The one thing the desk does write down is still the one thing it wrote down before.
-    expect(code("public/desk-window-store.js")).toContain(
-      'export const WINDOW_STORAGE_KEY = "aluna.desk.window.v1";',
-    );
   });
 });
 
@@ -419,69 +423,34 @@ describe("what answers the question", () => {
     expect(wired.length).toBe(3);
   });
 
-  test("one press answers one question", () => {
+  test("one press answers one question", async () => {
     // A run covers the collection without removing it, so a standing delete confirmation can sit
     // behind the leaving question. Escape means the one on screen, not both.
-    const mutations = code("public/record-mutations.js");
-    expect(mutations).toContain('if (event.key !== "Escape") return;');
-    expect(mutations).toMatch(
-      /if \(event\.key !== "Escape"\) return;\s*if \(leavingIsBeingAsked\(\)\) return;/,
+    const templateId = "record-notes-note-1";
+    const desk = await recordDesk(
+      renderCollection({
+        capability: CAPABILITY,
+        items:
+          renderItemWrapper("<span>note</span>", RECORD, { templateId }) +
+          renderRecordViewTemplate(templateId, CAPABILITY, RECORD),
+      }),
+      { capabilityId: CAPABILITY.id, modules: ["record-view.js", "record-mutations.js"] },
     );
-  });
-});
-
-// Asking something else and dismissing the answer are decision 10's two user-raised triggers
-// (6.5/04). Both are raised in `public/desk-answer-window.js` and both stop the question here, at
-// the same call a desk action reaches — one cancel path, not three.
-describe("giving up on a question", () => {
-  test("is the same cancel, and nothing is asked first", () => {
-    const posted: string[] = [];
-    const asked = windowWithQuestion([]);
-
-    expect(cancelQuestionIn(asked.el, (url) => posted.push(url))).toBe("build-7");
-
-    expect(posted).toEqual([buildCancelUrl("build-7")]);
-    // A build warns before it is lost (decision 17). A question does not: it can be asked again.
-    expect(asked.warning.hidden).toBe(true);
-    expect(leavingIsBeingAsked()).toBe(false);
-  });
-
-  test("and the story comes down only once something has taken its place", () => {
-    // Left standing until then, so the window is never a frame holding nothing — and taken down
-    // before the run that replaced it can speak, so no frame of hers can reach the new question.
-    const order: string[] = [];
-    const asked = windowWithQuestion([]);
-    const how = {
-      api: { swap: () => order.push("detach") },
-      release: () => order.push("release"),
-    };
-
-    expect(detachQuestionIn(asked.el, how as never)).toBe(true);
-    expect(order).toEqual(["release", "detach"]);
-    // Nothing to take down twice, and a desk with no htmx has no way to close a stream at all.
-    expect(detachQuestionIn(bareWindow, how as never)).toBe(false);
-    expect(detachQuestionIn(asked.el, { api: {}, release: how.release } as never)).toBe(false);
-    expect(order).toEqual(["release", "detach"]);
-  });
-
-  test("a build is not a question, and a question is not a build", () => {
-    const posted: string[] = [];
-    const building = windowWithRun([]);
-    const asked = windowWithQuestion([]);
-
-    // The two live in the window one at a time, and neither lookup may answer about the other:
-    // ending a build without its warning, or warning about a question, are the same mistake.
-    expect(cancelQuestionIn(building.el, (url) => posted.push(url))).toBeNull();
-    expect(questionJobIdIn(building.el)).toBeNull();
-    expect(questionJobIdIn(asked.el)).toBe("build-7");
-    expect(buildJobIdIn(asked.el)).toBeNull();
-    expect(posted).toEqual([]);
-  });
-
-  test("a desk with nothing running has no question to stop", () => {
-    const posted: string[] = [];
-    expect(cancelQuestionIn(bareWindow, (url) => posted.push(url))).toBeNull();
-    expect(questionJobIdIn(bareWindow)).toBeNull();
-    expect(posted).toEqual([]);
+    try {
+      desk.press(desk.doc.getElementById(itemElementIdForTemplate(templateId)) as El);
+      await desk.settled();
+      const asks = desk.doc.querySelectorAll("button").find((b) => b.textContent === "Delete");
+      desk.press(asks as El);
+      const question = desk.doc.querySelector("form[data-record-delete-form]") as El;
+      expect(askBeforeLeaving(windowWithRun([]).el, () => {})).toBe(true);
+      desk.doc.fire("keydown", desk.doc, { key: "Escape" });
+      expect(question.hidden).toBe(false);
+      backOutOfLeaving();
+      desk.doc.fire("keydown", desk.doc, { key: "Escape" });
+      expect(question.hidden).toBe(true);
+    } finally {
+      backOutOfLeaving();
+      desk.restore();
+    }
   });
 });

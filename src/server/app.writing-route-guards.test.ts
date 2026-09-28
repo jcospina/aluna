@@ -19,7 +19,6 @@ import {
   type ScratchDbEnv,
   teardownScratchDbEnv,
 } from "./app.test-support.ts";
-import { createApp } from "./app.ts";
 import {
   type ProbeBody,
   probeBody,
@@ -33,6 +32,7 @@ import {
   type WritingRouteGuard,
   writingRouteGuard,
 } from "./http/writing-route-guard.ts";
+import { createTestApp } from "./isolated-app.test-support.ts";
 
 /**
  * The file cap the walked app is built with: cheap to probe past, and below the probe body's chunk
@@ -275,7 +275,7 @@ describe("every writing route guards its own door", () => {
       spent.push("handler");
       return Promise.reject(new Error("no refused or probing request reaches a handler"));
     };
-    return createApp({
+    return createTestApp({
       getProvider: () => provider,
       recordMetrics: makeMetricsRecorder().recordMetrics,
       buildDatabases: env.conns,

@@ -68,7 +68,7 @@ export function configureCapabilityDeletionRestoration(detail, root = globalThis
 
 // Three tries, because the stale panel must never be left up: ask the server what is actually
 // true and show its answer, whether that is the panel again or "already gone".
-const CAPABILITY_DELETION_RECHECK_DELAYS_MS = [200, 800, 2000];
+export const CAPABILITY_DELETION_RECHECK_DELAYS_MS = [200, 800, 2000];
 
 /**
  * The preflight URL for a Confirm form, carrying the same restoration evidence the
@@ -127,6 +127,12 @@ function claimDeletionRegion(form) {
   return { owned: () => owned, deregister };
 }
 
+/** What the recovery says while it asks, when it gives up, and when the answer says nothing. */
+export const DELETION_RECHECK_ASKING = "Something interrupted that. Let me check what happened…";
+export const DELETION_RECHECK_GAVE_UP =
+  "I still can’t tell what happened. Reload the page to see the latest.";
+export const DELETION_RECHECK_SETTLED = "That’s sorted — the desk is up to date.";
+
 /**
  * @param {string} preflightUrl
  * @param {number} attempt
@@ -137,10 +143,7 @@ async function recheckCapabilityDeletion(preflightUrl, attempt, claim) {
   const delay = CAPABILITY_DELETION_RECHECK_DELAYS_MS[attempt];
   if (delay === undefined) {
     claim.deregister();
-    writeCapabilityDeletionRecheckNotice(
-      "I still can’t tell what happened. Reload the page to see the latest.",
-      true,
-    );
+    writeCapabilityDeletionRecheckNotice(DELETION_RECHECK_GAVE_UP, true);
     return;
   }
   await new Promise((resolve) => setTimeout(resolve, delay));
@@ -221,7 +224,7 @@ function answerIn(html, root) {
     template.content.querySelector(`#${PROMPT_NOTICE_ID}`)
   );
   return {
-    sentence: notice?.textContent?.trim() || "That’s sorted — the desk is up to date.",
+    sentence: notice?.textContent?.trim() || DELETION_RECHECK_SETTLED,
     // Carried across rather than flattened, so a deletion Aluna turned down says so with the
     // bar's cue whichever way the answer reached us (`renderPromptNotice`).
     refused: notice?.querySelector(PROMPT_REFUSAL_SELECTOR) != null,
@@ -253,11 +256,7 @@ export function recoverSeveredCapabilityDeletion(event, root = globalThis.docume
   const preflightUrl = form ? capabilityDeletionPreflightUrl(form) : null;
   if (preflightUrl === null) return;
 
-  writeCapabilityDeletionRecheckNotice(
-    "Something interrupted that. Let me check what happened…",
-    false,
-    root,
-  );
+  writeCapabilityDeletionRecheckNotice(DELETION_RECHECK_ASKING, false, root);
   void recheckCapabilityDeletion(preflightUrl, 0, claimDeletionRegion(form));
 }
 

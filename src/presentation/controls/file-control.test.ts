@@ -19,7 +19,6 @@ import { ALUNA_PRESENT_MARKER } from "../../runtime/router/wire/wire-protocol.ts
 import { renderCreateForm, renderEditForm } from "../fields/field-renderer.ts";
 import { submittedInputs } from "../fields/form-submission.test-support.ts";
 import { renderableFromSpec } from "../fields/renderable-capability.ts";
-import { codeOf } from "../safety/source.test-support.ts";
 import { El, parseHtml } from "./choice-picker.test-support.ts";
 import { hooked } from "./file-field.test-support.ts";
 
@@ -177,19 +176,5 @@ describe("a form holding a photo", () => {
     const textOnly = photos({ fields: [CAPTION_FIELD] });
     expect(renderCreateForm(textOnly)).not.toContain(HOOKS.save);
     expect(renderEditForm(textOnly, { id: "r1", caption: "Dawn" })).not.toContain(HOOKS.save);
-  });
-});
-
-/** A save never carries bytes: an upload travels ahead of it (decision 8), so no form is multipart. */
-describe("file fields in the form renderer", () => {
-  test("never make a form carry a file's bytes", () => {
-    for (const path of [
-      "src/presentation/fields/field-renderer.ts",
-      "src/presentation/controls/file-control.ts",
-    ]) {
-      for (const trace of ["multipart/form-data", "enctype", 'type="file"', "FileList"]) {
-        expect(codeOf(path), `${path} names ${trace}`).not.toContain(trace);
-      }
-    }
   });
 });

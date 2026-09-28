@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
+  NAME_THE_WINDOW_EVENT,
+  PUT_WINDOW_AWAY_EVENT,
+  WINDOW_TOOK_CAPABILITY_EVENT,
+} from "#shell/desk-window.js";
+import { RELEASE_REGION_EVENT } from "#shell/region-scope.js";
+import { ACTIVE_CAPABILITY_ATTRIBUTE } from "#shell/shell-dom.js";
+import {
   closeStream,
   desk,
   dismiss,
@@ -62,10 +69,10 @@ describe("a run that ends with something to tell you", () => {
     // now is standing in the window — wired up, so its own read runs exactly once.
     expect(scene.subscriber.parent).toBeNull();
     expect(scene.displaced.parent).toBeNull();
-    expect(scene.displaced.dispatched).toContain("aluna:release-region");
+    expect(scene.displaced.dispatched).toContain(RELEASE_REGION_EVENT);
     expect(scene.region.childNodes).toHaveLength(1);
     expect(scene.processed).toHaveLength(1);
-    expect(scene.dispatched.map(({ type }) => type)).toContain("aluna:window-took-capability");
+    expect(scene.dispatched.map(({ type }) => type)).toContain(WINDOW_TOOK_CAPABILITY_EVENT);
   });
 
   test("a run whose restoration never arrived still leaves the window usable", () => {
@@ -89,7 +96,7 @@ describe("a run that ends with something to tell you", () => {
     scene.surface.append(
       Object.assign(new El("div", { "data-build-restoration": "capability" }), {}),
     );
-    scene.surface.childNodes[0]?.append(new El("p"));
+    scene.surface.children[0]?.append(new El("p"));
 
     closeStream(scene);
 
@@ -172,7 +179,7 @@ describe("what the next prompt finds standing in the window", () => {
     expect(scene.subscriber.parent).toBeNull();
     expect(scene.region.childNodes).toEqual([scene.displaced]);
     expect(scene.processed).toHaveLength(0);
-    expect(scene.dispatched.map(({ type }) => type)).not.toContain("aluna:put-window-away");
+    expect(scene.dispatched.map(({ type }) => type)).not.toContain(PUT_WINDOW_AWAY_EVENT);
   });
 });
 
@@ -265,7 +272,7 @@ describe("what the run tells the desk to call the window", () => {
   /** Every name this run asked the window to be called, in order. */
   const namings = (scene: ReturnType<typeof desk>) =>
     scene.dispatched
-      .filter(({ type }) => type === "aluna:name-the-window")
+      .filter(({ type }) => type === NAME_THE_WINDOW_EVENT)
       .map(({ detail }) => (detail as { title: string | null }).title);
 
   test("the name lands nowhere — the desk owns the window", () => {
@@ -313,7 +320,7 @@ describe("what the run tells the desk to call the window", () => {
     const scene = desk();
     streamRestoration(scene, '<div data-build-window-title="Building…"></div>');
     const commit = new El("div", { class: "build-stream__commit" });
-    commit.append(new El("section", { "data-active-capability-id": "notes" }));
+    commit.append(new El("section", { [ACTIVE_CAPABILITY_ATTRIBUTE]: "notes" }));
     scene.subscriber.append(commit);
 
     closeStream(scene);

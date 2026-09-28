@@ -1,53 +1,47 @@
 // The browser reads the pending sentence off the attribute the server wrote, so neither side
 // holds a copy of the words. What neither side can check for itself is that they still agree on
-// the attribute names — a rename leaves every markup test green and every submit button silent.
+// the attribute names — a rename leaves every markup test green and every submit button silent,
+// so the reader is run on what the renderers write. The logo's rename Save is run the same way,
+// on its real markup, by `logo-menu.test.ts` ("the rename that is on its way").
 
 import { describe, expect, test } from "bun:test";
-import { BUSY_LABEL_ATTRIBUTE, IDLE_LABEL_ATTRIBUTE } from "#shell/shell-dom.js";
-import { LOGO_ABSENT, NEVER_RENAMED } from "../../server/http/fragments.test-support.ts";
-import { renderCapabilityLogo } from "../../server/http/fragments.ts";
-import { readSource } from "../safety/source.test-support.ts";
+import { setPending } from "#shell/record-mutations.js";
+import { BUSY_LABEL_ATTRIBUTE } from "#shell/shell-dom.js";
+import { renderCreateForm } from "../fields/field-renderer.ts";
+import { CAPABILITY, RECORD, TEMPLATE_ID } from "../records/record-view.test-support.ts";
+import { renderRecordView } from "../records/record-view.ts";
 import {
   ADDING_LABEL,
   busyLabelAttribute,
   DELETING_RECORD_LABEL,
   SAVING_RECORD_LABEL,
 } from "./busy-label.ts";
+import { installDomGlobals } from "./choice-picker.fixture.test-support.ts";
+import { Doc, type El, parseHtml } from "./choice-picker.test-support.ts";
 
-const READERS = ["public/record-mutations.js", "public/logo-menu.js"] as const;
+installDomGlobals();
 
 describe("the busy-label seam", () => {
-  test("every browser reader reads the attributes through the shared names", () => {
-    for (const reader of READERS) {
-      const source = readSource(reader);
-      expect(source, reader).toContain('from "./shell-dom.js"');
-      expect(source, reader).toContain("BUSY_LABEL_ATTRIBUTE");
-      expect(source, reader).toContain("IDLE_LABEL_ATTRIBUTE");
-      // A literal here is a copy that a rename would leave behind.
-      expect(source, reader).not.toContain(`"${BUSY_LABEL_ATTRIBUTE}"`);
-      expect(source, reader).not.toContain(`"${IDLE_LABEL_ATTRIBUTE}"`);
-    }
-  });
-
-  test("no reader restates a label the server authored", () => {
-    for (const reader of READERS) {
-      const source = readSource(reader);
-      for (const label of ["Add", "Save", "Delete record", ADDING_LABEL, SAVING_RECORD_LABEL]) {
-        expect(source, `${reader} restates ${label}`).not.toContain(`"${label}"`);
-      }
-    }
-  });
-
-  test("every submit control the platform renders carries its busy sentence", () => {
-    // The rename editor's Save is the one the record-form tests cannot see.
-    const logo = renderCapabilityLogo({
-      id: "notes",
-      label: "Notes",
-      incarnation_id: "11111111-1111-4111-8111-111111111111",
-      logo: LOGO_ABSENT,
-      ...NEVER_RENAMED,
+  test("every record form's submit says the server's sentence while it waits, then its own", () => {
+    const page = parseHtml(
+      renderCreateForm(CAPABILITY) + renderRecordView(CAPABILITY, RECORD, TEMPLATE_ID),
+      new Doc(),
+    );
+    const said = page.querySelectorAll("form").map((form) => {
+      const submit = form.querySelector('button[type="submit"]') as El;
+      const idle = submit.textContent;
+      setPending(form as never, true, "[data-no-cancel]");
+      const busy = [submit.textContent, submit.disabled];
+      setPending(form as never, false, "[data-no-cancel]");
+      expect(submit.textContent).toBe(idle);
+      expect(submit.disabled).toBe(false);
+      return busy;
     });
-    expect(logo).toContain(`${BUSY_LABEL_ATTRIBUTE}=`);
+    expect(said).toEqual([
+      [ADDING_LABEL, true],
+      [SAVING_RECORD_LABEL, true],
+      [DELETING_RECORD_LABEL, true],
+    ]);
   });
 
   test("the attribute helper escapes what it writes", () => {

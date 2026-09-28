@@ -1,9 +1,9 @@
-// Tests for the deterministic spec -> DDL mapper. These pin the SQL
-// the platform derives from a validated spec.
+// Tests for the deterministic spec -> DDL mapper, judged by what the derived table does: which
+// values it stores and reads back, and which it refuses.
 
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
-
+import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
@@ -17,7 +17,6 @@ import {
   CAPABILITY_TABLE_PREFIX,
   deriveAdditiveCapabilityMigration,
   deriveCapabilityTableDdl,
-  SQLITE_TYPE_BY_FIELD_TYPE,
 } from "../index.ts";
 import { tableColumns } from "./table-shape.test-support.ts";
 
@@ -93,16 +92,24 @@ function notesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec {
   return spec;
 }
 
-function tableSchema(database: Database, tableName: string) {
-  const row = database
-    .query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?")
-    .get(tableName) as { sql: string } | null;
-  if (!row) throw new Error(`missing table ${tableName}`);
-
-  return {
-    sql: row.sql,
-    columns: tableColumns(database, tableName),
-  };
+/** A `string[]` column: null or a JSON array is stored, anything else is refused. */
+function expectJsonArrayColumn(database: Database, tableName: string, column: string): void {
+  const insert = (id: string, value: string | null) =>
+    database.run(
+      `INSERT INTO ${sqlIdentifier(tableName)} ("id", ${sqlIdentifier(column)}) VALUES (?, ?)`,
+      [id, value],
+    );
+  insert("empty", null);
+  insert("listed", JSON.stringify(["a", "b"]));
+  expect(
+    database
+      .query(
+        `SELECT ${sqlIdentifier(column)} AS "value" FROM ${sqlIdentifier(tableName)} ORDER BY "id"`,
+      )
+      .all(),
+  ).toEqual([{ value: null }, { value: JSON.stringify(["a", "b"]) }]);
+  expect(() => insert("object", JSON.stringify({ a: 1 }))).toThrow();
+  expect(() => insert("text", "not json")).toThrow();
 }
 
 describe("capability table DDL mapper", () => {
@@ -111,7 +118,6 @@ describe("capability table DDL mapper", () => {
     const second = deriveCapabilityTableDdl(notesSpec());
 
     expect(first).toEqual(second);
-    expect(first.statements.join("\n")).toMatchSnapshot("notes capability DDL");
   });
 
   test("prefixes the table and emits the platform-owned trio first", () => {
@@ -130,45 +136,62 @@ describe("capability table DDL mapper", () => {
     }
   });
 
-  test("maps every user field to a physically nullable SQLite column", () => {
+  test("maps every user field to a physically nullable column that keeps its value's kind", () => {
     const database = new Database(":memory:");
     try {
       const ddl = applyCapabilityTableDdl(notesSpec(), database);
-      const columns = tableColumns(database, ddl.tableName);
+      const table = sqlIdentifier(ddl.tableName);
 
-      expect(columns.map((column) => column.name)).toEqual([
+      expect(tableColumns(database, ddl.tableName).map((column) => column.name)).toEqual([
         ...PLATFORM_COLUMNS,
         "title",
         "amount",
         "done",
         "logged_at",
       ]);
-      expect(columns.slice(0, 3)).toMatchObject([
-        { name: "id", type: "TEXT", notnull: 1, pk: 1 },
-        { name: "created_at", type: "TEXT", notnull: 1, dflt_value: "datetime('now')" },
-        { name: "extra", type: "TEXT", notnull: 1, dflt_value: "'{}'" },
-      ]);
-      // Spelled out rather than read from SQLITE_TYPE_BY_FIELD_TYPE: the DDL builder indexes that
-      // same map, so sourcing the expectation from it would pass on a wrong storage class.
-      expect(columns.slice(3)).toMatchObject([
-        { name: "title", type: "TEXT", notnull: 0 },
-        { name: "amount", type: "REAL", notnull: 0 },
-        { name: "done", type: "INTEGER", notnull: 0 },
-        { name: "logged_at", type: "TEXT", notnull: 0 },
-      ]);
+      database.run(`INSERT INTO ${table} ("id") VALUES ('bare')`);
+      const bare = database.query(`SELECT * FROM ${table} WHERE "id" = 'bare'`).get() as Record<
+        string,
+        unknown
+      >;
+      expect(bare).toMatchObject({ title: null, amount: null, done: null, logged_at: null });
+      expect(bare.created_at).toBeString();
+      expect(JSON.parse(String(bare.extra))).toEqual({});
+
+      const full = { title: "Soup", amount: 1.5, done: 1, logged_at: "2026-09-26T10:00:00Z" };
+      database.run(
+        `INSERT INTO ${table} ("id", "title", "amount", "done", "logged_at") VALUES ('full', ?, ?, ?, ?)`,
+        [full.title, full.amount, full.done, full.logged_at],
+      );
+      expect(
+        database
+          .query(`SELECT "title", "amount", "done", "logged_at" FROM ${table} WHERE "id" = 'full'`)
+          .get(),
+      ).toEqual(full);
+
+      const refused = (column: string, value: string | number) => () =>
+        database.run(`INSERT INTO ${table} ("id", ${sqlIdentifier(column)}) VALUES ('x', ?)`, [
+          value,
+        ]);
+      expect(refused("amount", "a lot")).toThrow();
+      expect(refused("done", 2)).toThrow();
+      expect(refused("done", 0.5)).toThrow();
+      expect(() => database.run(`INSERT INTO ${table} ("id") VALUES ('bare')`)).toThrow();
     } finally {
       database.close();
     }
   });
+});
 
-  test("maps a date field to a TEXT column, like datetime but a distinct pantry type", () => {
+describe("capability table DDL mapper — typed storage", () => {
+  test("maps a date field to the column storage datetime uses, keeping the day verbatim", () => {
     const database = new Database(":memory:");
     try {
+      const committed = notesSpec();
       const spec = notesSpec({
         schema: {
           fields: [
-            { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
-            { name: "done", label: "Done", type: "boolean", required: true, lifecycle: "active" },
+            ...committed.schema.fields,
             {
               name: "scheduled_on",
               label: "Scheduled on",
@@ -180,11 +203,20 @@ describe("capability table DDL mapper", () => {
         },
       });
       const ddl = applyCapabilityTableDdl(spec, database);
-      const scheduledOn = tableColumns(database, ddl.tableName).find(
-        (column) => column.name === "scheduled_on",
+      const columns = tableColumns(database, ddl.tableName);
+      const typeOf = (name: string) => columns.find((column) => column.name === name)?.type;
+
+      expect(typeOf("scheduled_on")).toBeString();
+      expect(typeOf("scheduled_on")).toBe(typeOf("logged_at"));
+      database.run(
+        `INSERT INTO ${sqlIdentifier(ddl.tableName)} ("id", "scheduled_on") VALUES ('day', ?)`,
+        ["2026-09-26"],
       );
-      expect(SQLITE_TYPE_BY_FIELD_TYPE.date).toBe("TEXT");
-      expect(scheduledOn?.type).toBe(SQLITE_TYPE_BY_FIELD_TYPE.date);
+      expect(
+        database
+          .query(`SELECT "scheduled_on" FROM ${sqlIdentifier(ddl.tableName)} WHERE "id" = 'day'`)
+          .get(),
+      ).toEqual({ scheduled_on: "2026-09-26" });
     } finally {
       database.close();
     }
@@ -218,12 +250,7 @@ describe("capability table DDL mapper", () => {
         behavioral_errors: [],
       });
       const ddl = applyCapabilityTableDdl(spec, database);
-      expect(tableColumns(database, ddl.tableName)).toContainEqual(
-        expect.objectContaining({ name: "tags", type: "TEXT", notnull: 0 }),
-      );
-      expect(tableSchema(database, ddl.tableName).sql).toContain(
-        `CHECK ("tags" IS NULL OR (json_valid("tags") AND json_type("tags") = 'array'))`,
-      );
+      expectJsonArrayColumn(database, ddl.tableName, "tags");
     } finally {
       database.close();
     }
@@ -279,9 +306,10 @@ describe("additive capability migration", () => {
     const migration = deriveAdditiveCapabilityMigration(committed, candidate);
 
     expect(migration.tableName).toBe(`${CAPABILITY_TABLE_PREFIX}notes`);
-    expect(migration.statements).toEqual(['ALTER TABLE "cap_notes" ADD COLUMN "mood" TEXT;']);
+    expect(migration.statements).toHaveLength(1);
     // Additive-only: nothing destructive, and no NOT NULL (so historical rows read null).
     const statement = migration.statements[0] ?? "";
+    expect(statement.toUpperCase()).toContain("ADD COLUMN");
     expect(statement.toUpperCase()).not.toContain("NOT NULL");
     for (const destructiveToken of ["DROP", "RENAME", "DELETE ", "UPDATE "]) {
       expect(statement.toUpperCase()).not.toContain(destructiveToken);
@@ -343,11 +371,16 @@ describe("additive capability migration", () => {
       },
     });
 
-    const migration = deriveAdditiveCapabilityMigration(committed, candidate);
-
-    expect(migration.statements).toEqual([
-      `ALTER TABLE "cap_notes" ADD COLUMN "tags" TEXT CHECK ("tags" IS NULL OR (json_valid("tags") AND json_type("tags") = 'array'));`,
-    ]);
+    const database = new Database(":memory:");
+    try {
+      applyCapabilityTableDdl(committed, database);
+      const migration = deriveAdditiveCapabilityMigration(committed, candidate);
+      expect(migration.statements).toHaveLength(1);
+      applyAdditiveCapabilityMigration(migration, database);
+      expectJsonArrayColumn(database, migration.tableName, "tags");
+    } finally {
+      database.close();
+    }
   });
 
   test("multiple new fields add columns in candidate schema order", () => {
@@ -362,12 +395,25 @@ describe("additive capability migration", () => {
       },
     });
 
-    const migration = deriveAdditiveCapabilityMigration(committed, candidate);
-
-    expect(migration.statements).toEqual([
-      'ALTER TABLE "cap_notes" ADD COLUMN "mood" TEXT;',
-      'ALTER TABLE "cap_notes" ADD COLUMN "score" REAL;',
-    ]);
+    const database = new Database(":memory:");
+    try {
+      const ddl = applyCapabilityTableDdl(committed, database);
+      applyAdditiveCapabilityMigration(
+        deriveAdditiveCapabilityMigration(committed, candidate),
+        database,
+      );
+      expect(tableColumns(database, ddl.tableName).map((column) => column.name)).toEqual([
+        ...PLATFORM_COLUMNS,
+        ...candidate.schema.fields.map((field) => field.name),
+      ]);
+      expect(
+        tableColumns(database, ddl.tableName).find((column) => column.name === "score")?.type,
+      ).toBe(
+        tableColumns(database, ddl.tableName).find((column) => column.name === "amount")?.type,
+      );
+    } finally {
+      database.close();
+    }
   });
 });
 
@@ -417,7 +463,7 @@ describe("additive migration: lifecycle transitions and the fail-closed guard", 
     expect(deriveAdditiveCapabilityMigration(committed, relabeled).statements).toEqual([]);
   });
 
-  test("fails closed rather than dropping or retyping a committed column", () => {
+  test("fails closed rather than dropping or retyping a committed column or moving its table", () => {
     const committed = notesSpec();
     const dropped = notesSpec({
       schema: { fields: committed.schema.fields.filter((field) => field.name !== "amount") },
@@ -436,5 +482,8 @@ describe("additive migration: lifecycle transitions and the fail-closed guard", 
     expect(() => deriveAdditiveCapabilityMigration(committed, retyped)).toThrow(
       /change the type of committed column "amount"/,
     );
+    expect(() =>
+      deriveAdditiveCapabilityMigration(committed, notesSpec({ id: "journal" })),
+    ).toThrow();
   });
 });

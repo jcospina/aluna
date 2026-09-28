@@ -5,13 +5,11 @@
 // decline it is half of is not in any file at all.
 //
 // "We built no embedding" stays true right up until somebody adds one as a convenience, so the
-// decline is pinned by absence: the desk after a whole vocabulary loop, the modules a record
-// write passes through, and the inventory of derived artifacts a capability publishes.
+// decline is pinned by absence: the desk after a whole vocabulary loop and the inventory of derived
+// artifacts a capability publishes here, the modules a record write passes through in the policy.
 
 import type { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
 
 import { DERIVED_UNIT_FILES } from "../../builder/artifacts/inventory/artifact-provenance.ts";
 import { ITEM_RENDERER_UNIT_NAME } from "../../builder/units/generation/units.ts";
@@ -35,15 +33,6 @@ import { QUESTION_STEP_RESULT_TOO_LARGE } from "./question-payload.ts";
 import { QUESTION_VOCABULARY_RULES } from "./question-turn-prompt.ts";
 import { createScratchPlatforms, type ScratchPlatforms } from "./read-scope.test-support.ts";
 import { addedPaths, sweepPlatformStores } from "./store-sweep.test-support.ts";
-
-const REPO_ROOT = join(import.meta.dir, "..", "..", "..");
-
-/**
- * Everywhere a record write goes: the router that admits and dispatches it, the ports that
- * execute it, and the coordinator that serializes them. Where an embedding computed on save,
- * recomputed on edit and deleted on delete would have to live.
- */
-const WRITE_PATH_ROOTS = ["src/runtime/router", "src/runtime/data", "src/runtime/concurrency"];
 
 const GROCERIES = "how much did I spend on groceries?";
 const DISTINCT_CATEGORIES = `SELECT DISTINCT category FROM ${EXPENSES_TABLE} ORDER BY category`;
@@ -251,18 +240,6 @@ describe("nothing is stored to make any of this work", () => {
     expect(addedPaths(before, after).filter((path) => path.startsWith(scratch.path))).toEqual([]);
   });
 
-  test("no module a record write passes through imports a provider", () => {
-    const reaching = WRITE_PATH_ROOTS.flatMap((root) =>
-      sourceFiles(join(REPO_ROOT, root))
-        .filter((path) => specifiersIn(path).some((from) => from.includes("platform/provider")))
-        .map((path) => path.slice(REPO_ROOT.length + 1)),
-    );
-
-    // An embedding recomputed on every save is an AI call on the write path. This catches the
-    // import that would carry one into these roots, not one reached through a module they call.
-    expect(reaching).toEqual([]);
-  });
-
   test("the derived artifacts are still the item renderer and one Handler per Action", () => {
     expect(DERIVED_UNIT_FILES as readonly string[]).toEqual([
       `${ITEM_RENDERER_UNIT_NAME}.ts`,
@@ -280,18 +257,4 @@ function rowsMatching(scratch: QuestionDesk, text: string): number {
     .query(`SELECT count(*) AS matches FROM ${EXPENSES_TABLE} WHERE instr(category, ?) > 0`)
     .get(text) as { matches: number };
   return row.matches;
-}
-
-/** Every module under one root, tests and their support excluded: neither ships. */
-function sourceFiles(root: string): readonly string[] {
-  return readdirSync(root, { recursive: true })
-    .map((entry) => join(root, String(entry)))
-    .filter((path) => path.endsWith(".ts") && !path.includes(".test"));
-}
-
-/** What one module names, static and dynamic alike: a lazy `import()` is an import. */
-function specifiersIn(path: string): readonly string[] {
-  return [...readFileSync(path, "utf8").matchAll(/(?:from|import)\s*\(?\s*"([^"]+)"/g)].map(
-    (match) => match[1] as string,
-  );
 }

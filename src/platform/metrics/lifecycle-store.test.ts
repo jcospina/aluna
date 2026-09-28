@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { OVERLAP_RESOLUTIONS } from "../../pipeline/intent/index.ts";
 import { FIRST_INCARNATION_ID } from "../../registry/incarnations.test-support.ts";
 import type { PlatformDatabase } from "../persistence/db.ts";
 import {
@@ -48,14 +49,20 @@ describe("durable generation lifecycle", () => {
     );
 
   test("resolver overlap resolution is a closed durable vocabulary", () => {
+    const measurement = (overlapResolution: string) => ({
+      intent: { type: "new_capability", confidence: 0.98, targetCapability: null },
+      model: "gpt-5",
+      durationMs: 12,
+      usage: { totalTokens: 12 },
+      overlapResolution,
+    });
+    for (const resolution of OVERLAP_RESOLUTIONS) {
+      expect(
+        carriedResolverMeasurementSchema.parse(measurement(resolution)).overlapResolution,
+      ).toBe(resolution);
+    }
     expect(() =>
-      carriedResolverMeasurementSchema.parse({
-        intent: { type: "new_capability", confidence: 0.98, targetCapability: null },
-        model: "gpt-5",
-        durationMs: 12,
-        usage: { totalTokens: 12 },
-        overlapResolution: "bogus",
-      }),
+      carriedResolverMeasurementSchema.parse(measurement(`${OVERLAP_RESOLUTIONS.join("_")}_bogus`)),
     ).toThrow();
   });
 

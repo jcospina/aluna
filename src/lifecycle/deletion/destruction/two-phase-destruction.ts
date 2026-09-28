@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { lstatSync, readdirSync, realpathSync, rmdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { DEFAULT_ARTIFACTS_ROOT } from "../../../builder/index.ts";
+import { resolveArtifactsRoot } from "../../../builder/index.ts";
 import { isPathContained } from "../../../platform/path-containment.ts";
 import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import {
@@ -276,7 +276,7 @@ export async function recoverCapabilityDeletionTombstones(
 
 /** M4's real adapter: the exact incarnation directory, absent-on-retry is success. */
 export function createArtifactCleanupAdapter(
-  artifactsRoot = DEFAULT_ARTIFACTS_ROOT,
+  artifactsRoot = resolveArtifactsRoot(),
 ): OwnedResourceCleanupAdapter {
   return {
     name: "version_artifacts",
@@ -307,7 +307,7 @@ export const OWNED_RESOURCE_ADAPTER = "owned_files";
 
 /** The one production adapter inventory shared by live deletion and boot recovery. */
 export function createProductionCapabilityDeletionAdapters(
-  artifactsRoot = DEFAULT_ARTIFACTS_ROOT,
+  artifactsRoot = resolveArtifactsRoot(),
 ): readonly OwnedResourceCleanupAdapter[] {
   return [createArtifactCleanupAdapter(artifactsRoot)];
 }

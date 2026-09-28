@@ -10,6 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { createReadGateCoordinator } from "../../../runtime/concurrency/read-gates.ts";
 import type { CapabilityContext, CapabilityHandler } from "../../../runtime/router/contract.ts";
@@ -20,8 +21,8 @@ import {
   teardownRouterTest,
 } from "../../../runtime/router/dispatch/router.test-support.ts";
 import type { HandlerLoader } from "../../../runtime/router/dispatch/router.ts";
-import { createApp } from "../../app.ts";
 import { NOT_FOUND_NOTICE } from "../../http/index.ts";
+import { createTestApp } from "../../isolated-app.test-support.ts";
 import { confirmationRequest as confirmation, deletionTarget } from "./deletion.test-support.ts";
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
@@ -87,7 +88,7 @@ describe("a second tab held open while its capability is deleted", () => {
     const readGates = createReadGateCoordinator();
     const entered = deferred();
     const releaseHandler = deferred();
-    const app = createApp({
+    const app = createTestApp({
       readGates,
       artifactsRoot: join(dir, "artifacts"),
       capabilityRouter: {
@@ -137,7 +138,7 @@ describe("a second tab held open while its capability is deleted", () => {
     const readGates = createReadGateCoordinator();
     const entered = deferred();
     const releaseHandler = deferred();
-    const app = createApp({
+    const app = createTestApp({
       readGates,
       artifactsRoot: join(dir, "artifacts"),
       capabilityRouter: {
@@ -206,7 +207,7 @@ describe("the address a deleted capability leaves behind", () => {
   test("reloading it afterwards loads the bare desk with its notice", async () => {
     const target = deletionTarget(dir);
     install(conns, target);
-    const app = createApp({
+    const app = createTestApp({
       artifactsRoot: join(dir, "artifacts"),
       capabilityRouter: { databases: conns },
     });
@@ -221,7 +222,7 @@ describe("the address a deleted capability leaves behind", () => {
 
     expect(page).toContain("<!doctype html>");
     expect(page).toContain(
-      `<div id="prompt-notice" class="prompt__notice" aria-live="polite">${NOT_FOUND_NOTICE}</div>`,
+      `<div id="${PROMPT_NOTICE_ID}" class="prompt__notice" aria-live="polite">${NOT_FOUND_NOTICE}</div>`,
     );
     // The desk without the capability that is gone. What the window does with this page is the
     // client's answer (`src/presentation/shell/window/desk-window-address.test.ts`).

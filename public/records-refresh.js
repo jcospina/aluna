@@ -199,13 +199,14 @@ export async function refreshCommittedRecords({
  * }} input
  */
 export async function refreshCommittedRecordsForMutation({ form, request, process }) {
-  const region = document.getElementById(form.dataset.recordsTargetId ?? "");
-  const readUrl = form.dataset.readUrl;
+  // Attributes, not `form.dataset`: a create form answers to its fields' names first.
+  const region = document.getElementById(form.getAttribute("data-records-target-id") ?? "");
+  const readUrl = form.getAttribute("data-read-url");
   if (!(region instanceof HTMLElement) || !readUrl) return null;
   return refreshCommittedRecords({
     region,
     readUrl,
-    searchUrl: form.dataset.searchUrl,
+    searchUrl: form.getAttribute("data-search-url") ?? undefined,
     activeQuery: activeSearchQuery(region),
     request,
     process,

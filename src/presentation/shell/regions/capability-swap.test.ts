@@ -1,17 +1,20 @@
 import { describe, expect, test } from "bun:test";
-import { windowForOpening } from "#shell/desk-window.js";
-import { createRegionReleaseRegistry } from "#shell/region-scope.js";
-import { capabilityUrl } from "#shell/routes.js";
-import type { RenderableCapability } from "../../fields/field-renderer.ts";
-import { renderCollection } from "../../records/list-container.ts";
+import { WINDOW_CONTENT_REGION, windowForOpening } from "#shell/desk-window.js";
 import {
-  code,
-  codeOf,
-  flat,
-  readSource,
-  shellScripts,
-  shippedStylesheets,
-} from "../../safety/source.test-support.ts";
+  createRegionReleaseRegistry,
+  registerRegionRelease,
+  releaseRegionContent,
+} from "#shell/region-scope.js";
+import { capabilityActionUrl } from "#shell/routes.js";
+import { Doc, type El, parseHtml } from "../../controls/choice-picker.test-support.ts";
+import {
+  capabilityRecordsRegionId,
+  type RenderableCapability,
+} from "../../fields/field-renderer.ts";
+import { renderCollection } from "../../records/list-container.ts";
+import { recordDesk } from "../../records/record-view.test-support.ts";
+import { code } from "../../safety/source.test-support.ts";
+import { viewportDesk } from "../window/viewport-desk.test-support.ts";
 import { document as desk, Node } from "./region-scope.test-support.ts";
 
 // Opening a second capability (PLAN decision 15; ARCH §6.1 and §8; design D2). A swap may not
@@ -100,14 +103,21 @@ describe("opening a second capability swaps the contents, not the frame", () => 
     expect(windowForOpening(second, mount, "Journal", null).openedBy).toBe(journalLogo);
   });
 
-  test("the opener uses the rule rather than restating it", () => {
-    const module = codeOf("public/desk-window.js");
-    expect(flat(module)).toContain(
-      "mounted = windowForOpening(mounted, () => mount(root, title), title, openedBy);",
-    );
-    // The seed is rolled where the frame is built and nowhere else, so no swap can
-    // re-roll the hand (design D10).
-    expect(module.match(/seed: Math\.floor/g)).toHaveLength(1);
+  test("the desk opens the next capability into the window already standing", async () => {
+    // The frame is built once, so its box and its drawn hand — the seed is rolled where the
+    // frame is built — cannot be touched by an opening (design D10).
+    const screen = await viewportDesk();
+    try {
+      screen.module.openWindow("Tasks", screen.desk.doc as never);
+      const [frame] = screen.desk.windows();
+      const bar = frame?.querySelector("header");
+      screen.module.openWindow("Journal", screen.desk.doc as never);
+      expect(screen.desk.windows()).toEqual([frame as never]);
+      expect(frame?.querySelector("header")).toBe(bar as never);
+      expect(bar?.querySelector("h2")?.textContent).toBe("Journal");
+    } finally {
+      screen.restore();
+    }
   });
 });
 
@@ -120,7 +130,7 @@ describe("the outgoing capability's work is released on the swap", () => {
   test("the region outlives the content, so the swap has a frame to land in", () => {
     const registry = createRegionReleaseRegistry();
     const body = desk();
-    const region = new Node("the window's content", "the window's content");
+    const region = new Node("the window's content", WINDOW_CONTENT_REGION);
     const tasks = new Node("the Tasks collection");
     const tasksRecords = new Node("the Tasks records", "records");
     const tasksSearch = new Node("the Tasks search form");
@@ -146,31 +156,30 @@ describe("the outgoing capability's work is released on the swap", () => {
     expect(region.isConnected).toBe(true);
   });
 
-  test("the two readers that used to hand the region off now go through the rule", () => {
-    const search = codeOf("public/search-chrome.js");
-    const refresh = codeOf("public/records-refresh.js");
-
-    // Search takes the region from the View's own read…
-    expect(flat(search)).toContain("cancelExternalRead: () => { releaseRegionContent(region); }");
-    // …and the post-mutation re-read takes it from whatever was still filling it, before
-    // it claims the region for itself.
-    expect(flat(refresh)).toContain(
-      "region.dispatchEvent(new CustomEvent(RECORDS_REFRESH_START_EVENT, { bubbles: true })); releaseRegionContent(region);",
-    );
-    expect(flat(refresh)).toContain(
-      "if (domRegion) startRefresh(domRegion, target.query); const claim = claimRefreshRequest(domRegion, claimRequest);",
-    );
-
-    // And the hand-off itself is gone from the shell, not merely unreferenced.
-    for (const [name, source] of shellScripts()) {
-      expect(source, name).not.toContain("handOff");
+  test("a search takes the region from the View's own read through the rule", async () => {
+    // The post-mutation re-read does the same, run in `records-refresh.test.ts` ("releases the
+    // read that was already filling it, and still renders its own").
+    const page = await recordDesk(renderCollection({ capability: SAMPLE, loadThroughRead: true }), {
+      modules: ["search-chrome.js"],
+    });
+    try {
+      const records = page.doc.getElementById(capabilityRecordsRegionId(SAMPLE.id)) as El;
+      const viewRead = new AbortController();
+      registerRegionRelease(records as never, "records read", () => viewRead.abort());
+      const input = page.doc.querySelector('input[type="search"]') as El;
+      input.value = "milk";
+      page.doc.fire("input", input);
+      expect(viewRead.signal.aborted).toBe(true);
+    } finally {
+      releaseRegionContent(page.region as never);
+      page.restore();
     }
   });
 
   test("promoting a build's ending releases what it displaces and keeps what it promotes", () => {
     const registry = createRegionReleaseRegistry();
     const body = desk();
-    const region = new Node("the window's content", "the window's content");
+    const region = new Node("the window's content", WINDOW_CONTENT_REGION);
     const displaced = new Node("the capability the build displaced");
     const subscriber = new Node("the run's subscriber");
     const restored = new Node("the restored collection");
@@ -199,36 +208,6 @@ describe("the outgoing capability's work is released on the swap", () => {
     expect(region.children).toEqual([restored]);
     expect(registry.report()).toEqual([{ region: "records", label: "records read" }]);
   });
-
-  test("and the glue follows exactly that rule", () => {
-    // A source pin, because `app.js` is a classic script that runs before Alpine and can import
-    // nothing. Pinned whole, so inverting the skip or moving the release each fail here.
-    const glue = flat(codeOf("public/app.js"));
-
-    expect(glue).toContain(
-      "function releaseDisplacedContent(output, promoted) { for (const node of [...output.childNodes]) { if (promoted.includes(node)) continue; if (node instanceof Element) releaseRegionContent(node); node.remove(); } }",
-    );
-    expect(glue).toContain(
-      "const promoted = terminal.promoteElement ? [terminal.element] : [...terminal.element.childNodes]; output.append(...promoted); releaseDisplacedContent(output, promoted); processPromotedContent(promoted);",
-    );
-    expect(glue).toContain(
-      [
-        "function processPromotedContent(promoted) { const htmx = (window).htmx; if (!htmx) return;",
-        " for (const node of promoted) { if (!(node instanceof Element)) continue;",
-        " if (node.classList.contains(HTMX_REQUEST_CLASS)) continue;",
-        // Written in pieces only because a template placeholder inside a string literal
-        // is a lint error; this is one statement of the guard, not three.
-        " if (node.querySelector(`.$",
-        "{HTMX_REQUEST_CLASS}`) !== null) continue; htmx.process(node); } }",
-      ].join(""),
-    );
-    // The mark the guard reads is htmx's own, and the module that owns it spells it the
-    // same way; the glue cannot import it, so the two are pinned against each other.
-    expect(glue).toContain('const HTMX_REQUEST_CLASS = "htmx-request";');
-    expect(flat(codeOf("public/region-scope.js"))).toContain(
-      'const HTMX_REQUEST_CLASS = "htmx-request";',
-    );
-  });
 });
 
 /* ── every open is a fresh read ────────────────────────────────────────────── */
@@ -242,79 +221,19 @@ describe("every open is a fresh read", () => {
       loadThroughRead: true,
       items: "<article>a record somebody already had</article>",
     });
-
-    expect(collection).toContain('hx-get="/capability/tasks/read" hx-trigger="load"');
-    expect(collection).toMatch(/data-content-region="records"[^>]*><\/div>/);
-    expect(collection).not.toContain("a record somebody already had");
-  });
-
-  test("the shell stores presentation and never a collection", () => {
-    // ARCH §6.1: the shell may remember how things look; it never decides what is true. Exactly
-    // two presentation records live in storage, and the desk holds nothing else across a reload.
-    const keys = new Set<string>();
-    for (const [name, source] of shellScripts()) {
-      expect(source, name).not.toContain("sessionStorage");
-      for (const match of source.matchAll(/"(aluna\.[a-z0-9.]+)"/g)) keys.add(String(match[1]));
-      // Nothing takes a copy of what a region is showing. The one snapshot the shell holds is a
-      // record's own inert `<template>`, which stands inside the collection and dies with it.
-      expect(source, name).not.toMatch(/=\s*[\w.]+\.innerHTML\b/);
-    }
-    expect([...keys].sort()).toEqual(["aluna.desk.dev.v1", "aluna.desk.window.v1"]);
-  });
-
-  test("the record view and the logo both ask the server again", () => {
-    // Back out of a record, and a press on a logo, are the same fresh
-    // `GET /capability/:id` aimed at the same region — never a restored snapshot.
-    expect(readSource("public/record-view.js")).toContain(
-      '.ajax("GET", capabilityUrl(capabilityId)',
+    const records = parseHtml(collection, new Doc()).querySelector(
+      `#${capabilityRecordsRegionId(SAMPLE.id)}`,
     );
-    expect(capabilityUrl("notes")).toBe("/capability/notes");
-    expect(readSource("public/desk-window.js")).toMatch(/\.ajax\?\.\("GET", pathname/);
-    expect(readSource("src/server/http/fragments.ts")).toMatch(/hx-get="\$\{url}"/);
+    expect(records?.getAttribute("hx-get")).toBe(capabilityActionUrl(SAMPLE.id, "read"));
+    expect(records?.getAttribute("hx-trigger")).toBe("load");
+    expect(records?.children).toHaveLength(0);
+    expect(collection).not.toContain("a record somebody already had");
   });
 });
 
 /* ── and no machinery behind it ────────────────────────────────────────────── */
 
-/** The scripts that read a capability's records, and so are where a poll would live. */
-const READERS = new Set([
-  "app.js",
-  "desk-window.js",
-  "record-mutations.js",
-  "record-view.js",
-  "records-refresh.js",
-  "records-region-requests.js",
-  "search-chrome.js",
-]);
-
 describe("no invalidation bus, version stamp or refresh control exists anywhere", () => {
-  test("no shell script opens a channel, and no reader polls", () => {
-    for (const [name, source] of shellScripts()) {
-      expect(source, name).not.toContain("BroadcastChannel");
-      expect(source, name).not.toContain("SharedWorker");
-      expect(source, name).not.toContain("postMessage");
-      expect(source, name).not.toMatch(/addEventListener\(\s*"storage"/);
-      if (READERS.has(name)) expect(source, name).not.toContain("setInterval");
-    }
-  });
-
-  test("nothing anywhere decides that what is on screen has gone stale", () => {
-    for (const [name, source] of shellScripts()) {
-      expect(source, name).not.toMatch(/stale|invalidat/i);
-    }
-  });
-
-  test("the version a surface carries is identity, never a staleness stamp", () => {
-    for (const [name, source] of shellScripts()) {
-      // Comparing one version to another and acting on the difference asks "has this gone out of
-      // date?", which nothing on the desk may ask. A comparison to `undefined` checks presence.
-      expect(source, name).not.toMatch(/version\s*!==?\s*[\w.]*version\b/);
-    }
-    // The one reader of a surface's version is the deterministic-duplicate no-op, which
-    // asks whether the View standing there *is* the View a build would restore.
-    expect(flat(codeOf("public/app.js"))).toContain("current.version === restored.version");
-  });
-
   test("no capability surface offers a refresh control", () => {
     const surfaces = [
       renderCollection({ capability: SAMPLE, loadThroughRead: true }),
@@ -325,34 +244,9 @@ describe("no invalidation bus, version stamp or refresh control exists anywhere"
       expect(surface).not.toMatch(/aria-label="[^"]*(refresh|reload)/i);
     }
   });
-
-  test("the desk chrome offers no refresh lamp", () => {
-    // The window's two lamps are maximise and put away (design D3); nothing in the
-    // shipped chrome or in any stylesheet either project ships adds a third that re-reads.
-    expect(readSource("public/index.html").toLowerCase()).not.toContain("refresh");
-    for (const [path, sheet] of shippedStylesheets()) {
-      expect(sheet.toLowerCase(), path).not.toContain("refresh");
-    }
-  });
-
-  test("a `load` trigger arms once per element, so no read re-fires behind the desk", () => {
-    // What lets search take the region without stripping the View's trigger. Pinned in the
-    // vendored build, because it is a property of htmx and not of anything written here.
-    const htmx = readSource("public/vendor/htmx.min.js");
-    expect(htmx).toContain('!t.firstInitCompleted&&e.trigger==="load"');
-    expect(htmx).toContain('if(e!=="firstInitCompleted")delete t[e]');
-  });
-
-  test("the architecture says the edge is accepted rather than engineered away", () => {
-    const architecture = flat(readSource("docs/architecture.md"));
-    expect(architecture).toContain("Cross-capability reads need no invalidation channel.");
-    expect(architecture).toContain(
-      "an accepted edge rather than a reason to build a bus, a version stamp, or the refresh control the window deliberately does not have",
-    );
-  });
 });
 
-/* ── the helper the negative assertions above rest on ──────────────────────── */
+/* ── the helper the policy's negative assertions rest on ─────────────────── */
 
 describe("stripping a file's prose", () => {
   test("takes whole comments and leaves a URL inside a string alone", () => {

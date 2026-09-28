@@ -28,7 +28,7 @@ import {
   frozenBehavioralTestsSchema,
 } from "../../gate/rungs/behavioral/generation/gate-behavioral-full-schema.ts";
 import type { GeneratedUnit } from "../../units/generation/units.ts";
-import { DEFAULT_ARTIFACTS_ROOT } from "../artifacts-root.ts";
+import { resolveArtifactsRoot } from "../artifacts-root.ts";
 import {
   canonicalJson,
   compareFileEntries,
@@ -60,8 +60,6 @@ import {
   SNAPSHOT_MANIFEST_FILE,
   SPEC_FILE,
 } from "./snapshot-contract.ts";
-
-export { DEFAULT_ARTIFACTS_ROOT } from "../artifacts-root.ts";
 
 const digestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/);
 const buildIdSchema = z
@@ -190,7 +188,8 @@ export function publishCapabilitySnapshot(
   assertSuccessfulGate(input.gate);
   assertUnitsMatchGateVerdict(input.units, input.gate);
 
-  const root = resolve(process.cwd(), input.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT);
+  const artifactsRoot = input.artifactsRoot ?? resolveArtifactsRoot();
+  const root = resolve(process.cwd(), artifactsRoot);
   const incarnationDirectory = resolve(root, spec.id, incarnationId);
   assertContained(root, incarnationDirectory);
   const stagingParent = join(incarnationDirectory, ".staging");
@@ -223,7 +222,7 @@ export function publishCapabilitySnapshot(
     });
 
     const verified = verifyCapabilitySnapshot(finalDirectory, manifest);
-    const artifactsPath = `${join(input.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT, spec.id, incarnationId, `v${version}`)}/`;
+    const artifactsPath = `${join(artifactsRoot, spec.id, incarnationId, `v${version}`)}/`;
     const publication: VerifiedPublishedSnapshot = {
       artifactsPath,
       directory: finalDirectory,

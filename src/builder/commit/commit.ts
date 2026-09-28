@@ -24,7 +24,6 @@ import {
 } from "../../registry/index.ts";
 import {
   assertVerifiedPublishedSnapshot,
-  DEFAULT_ARTIFACTS_ROOT,
   type SnapshotManifest,
   type VerifiedPublishedSnapshot,
 } from "../artifacts/publication/artifact-lifecycle.ts";
@@ -34,8 +33,6 @@ import {
  * Diff Engine, a later module); M2 only ever commits a brand-new v1.
  */
 export const FIRST_CAPABILITY_VERSION = 1;
-
-export { DEFAULT_ARTIFACTS_ROOT };
 
 export interface CommitCapabilityInput {
   readonly spec: CapabilitySpec;

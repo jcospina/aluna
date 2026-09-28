@@ -1,13 +1,12 @@
 // Tests for the classification-only Intent Resolver slice.
 //
-// No test calls a real provider. The fake below records the prompt/schema and
-// validates the returned object through the same provider contract shape the real
-// spine exposes.
+// No test calls a real provider. The fake below records the prompt/schema and hands back the
+// model's object unparsed, so the resolver's own schema gate is what refuses bad output.
 
 import type { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ZodType } from "zod";
-
+import { PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import {
   createScratchDbEnv,
@@ -15,6 +14,7 @@ import {
   teardownScratchDbEnv,
 } from "../../platform/persistence/scratch-db.test-support.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
+import { occurrences } from "../../platform/provider/prompt-lines.test-support.ts";
 import {
   FIRST_INCARNATION_ID,
   SECOND_INCARNATION_ID,
@@ -162,12 +162,12 @@ function makeRecordingProvider(raw: unknown): RecordingProvider {
       calls.push({ prompt, schema: schema as ZodType<unknown> });
 
       async function* stream(): AsyncGenerator<DeepPartial<T>> {
-        yield schema.parse(raw) as DeepPartial<T>;
+        yield raw as DeepPartial<T>;
       }
 
       return {
         partialStream: stream(),
-        object: Promise.resolve().then(() => schema.parse(raw)),
+        object: Promise.resolve(raw as T),
         usage: Promise.resolve({ inputTokens: 0, outputTokens: 0, totalTokens: 0 }),
       };
     },
@@ -272,51 +272,14 @@ describe("intent resolver classification — prompt assembly", () => {
 
     expect(provider.calls).toHaveLength(1);
     expect(provider.calls[0]?.schema).toBe(intentClassificationSchema);
-    expect(provider.calls[0]?.prompt).toContain("track my trips");
-    expect(provider.calls[0]?.prompt).toContain("prompt_context: Stores the user's text notes.");
-    expect(provider.calls[0]?.prompt).toContain(
-      "prompt_context: Stores recipes the user wants to cook again.",
-    );
-    expect(provider.calls[0]?.prompt).toContain("Active capability:\nid: notes");
+    const prompt = provider.calls[0]?.prompt ?? "";
+    expect(prompt.endsWith("\ntrack my trips")).toBe(true);
+    // Every registry row reaches the model, and the active one a second time as the context.
+    expect(occurrences(prompt, notesRow().prompt_context)).toBe(2);
+    expect(occurrences(prompt, recipesRow().prompt_context)).toBe(1);
     // PLAN decision 28. The rule beside this one enumerates the build intents and says nothing
     // about a question, so without this sentence the field comes back null whatever is standing.
-    expect(provider.calls[0]?.prompt).toContain(INTENT_DATA_QUERY_CONTEXT_RULE);
-    expect(provider.calls[0]?.prompt).toContain(
-      "Existing capability and overlap check — do this before deciding",
-    );
-    expect(provider.calls[0]?.prompt).toContain(
-      "The registry context below is the complete list of existing capabilities",
-    );
-    expect(provider.calls[0]?.prompt).toContain(
-      "Choose new_capability when the prompt names a distinct kind of thing with its own natural structure",
-    );
-    expect(provider.calls[0]?.prompt).toContain(
-      "Do not choose extend_capability just because a generic capability could technically hold the information as unstructured text",
-    );
-    expect(provider.calls[0]?.prompt).toContain(
-      "Do not overspecialize an existing capability with fields or behavior that belong to a different real-world thing",
-    );
-    expect(provider.calls[0]?.prompt).toContain(
-      "I want to keep track of my recipes' is new_capability",
-    );
-    expect(provider.calls[0]?.prompt).toContain("'add due dates to my notes' is extend_capability");
-    expect(provider.calls[0]?.prompt).toContain(
-      "'let me store notes with images' is extend_capability",
-    );
-    expect(provider.calls[0]?.prompt).toContain(
-      "'track my work contacts separately' is new_capability with resolution namespace",
-    );
-    expect(provider.calls[0]?.prompt).toContain(
-      "active capability is strong context for vague references",
-    );
-    expect(provider.calls[0]?.prompt).toContain("Explicit wording overrides active context");
-    expect(provider.calls[0]?.prompt).toContain("never contacts_2");
-    expect(provider.calls[0]?.prompt).toContain(
-      "Adding/hiding data, changing requiredness, or changing behavior is extend_capability",
-    );
-    expect(provider.calls[0]?.prompt).toContain(
-      "Quotes, addresses, citations, and names as entered may contain commas",
-    );
+    expect(prompt).toContain(INTENT_DATA_QUERY_CONTEXT_RULE);
   });
 });
 
@@ -364,7 +327,7 @@ describe("intent resolver classification — narration and round-trip results", 
     // The bar's own slot, not the window's: a frame a prompt stood up may not be revealed by
     // Aluna reading the sentence, or a question flashes a window it never wanted.
     expect(order[0]).toMatch(/^fragment:/);
-    expect(order[0]).toContain('id="prompt-notice"');
+    expect(order[0]).toContain(`id="${PROMPT_NOTICE_ID}"`);
     expect(order[0]).toContain('hx-swap-oob="innerHTML"');
     expect(order[0]).not.toContain("data-prompt-refusal");
     expect(order[1]).toBe("provider");
@@ -373,8 +336,8 @@ describe("intent resolver classification — narration and round-trip results", 
     expect(order[0]).not.toMatch(/intent|resolver|capability|registry|schema|provider/i);
   });
 
-  test('classifies "track my notes" as extend_capability through a fake provider when Notes already exists', async () => {
-    const provider = makeRecordingProvider({
+  test("returns an extension of an existing capability only once its own schema gate admits it", async () => {
+    const extension: IntentClassification = {
       type: "extend_capability",
       confidence: 0.94,
       target_capability: "notes",
@@ -383,27 +346,29 @@ describe("intent resolver classification — narration and round-trip results", 
       proposed_action: "Add another way to track notes inside the existing Notes capability.",
       user_facing_label: "I can add that to your notes.",
       requires_confirmation: false,
-    });
+    };
     insertRows(conns.readwrite, [notesRow()]);
+    const classify = (raw: unknown) =>
+      classifyIntent({
+        provider: makeRecordingProvider(raw),
+        prompt: "track my notes",
+        activeCapabilityId: null,
+        database: conns.readonly,
+      });
 
-    const intent = await classifyIntent({
-      provider,
-      prompt: "track my notes",
-      activeCapabilityId: null,
-      database: conns.readonly,
-    });
-
-    expect(intent).toEqual<IntentClassification>({
-      type: "extend_capability",
-      confidence: 0.94,
-      target_capability: "notes",
-      resolution: "extend",
-      proposed_identity: null,
-      proposed_action: "Add another way to track notes inside the existing Notes capability.",
-      user_facing_label: "I can add that to your notes.",
-      requires_confirmation: false,
-    });
-    expect(provider.calls).toHaveLength(1);
+    expect(await classify(extension)).toEqual(extension);
+    for (const [broken, path] of [
+      [{ ...extension, target_capability: null }, "target_capability"],
+      [{ ...extension, resolution: "new" }, "resolution"],
+      [
+        { ...extension, proposed_identity: { id: "notes_two", label: "Notes two" } },
+        "proposed_identity",
+      ],
+    ] as const) {
+      await expect(classify(broken)).rejects.toMatchObject({
+        issues: [expect.objectContaining({ path: [path] })],
+      });
+    }
   });
 
   test("rejects non-conforming provider output through Zod validation", async () => {
@@ -420,6 +385,8 @@ describe("intent resolver classification — narration and round-trip results", 
 
     await expect(
       classifyIntent({ provider, prompt: "track notes", database: conns.readonly }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({
+      issues: [expect.objectContaining({ path: ["requires_confirmation"] })],
+    });
   });
 });

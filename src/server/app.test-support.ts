@@ -8,7 +8,7 @@
 // here — a test must not bill the BYO key on every run.
 
 import type { ZodType } from "zod";
-import { BUILD_JOB_ID_ATTRIBUTE } from "#shell/shell-dom.js";
+import { BUILD_JOB_ID_ATTRIBUTE, PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
 import {
   behavioralResponseFor,
   type FullBehavioralTestSuite,
@@ -33,8 +33,8 @@ import {
   FULL_CAPABILITY_TOOLS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../registry/index.ts";
-import { createApp } from "./app.ts";
 import { unescapeHtml } from "./http/html.ts";
+import { createTestApp } from "./isolated-app.test-support.ts";
 
 export interface SseEvent {
   readonly id: string;
@@ -136,7 +136,10 @@ export function eventData(events: SseEvent[], name: string): string {
  * this rather than searching the fragments for the slot's id and finding the desk's own line.
  */
 export function promptBarSentences(events: SseEvent[]): string[] {
-  const slot = /<div id="prompt-notice" hx-swap-oob="innerHTML">([\s\S]*?)<\/div>/g;
+  const slot = new RegExp(
+    `<div id="${PROMPT_NOTICE_ID}" hx-swap-oob="innerHTML">([\\s\\S]*?)<\\/div>`,
+    "g",
+  );
   return [...eventData(events, "fragment").matchAll(slot)].map((match) =>
     unescapeHtml((match[1] ?? "").replace(/<[^>]*>/g, "")),
   );
@@ -158,7 +161,7 @@ export function promptPost(prompt: string, alsoSent: Record<string, string> = {}
 }
 
 export async function postPrompt(
-  app: ReturnType<typeof createApp>,
+  app: ReturnType<typeof createTestApp>,
   prompt: string,
   alsoSent: Record<string, string> = {},
 ): Promise<Response> {
@@ -186,7 +189,7 @@ export interface PromptBuildRun {
  * fragment, then drain that job's stream. There is one admission path and it starts at `/prompt`.
  */
 export async function runPromptBuild(
-  app: ReturnType<typeof createApp>,
+  app: ReturnType<typeof createTestApp>,
   prompt: string,
 ): Promise<PromptBuildRun> {
   const jobId = buildJobIdFromSubscriber(await responseText(await postPrompt(app, prompt)));
@@ -203,7 +206,7 @@ export function makeScratchApp(
   provider: Provider,
   recordMetrics: RecordMetrics,
 ) {
-  return createApp({
+  return createTestApp({
     getProvider: () => provider,
     recordMetrics,
     buildDatabases: env.conns,

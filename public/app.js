@@ -141,8 +141,8 @@ function shell() {
   };
 }
 
-// Kept in sync with public/region-scope.js (RELEASE_REGION_EVENT) and pinned by a test. Asks a
-// region's scope to release its content's work before the content is replaced.
+// Kept in sync with public/region-scope.js, pinned by `app.shell-glue.test.ts` hearing it at the
+// document. Asks a region's scope to release its content's work before the content is replaced.
 const RELEASE_REGION_EVENT = "aluna:release-region";
 
 /** @param {Element} region */
@@ -660,16 +660,15 @@ document.addEventListener("htmx:afterSwap", (event) => {
 });
 
 /**
- * The sentence out of a structured refusal, read from the marked element the router wrote it in
- * (`src/runtime/router/wire/failure-responses.ts`) and parsed into an inert template, so nothing
- * runs.
+ * The element a structured refusal is written in, carrying both markers the router requires
+ * (`src/runtime/router/wire/failure-responses.ts`), parsed into an inert template so nothing runs.
  * @param {string} html
- * @returns {string}
+ * @returns {Element | null}
  */
-function refusalSentence(html) {
+function refusalElement(html) {
   const template = document.createElement("template");
   template.innerHTML = html;
-  return template.content.querySelector("[data-error-code]")?.textContent?.trim() ?? "";
+  return template.content.querySelector('[data-role="error"][data-error-code]');
 }
 
 // HTMX keeps error responses out of the DOM by default; the router retargets structured form
@@ -683,33 +682,10 @@ document.addEventListener("htmx:beforeSwap", (event) => {
   // 409 is the read-gate refusal while a deletion drains: briefly unreadable, not broken. It has
   // to be listed here or htmx drops it and the click looks like it did nothing.
   if (![404, 409, 422, 500].includes(detail?.xhr?.status) || typeof response !== "string") return;
-  const isStructuredFormRefusal = [
-    "missing_required_fields",
-    // A submitted choice value the field never declared. Platform-owned, like the required-field
-    // refusal beside it, and dropped by htmx unless the shell claims it.
-    "invalid_choice",
-    // A newly chosen option the field no longer offers. Its own code, because the value is
-    // declared and the record already holding it is untouched.
-    "choice_disabled",
-    // A string longer than its field's declared max_length. The native attribute stops it on a
-    // filled-in form, so this is the crafted-request path.
-    "max_length_exceeded",
-    // A file the save could not claim: gone to a sweep, or another field's or another save's.
-    "invalid_file_reference",
-    // An edit whose file field no longer matches its record: another window saved it since.
-    "record_changed",
-    "mutation_busy",
-    "read_unavailable",
-    "record_not_found",
-    "mutation_failed",
-    // A rename the desk turned down (`src/lifecycle/rename/presentation.ts`), the first refusal
-    // that can only have come from outside the window, so it always speaks on the prompt bar.
-    "rename_refused",
-    // An address or a press that names nothing (`NOT_FOUND_FRAGMENT`). A second tab still stands
-    // the tile of a deleted capability, and a press on it took the window down without a word.
-    "not_found",
-  ].some((code) => response.includes(`data-error-code="${code}"`));
-  if (!isStructuredFormRefusal) return;
+  // Claimed by its markers, as the router reads them: a list of codes would drop the refusals a
+  // capability declares for itself, and its Save would answer with silence.
+  const refusal = refusalElement(response);
+  if (refusal === null) return;
 
   // Which surface asked. `detail.elt` is the swap target here, but the request's own
   // configuration is on the same detail and names the element that made it.
@@ -719,7 +695,7 @@ document.addEventListener("htmx:beforeSwap", (event) => {
   if (asking instanceof Element && asking.closest(`#${WINDOW_REGION_ID}`) === null) {
     // A refusal whose sentence could not be read is still shown where it was aimed: moving it to
     // a slot and finding nothing to put there answers the person with silence.
-    const sentence = refusalSentence(response);
+    const sentence = refusal.textContent?.trim();
     if (sentence) {
       detail.shouldSwap = false;
       tellThePromptBar(sentence, true);

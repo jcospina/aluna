@@ -3,7 +3,7 @@
 // 2026-08-20; `modules/05-the-desk/PLAN.md` decision 10).
 //
 // Names live here and in `design/design-system.md`; every value lives once in
-// `design/styles/tokens.css`, so the two cannot disagree about one, and `design-tokens.test.ts`
+// `design/styles/tokens.css`, so the two cannot disagree about one, and `design-tokens.policy.ts`
 // cross-checks every name below against that stylesheet. Both enforcement surfaces key on these
 // sets: `style-discipline.ts` at render time and the design-lint gate rung at build time.
 //

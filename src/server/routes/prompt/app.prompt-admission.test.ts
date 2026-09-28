@@ -1,6 +1,4 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import type { ZodType } from "zod";
 import { BUILD_JOB_ID_ATTRIBUTE, PROMPT_FIELD_ID } from "#shell/shell-dom.js";
 import { createPromptBuildPipeline, type RecordMetrics } from "../../../pipeline/index.ts";
@@ -22,9 +20,9 @@ import {
   teardownScratchDbEnv,
   wait,
 } from "../../app.test-support.ts";
-import { createApp } from "../../app.ts";
 import { BLANK_PROMPT_NOTICE, renderPromptNotice } from "../../http/index.ts";
-import { BLANK_PROMPT_PATTERN_SOURCE } from "./prompt-admission.test-support.ts";
+import { byId, elementsOf } from "../../http/served-page.test-support.ts";
+import { createTestApp } from "../../isolated-app.test-support.ts";
 
 function rejectingProvider(prompts: string[]): Provider {
   const response = {
@@ -253,7 +251,7 @@ describe("blank-prompt refusal", () => {
       // deletion routes unable to cancel a question this app's pipeline is running.
       const readGates = createReadGateCoordinator();
       const { resolutionRows, recordMetrics } = makeMetricsRecorder();
-      const app = createApp({
+      const app = createTestApp({
         getProvider: () => forbiddenProvider(calls),
         recordMetrics,
         buildDatabases: conns,
@@ -311,25 +309,22 @@ describe("blank-prompt refusal", () => {
 
   test("the bar's own guard is in front of the server's, and says the same thing", async () => {
     // Defence in depth, and one answer: the bar refuses a blank submission before it can become a
-    // request, empty field and spaces alike. The server refuses every submission not from that bar.
+    // request (`app.prompt-bar-messages.test.ts` holds its reading to this server's, character for
+    // character). The server refuses every submission not from that bar.
     const html = await responseText(
-      await createApp({ capabilityRouter: { databases: conns } }).request("/"),
+      await createTestApp({ capabilityRouter: { databases: conns } }).request("/"),
     );
-    const fieldStart = html.lastIndexOf("<input", html.indexOf(`id="${PROMPT_FIELD_ID}"`));
-    const field = html.slice(fieldStart, html.indexOf(">", fieldStart) + 1);
-    const bar = readFileSync(resolve("public/prompt-bar.js"), "utf8");
+    const field = byId(await elementsOf(html), PROMPT_FIELD_ID);
 
-    expect(field).toContain(`id="${PROMPT_FIELD_ID}"`);
-    expect(field).toContain('name="prompt"');
-    expect(field).not.toContain("required");
-    expect(bar).toContain(`const BLANK_PROMPT_NOTICE = "${BLANK_PROMPT_NOTICE}";`);
-    expect(bar).toContain(BLANK_PROMPT_PATTERN_SOURCE);
+    expect(field.tag).toBe("input");
+    expect(field.attributes.get("name")).toBe("prompt");
+    expect(field.attributes.has("required")).toBe(false);
   });
 
   test("a typed prompt still enters the build-job lifecycle unchanged", async () => {
     const calls = { count: 0 };
     const { recordMetrics } = makeMetricsRecorder();
-    const app = createApp({
+    const app = createTestApp({
       getProvider: () => forbiddenProvider(calls),
       recordMetrics,
       buildDatabases: conns,
@@ -367,7 +362,7 @@ describe("prompt submission parsing", () => {
         capturedPrompts.push(job.prompt);
       },
     });
-    const app = createApp({
+    const app = createTestApp({
       buildDatabases: conns,
       artifactsRoot,
       capabilityRouter: { databases: conns },
@@ -410,7 +405,7 @@ describe("prompt submission parsing", () => {
         capturedPrompt = job.prompt;
       },
     });
-    const app = createApp({
+    const app = createTestApp({
       buildDatabases: conns,
       artifactsRoot,
       capabilityRouter: { databases: conns },
@@ -450,7 +445,7 @@ describe("prompt-job admission separation", () => {
     const mutationCoordinator = createMutationCoordinator();
     let providerRequested = false;
     const { recordMetrics } = makeMetricsRecorder();
-    const app = createApp({
+    const app = createTestApp({
       getProvider: () => {
         providerRequested = true;
         return rejectingProvider([]);
@@ -478,7 +473,7 @@ describe("prompt-job admission separation", () => {
         throw new Error("simulated process loss before resolver metrics persistence");
       },
     }) satisfies RecordMetrics;
-    const app = createApp({
+    const app = createTestApp({
       getProvider: () => rejectingProvider(prompts),
       recordMetrics: lossyMetrics,
       buildDatabases: conns,

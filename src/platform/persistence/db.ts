@@ -7,19 +7,19 @@
 // measured what it leaves open: `PRAGMA query_only` closes `VACUUM INTO` and `CREATE TEMP TABLE`,
 // and `ATTACH` is refused by text at every seam that admits SQL rather than here.
 //
-// Both open against the one documented db file, `data/omni-crud.db`, whose WAL sidecars sit
-// beside it (data/README.md). No domain tables here — those are created at runtime by the
+// Both open against the one documented db file, `data/omni-crud.db` unless `OMNI_DB_PATH` names
+// another, whose WAL sidecars sit beside it (data/README.md). No domain tables here — those are created at runtime by the
 // modules that need them, and the platform-owned migrations runner builds on `db`.
 
 import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { DB_PATH } from "./db-path.ts";
+import { resolveDbPath } from "./db-path.ts";
 import { configureSqliteRuntime } from "./sqlite-functions.ts";
 
 configureSqliteRuntime();
 
-export { DB_PATH } from "./db-path.ts";
+export { DB_PATH, DB_PATH_ENV_VAR, resolveDbPath } from "./db-path.ts";
 
 export interface PlatformDatabase {
   /** The constrained, serialized write path. */
@@ -58,9 +58,9 @@ export async function withWriteTransaction<T>(
 
 /**
  * Open the read-write + read-only pair against `path`. A factory so tests can drive it against a
- * throwaway file; the shared singletons below open it against DB_PATH.
+ * throwaway file; the shared singletons below open it against the configured path.
  */
-export function openDatabase(path = DB_PATH): PlatformDatabase {
+export function openDatabase(path = resolveDbPath()): PlatformDatabase {
   // The read-write connection creates the file but not its parent directory, so a fresh
   // checkout or a temp path would fail on first open.
   mkdirSync(dirname(path), { recursive: true });

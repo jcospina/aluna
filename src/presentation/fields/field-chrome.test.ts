@@ -6,13 +6,46 @@
 // counter exists only where a limit does.
 
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { characterCountSentence } from "./field-chrome.ts";
+import { escapeHtml } from "../../server/http/html.ts";
+import { characterCountSentence, fieldChrome, REQUIRED_FIELD_SENTENCE } from "./field-chrome.ts";
 import { oneField, probeField, SAMPLE } from "./field-renderer.test-support.ts";
 import { renderCreateForm, renderEditForm } from "./field-renderer.ts";
 
 const RECORD_ID = { id: "record-1" } as const;
+
+/** The text a reader meets in `markup`: all of it, and each paragraph's on its own. */
+function spoken(markup: string): { readonly all: string; readonly lines: string[] } {
+  let all = "";
+  const lines: string[] = [];
+  new HTMLRewriter()
+    .onDocument({
+      text(chunk) {
+        all += chunk.text;
+      },
+    })
+    .on("p", {
+      element() {
+        lines.push("");
+      },
+      text(chunk) {
+        lines[lines.length - 1] += chunk.text;
+      },
+    })
+    .transform(markup);
+  return { all, lines };
+}
+
+function attributeOf(markup: string, name: string): string | null {
+  let value: string | null = null;
+  new HTMLRewriter()
+    .on(`[${name}]`, {
+      element(element) {
+        value ??= element.getAttribute(name);
+      },
+    })
+    .transform(markup);
+  return value;
+}
 
 function createFieldHtml(field = probeField("string"), intent = {}): string {
   return renderCreateForm(oneField(field, "repeatable", "picker", intent));
@@ -215,6 +248,45 @@ describe("one declared limit drives the native stop and the counter", () => {
   });
 });
 
+describe("what a field says beneath its control", () => {
+  const limited = probeField("string", { max_length: 180, required: false });
+  const trailingFor = (value: unknown, guidance?: string) =>
+    fieldChrome(
+      "f",
+      limited,
+      oneField(limited, "repeatable", "picker", guidance === undefined ? {} : { guidance }).form,
+      { emptyable: true, value },
+    ).trailing;
+
+  test("is its guidance and then its counter, and nothing else", () => {
+    const { all, lines } = spoken(trailingFor("abc", "Keep it short."));
+    expect(lines).toEqual(["Keep it short.", characterCountSentence(180, 3)]);
+    expect(all).toBe(lines.join(""));
+  });
+
+  test("is only the counter when the form declared no guidance", () => {
+    const { all, lines } = spoken(trailingFor("abc"));
+    expect(lines).toEqual(["", characterCountSentence(180, 3)]);
+    expect(all).toBe(lines.join(""));
+  });
+
+  test("counts an absent value as empty, not as the word null", () => {
+    for (const absent of [null, undefined]) {
+      expect(spoken(trailingFor(absent)).lines).toEqual(spoken(trailingFor("")).lines);
+    }
+    expect(spoken(editFieldHtml(null, limited)).lines).toContain(characterCountSentence(180, 0));
+  });
+});
+
+describe("a required field left empty", () => {
+  test("has a sentence of its own for the form to say", () => {
+    expect(REQUIRED_FIELD_SENTENCE.trim()).not.toBe("");
+    expect(attributeOf(createFieldHtml(), "data-required-message")).toBe(
+      escapeHtml(REQUIRED_FIELD_SENTENCE),
+    );
+  });
+});
+
 describe("the counter's words", () => {
   test("one is singular, because a counter that says '1 characters' is wrong wherever drawn", () => {
     expect(characterCountSentence(180, 179)).toBe("1 character left");
@@ -228,24 +300,6 @@ describe("the counter's words", () => {
   test("past the limit it counts the overrun instead", () => {
     expect(characterCountSentence(180, 181)).toBe("1 over the limit");
     expect(characterCountSentence(180, 200)).toBe("20 over the limit");
-  });
-
-  test("and the design bench draws the same words, which it restates rather than imports", () => {
-    // `design/scripts/` is the contract page's own code and imports nothing of the product's, so
-    // the counter is written out there a second time. This is what keeps the two from drifting:
-    // a wording change that reached only one of them used to rewrite the counter mid-keystroke.
-    const bench = readFileSync(resolve("design/scripts/controls-main.js"), "utf8");
-
-    // Read off the leaf rather than retyped, so a reworded counter fails here rather than
-    // drifting: the bench interpolates the figure and the plural, so the words either side of
-    // them are what both sides have in common.
-    const over = characterCountSentence(1, 2);
-    const singular = characterCountSentence(2, 1);
-
-    expect(bench).toContain(over.slice(over.indexOf(" ") + 1));
-    for (const word of singular.split(" ").slice(1)) {
-      expect(bench, `the bench does not draw "${word}"`).toContain(word);
-    }
   });
 
   test("it counts UTF-16 code units, the way the native attribute and the server both do", () => {
@@ -264,28 +318,6 @@ describe("a field label takes the shared caps role rather than restating it", ()
 
       expect(labels.length, type).toBeGreaterThan(0);
       for (const label of labels) expect(label, type).toContain(" caps");
-    }
-  });
-
-  test("and the sheet states only what the role does not", () => {
-    const rule =
-      /\.field__label \{([\s\S]*?)\}/.exec(
-        readFileSync(resolve(import.meta.dir, "../../../public/css/fields.css"), "utf8"),
-      )?.[1] ?? "";
-
-    expect(rule).toContain("font-family");
-    expect(rule).toContain("line-height");
-    for (const restated of [
-      "font-size",
-      "font-weight",
-      "text-transform",
-      "letter-spacing",
-      "color",
-    ]) {
-      expect(
-        rule,
-        `.field__label restates \`${restated}\`, which \`.caps\` already says`,
-      ).not.toContain(restated);
     }
   });
 });

@@ -8,6 +8,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
 import { REJECT_DEFLECTION } from "../../../pipeline/build/admission/deflection.ts";
 import type { RecordMetrics } from "../../../pipeline/index.ts";
 import type { IntentClassification } from "../../../pipeline/intent/index.ts";
@@ -36,7 +37,6 @@ import {
   throwingProvider,
   wait,
 } from "../../app.test-support.ts";
-import { createApp } from "../../app.ts";
 import { escapeHtml } from "../../http/html.ts";
 import {
   ANSWER_WINDOW_ATTRIBUTE,
@@ -45,6 +45,7 @@ import {
   REFUSED_PROMPT_ATTRIBUTE,
   renderBuildEnding,
 } from "../../http/index.ts";
+import { createTestApp } from "../../isolated-app.test-support.ts";
 import { makeQuestionProvider } from "./staged-question.test-support.ts";
 
 let dir: string;
@@ -84,7 +85,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     // The desk works out what the sentence is on the prompt bar, so a build's first narration is
     // the build's own line and no frame is revealed before there is one.
     expect(eventNames[0]).toBe("fragment");
-    expect(events[0]?.data).toContain('id="prompt-notice"');
+    expect(events[0]?.data).toContain(`id="${PROMPT_NOTICE_ID}"`);
     expect(eventNames).toContain("spec-preview");
     expect(eventNames).toContain("migration-preview");
     expect(eventNames).toContain("units-preview");
@@ -166,7 +167,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(recordLease).toBeDefined();
     const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT);
     const { recordMetrics } = makeMetricsRecorder();
-    const app = createApp({
+    const app = createTestApp({
       getProvider: () => provider,
       recordMetrics,
       buildDatabases: conns,
@@ -199,7 +200,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     const mutationCoordinator = createMutationCoordinator();
     const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, {});
     const { rows, recordMetrics } = makeMetricsRecorder();
-    const app = createApp({
+    const app = createTestApp({
       getProvider: () => provider,
       recordMetrics,
       buildDatabases: conns,
@@ -252,7 +253,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
         throw new Error("metrics unavailable");
       },
     }) satisfies RecordMetrics;
-    const app = createApp({
+    const app = createTestApp({
       getProvider: () => provider,
       recordMetrics: failingMetrics,
       buildDatabases: conns,
@@ -289,7 +290,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     // `createProvider` throws "Missing OMNI_API_KEY ..." before the resolver can classify. The
     // build must still close cleanly with product-voice copy.
     const { recordMetrics } = makeMetricsRecorder();
-    const app = createApp({
+    const app = createTestApp({
       getProvider: throwingProvider("Missing OMNI_API_KEY. ..."),
       recordMetrics,
       buildDatabases: conns,
@@ -370,7 +371,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     // on a desk with an answer window standing. The one notice here is the resolver saying it is
     // still working the sentence out, which is sent before the classification comes back.
     const settled = events.slice(events.findIndex((event) => event.event === "metrics-preview"));
-    expect(eventData(settled, "fragment")).not.toContain('id="prompt-notice"');
+    expect(eventData(settled, "fragment")).not.toContain(`id="${PROMPT_NOTICE_ID}"`);
     expect(events[0]?.data).toContain("new place");
     expect(events[0]?.data).toContain("already started");
     expect(events.at(-1)).toMatchObject({ event: "done", data: "ok" });
@@ -433,7 +434,9 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(events.map((event) => event.event)).toEqual(["metrics-preview", "fragment", "done"]);
     expect(eventData(events, "fragment")).toContain("already have Notes");
     expect(eventData(events, "fragment")).toContain('data-build-restoration-behavior="preserve"');
-    expect(eventData(events, "fragment")).toContain('id="prompt-notice" hx-swap-oob="innerHTML"');
+    expect(eventData(events, "fragment")).toContain(
+      `id="${PROMPT_NOTICE_ID}" hx-swap-oob="innerHTML"`,
+    );
     expect(narration).not.toMatch(
       /capability|intent|extend_capability|registry|schema|migration|handler|artifact/i,
     );
@@ -495,9 +498,10 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(fragments).not.toContain("data-build-restoration");
     // And nothing is left on the bar for the window to contradict. The one notice on this path is
     // the desk working the sentence out, and the window opening is what takes it down.
-    const notices = eventData(events, "fragment").match(/id="prompt-notice"/g) ?? [];
+    const notices =
+      eventData(events, "fragment").match(new RegExp(`id="${PROMPT_NOTICE_ID}"`, "g")) ?? [];
     expect(notices).toHaveLength(1);
-    expect(eventData([events[0] as SseEvent], "fragment")).toContain('id="prompt-notice"');
+    expect(eventData([events[0] as SseEvent], "fragment")).toContain(`id="${PROMPT_NOTICE_ID}"`);
     // Nothing a deflection would have said reaches the window: a question is answered, and the
     // refusal's line is the only one `deflectionNarration` still has (6.5/03).
     expect(fragments).not.toContain(escapeHtml(REJECT_DEFLECTION));

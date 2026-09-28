@@ -28,6 +28,7 @@ import {
 import { GENERATION_METRICS_TABLE } from "../metrics/store.ts";
 import { openDatabase, type PlatformDatabase } from "./db.ts";
 import { MIGRATIONS, MIGRATIONS_TABLE, runMigrations } from "./migrations.ts";
+import { withDefaultRoots } from "./test-roots.test-support.ts";
 
 const BASELINE_ID = "0001_platform_migrations_ledger";
 
@@ -68,7 +69,7 @@ describe("platform migrations runner", () => {
       .all() as { id: string; applied_at: string }[];
     expect(rows.map((r) => r.id)).toEqual(applied);
     for (const row of rows) {
-      expect(row.applied_at).toBeTruthy();
+      expect(Date.parse(row.applied_at)).not.toBeNaN();
     }
 
     const lifecyclePrimaryKey = conns.readwrite
@@ -158,7 +159,7 @@ describe("migrations run on app boot", () => {
     // PORT=0 binds an ephemeral port rather than clashing with anything already listening.
     const proc = Bun.spawn(["bun", entry], {
       cwd: dir,
-      env: { ...process.env, PORT: "0" },
+      env: { ...withDefaultRoots(), PORT: "0" },
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -225,7 +226,7 @@ describe("migrations run on app boot", () => {
     const entry = join(import.meta.dir, "../..", "index.ts");
     const proc = Bun.spawn(["bun", entry], {
       cwd: dir,
-      env: { ...process.env, PORT: "0" },
+      env: { ...withDefaultRoots(), PORT: "0" },
       stdout: "pipe",
       stderr: "pipe",
     });

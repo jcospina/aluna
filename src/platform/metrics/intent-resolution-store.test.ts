@@ -106,6 +106,10 @@ describe("what one question cost, and the two integers it may be said in", () =>
   test("and the cost may say those two things and nothing else", () => {
     // The strict schema is the first of the two walls: a field added at a call site is refused
     // here, whatever it was named and whatever it carried.
+    expect(questionCostSchema.parse({ stepsTaken: 2, elapsedMs: 300 })).toEqual({
+      stepsTaken: 2,
+      elapsedMs: 300,
+    });
     for (const smuggled of [
       { sql: "SELECT * FROM cap_notes" },
       { prompt: "how many notes did I write?" },

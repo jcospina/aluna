@@ -306,10 +306,11 @@ describe("a hold that is interrupted", () => {
     keyListRow(key(grip, "ArrowUp") as never);
 
     expect(labelsOf(field)).toEqual(["Tags 1", "Tags 2", "Tags 3"]);
+    const inputId = field.dataset.listInputId;
     expect(rowsOf(field).map((row) => row.querySelector("input")?.id)).toEqual([
-      "cap-tasks-tags-1",
-      "cap-tasks-tags-2",
-      "cap-tasks-tags-3",
+      `${inputId}-1`,
+      `${inputId}-2`,
+      `${inputId}-3`,
     ]);
     // The grip that moved is now the second row's, and says so.
     expect(gripOf(rowsOf(field)[1])).toBe(grip as never);

@@ -5,14 +5,14 @@
 import { Database } from "bun:sqlite";
 import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { DEFAULT_ARTIFACTS_ROOT } from "../src/builder/artifacts/artifacts-root.ts";
+import { resolveArtifactsRoot } from "../src/builder/artifacts/artifacts-root.ts";
 import { errorMessage } from "../src/platform/errors.ts";
 import { isFileKey } from "../src/platform/files/ledger.ts";
 import {
   resolveObjectStoreRoot,
   STAGING_DIRECTORY,
 } from "../src/platform/files/object-store-root.ts";
-import { DB_PATH } from "../src/platform/persistence/db-path.ts";
+import { resolveDbPath } from "../src/platform/persistence/db-path.ts";
 import { sqlIdentifier } from "../src/platform/persistence/sql-identifier.ts";
 import {
   CAPABILITY_TABLE_PREFIX,
@@ -25,7 +25,6 @@ import {
   REGISTRY_TABLE,
 } from "../src/platform/persistence/table-names.ts";
 
-const GENERATED_DIRS = [DEFAULT_ARTIFACTS_ROOT] as const;
 const TRACKED_PLACEHOLDER = "README.md";
 const PLATFORM_DATA_TABLES = [
   REGISTRY_TABLE,
@@ -44,7 +43,7 @@ const PLATFORM_DATA_TABLES = [
 
 export interface ResetRuntimeOptions {
   readonly root?: string;
-  /** Where `OMNI_OBJECT_STORE_ROOT` is read from. */
+  /** Where the database, artifacts and object store root settings are read from. */
   readonly env?: NodeJS.ProcessEnv;
 }
 
@@ -58,19 +57,16 @@ export interface ResetRuntimeResult {
 export function resetRuntime(options: ResetRuntimeOptions = {}): ResetRuntimeResult {
   const root = resolve(options.root ?? process.cwd());
   const deletedPaths: string[] = [];
-  const databaseResult = wipeDatabaseData(root);
+  const databaseResult = wipeDatabaseData(resolve(root, resolveDbPath(options.env)));
 
-  for (const generatedDir of GENERATED_DIRS) {
-    const directory = join(root, generatedDir);
-    mkdirSync(directory, { recursive: true });
+  const artifactsRoot = resolve(root, resolveArtifactsRoot(options.env));
+  mkdirSync(artifactsRoot, { recursive: true });
+  for (const entry of readdirSync(artifactsRoot)) {
+    if (entry === TRACKED_PLACEHOLDER) continue;
 
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (entry.name === TRACKED_PLACEHOLDER) continue;
-
-      const path = join(directory, entry.name);
-      rmSync(path, { force: true, recursive: true });
-      deletedPaths.push(path);
-    }
+    const path = join(artifactsRoot, entry);
+    rmSync(path, { force: true, recursive: true });
+    deletedPaths.push(path);
   }
 
   const storeRoot = resolve(root, resolveObjectStoreRoot(options.env));
@@ -79,7 +75,7 @@ export function resetRuntime(options: ResetRuntimeOptions = {}): ResetRuntimeRes
     deletedPaths.push(path);
   }
 
-  const leftovers = [...generatedLeftovers(root), ...objectStoreEntries(storeRoot)];
+  const leftovers = [...generatedLeftovers(artifactsRoot), ...objectStoreEntries(storeRoot)];
   if (leftovers.length > 0) {
     throw new Error(`Runtime reset left generated files behind: ${leftovers.join(", ")}`);
   }
@@ -92,11 +88,10 @@ export function resetRuntime(options: ResetRuntimeOptions = {}): ResetRuntimeRes
   };
 }
 
-function wipeDatabaseData(root: string): {
+function wipeDatabaseData(databasePath: string): {
   readonly clearedTables: readonly string[];
   readonly droppedTables: readonly string[];
 } {
-  const databasePath = join(root, DB_PATH);
   mkdirSync(dirname(databasePath), { recursive: true });
 
   const database = new Database(databasePath, { create: true, readwrite: true });
@@ -149,20 +144,11 @@ function objectStoreEntries(storeRoot: string): string[] {
     .map((entry) => join(storeRoot, entry));
 }
 
-function generatedLeftovers(root: string): string[] {
-  const leftovers: string[] = [];
-
-  for (const generatedDir of GENERATED_DIRS) {
-    const directory = join(root, generatedDir);
-    if (!existsSync(directory)) continue;
-
-    for (const entry of readdirSync(directory)) {
-      if (entry === TRACKED_PLACEHOLDER) continue;
-      leftovers.push(join(directory, entry));
-    }
-  }
-
-  return leftovers;
+function generatedLeftovers(artifactsRoot: string): string[] {
+  if (!existsSync(artifactsRoot)) return [];
+  return readdirSync(artifactsRoot)
+    .filter((entry) => entry !== TRACKED_PLACEHOLDER)
+    .map((entry) => join(artifactsRoot, entry));
 }
 
 if (import.meta.main) {

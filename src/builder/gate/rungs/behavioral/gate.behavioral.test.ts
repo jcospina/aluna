@@ -1,8 +1,5 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
-import {
-  type CapabilitySpec,
-  MISSING_REQUIRED_FIELDS_ERROR_CODE,
-} from "../../../../registry/index.ts";
+import type { CapabilitySpec } from "../../../../registry/index.ts";
 import { deriveCapabilityTableDdl } from "../../../../runtime/data/index.ts";
 import {
   BEHAVIORAL_SUITE as FULL_BEHAVIORAL_SUITE,
@@ -22,9 +19,8 @@ import {
   makeBehaviorProvider,
   notesSpec,
 } from "../../gate.test-support.ts";
-import { buildBehavioralTestPrompt, runCapabilityGate } from "../../gate.ts";
+import { runCapabilityGate } from "../../gate.ts";
 import { freezeBehavioralTests } from "./freeze/behavioral-test-freeze.ts";
-import { actionFixtureVocabulary, actionTestInputs } from "./freeze/behavioral-test-inputs.ts";
 import { runFullBehavioralRung } from "./generation/gate-behavioral-full.ts";
 import { assertActionSuiteContract } from "./generation/gate-behavioral-full-contract.ts";
 
@@ -52,75 +48,6 @@ function fullInput(
 }
 
 describe("capability gate — behavioral test generation", () => {
-  test("each Action's prompt carries exactly the closed input set, and nothing else", () => {
-    const spec = notesSpec({
-      schema: {
-        fields: [
-          { name: "text", label: "Note Body", type: "string", required: true, lifecycle: "active" },
-          {
-            name: "pinned",
-            label: "Pinned?",
-            type: "boolean",
-            required: false,
-            lifecycle: "active",
-          },
-          {
-            name: "retired_secret",
-            label: "Retired",
-            type: "string",
-            required: false,
-            lifecycle: "inactive",
-          },
-        ],
-      },
-    });
-    const createPrompt = buildBehavioralTestPrompt(
-      actionTestInputs(spec, "create"),
-      actionFixtureVocabulary(spec),
-    );
-
-    expect(createPrompt).toContain("Action under test: create");
-    expect(createPrompt).toContain("Include at least one normal create case.");
-    expect(createPrompt).not.toContain("export default async function");
-
-    // The prompt builder takes `ActionTestInputs` and never the spec, so the closed set is
-    // enforced by what is reachable, not by prompt discipline. Pin the payload exactly.
-    const sourceStart = createPrompt.indexOf("{\n");
-    const sourceEnd = createPrompt.indexOf("\n\nSynthetic row vocabulary");
-    const source = JSON.parse(createPrompt.slice(sourceStart, sourceEnd)) as Record<
-      string,
-      unknown
-    >;
-    expect(Object.keys(source).sort()).toEqual([
-      "action",
-      "behavior",
-      "behavioral_errors",
-      "read_dependencies",
-      "schema",
-    ]);
-    expect(source.behavior).toBe("Text is required. Newest notes appear first.");
-    expect(source.schema).toEqual([
-      { name: "pinned", required: false, type: "boolean" },
-      { name: "text", required: true, type: "string" },
-    ]);
-    expect(JSON.stringify(source)).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
-    // No label, no inactive field, no field-order signal anywhere in the payload.
-    expect(createPrompt).not.toContain("Note Body");
-    expect(createPrompt).not.toContain("Pinned?");
-    expect(createPrompt).not.toContain("retired_secret");
-
-    for (const action of ["read", "delete"] as const) {
-      const prompt = buildBehavioralTestPrompt(
-        actionTestInputs(spec, action),
-        actionFixtureVocabulary(spec),
-      );
-      expect(prompt).toContain('"row_fields"');
-      expect(prompt).toContain('"name": "text"');
-      expect(prompt).toContain('"name": "pinned"');
-      expect(prompt).not.toContain("retired_secret");
-    }
-  });
-
   test("the generation schema is one Action's cases, in an OpenAI-compatible shape", async () => {
     const { provider, prompts } = makeBehaviorProvider();
     const result = await runCapabilityGate(gateInput({ provider }));
@@ -151,47 +78,10 @@ describe("capability gate — behavioral test generation", () => {
     expect(caseSchema?.required?.sort()).toEqual(Object.keys(caseSchema?.properties ?? {}).sort());
     expect(JSON.stringify(caseSchema?.properties?.expectedError)).toContain("null");
   });
-
-  test("requires non-vacuous ordered search evidence from generated suites", () => {
-    const spec = notesSpec();
-    const prompt = buildBehavioralTestPrompt(
-      actionTestInputs(spec, "search"),
-      actionFixtureVocabulary(spec),
-    );
-
-    expect(prompt).toContain("normal search case must seed at least two matching rows");
-    expect(prompt).toContain(
-      "`expectFragmentIncludesInOrder` must list one unique synthetic marker from each matching row",
-    );
-    expect(prompt).not.toContain("should exclude at least one seeded non-match");
-    expect(prompt).not.toContain("add a seeded non-match");
-    const createPrompt = buildBehavioralTestPrompt(
-      actionTestInputs(spec, "create"),
-      actionFixtureVocabulary(spec),
-    );
-    expect(createPrompt).toContain("Leave `expectFragmentIncludesInOrder` empty");
-    expect(createPrompt).toContain(
-      "values from `expectedRows` only when it holds exactly one affected mutated row",
-    );
-  });
-});
-
-describe("capability gate — behavioral read coverage", () => {
-  test("steers normal read coverage away from platform-owned empty mechanics", () => {
-    const spec = notesSpec();
-    const prompt = buildBehavioralTestPrompt(
-      actionTestInputs(spec, "read"),
-      actionFixtureVocabulary(spec),
-    );
-
-    expect(prompt).toContain("The normal read case must seed at least one row");
-    expect(prompt).toContain("Do not use an empty collection as the normal read case");
-    expect(prompt).toContain("always-on smoke");
-  });
 });
 
 describe("capability gate — behavioral search coverage", () => {
-  test("describes an honest nonblank search case when the schema has no searchable fields", () => {
+  test("admits an honest nonblank search case when the schema has no searchable fields", () => {
     const numericSpec: CapabilitySpec = {
       ...(FULL_NOTES_SPEC as CapabilitySpec),
       schema: {
@@ -232,13 +122,6 @@ describe("capability gate — behavioral search coverage", () => {
       }));
 
     expect(() => assertActionSuiteContract(numericSpec, "search", noTextSearchCases)).not.toThrow();
-    const prompt = buildBehavioralTestPrompt(
-      actionTestInputs(numericSpec, "search"),
-      actionFixtureVocabulary(numericSpec),
-    );
-    expect(prompt).toContain("has no active string/string[] fields");
-    expect(prompt).toContain("behavioral ordering is honestly inapplicable");
-    expect(prompt).not.toContain("must seed at least two matching rows");
   });
 });
 

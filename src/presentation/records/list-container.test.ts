@@ -1,16 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { DELETE_FORM_SELECTOR, DELETE_TRIGGER_SELECTOR } from "#shell/record-mutations.js";
+import { capabilityActionUrl } from "#shell/routes.js";
 
-import {
-  CREATE_CANCELLED_EVENT,
-  FIRST_FIELD_SELECTOR,
-  RECORD_CREATED_EVENT,
-} from "#shell/shell-dom.js";
-
-import { Doc, parseHtml } from "../controls/choice-picker.test-support.ts";
-import { capabilityRecordsRegionId, type RenderableCapability } from "../fields/field-renderer.ts";
+import { Doc, type El, parseHtml } from "../controls/choice-picker.test-support.ts";
+import type { RenderableCapability } from "../fields/field-renderer.ts";
 import { COLLECTION_COUNT_LABEL_ATTR, capabilityCountLabelId } from "./collection-count.ts";
+import { collectionPage, inOrder, named } from "./collection-page.test-support.ts";
 import {
   COLLECTION_LAYOUTS,
   type CollectionLayout,
@@ -19,8 +14,10 @@ import {
   ITEM_PAYLOAD_ATTR,
   ITEM_RECORD_VIEW_ATTR,
   ITEM_TRIGGER_CLASS,
+  itemElementIdForTemplate,
   renderCollection,
   renderItemWrapper,
+  SEARCH_DEBOUNCE_MS,
   serializeItemPayload,
 } from "./list-container.ts";
 import { renderRecordViewTemplate } from "./record-view.ts";
@@ -91,52 +88,10 @@ describe("collection layout — closed feed | grid map", () => {
   });
 });
 
-describe("collection layout — CSS parity", () => {
-  // The classes the mapper emits must actually be styled, or a layout renders unstyled.
-  const css = readFileSync(join(import.meta.dir, "../../../public/css/collection.css"), "utf8");
-  /* Selectors, whatever a formatter did to them: comments gone (a comment quoting a
-     selector must not answer for one) and every run of whitespace one space. */
-  const flatCss = css.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\s+/g, " ");
-  const SEARCH_STATES = ["idle", "loading", "results", "no-matches", "error"] as const;
-
-  test("each layout class is defined in collection.css", () => {
-    for (const layout of COLLECTION_LAYOUTS) {
-      expect(css).toContain(`.${collectionLayoutClass(layout)}`);
-    }
-  });
-
-  test("the item wrapper and empty state are defined in collection.css", () => {
-    expect(css).toContain(`.${ITEM_TRIGGER_CLASS}`);
-    expect(css).toContain(".capability-empty");
-    expect(css).toContain(".capability-search__input");
-    expect(css).toContain(".capability-collection__new");
-    expect(css).toContain("justify-content: space-between");
-    expect(css).toContain('[data-search-state="no-matches"]');
-    expect(css).toContain('[data-search-state="error"]');
-  });
-
-  test("a search in any state suppresses the canonical empty state", () => {
-    // "Nothing here yet" is what a capability with no records says. Every state but `idle` is a
-    // search, and a filtered collection is not a bare one, so none may leave that sentence up.
-    for (const state of SEARCH_STATES.filter((s) => s !== "idle")) {
-      expect(flatCss, `[${state}] leaves the empty state showing`).toContain(
-        `.capability-collection[data-search-state="${state}"] .capability-empty`,
-      );
-    }
-  });
-
-  test("collection-wide search feedback suppresses the canonical empty state", () => {
-    expect(flatCss).toContain(
-      '.capability-collection[data-search-state="no-matches"] .capability-empty',
-    );
-    expect(flatCss).toContain(
-      '.capability-collection[data-search-state="no-matches"] .capability-search__feedback',
-    );
-  });
-
-  test("every search-state rule actually reaches the chrome it is written about", () => {
-    // The rules above once used `>` and matched nothing — the flag is on the collection, the
-    // chrome one level down — so the nesting is read from the parsed render, over a flat sheet.
+describe("collection layout — where the search chrome sits", () => {
+  test("the empty state and the search feedback sit below the collection, not directly in it", () => {
+    // The search-state rules are written as descendants because of this nesting; a child
+    // combinator over it would match nothing.
     const root = parseHtml(renderCollection({ capability: SAMPLE }), new Doc());
     const collection = root.querySelector(".capability-collection");
     expect(collection).not.toBeNull();
@@ -147,225 +102,190 @@ describe("collection layout — CSS parity", () => {
         `${nested} is a direct child, so a child combinator would have reached it`,
       ).toBe(false);
     }
-    for (const state of SEARCH_STATES) {
-      expect(flatCss, `a child combinator under [${state}] matches nothing`).not.toContain(
-        `.capability-collection[data-search-state="${state}"] >`,
-      );
-    }
   });
 });
 
 describe("container scaffolding", () => {
-  const feed = renderCollection({ capability: SAMPLE, layout: "feed" });
-
   test("defaults to the feed layout when none is given", () => {
-    const defaulted = renderCollection({ capability: SAMPLE });
-    expect(defaulted).toContain(collectionLayoutClass(DEFAULT_COLLECTION_LAYOUT));
+    const { region } = collectionPage(SAMPLE, renderCollection({ capability: SAMPLE }));
+    expect(region.classList.contains(collectionLayoutClass(DEFAULT_COLLECTION_LAYOUT))).toBe(true);
   });
 
-  test("renders the records region with the capability's derived id + layout class", () => {
-    expect(feed).toContain(`id="${capabilityRecordsRegionId("tasks")}"`);
-    expect(feed).toContain('class="capability-records capability-records--feed"');
-  });
-
-  test("honors the grid layout", () => {
-    const grid = renderCollection({ capability: SAMPLE, layout: "grid" });
-    expect(grid).toContain("capability-records--grid");
-    expect(grid).not.toContain("capability-records--feed");
-  });
-
-  test('renders a "New X" button that gives the whole window to the create form', () => {
-    expect(feed).toContain("btn--primary");
-    expect(feed).toContain("New Tasks");
-    expect(feed).toContain('hx-post="/capability/tasks/create"');
-
-    // Two views of one surface, not a panel over a list (design D2): the collection
-    // and the form are shown by the same flag, and never both at once.
-    expect(feed).toContain('class="capability-collection__list" x-show="!createOpen"');
-    expect(feed).toContain('x-ref="createPanel" x-show="createOpen"');
-    // The records region and the empty state belong to the list view, so the form
-    // replaces them rather than pushing them down.
-    const listView = feed.slice(
-      feed.indexOf('class="capability-collection__list"'),
-      feed.indexOf('class="capability-collection__create"'),
+  test("honors the grid layout, and only it", () => {
+    const { region } = collectionPage(
+      SAMPLE,
+      renderCollection({ capability: SAMPLE, layout: "grid" }),
     );
-    expect(listView).toContain(`id="${capabilityRecordsRegionId("tasks")}"`);
-    expect(listView).toContain("capability-empty");
+    expect(region.classList.contains(collectionLayoutClass("grid"))).toBe(true);
+    expect(region.classList.contains(collectionLayoutClass("feed"))).toBe(false);
   });
 
-  test("opening the form moves focus into it, because the list is gone", () => {
-    // A view swap that leaves focus on a control no longer on screen strands a
-    // keyboard user at the top of the desk.
-    expect(feed).toContain("createOpen = true");
-    expect(feed).toContain(`$refs.createPanel.querySelector('${FIRST_FIELD_SELECTOR}')?.focus()`);
-    expect(FIRST_FIELD_SELECTOR).not.toContain("'");
+  test("the create form posts to the capability's create action", () => {
+    const { form, region } = collectionPage(SAMPLE);
+    expect(form.getAttribute("hx-post")).toBe(capabilityActionUrl(SAMPLE.id, "create"));
+    expect(form.getAttribute("data-records-target-id")).toBe(region.id);
   });
 
-  test("a successful create closes the form and returns focus to its New button", () => {
-    // The success path used to close the view and leave focus on a control that had
-    // gone, which drops a keyboard user at the top of the desk.
-    expect(feed).toContain(
-      `@${RECORD_CREATED_EVENT}.window="if ($event.detail?.capabilityId === 'tasks') ` +
-        '{ createOpen = false; $nextTick(() => $refs.createTrigger.focus()) }"',
-    );
+  test("the empty state is written around the capability's record noun", () => {
+    // "add your first task above", not "add your first Tasks above": the sentence needs the
+    // singular thing, which is what `noun` is for.
+    const words = collectionPage(SAMPLE).doc.querySelector(".capability-empty")?.textContent ?? "";
+    expect(words).toContain(` ${SAMPLE.noun} `);
+    expect(words).not.toContain(SAMPLE.label);
   });
 
-  test("Cancel is the same exit from the other end, and both return focus to New", () => {
-    expect(feed).toContain('x-ref="createTrigger"');
-    expect(feed).toContain(
-      `@${CREATE_CANCELLED_EVENT}="createOpen = false; $nextTick(() => $refs.createTrigger.focus())"`,
-    );
-    expect(feed).toContain("data-create-cancel");
+  test("a noun with markup in it is words in the sentence, never markup", () => {
+    const noun = "<script>x</script>";
+    const { doc } = collectionPage(SAMPLE, renderCollection({ capability: { ...SAMPLE, noun } }));
+    expect(doc.querySelector("script")).toBeNull();
+    expect(doc.querySelector(".capability-empty")?.textContent).toContain(noun);
   });
 
-  test("renders the empty state, written around the capability's record noun", () => {
-    // "add your first task above", not "add your first Tasks above": the empty-state
-    // sentence needs the singular thing, which is what `noun` is for.
-    expect(feed).toContain('class="capability-empty"');
-    expect(feed).toContain("Nothing here yet — add your first task above.");
-  });
-
-  test("a noun with markup in it is escaped into the sentence, never interpolated raw", () => {
-    const rendered = renderCollection({
-      capability: { ...SAMPLE, noun: "<script>x</script>" },
-    });
-    expect(rendered).not.toContain("<script>");
-    expect(rendered).toContain("add your first &lt;script&gt;x&lt;/script&gt; above.");
-  });
-
-  test("renders accessible debounced search chrome above the records region", () => {
-    const searchIndex = feed.indexOf('data-capability-search data-search-state="idle"');
-    const headerEndIndex = feed.indexOf("</header>");
-    const feedbackIndex = feed.indexOf('class="capability-search__feedback"');
-    const recordsIndex = feed.indexOf(
-      `<div id="${capabilityRecordsRegionId("tasks")}" class="capability-records`,
-    );
-    expect(searchIndex).toBeGreaterThan(-1);
-    expect(searchIndex).toBeLessThan(recordsIndex);
+  test("renders accessible search chrome above the records, and its status line below", () => {
+    const { doc, region } = collectionPage(SAMPLE);
+    const search = doc.querySelector('form[role="search"]') as El;
+    const input = search.querySelector('input[type="search"]') as El;
+    const feedback = doc.querySelector(".capability-search__feedback") as El;
+    const [searchAt, regionAt, feedbackAt] = inOrder(doc, search, region, feedback);
+    expect(searchAt).toBeLessThan(regionAt as number);
     // Nothing comes between the count and the first record, and this line is not always
     // silent — it carries the spinner and the no-match sentence — so it reads last.
-    expect(feedbackIndex).toBeGreaterThan(headerEndIndex);
-    expect(feedbackIndex).toBeGreaterThan(recordsIndex);
-    expect(feed).toContain('role="search"');
-    expect(feed).toContain('type="search" name="q"');
-    expect(feed).toContain('aria-label="Search Tasks"');
-    expect(feed).toContain('aria-controls="tasks-records"');
-    expect(feed).toContain('data-search-debounce-ms="300"');
-    expect(feed).toContain('data-read-url="/capability/tasks/read"');
-    expect(feed).toContain('data-search-url="/capability/tasks/search"');
-    expect(feed).toContain("data-capability-search-clear hidden>Clear</button>");
-    expect(feed).toContain("data-capability-search-status></span>");
-    expect(feed).not.toContain('<label class="sr-only"');
-    expect(feed).not.toContain("I couldn’t find a match. Try another word.");
+    expect(feedbackAt).toBeGreaterThan(regionAt as number);
+    expect(input.getAttribute("name")).toBe("q");
+    expect(input.getAttribute("aria-label")).toBe(`Search ${SAMPLE.label}`);
+    expect(input.getAttribute("aria-controls")).toBe(region.id);
+    expect(search.getAttribute("data-search-debounce-ms")).toBe(String(SEARCH_DEBOUNCE_MS));
+    expect(search.getAttribute("data-read-url")).toBe(capabilityActionUrl(SAMPLE.id, "read"));
+    expect(search.getAttribute("data-search-url")).toBe(capabilityActionUrl(SAMPLE.id, "search"));
+    expect(named(search, "button", "Clear").hidden).toBe(true);
+    expect(search.querySelector("label")).toBeNull();
+    expect(feedback.textContent).toBe("");
+    expect(feedback.getAttribute("aria-live")).toBe("polite");
   });
 
   test("defensively omits search chrome for a View that does not declare search", () => {
-    const withoutSearch = renderCollection({
-      capability: { ...SAMPLE, actions: ["create", "read"] },
-      loadThroughRead: true,
-    });
-    expect(withoutSearch).not.toContain("data-capability-search");
-    expect(withoutSearch).not.toContain("/capability/tasks/search");
-    expect(withoutSearch).toContain('hx-get="/capability/tasks/read"');
-  });
-
-  test("closes the create disclosure only when THIS capability reports a created record", () => {
-    expect(feed).toContain(`@${RECORD_CREATED_EVENT}.window=`);
-    expect(feed).toContain("$event.detail?.capabilityId === 'tasks'");
+    const { doc, region } = collectionPage(
+      SAMPLE,
+      renderCollection({
+        capability: { ...SAMPLE, actions: ["create", "read"] },
+        loadThroughRead: true,
+      }),
+    );
+    expect(doc.querySelector('[role="search"]')).toBeNull();
+    const searchUrl = capabilityActionUrl(SAMPLE.id, "search");
+    expect(
+      [...doc.descendants()].some((node) => Object.values(node.attributes).includes(searchUrl)),
+    ).toBe(false);
+    expect(region.getAttribute("hx-get")).toBe(capabilityActionUrl(SAMPLE.id, "read"));
   });
 
   test("is data-free: an unseeded region is truly empty so the empty-state CSS fires", () => {
-    // No whitespace/children inside the region → `:empty` matches → empty state shows.
-    expect(feed).toContain(
-      `id="${capabilityRecordsRegionId("tasks")}" class="capability-records capability-records--feed"` +
-        ' aria-describedby="tasks-count" data-content-region="records"></div>',
-    );
-    expect(feed).not.toContain(ITEM_PAYLOAD_ATTR);
+    // No whitespace or children inside the region, so `:empty` matches and the empty state shows.
+    const { doc, region } = collectionPage(SAMPLE);
+    expect(region.children).toHaveLength(0);
+    expect(region.textContent).toBe("");
+    expect(doc.querySelector(`[${ITEM_PAYLOAD_ATTR}]`)).toBeNull();
   });
 
   test("seeds the records region with pre-rendered items when given", () => {
-    const seeded = renderCollection({
-      capability: SAMPLE,
-      items: "<article>ITEM_MARKER</article>",
-    });
-    expect(seeded).toContain("ITEM_MARKER");
-    expect(seeded).toContain(
-      'class="capability-records capability-records--feed" aria-describedby="tasks-count" data-content-region="records">',
-    );
+    const items = "<article>ITEM_MARKER</article>";
+    const { region } = collectionPage(SAMPLE, renderCollection({ capability: SAMPLE, items }));
+    expect(region.children.map((child) => child.textContent)).toEqual(["ITEM_MARKER"]);
   });
 
-  test("escapes the capability label in chrome (New X + region aria)", () => {
-    const hostile = renderCollection({
-      capability: { ...SAMPLE, label: "<img src=x onerror=alert(1)>" },
+  test("a hostile capability label stays words in every place it is said", () => {
+    // A name may hold a double quote, which is an attribute breakout wherever it goes unescaped.
+    const label = 'A" onfocus="x" <b class="z">B</b>';
+    const capability = { ...SAMPLE, label };
+    const record = { id: "task-1", created_at: "2026-08-27T00:00:00.000Z", title: "t" };
+    const templateId = "record-tasks-task-1";
+    const html = renderCollection({
+      capability,
+      items:
+        renderItemWrapper("<span>t</span>", record, { templateId }) +
+        renderRecordViewTemplate(templateId, capability, record),
     });
-    expect(hostile).not.toContain("<img src=x");
-    expect(hostile).toContain("&lt;img src=x");
+    const { doc, newButton } = collectionPage(capability, html);
+    const view = (doc.getElementById(templateId) as El).content as El;
+    const search = doc.querySelector("input[type=search]") as El;
+    const backs = [doc, view].map((root) => root.querySelector("[data-record-form-back]") as El);
+
+    expect(search.getAttribute("placeholder")).toBe(`Search ${label}`);
+    expect(search.getAttribute("aria-label")).toBe(`Search ${label}`);
+    expect(doc.querySelector("section")?.getAttribute("aria-label")).toBe(label);
+    expect(newButton.textContent).toBe(`New ${label}`);
+    expect(named(doc, "form", `Add to ${label}`).tag).toBe("form");
+    expect(named(view, "form", `Edit ${label}`).tag).toBe("form");
+    for (const back of backs) {
+      expect(back.getAttribute("aria-label")).toBe(`Back to ${label}`);
+      expect(back.textContent).toEndWith(label);
+    }
+    const everything = [...doc.descendants(), ...view.descendants()];
+    expect(
+      everything.filter(
+        (node) =>
+          node.tag === "b" || (node.hasAttribute("class") && node.getAttribute("class") === "z"),
+      ),
+    ).toEqual([]);
+    expect(
+      everything
+        .flatMap((node) => Object.keys(node.attributes))
+        .filter((name) => name.startsWith("on")),
+    ).toEqual([]);
   });
 });
 
 describe("what the collection states about how many it holds", () => {
-  const feed = renderCollection({ capability: SAMPLE, layout: "feed" });
+  /** The count, and whether it stands between the rail and the first record with nothing between. */
+  function countOf(html: string) {
+    const { doc, region } = collectionPage(SAMPLE, html);
+    const count = doc.querySelector(`[${COLLECTION_COUNT_LABEL_ATTR}]`) as El;
+    const siblings = count.parent?.children ?? [];
+    const at = siblings.indexOf(count);
+    return { count, region, before: siblings[at - 1], after: siblings[at + 1] };
+  }
 
   test("states how many records it holds, under the search rail and above the first item", () => {
-    // PLAN decision 32. Platform chrome between the search rail and the records region, and empty
-    // in the container: the number arrives with the records rather than baked into the View.
-    const headerEndIndex = feed.indexOf("</header>");
-    const countIndex = feed.indexOf(`${COLLECTION_COUNT_LABEL_ATTR}></p>`);
-    const recordsIndex = feed.indexOf(
-      `<div id="${capabilityRecordsRegionId("tasks")}" class="capability-records`,
-    );
-    // Nothing stands between the count and either neighbour, which is what lets the CSS
-    // give it the same gap above and below.
-    expect(countIndex).toBeGreaterThan(headerEndIndex);
-    expect(countIndex).toBeLessThan(recordsIndex);
-    const countStart = feed.indexOf('<p class="capability-count');
-    expect(feed.slice(headerEndIndex + "</header>".length, countStart)).toBe("");
-    expect(feed).toContain(
-      `<p class="capability-count caps" id="${capabilityCountLabelId("tasks")}"`,
-    );
+    // PLAN decision 32. Nothing stands between the count and either neighbour, which is what lets
+    // the CSS give it the same gap above and below.
+    const { count, region, before, after } = countOf(renderCollection({ capability: SAMPLE }));
+    expect(before?.tag).toBe("header");
+    expect(after).toBe(region);
+    expect(count.id).toBe(capabilityCountLabelId(SAMPLE.id));
+    expect(region.getAttribute("aria-describedby")).toBe(count.id);
   });
 
   test("a View that does not declare search still states its count", () => {
-    const withoutSearch = renderCollection({
-      capability: { ...SAMPLE, actions: ["create", "read"] },
-      loadThroughRead: true,
-    });
-    const countIndex = withoutSearch.indexOf(`${COLLECTION_COUNT_LABEL_ATTR}></p>`);
-    const recordsIndex = withoutSearch.indexOf(
-      `<div id="${capabilityRecordsRegionId("tasks")}" class="capability-records`,
+    const capability = { ...SAMPLE, actions: ["create", "read"] as const };
+    const { before, after, region } = countOf(
+      renderCollection({ capability, loadThroughRead: true }),
     );
-    expect(countIndex).toBeGreaterThan(withoutSearch.indexOf("</header>"));
-    expect(countIndex).toBeLessThan(recordsIndex);
+    expect(before?.tag).toBe("header");
+    expect(after).toBe(region);
   });
 
   test("no number is baked into the chrome — not even for a seeded collection", () => {
-    const seeded = renderCollection({
-      capability: SAMPLE,
-      items: "<article>one</article><article>two</article>",
-    });
-    expect(seeded).toContain(`${COLLECTION_COUNT_LABEL_ATTR}></p>`);
+    const items = "<article>one</article><article>two</article>";
+    expect(countOf(renderCollection({ capability: SAMPLE, items })).count.textContent).toBe("");
   });
 });
 
 // The serving mode: the records region lazy-loads live records through
 // the capability's `read` action so the platform View stays data-free.
 describe("container scaffolding — serving mode (loadThroughRead)", () => {
-  const serving = renderCollection({ capability: SAMPLE, loadThroughRead: true });
+  const serving = () =>
+    collectionPage(SAMPLE, renderCollection({ capability: SAMPLE, loadThroughRead: true }));
 
-  test("wires the records region to load through the read action on load", () => {
-    expect(serving).toContain(
-      `<div id="${capabilityRecordsRegionId("tasks")}" class="capability-records capability-records--feed"` +
-        ' aria-describedby="tasks-count" data-content-region="records"' +
-        ' hx-get="/capability/tasks/read" hx-trigger="load" hx-swap="innerHTML"></div>',
-    );
-  });
-
-  test("keeps the region truly empty — data-free chrome, empty state fires until read fills it", () => {
-    // The region carries the read wiring but no child, so `:empty` still matches and no
-    // user record is baked into the chrome; htmx fills it after this scaffolding renders.
-    expect(serving).toContain('hx-swap="innerHTML"></div>');
-    expect(serving).not.toContain(ITEM_PAYLOAD_ATTR);
-    expect(serving).toContain('class="capability-empty"');
+  test("wires the records region to load through the read action on load, and stays empty", () => {
+    // The region carries the read wiring but no child, so `:empty` still matches and no user
+    // record is baked into the chrome; htmx fills it after this scaffolding renders.
+    const { doc, region } = serving();
+    expect(region.getAttribute("hx-get")).toBe(capabilityActionUrl(SAMPLE.id, "read"));
+    expect(region.getAttribute("hx-trigger")).toBe("load");
+    expect(region.getAttribute("hx-swap")).toBe("innerHTML");
+    expect(region.children).toHaveLength(0);
+    expect(doc.querySelector(`[${ITEM_PAYLOAD_ATTR}]`)).toBeNull();
+    expect(doc.querySelector(".capability-empty")).not.toBeNull();
   });
 
   test("ignores seeded items when loading through read — the two modes are mutually exclusive", () => {
@@ -375,89 +295,78 @@ describe("container scaffolding — serving mode (loadThroughRead)", () => {
       items: "<article>SHOULD_NOT_APPEAR</article>",
     });
     expect(both).not.toContain("SHOULD_NOT_APPEAR");
-    expect(both).toContain('hx-get="/capability/tasks/read"');
+    expect(collectionPage(SAMPLE, both).region.getAttribute("hx-get")).toBe(
+      capabilityActionUrl(SAMPLE.id, "read"),
+    );
   });
 
   test("still renders the create disclosure and its post-mutation refresh form", () => {
-    expect(serving).toContain("New Tasks");
-    expect(serving).toContain('hx-post="/capability/tasks/create"');
-    expect(serving).toContain('hx-swap="none"');
-    expect(serving).toContain(`data-records-target-id="${capabilityRecordsRegionId("tasks")}"`);
+    const { form, region } = serving();
+    expect(form.getAttribute("hx-post")).toBe(capabilityActionUrl(SAMPLE.id, "create"));
+    expect(form.getAttribute("hx-swap")).toBe("none");
+    expect(form.getAttribute("data-records-target-id")).toBe(region.id);
   });
 });
 
 describe("item wrapper — the record button", () => {
-  const wrapper = renderItemWrapper('<div class="stack">inner</div>', { title: "Buy oat milk" });
+  /** The wrapper `renderItemWrapper` writes, parsed. */
+  const wrapperOf = (...args: Parameters<typeof renderItemWrapper>) =>
+    parseHtml(renderItemWrapper(...args), new Doc()).children[0] as El;
 
   test("a frame with nothing to open is a card, not a control", () => {
     // Opening one is the only thing a record does, so a wrapper with no record surface
     // behind it must not take focus and then do nothing.
-    expect(wrapper).toContain("<article");
-    expect(wrapper).toContain(`class="${ITEM_TRIGGER_CLASS}"`);
-    expect(wrapper).not.toContain("<button");
-    expect(wrapper).not.toContain("role=");
-    expect(wrapper).not.toContain("tabindex=");
+    const card = wrapperOf('<div class="stack">inner</div>', { title: "Buy oat milk" });
+    expect(card.tag).toBe("article");
+    expect(card.classList.contains(ITEM_TRIGGER_CLASS)).toBe(true);
+    expect(card.querySelector("button")).toBeNull();
+    expect(card.hasAttribute("role")).toBe(false);
+    expect(card.hasAttribute("tabindex")).toBe(false);
   });
 
   test("a record that opens is a real button, with no role, tabindex or dialog ARIA", () => {
-    const record = renderItemWrapper(
+    const record = wrapperOf(
       '<div class="stack">inner</div>',
       { title: "Buy oat milk" },
-      {
-        templateId: "record-tasks-7",
-      },
+      { templateId: "record-tasks-7" },
     );
-    expect(record).toContain('<button type="button"');
-    expect(record).toContain(`class="${ITEM_TRIGGER_CLASS}"`);
-    expect(record).not.toContain("role=");
-    expect(record).not.toContain("tabindex=");
-    expect(record).not.toContain("aria-haspopup");
+    expect(record.tag).toBe("button");
+    expect(record.getAttribute("type")).toBe("button");
+    expect(record.classList.contains(ITEM_TRIGGER_CLASS)).toBe(true);
+    for (const attribute of ["role", "tabindex", "aria-haspopup"]) {
+      expect(record.hasAttribute(attribute), attribute).toBe(false);
+    }
   });
 
   test("frames the inner markup verbatim — it does not re-sanitize its trusted input", () => {
-    expect(wrapper).toContain('<div class="stack">inner</div>');
-  });
-
-  test("carries the caller-supplied client projection as a data-item payload", () => {
-    expect(readBackPayload(wrapper)).toEqual({ title: "Buy oat milk" });
-  });
-});
-
-// Nothing in the collection destroys a record (PLAN decision 22). A delete starts by opening the
-// record, so the only destructive control is in the record's own surface.
-describe("the collection — no per-row delete", () => {
-  // Built the way the adapter builds it: each item is emitted beside the inert `<template>`
-  // carrying that record's view, so the fixture is the markup the criterion is about.
-  const RECORD = { id: "task-7", created_at: "2026-08-27T00:00:00.000Z", title: "Buy oat milk" };
-  const templateId = "record-tasks-task-7";
-  const items =
-    renderItemWrapper('<div class="stack">inner</div>', RECORD, { templateId }) +
-    renderRecordViewTemplate(templateId, SAMPLE, RECORD);
-  const collection = renderCollection({ capability: SAMPLE, items });
-  // What the user can actually reach: a `<template>`'s content is inert until cloned, so
-  // the record's own surface is not part of the collection on screen.
-  const reachable = collection.replace(/<template[\s\S]*?<\/template>/g, "");
-
-  test("nothing reachable in the collection offers a delete", () => {
-    expect(reachable).not.toContain("data-record-delete");
-    expect(reachable).not.toContain("capability-record-delete");
-    expect(reachable).not.toContain("/delete");
-    expect(reachable).not.toContain("btn--danger");
-  });
-
-  test("the delete the collection carries is inert until the record is opened", () => {
-    // It travels with the record so opening one needs no round trip; until then it is
-    // template content, which is not rendered, not scripted and not clickable.
-    expect(collection).toContain("capability-record-delete");
-    expect(collection.indexOf("capability-record-delete")).toBeGreaterThan(
-      collection.indexOf("<template"),
+    expect(renderItemWrapper('<div class="stack">inner</div>', {})).toContain(
+      '<div class="stack">inner</div>',
     );
   });
 
-  test("opening the record is still the only thing a row does", () => {
-    const row = renderItemWrapper("<span>inner</span>", RECORD, { templateId });
-    expect(row).toContain(ITEM_RECORD_VIEW_ATTR);
-    expect(row).not.toContain("data-record-delete");
+  test("carries the caller-supplied client projection as a data-item payload", () => {
+    expect(readBackPayload(renderItemWrapper("<span>x</span>", { title: "Buy oat milk" }))).toEqual(
+      { title: "Buy oat milk" },
+    );
+  });
+
+  test("carries the record-view template id the click controller opens with", () => {
+    const record = wrapperOf("<span>x</span>", {}, { templateId: "record-tasks-7" });
+    expect(record.getAttribute(ITEM_RECORD_VIEW_ATTR)).toBe("record-tasks-7");
+    expect(record.id).toBe(itemElementIdForTemplate("record-tasks-7"));
+  });
+
+  test("omits the open hook when no ref is given (frame-only, the 3.2/02 shape)", () => {
+    expect(wrapperOf("<span>x</span>", { title: "x" }).hasAttribute(ITEM_RECORD_VIEW_ATTR)).toBe(
+      false,
+    );
+  });
+
+  test("a hostile template id stays the attribute's value and opens no element", () => {
+    const templateId = 't"><script>';
+    const root = parseHtml(renderItemWrapper("<span>x</span>", {}, { templateId }), new Doc());
+    expect(root.querySelector("script")).toBeNull();
+    expect(root.children[0]?.getAttribute(ITEM_RECORD_VIEW_ATTR)).toBe(templateId);
   });
 });
 
@@ -493,81 +402,46 @@ describe("item wrapper — payload escaping + safety invariants", () => {
   });
 });
 
-// The click-to-open wiring: the wrapper carries the hook the record swap reads. Optional, so a
-// capability that cannot be updated carries no open hook at all.
-describe("item wrapper — the record-view open hook", () => {
-  const wrapper = renderItemWrapper(
-    "<span>x</span>",
-    { title: "Buy oat milk" },
-    { templateId: "record-tasks-7" },
-  );
+// Nothing in the collection destroys a record (PLAN decision 22). A delete starts by opening the
+// record, so the only destructive control is in the record's own surface.
+describe("the collection — no per-row delete", () => {
+  // Built the way the adapter builds it: each item is emitted beside the inert `<template>`
+  // carrying that record's view, so the fixture is the markup the criterion is about.
+  const RECORD = { id: "task-7", created_at: "2026-08-27T00:00:00.000Z", title: "Buy oat milk" };
+  const templateId = "record-tasks-task-7";
+  const items =
+    renderItemWrapper('<div class="stack">inner</div>', RECORD, { templateId }) +
+    renderRecordViewTemplate(templateId, SAMPLE, RECORD);
+  const deleteUrl = capabilityActionUrl(SAMPLE.id, "delete");
+  const posts = (root: El) =>
+    root.querySelectorAll("[hx-post]").map((n) => n.getAttribute("hx-post"));
 
-  test("carries the record-view template id the click controller opens with", () => {
-    expect(wrapper).toContain(`${ITEM_RECORD_VIEW_ATTR}="record-tasks-7"`);
-    expect(wrapper).toContain('id="record-tasks-7-item"');
+  test("nothing reachable in the collection offers a delete", () => {
+    // A `<template>`'s content is inert until cloned, so the record's own surface is not part of
+    // the collection on screen. Each hook is proved present there, so its absence here means it.
+    const { doc } = collectionPage(SAMPLE, renderCollection({ capability: SAMPLE, items }));
+    const view = (doc.getElementById(templateId) as El).content as El;
+    const destructive = [DELETE_TRIGGER_SELECTOR, DELETE_FORM_SELECTOR, ".btn--danger"];
+    const saysDelete = (root: El) =>
+      root
+        .querySelectorAll("button")
+        .filter((b) => /delete/i.test(b.getAttribute("aria-label") ?? b.textContent));
+    expect(destructive.map((hook) => view.querySelector(hook) !== null)).toEqual([
+      true,
+      true,
+      true,
+    ]);
+    expect(saysDelete(view)).not.toEqual([]);
+    expect(destructive.map((hook) => doc.querySelector(hook))).toEqual([null, null, null]);
+    expect(saysDelete(doc)).toEqual([]);
+    expect(posts(doc)).not.toContain(deleteUrl);
+    expect(doc.getElementById(itemElementIdForTemplate(templateId))?.tag).toBe("button");
   });
 
-  test("still carries the record payload alongside the open hook", () => {
-    expect(readBackPayload(wrapper)).toEqual({ title: "Buy oat milk" });
-  });
-
-  test("omits the open hook when no ref is given (frame-only, the 3.2/02 shape)", () => {
-    const frameOnly = renderItemWrapper("<span>x</span>", { title: "x" });
-    expect(frameOnly).not.toContain(ITEM_RECORD_VIEW_ATTR);
-  });
-
-  test("escapes a hostile template id so it cannot break out of its attribute", () => {
-    const hostile = renderItemWrapper("<span>x</span>", {}, { templateId: 't"><script>' });
-    expect(hostile).not.toContain('"><script>');
-    expect(hostile).toContain("&quot;&gt;&lt;script&gt;");
-  });
-});
-
-// No DOM in Bun, so the swap mechanics live in a browser file this test can only read. It pins
-// that the client agrees on the trigger class and the open hook, and does no key handling.
-describe("record swap — controller contract parity (server ⇄ client)", () => {
-  const controller = readFileSync(join(import.meta.dir, "../../../public/record-view.js"), "utf8");
-
-  // `data-record-view-template` → `recordViewTemplate`: the DOM's dataset camel-casing, so
-  // the server attribute name and the client dataset access agree by construction.
-  function datasetKeyOf(attr: string): string {
-    return attr
-      .replace(/^data-/, "")
-      .replace(/-([a-z])/g, (_match, char: string) => char.toUpperCase());
-  }
-
-  test("selects the platform item trigger the wrapper renders", () => {
-    expect(controller).toContain(`.${ITEM_TRIGGER_CLASS}`);
-  });
-
-  test("reads the same open hook the wrapper writes (attr ↔ dataset agree)", () => {
-    expect(controller).toContain(`dataset.${datasetKeyOf(ITEM_RECORD_VIEW_ATTR)}`);
-  });
-
-  test("hand-writes no key handling: the record is already a button", () => {
-    expect(controller).toContain('addEventListener("click"');
-    expect(controller).not.toContain('addEventListener("keydown"');
-    expect(controller).not.toContain('"Enter"');
-  });
-});
-
-// The create view is the record form's other entrance, so it arrives under the same bar.
-describe("container scaffolding — the create view is the record form's other entrance", () => {
-  const feed = renderCollection({ capability: SAMPLE, layout: "feed" });
-
-  test("the form arrives under the same back control a record's does", () => {
-    // One surface, two ways in: "in a window it always arrives under a back control,
-    // reached either from a record or from New record" (design/index.html).
-    expect(feed).toContain('class="capability-record-view__bar"');
-    expect(feed).toContain('aria-label="Back to Tasks"');
-    expect(feed).toContain(
-      `@click="createOpen = false; $nextTick(() => $refs.createTrigger.focus())"`,
-    );
-  });
-
-  test("the bar comes above the form it introduces", () => {
-    expect(feed.indexOf("capability-record-view__bar")).toBeLessThan(
-      feed.indexOf("capability-create-form"),
-    );
+  test("the delete the collection carries travels inert, inside the record's template", () => {
+    const { doc } = collectionPage(SAMPLE, renderCollection({ capability: SAMPLE, items }));
+    const template = doc.getElementById(templateId) as El;
+    expect(template.tag).toBe("template");
+    expect(posts(template.content as El)).toContain(deleteUrl);
   });
 });

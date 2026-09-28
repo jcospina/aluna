@@ -22,7 +22,11 @@ export const refusing =
  * suite that mounts one has it for its own length and not after.
  */
 export function drawnFileFields(): (doc: Doc, transfer: Transfer) => void {
-  afterAll(() => Reflect.deleteProperty(globalThis, "document"));
+  const had = Reflect.getOwnPropertyDescriptor(globalThis, "document");
+  afterAll(() => {
+    if (had) Object.defineProperty(globalThis, "document", had);
+    else Reflect.deleteProperty(globalThis, "document");
+  });
   return (doc, transfer) => {
     Object.defineProperty(globalThis, "document", { value: doc, configurable: true });
     mountFileFields(doc as never, transfer);

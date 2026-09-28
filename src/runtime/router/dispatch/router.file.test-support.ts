@@ -12,7 +12,7 @@ import {
 import { FILE_LEDGER_TABLE } from "../../../platform/files/ledger.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { CapabilityRow } from "../../../registry/index.ts";
-import { createApp } from "../../../server/app.ts";
+import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import { createMutationCoordinator } from "../../concurrency/mutation-coordinator.ts";
 import {
   type CapabilityActionRecord,
@@ -119,7 +119,7 @@ export function usePhotosRouter(row: () => CapabilityRow = photosRow) {
   const request = (path: string, init?: RequestInit, deps: Partial<CapabilityRouterDeps> = {}) => {
     const { mutationCoordinator, ...router } = deps;
     // The app owns the coordinator its routes share, so one handed only to the router is unused.
-    return createApp({
+    return createTestApp({
       capabilityRouter: { databases: conns(), ...router },
       ...(mutationCoordinator ? { mutationCoordinator } : {}),
     }).request(path, init);

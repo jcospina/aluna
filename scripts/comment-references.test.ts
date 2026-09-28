@@ -3,7 +3,7 @@
 
 import { describe, expect, test } from "bun:test";
 
-import { ABSENT_MARKER, auditRepository, staleReferences } from "./comment-references.ts";
+import { ABSENT_MARKER, staleReferences } from "./comment-references.ts";
 
 const HERE = "scripts/comment-references.test.ts";
 const REAL = "scripts/comment-budget.ts";
@@ -100,11 +100,5 @@ describe("a file that is meant to be missing", () => {
   test("is a marker only where a citation precedes it, not wherever the word appears", () => {
     const line = `the row is ${ABSENT_MARKER} when the tier is off; see \`${GONE}\``;
     expect(cited(HERE, comment(line))).toEqual([GONE]);
-  });
-});
-
-describe("the repository", () => {
-  test("cites nothing that has moved away", () => {
-    expect(auditRepository().map((one) => `${one.file}:${one.line} ${one.cited}`)).toEqual([]);
   });
 });

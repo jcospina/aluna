@@ -18,13 +18,13 @@ const PICKER_SELECTOR = '[data-choice-presentation="picker"]';
 const OPEN_KEYS = new Set(["ArrowDown", "ArrowUp", "Enter", " ", "Home", "End"]);
 
 /** The tallest the design lets a panel grow, and the shortest that is still a list. */
-const MAX_PANEL_HEIGHT = 260;
-const MIN_SCROLL_HEIGHT = 68;
+export const MAX_PANEL_HEIGHT = 260;
+export const MIN_SCROLL_HEIGHT = 68;
 /**
  * The clearance between the control and the panel, and off the edge it is inset by so it reads as
  * inside the frame. The panel does not clip, so a long list scrolls at `.listbox__scroll`.
  */
-const PANEL_GAP = 5;
+export const PANEL_GAP = 5;
 
 /**
  * Every option in one listbox, in document order. Group wrappers are invisible to this:
@@ -675,8 +675,9 @@ function announceChange(carrier) {
  * @param {readonly ChoicePicker[]} pickers
  */
 export function resetChoiceControls(form, pickers) {
+  // Asked of the picker: `form.contains` is a field, for a capability with one called `contains`.
   for (const picker of pickers) {
-    if (form.contains(picker.root)) picker.restore();
+    if (picker.root.closest("form") === form) picker.restore();
   }
   for (const field of form.querySelectorAll('[data-choice-presentation="segmented"]')) {
     if (field instanceof HTMLElement) restoreSegments(field);

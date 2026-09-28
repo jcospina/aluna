@@ -30,13 +30,14 @@ const WATCHED_ROOTS = [join(REPO_ROOT, "src")] as const;
 const RESTART_DEBOUNCE_MS = 120;
 
 /**
- * Test files sit in the same tree but never enter the server's module graph, so editing one
+ * Test and policy files sit in the same tree but never enter the server's module graph, so editing one
  * while the app is open would otherwise bounce the server for nothing.
  */
 export function isRestartWorthy(path: string | null): boolean {
   if (!path) return false;
   if (path.endsWith("~") || path.endsWith(".swp") || path.includes(".DS_Store")) return false;
-  if (path.includes(".test.") || path.includes(".test-support.")) return false;
+  if ([".test.", ".test-support.", ".policy."].some((suffix) => path.includes(suffix)))
+    return false;
   return [".ts", ".tsx", ".js", ".json"].some((extension) => path.endsWith(extension));
 }
 

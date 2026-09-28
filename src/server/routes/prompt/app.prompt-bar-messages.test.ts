@@ -1,11 +1,20 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, jest, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { PROMPT_FORM_ID } from "#shell/desk-window.js";
+import fc from "fast-check";
+import {
+  CAPABILITY_LOGO_SELECTOR,
+  NAME_THE_WINDOW_EVENT,
+  PROMPT_FORM_ID,
+  PUT_WINDOW_AWAY_EVENT,
+} from "#shell/desk-window.js";
+import {
+  PROMPT_BAR_MESSAGE_EVENT,
+  PROMPT_REFUSAL_FLASH_MS,
+  PROMPT_REFUSED_CLASS,
+} from "#shell/prompt-bar.js";
 import { PROMPT_FIELD_ID, PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
 
-import { INVALID_CHOICE_ERROR_CODE } from "../../../registry/index.ts";
-import { NOT_FOUND_FRAGMENT } from "../../../runtime/router/wire/failure-responses.ts";
 import {
   closeStream,
   desk,
@@ -18,17 +27,14 @@ import {
 } from "../../app.shell-double.test-support.ts";
 import {
   BLANK_PROMPT_NOTICE,
-  NOT_FOUND_NOTICE,
+  hasMeaningfulPromptContent,
   PROMPT_REFUSAL_ATTRIBUTE,
   renderPromptNotice,
 } from "../../http/index.ts";
-import { BLANK_PROMPT_PATTERN_SOURCE } from "./prompt-admission.test-support.ts";
+import { byId, elementsOf, moduleSources } from "../../http/served-page.test-support.ts";
 
 // The desk has two places to speak and each message goes to the one that was asked (PLAN decisions
 // 24 and 26; ARCH §6.1, §6.2). Run rather than grepped: routing proved by a string match is not.
-
-/** The seam a module of the desk speaks through, restated the way both sides restate it. */
-const PROMPT_BAR_MESSAGE_EVENT = "aluna:prompt-bar-message";
 
 /** What the bar is saying, read the way a person reads it. */
 function spoken(scene: ReturnType<typeof desk>): string {
@@ -41,7 +47,7 @@ function refused(scene: ReturnType<typeof desk>): boolean {
 }
 
 function flashing(scene: ReturnType<typeof desk>): boolean {
-  return scene.promptForm.classList.contains("is-refused");
+  return scene.promptForm.classList.contains(PROMPT_REFUSED_CLASS);
 }
 
 /**
@@ -79,42 +85,16 @@ function deskFurniture() {
   });
 }
 
+/** The attribute the desk finds a logo by, read off the desk's own selector. */
+const LOGO_ATTRIBUTE = CAPABILITY_LOGO_SELECTOR.slice(1, -1);
+
 /** A capability's logo: on the desk, and the one thing there that opens rather than acts. */
 function deskLogo() {
   return new El("button", {
-    "data-capability-logo": "",
+    [LOGO_ATTRIBUTE]: "",
     "data-capability-id": "notes",
     "hx-target": `#${WINDOW_REGION_ID}`,
   });
-}
-
-/** The undeclared-choice refusal, exactly as `src/runtime/router/wire/failure-responses.ts` writes it. */
-const INVALID_CHOICE_FRAGMENT = `<p class="notice" data-role="error" data-error-code="${INVALID_CHOICE_ERROR_CODE}" data-error-fields="status">That isn’t one of the options I can store here. Mind picking one from the list?</p>`;
-
-/** The read-gate refusal, exactly as `src/runtime/router/wire/failure-responses.ts` writes it. */
-const READ_UNAVAILABLE =
-  '<p class="notice" data-role="error" data-error-code="read_unavailable">I’m making a careful change here. Give me a moment, then try that again.</p>';
-
-/**
- * One structured refusal, asked for by `asking` and answered by the router.
- * @returns whether htmx was told to swap the response where it was aimed.
- */
-function structuredRefusal(
-  scene: ReturnType<typeof desk>,
-  asking: El,
-  body = READ_UNAVAILABLE,
-  status = 409,
-) {
-  // htmx dispatches `htmx:beforeSwap` on the swap target, so `elt` is the region and the element
-  // that asked rides in the request's configuration — confirmed live against the vendored htmx.
-  const detail = {
-    xhr: { status, responseText: body },
-    shouldSwap: false,
-    elt: scene.region,
-    requestConfig: { elt: asking },
-  };
-  scene.fire("htmx:beforeSwap", { detail });
-  return detail.shouldSwap;
 }
 
 describe("a build refused because a run already has the window", () => {
@@ -140,16 +120,18 @@ describe("a build refused because a run already has the window", () => {
     expect(scene.promptField.focused).toBe(false);
   });
 
-  test("flashes the bar as the cue, and the cue lets go on its own", async () => {
+  test("flashes the bar as the cue, and the cue lets go on its own", () => {
+    jest.useFakeTimers();
     const scene = desk();
-
-    submitPrompt(scene);
-    expect(flashing(scene)).toBe(true);
-
-    // Waited for rather than slept past: the cue is 400ms, this suite runs sharded beside
-    // nine hundred other tests, and a margin measured in tens of milliseconds is a flake.
-    for (let waited = 0; waited < 4000 && flashing(scene); waited += 25) await Bun.sleep(25);
-    expect(flashing(scene)).toBe(false);
+    try {
+      submitPrompt(scene);
+      jest.advanceTimersByTime(PROMPT_REFUSAL_FLASH_MS - 1);
+      expect(flashing(scene)).toBe(true);
+      jest.advanceTimersByTime(1);
+      expect(flashing(scene)).toBe(false);
+    } finally {
+      jest.useRealTimers();
+    }
     // The words stay: the flash is the cue, not the message, and nothing times the
     // sentence away.
     expect(spoken(scene)).toContain("I’m still making the last thing you asked for");
@@ -181,20 +163,31 @@ describe("a submission with nothing in it", () => {
       const scene = desk();
 
       expect(submitBlank(scene, typed)).toBe(true);
-      expect(spoken(scene)).toBe("What would you like me to make?");
+      expect(spoken(scene)).toBe(BLANK_PROMPT_NOTICE);
       expect(refused(scene)).toBe(true);
       expect(flashing(scene)).toBe(true);
     }
   });
 
   test("and neither becomes a request, so no window is opened for it", () => {
-    const scene = desk();
+    const blank = desk();
+    const typed = desk();
+    // htmx's own listener, on the form itself: whatever reaches it goes on the wire.
+    const sent = (scene: ReturnType<typeof desk>) => {
+      const onTheWire: string[] = [];
+      scene.promptForm.addEventListener("submit", () => onTheWire.push("sent"));
+      return onTheWire;
+    };
+    const blankSent = sent(blank);
+    const typedSent = sent(typed);
 
-    submitBlank(scene, "   ");
+    submitBlank(blank, "   ");
+    submitBlank(typed, "keep track of my plants");
 
-    // Stopped at the document in the capture phase: htmx listens on the form itself, so an event
-    // that never reaches it never goes on the wire, and the opener reads `defaultPrevented`.
-    expect(scene.propagationStopped).toContain("submit");
+    // Stopped at the document in the capture phase, before the form's own listener runs.
+    expect(blankSent).toEqual([]);
+    expect(typedSent).toEqual(["sent"]);
+    expect(blank.propagationStopped).toContain("submit");
   });
 
   test("a prompt with something in it is left alone", () => {
@@ -292,70 +285,6 @@ describe("what retires a sentence on the bar", () => {
     expect(submitPrompt(scene)).toBe(false);
     expect(spoken(scene)).toBe("");
     expect(flashing(scene)).toBe(false);
-  });
-});
-
-describe("a structured refusal renders on the surface it arrived from", () => {
-  test("in the window, when the window is what asked", () => {
-    const scene = desk();
-    const field = new El("form", { id: "notes-create" });
-    scene.region.append(field);
-
-    expect(structuredRefusal(scene, field)).toBe(true);
-    // Aimed where the router aimed it, and the bar says nothing it was not asked.
-    expect(spoken(scene)).toBe("");
-  });
-
-  test("on the prompt bar, when something on the desk is what asked", () => {
-    const scene = desk();
-
-    expect(structuredRefusal(scene, deskLogo())).toBe(false);
-    expect(spoken(scene)).toBe(
-      "I’m making a careful change here. Give me a moment, then try that again.",
-    );
-    expect(refused(scene)).toBe(true);
-    // The window keeps everything it was holding: the refusal never reached it.
-    expect(scene.region.childNodes).toEqual([scene.displaced, scene.subscriber]);
-  });
-
-  test("where it was aimed, when its sentence cannot be read", () => {
-    const scene = desk();
-    const unreadable = '<p data-role="error" data-error-code="read_unavailable"></p>';
-
-    // Silence is the one answer this rule may never give, so an empty refusal is left to
-    // land where it was already going rather than moved to a slot with nothing in it.
-    expect(structuredRefusal(scene, deskLogo(), unreadable)).toBe(true);
-    expect(spoken(scene)).toBe("");
-  });
-
-  test("a press on a tile whose capability has gone speaks, rather than flickering a window", () => {
-    const scene = desk();
-
-    // The router's own fragment, not a copy: htmx drops any 4xx the shell does not claim, so a
-    // fragment written for a screen it never reaches is the failure this pins (5.9/03).
-    expect(structuredRefusal(scene, deskLogo(), NOT_FOUND_FRAGMENT, 404)).toBe(false);
-    expect(spoken(scene)).toBe(NOT_FOUND_NOTICE);
-    expect(refused(scene)).toBe(true);
-    expect(scene.region.childNodes).toEqual([scene.displaced, scene.subscriber]);
-  });
-
-  test("an undeclared choice value lands in the form it was submitted from", () => {
-    const scene = desk();
-    const field = new El("form", { id: "job_applications-edit" });
-    scene.region.append(field);
-
-    // The router's own fragment. The shell claims a refusal by its code or htmx drops the
-    // 422 entirely, so a new platform code has to arrive on both halves at once.
-    expect(structuredRefusal(scene, field, INVALID_CHOICE_FRAGMENT, 422)).toBe(true);
-    expect(spoken(scene)).toBe("");
-  });
-
-  test("and an unmarked 4xx is still none of the shell's business", () => {
-    const scene = desk();
-    const body = '<p class="notice">something else entirely</p>';
-
-    expect(structuredRefusal(scene, deskLogo(), body)).toBe(false);
-    expect(spoken(scene)).toBe("");
   });
 });
 
@@ -489,21 +418,21 @@ describe("a deflection that keeps the view it would have replaced", () => {
     return scene;
   }
 
-  const DUPLICATE = [
+  const DECLINED = "You already have Tasks, so I didn’t create another one.";
+  const RESTORED = [
     '<div data-build-restoration="capability" data-build-restoration-behavior="preserve">',
     '<div data-active-capability-id="tasks" data-active-capability-incarnation="inc-1" data-active-capability-version="1"></div>',
     "</div>",
-    '<div id="prompt-notice" hx-swap-oob="innerHTML">',
-    "<span data-prompt-refusal>You already have Tasks, so I didn’t create another one.</span>",
-    "</div>",
   ].join("");
+  /** The duplicate's deflection, its sentence written the way the server writes one. */
+  const DUPLICATE = RESTORED + renderPromptNotice(DECLINED, "refusal");
 
   test("lifts the refusal onto the bar with its cue, and leaves the view alone", () => {
     const scene = canonicalDesk();
 
     expect(streamRestoration(scene, DUPLICATE)).toBe(true);
 
-    expect(spoken(scene)).toBe("You already have Tasks, so I didn’t create another one.");
+    expect(spoken(scene)).toBe(DECLINED);
     expect(refused(scene)).toBe(true);
     expect(flashing(scene)).toBe(true);
     expect(scene.displaced.parent).toBe(scene.region);
@@ -518,7 +447,7 @@ describe("a deflection that keeps the view it would have replaced", () => {
     // A prompt that built nothing may not leave the window called `Thinking…` over a
     // collection that has been standing there the whole time.
     expect(scene.dispatched).toContainEqual({
-      type: "aluna:name-the-window",
+      type: NAME_THE_WINDOW_EVENT,
       detail: { title: null },
     });
   });
@@ -533,15 +462,12 @@ describe("a deflection that keeps the view it would have replaced", () => {
 
     closeStream(scene);
 
-    expect(scene.dispatched.map(({ type }) => type)).toContain("aluna:put-window-away");
+    expect(scene.dispatched.map(({ type }) => type)).toContain(PUT_WINDOW_AWAY_EVENT);
   });
 
   test("and an answer arriving that way brings no cue with it", () => {
     const scene = canonicalDesk();
-    const answered = DUPLICATE.replace(
-      "<span data-prompt-refusal>You already have Tasks, so I didn’t create another one.</span>",
-      "Here it is, just as you left it.",
-    );
+    const answered = RESTORED + renderPromptNotice("Here it is, just as you left it.");
 
     expect(streamRestoration(scene, answered)).toBe(true);
 
@@ -553,7 +479,8 @@ describe("a deflection that keeps the view it would have replaced", () => {
 describe("a sentence the server sent out of band", () => {
   /** htmx finishing the `#prompt-notice` swap `renderPromptNotice` asked for. */
   function landOutOfBand(scene: ReturnType<typeof desk>, html: string) {
-    const sentence = /<div id="prompt-notice"[^>]*>([\s\S]*)<\/div>$/.exec(html)?.[1] ?? "";
+    const sentence =
+      new RegExp(`<div id="${PROMPT_NOTICE_ID}"[^>]*>([\\s\\S]*)<\\/div>$`).exec(html)?.[1] ?? "";
     const marked = /<span ([\w-]+)>([\s\S]*)<\/span>/.exec(sentence);
     const child = new El("span", marked ? { [marked[1] ?? ""]: "" } : {});
     child.textContent = marked ? (marked[2] ?? "") : sentence;
@@ -578,112 +505,48 @@ describe("a sentence the server sent out of band", () => {
   });
 });
 
-// The shell is a classic script that imports nothing, so every constant it shares with a module
-// or with the server is restated in it. These are the pins that keep the copies honest.
-describe("the strings the desk restates", () => {
-  const shellGlue = readFileSync(resolve("public/app.js"), "utf8");
-  const promptBar = readFileSync(resolve("public/prompt-bar.js"), "utf8");
+// The shell is a classic script that imports nothing, so every constant it shares with a module or
+// the server is restated in it. The scenes above run it against the owners' own names; what is left
+// is the page the bar ships on and the one reading of a blank prompt both halves have to share.
+describe("the bar the page ships, and the blank prompt both halves refuse", () => {
+  /** A submission the bar is asked to judge. @returns whether it was stopped. */
+  function submitted(scene: ReturnType<typeof desk>, typed: string) {
+    scene.promptField.value = typed;
+    const event = eventAt("submit", scene.promptForm, null);
+    scene.fire("submit", event);
+    return event.defaultPrevented;
+  }
 
-  test("the refusal marker the server writes is the one the bar flashes on", () => {
-    expect(renderPromptNotice("x", "refusal")).toContain(`<span ${PROMPT_REFUSAL_ATTRIBUTE}>`);
-    expect(promptBar).toContain(`const PROMPT_REFUSAL_ATTRIBUTE = "${PROMPT_REFUSAL_ATTRIBUTE}";`);
-    // The glue reads the marker back out of a parked deflection, so it restates it too.
-    expect(shellGlue).toContain(`const PROMPT_REFUSAL_SELECTOR = "[${PROMPT_REFUSAL_ATTRIBUTE}]";`);
+  test("one form, with its field and the one slot it speaks in, and the module that runs it", async () => {
+    const elements = await elementsOf(readFileSync(resolve("public/index.html"), "utf8"));
+    const slots = elements.filter((element) => element.attributes.get("id") === PROMPT_NOTICE_ID);
+    const field = byId(elements, PROMPT_FIELD_ID);
+
+    expect(
+      slots.map(({ attributes, within }) => [attributes.get("aria-live"), within.at(-1)]),
+    ).toEqual([["polite", PROMPT_FORM_ID]]);
+    expect(field.within.at(-1)).toBe(PROMPT_FORM_ID);
+    // The browser's bubble cannot tell an empty field from one holding three spaces, and it is
+    // not the desk's voice either way.
+    expect(field.attributes.has("required")).toBe(false);
+    expect(moduleSources(elements)).toContain("/static/prompt-bar.js");
   });
 
-  test("the bar's own ids agree wherever they are restated", () => {
-    const deskWindow = readFileSync(resolve("public/desk-window.js"), "utf8");
-    const shellDom = readFileSync(resolve("public/shell-dom.js"), "utf8");
-
-    // Two of the three now have one home, so the only copy left to keep honest is the glue's —
-    // a classic script that can import nothing. Its copies are pinned against the real names.
-    expect(shellDom).toContain(`export const PROMPT_FIELD_ID = "${PROMPT_FIELD_ID}";`);
-    expect(shellDom).toContain(`export const PROMPT_NOTICE_ID = "${PROMPT_NOTICE_ID}";`);
-    for (const source of [
-      promptBar,
-      readFileSync(resolve("public/capability-deletion.js"), "utf8"),
-    ]) {
-      expect(source).toContain('from "./shell-dom.js"');
-      expect(source).not.toContain(`const PROMPT_FIELD_ID = "${PROMPT_FIELD_ID}";`);
+  test("the bar refuses exactly the prompts the server would", () => {
+    // The server is the oracle: every code point it reads as nothing, found by asking it.
+    const nothing: number[] = [];
+    for (let point = 0; point <= 0x10ffff; point += 1) {
+      if (!hasMeaningfulPromptContent(String.fromCodePoint(point))) nothing.push(point);
     }
-    expect(shellGlue).toContain(`const PROMPT_FORM_ID = "${PROMPT_FORM_ID}";`);
-    expect(shellGlue).toContain(`const PROMPT_FIELD_ID = "${PROMPT_FIELD_ID}";`);
-    expect(shellGlue).toContain(`const PROMPT_NOTICE_ID = "${PROMPT_NOTICE_ID}";`);
-    expect(deskWindow).toContain(`export const PROMPT_FORM_ID = "${PROMPT_FORM_ID}";`);
-  });
+    const point = fc.oneof(fc.constantFrom(...nothing), fc.integer({ min: 0, max: 0x10ffff }));
+    const scene = desk();
 
-  test("what the desk says to the bar, and what it asks of it", () => {
-    // The deletion module imports the seam rather than restating it; only the glue,
-    // which is a classic script and can import nothing, has a copy to keep honest.
-    expect(promptBar).toContain(
-      'export const PROMPT_BAR_MESSAGE_EVENT = "aluna:prompt-bar-message";',
+    fc.assert(
+      fc.property(fc.array(point, { maxLength: 4 }), (points) => {
+        const typed = String.fromCodePoint(...points);
+        expect(submitted(scene, typed)).toBe(!hasMeaningfulPromptContent(typed));
+      }),
+      { seed: 20260926, numRuns: 3000 },
     );
-    expect(promptBar).toContain(
-      'export const PROMPT_BAR_RETIRE_RUN_SENTENCE_EVENT = "aluna:retire-run-sentence";',
-    );
-    expect(shellGlue).toContain('new CustomEvent("aluna:prompt-bar-message"');
-    expect(shellGlue).toContain('new CustomEvent("aluna:retire-run-sentence"');
-    expect(readFileSync(resolve("public/capability-deletion.js"), "utf8")).toContain(
-      'PROMPT_BAR_MESSAGE_EVENT,\n  PROMPT_NOTICE_ID,\n  PROMPT_REFUSAL_SELECTOR,\n} from "./prompt-bar.js";',
-    );
-  });
-
-  test("the logo the desk-action rule steps around is the desk's own", () => {
-    const deskWindow = readFileSync(resolve("public/desk-window.js"), "utf8");
-    const selector = 'const CAPABILITY_LOGO_SELECTOR = "[data-capability-logo]";';
-
-    expect(deskWindow).toContain(`export ${selector}`);
-    expect(shellGlue).toContain(selector);
-  });
-
-  test("the bar the cue goes on is the form the shell ships", () => {
-    const shell = readFileSync(resolve("public/index.html"), "utf8");
-
-    expect(shell).toContain('id="spec-build-form"');
-    expect(shell).toContain('<div id="prompt-notice" class="prompt__notice" aria-live="polite">');
-    // One slot, and the desk gains no notice component of its own for these messages.
-    expect(shell.match(/id="prompt-notice"/g)).toHaveLength(1);
-    expect(shell).toContain('<script type="module" src="/static/prompt-bar.js"></script>');
-  });
-
-  test("the bar reads a blank submission exactly the way the server does", () => {
-    const server = readFileSync(resolve("src/server/http/prompt-request.ts"), "utf8");
-    const pattern = BLANK_PROMPT_PATTERN_SOURCE;
-
-    expect(server).toContain(pattern);
-    expect(promptBar).toContain(pattern);
-    // And the same sentence, so the two answers are one answer.
-    expect(promptBar).toContain(`const BLANK_PROMPT_NOTICE = "${BLANK_PROMPT_NOTICE}";`);
-  });
-
-  test("the field carries no browser validation to answer it first", () => {
-    const shell = readFileSync(resolve("public/index.html"), "utf8");
-    const field = /<input[^>]*id="spec-build-prompt"[\s\S]*?>/.exec(shell)?.[0] ?? "";
-
-    // The browser's bubble cannot tell an empty field from one holding three spaces, and
-    // it is not the desk's voice either way.
-    expect(field).not.toContain("required");
-  });
-
-  test("the desk does not open a window for a submission already refused", () => {
-    const deskWindow = readFileSync(resolve("public/desk-window.js"), "utf8");
-
-    expect(deskWindow).toContain("if (event.defaultPrevented) return;");
-  });
-
-  test("the cue is the design's own state, at the design's own duration", () => {
-    const promptCss = readFileSync(resolve("public/css/prompt.css"), "utf8");
-
-    expect(promptBar).toContain('const PROMPT_REFUSED_CLASS = "is-refused";');
-    expect(promptBar).toContain("const PROMPT_REFUSAL_FLASH_MS = 400;");
-    // The design's placeholder rule verbatim, and the rail's own alert fill for the case the
-    // design never drew: a refusal that keeps what the person typed, with no placeholder on screen.
-    expect(promptCss).toContain(".prompt.is-refused .prompt__field::placeholder");
-    expect(promptCss).toContain("color: var(--signal)");
-    // Scoped so the fill only applies where the placeholder rule has nothing to say.
-    expect(promptCss).toContain(
-      ".prompt.is-refused:has(.prompt__field:not(:placeholder-shown)) .prompt__composer",
-    );
-    expect(promptCss).toContain("background: var(--well-alert)");
   });
 });

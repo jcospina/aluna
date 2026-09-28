@@ -28,7 +28,7 @@ import {
   UPDATE_HANDLER,
   wait,
 } from "../../app.test-support.ts";
-import { createApp } from "../../app.ts";
+import { createTestApp } from "../../isolated-app.test-support.ts";
 
 let env: ScratchDbEnv;
 
@@ -156,7 +156,7 @@ test("a failed admitted build restores the captured live View through read", asy
   insertCapability(notesCapabilityRow(), env.conns.readwrite);
   const mutationCoordinator = createMutationCoordinator();
   const { recordMetrics } = makeMetricsRecorder();
-  const app = createApp({
+  const app = createTestApp({
     getProvider: newCapabilityThenFailingSpec,
     recordMetrics,
     buildDatabases: env.conns,
@@ -195,7 +195,7 @@ test("a connected cancellation restores the captured View before done", async ()
   const mutationCoordinator = createMutationCoordinator();
   const { recordMetrics } = makeMetricsRecorder();
   const { provider, specStarted } = newCapabilityThenHangingSpec();
-  const app = createApp({
+  const app = createTestApp({
     getProvider: () => provider,
     recordMetrics,
     buildDatabases: env.conns,
@@ -244,7 +244,7 @@ test("cancellation before the stream opens preserves the descriptor for restorat
   const mutationCoordinator = createMutationCoordinator();
   const { recordMetrics } = makeMetricsRecorder();
   const { provider } = newCapabilityThenHangingSpec();
-  const app = createApp({
+  const app = createTestApp({
     getProvider: () => provider,
     recordMetrics,
     buildDatabases: env.conns,
@@ -287,7 +287,7 @@ test("post-activation payload failure keeps success authoritative and uses recov
       return get(buildId, incarnationId);
     },
   }) satisfies RecordMetrics;
-  const app = createApp({
+  const app = createTestApp({
     getProvider: successfulBuildProvider,
     recordMetrics: postActivationFault,
     buildDatabases: env.conns,
@@ -326,7 +326,7 @@ test("post-activation payload failure keeps success authoritative and uses recov
 test("a production SSE disconnect after commit preserves activation and releases its lease", async () => {
   const mutationCoordinator = createMutationCoordinator();
   const { lifecycles, recordMetrics } = makeMetricsRecorder();
-  const app = createApp({
+  const app = createTestApp({
     getProvider: successfulBuildProvider,
     recordMetrics,
     buildDatabases: env.conns,

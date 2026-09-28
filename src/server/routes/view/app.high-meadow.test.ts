@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { responseText } from "../../app.test-support.ts";
-import { createApp } from "../../app.ts";
+import { createTestApp } from "../../isolated-app.test-support.ts";
 
 describe("High Meadow delivery through the shell", () => {
   test("loads High Meadow before the temporary shell integration and removes the styled lockup", async () => {
-    const app = createApp();
+    const app = createTestApp();
     const html = await responseText(await app.request("/"));
 
     const highMeadow = 'href="/design/styles/index.css"';
@@ -15,7 +15,7 @@ describe("High Meadow delivery through the shell", () => {
   });
 
   test("serves High Meadow tokens, both fonts, and the wallpaper from design/", async () => {
-    const app = createApp();
+    const app = createTestApp();
     const tokenResponse = await app.request("/design/styles/tokens.css");
     const frauncesResponse = await app.request("/design/assets/fonts/fraunces-variable.woff2");
     const outfitResponse = await app.request("/design/assets/fonts/outfit-variable.woff2");

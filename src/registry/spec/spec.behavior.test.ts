@@ -334,17 +334,22 @@ describe("capability row shape", () => {
   });
 
   test("version must be a positive integer", () => {
-    const spec = validSpec();
-    const artifacts_path = `capabilities/notes/${incarnation_id}/v1/`;
+    const row = (version: number) => ({
+      ...validSpec(),
+      incarnation_id,
+      version,
+      artifacts_path: `capabilities/notes/${incarnation_id}/v1/`,
+      seed: 184206,
+      logo: { status: "absent" as const, attempts: 0 },
+      display_label_override: null,
+    });
+    expect(capabilityRowSchema.safeParse(row(1)).success).toBe(true);
 
     for (const version of [0, -1, 1.5]) {
-      const result = capabilityRowSchema.safeParse({
-        ...spec,
-        incarnation_id,
-        version,
-        artifacts_path,
-      });
-      expect(result.success).toBe(false);
+      const result = capabilityRowSchema.safeParse(row(version));
+      expect(
+        result.success ? [] : result.error.issues.map((issue) => issue.path.join(".")),
+      ).toEqual(["version"]);
     }
   });
 

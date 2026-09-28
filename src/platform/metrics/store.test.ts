@@ -95,7 +95,7 @@ describe("generation-metrics store — round-trips and partial writes", () => {
     // the write landed in the shared file.
     const fetched = getGenerationMetrics("build-notes-1", conns.readonly);
     expect(fetched).toEqual({ ...metrics, createdAt: fetched?.createdAt ?? "" });
-    expect(fetched?.createdAt).toBeTruthy();
+    expect(Date.parse(fetched?.createdAt ?? "")).not.toBeNaN();
   });
 
   test("a deflection writes intent + tokens with no build timings (partial knowledge)", () => {

@@ -11,29 +11,55 @@
 
 import { describe, expect, test } from "bun:test";
 import { EDGE, PROMPT_CLEARANCE } from "#design/desk-geometry.js";
+import { devTile } from "#design/desk-logo.js";
 import { DEV_STAGES } from "#design/devpanel.js";
-import {
-  DEV_SEED_SELECTOR,
-  DEV_STORAGE_KEY,
-  DEV_TILE_SELECTOR,
-  devDefaultBox,
-  STAGE_PAYLOAD_EVENT,
-  STAGES_CLEARED_EVENT,
-  storedOpenFlag,
-} from "#shell/desk-dev-panel.js";
+import { DEV_TILE_SELECTOR, devDefaultBox, storedOpenFlag } from "#shell/desk-dev-panel.js";
 import { BACK_Z, FRONT_Z, joinStack, leaveStack, standingCount } from "#shell/desk-stack.js";
-import { WINDOW_STORAGE_KEY } from "#shell/desk-window.js";
-import { codeOf as code, readSource as read } from "../../safety/source.test-support.ts";
+import { renderBuildSubscriber } from "../../../server/http/fragments.ts";
+import { elementsOf } from "../../../server/http/served-page.test-support.ts";
+import { El, parseHtml } from "../../controls/choice-picker.test-support.ts";
+import { readSource as read } from "../../safety/source.test-support.ts";
 import { stackMember } from "../window/desk-window.test-support.ts";
+import { type El as DeskEl, standingDesk } from "../window/standing-desk.test-support.ts";
 
-const PANEL = code("public/desk-dev-panel.js");
-const WINDOW = code("public/desk-window.js");
-const WINDOW_STORE = code("public/desk-window-store.js");
-const STACK = code("public/desk-stack.js");
-const GLUE = code("public/app.js");
-const SHELL = read("public/index.html");
-const FRAGMENTS = read("src/server/http/fragments.ts");
-const DESK_CSS = read("design/styles/components/desk.css");
+/** The mark a tile carries: its drawing box, its stroke, and the lines drawn in it. */
+interface Mark {
+  readonly viewBox: string | null;
+  readonly stroke: string | null;
+  readonly paths: readonly (string | null)[];
+}
+
+/** The mark the handbook's own tile draws, built by running `design/scripts/desk-logo.js`. */
+function designMark(): Mark {
+  const desk = standingDesk();
+  try {
+    const svg = devTile(() => {}).querySelector("svg") as DeskEl;
+    return {
+      viewBox: svg.getAttribute("viewBox"),
+      stroke: svg.getAttribute("stroke-width"),
+      paths: svg.querySelectorAll("path").map((path) => path.getAttribute("d")),
+    };
+  } finally {
+    desk.restore();
+  }
+}
+
+/** The mark the shipped page's tile carries, read off the page as served. */
+async function servedMark(): Promise<Mark> {
+  const page = await elementsOf(read("public/index.html"));
+  const hook = /^\[([\w-]+)\]$/.exec(DEV_TILE_SELECTOR)?.[1] ?? DEV_TILE_SELECTOR;
+  const at = page.findIndex((element) => element.attributes.has(hook));
+  const next = page.findIndex((element, index) => index > at && element.tag === "button");
+  const tile = page.slice(at, next < 0 ? undefined : next);
+  const svg = tile.find((element) => element.tag === "svg");
+  return {
+    viewBox: svg?.attributes.get("viewbox") ?? svg?.attributes.get("viewBox") ?? null,
+    stroke: svg?.attributes.get("stroke-width") ?? null,
+    paths: tile
+      .filter((element) => element.tag === "path")
+      .map((path) => path.attributes.get("d") ?? null),
+  };
+}
 
 /** The desk, as the geometry module measures one. */
 const desk = (width: number, height: number) =>
@@ -49,25 +75,9 @@ const desk = (width: number, height: number) =>
   }) as unknown as Parameters<typeof devDefaultBox>[0];
 
 describe("it is the second window, and it opens no window of its own", () => {
-  test("a window that is already up still comes forward when it is asked for", () => {
-    // The press that opens nothing is still a press on the logo of the thing you want to look at,
-    // and below the breakpoint only the frontmost window is in the page at all.
-    expect(WINDOW).toMatch(
-      /if \(pressWouldOpen\([\s\S]{0,340}\n\s*if \(mounted\) raise\(mounted\);/,
-    );
-    expect(WINDOW).toMatch(
-      /if \(mounted\) raise\(mounted\);\s*else\s*openWindow\(THINKING_WINDOW_TITLE/,
-    );
-    // And every opening raises, so a capability swapped into a standing window is
-    // never left behind the panel either.
-    expect(WINDOW).toMatch(/mounted = windowForOpening\([\s\S]{0,400}raise\(mounted\);/);
-  });
-
   test("the address wins on load; a restored panel stands behind it", () => {
     // Nobody asked for the panel on this visit, a remembered preference did, so the URL's
     // capability is in front. A lone restored panel is still raised: a phone shows one window.
-    expect(PANEL).toMatch(/openPanel\(root, root\.querySelector\(DEV_TILE_SELECTOR\), false\)/);
-
     const address = stackMember();
     const panel = stackMember();
     joinStack(address);
@@ -87,131 +97,24 @@ describe("it is the second window, and it opens no window of its own", () => {
     leaveStack(alone);
     expect(standingCount()).toBe(0);
   });
-
-  test("nothing counts z-indexes up, and the panel builds exactly one window", () => {
-    // Two literals and no arithmetic: a stack that could grow is a window manager. A third
-    // window shares the slot behind rather than adding one.
-    expect(STACK).not.toMatch(/\+\+|\+= *1|Math\.max/);
-    // One `<section>` each, so no module can quietly start standing two up.
-    expect(PANEL.match(/document\.createElement\("section"\)/g)).toHaveLength(1);
-    expect(WINDOW.match(/document\.createElement\("section"\)/g)).toHaveLength(1);
-  });
-
-  test("only the frontmost is exposed on a phone, and neither box is overwritten", () => {
-    // The window is the screen below the breakpoint, so the one behind is not behind
-    // anything — it is underneath the whole surface, and taken out of the page.
-    expect(DESK_CSS).toMatch(
-      /@media \(max-width: 720px\)[\s\S]*?\.window--desk\.is-unfocused \{\s*display: none;/,
-    );
-    // Presentation only: the desktop *box* is read past, never written over, which is
-    // `savePresentation`'s own phone guard rather than a second rule here.
-    expect(WINDOW_STORE).toContain("if (isPhone) return;");
-    expect(PANEL).toMatch(/savePresentation\(mounted, phone, localStore\(\), DEV_STORAGE_KEY/);
-  });
 });
 
 describe("the tile is the way in, and it is not a capability", () => {
-  test("it never appears in the capability list and is never confused for one", () => {
-    expect(DEV_TILE_SELECTOR).toBe("[data-dev-tile]");
-    expect(SHELL).toContain("data-dev-tile");
-    // The desk's logo handlers key off `data-capability-logo`. The tile carries none of
-    // it, which is what stops every one of them from ever treating it as a capability.
-    const tile = SHELL.slice(
-      SHELL.indexOf("data-dev-tile") - 400,
-      SHELL.indexOf("Developer</span>"),
-    );
-    expect(tile).not.toContain("data-capability-logo");
-    expect(tile).not.toContain("data-capability-id");
-    // And the server never renders one: the tile is furniture, so nothing about it
-    // comes from the registry.
-    expect(FRAGMENTS).not.toContain("data-dev-tile");
-  });
-
-  test("both surfaces draw the same mark, and it is a drawing rather than type", () => {
+  test("both surfaces draw the same mark, and it is a drawing rather than type", async () => {
     // The handbook builds the tile in script and the shell ships it as static markup, so the mark
     // exists twice and a drifted pair checks the product against a tile that is not its.
-    const marks = read("design/scripts/desk-logo.js");
-    const paths = [...marks.matchAll(/"(M[\d\s.LH]+)"/g)].map((match) => match[1]);
-    expect(paths).toHaveLength(2);
-    for (const d of paths) expect(SHELL).toContain(`<path d="${d}" />`);
-    const viewBox = /DEV_ICON_VIEWBOX = "([^"]+)"/.exec(marks)?.[1];
-    const stroke = /DEV_ICON_STROKE = "([^"]+)"/.exec(marks)?.[1];
-    expect(SHELL).toContain(`viewBox="${viewBox}"`);
-    expect(SHELL).toContain(`stroke-width="${stroke}"`);
-
+    const drawn = designMark();
+    const served = await servedMark();
+    expect(drawn.paths.length).toBeGreaterThan(0);
+    expect(served).toEqual(drawn);
+    const stroke = drawn.stroke;
     // A subject's weight, not `--line`. The boundary on this tile is its edge; a
     // hairline on the glass reads as type someone left there rather than a drawing.
     expect(Number(stroke)).toBeGreaterThan(4);
-    // And the mark is composed against the glass rather than centred in it: the CSS
-    // hands it the whole face and the coordinates do the placing.
-    expect(DESK_CSS).toMatch(/\.logo-tile--dev svg \{[^}]*width: 100%;/);
-    expect(DESK_CSS).not.toMatch(/\.logo-tile--dev svg \{[^}]*place-self: center;/);
-  });
-
-  test("re-pressing the open panel's tile focuses it; only the clay lamp puts it away", () => {
-    // A tile that toggled would put away the panel a developer pressed while reading
-    // it. Focus is what every desk does, and it is what the capability logo does too.
-    expect(PANEL).toMatch(/if \(mounted\) \{\s*raise\(mounted\);\s*return mounted;\s*\}/);
-    expect(PANEL).not.toContain("togglePanel");
-    expect(PANEL).toMatch(/action === "putaway"\) closePanel\(\)/);
-  });
-});
-
-describe("read-only means read-only", () => {
-  test("nothing in the panel mutates canonical state", () => {
-    // The strongest form available: this file has never heard of a record, a schema or
-    // a capability's state, so there is no path from it to any of them.
-    for (const canonical of ["fetch(", "XMLHttpRequest", "hx-post", "hx-delete", '"POST"']) {
-      expect(PANEL, `the panel reaches for \`${canonical}\``).not.toContain(canonical);
-    }
-    // Whole words, so the panel's own `recordStage` — which files a payload it was
-    // handed — is not mistaken for knowing what a capability's record is.
-    for (const noun of ["capability", "records", "schema", "registry", "incarnation"]) {
-      expect(PANEL, `the panel knows what a \`${noun}\` is`).not.toMatch(
-        new RegExp(`\\b${noun}\\b`, "i"),
-      );
-    }
-  });
-
-  test("the panel is never in the address", () => {
-    // `/capability/:id` names a capability and nothing else (design D14). The panel is furniture,
-    // so it has no address to be in and closing it pushes nothing.
-    for (const address of ["pushState", "replaceState", "location", "history"]) {
-      expect(PANEL, `the panel writes \`${address}\``).not.toContain(address);
-    }
-    expect(WINDOW).toContain("pushAddress(DESK_ADDRESS, deskHistory())");
-  });
-
-  test("the panel carries no controls, only readouts", () => {
-    // Two windows is not a layout worth managing, so there is nothing here to press: the panel is
-    // eight readouts and the frame's two lamps. Anything else is a control hidden behind it.
-    expect(PANEL).not.toContain('createElement("button")');
-    expect(PANEL).not.toContain("btn--");
-  });
-
-  test("the payloads it shows are a copy of a stream, never a source", () => {
-    // Kept whether the panel is open or not, so a developer who starts a build and then
-    // reaches for the tile still finds every stage that has already run.
-    expect(PANEL).toContain("const stages = new Map();");
-    expect(PANEL).toMatch(/stages\.set\(key, payload\);/);
-    expect(PANEL).toMatch(/replayStages\(mounted\)/);
   });
 });
 
 describe("the second presentation record, and the last", () => {
-  test("carries one box, the maximised flag, and whether it was open", () => {
-    expect(DEV_STORAGE_KEY).toBe("aluna.desk.dev.v1");
-    expect(DEV_STORAGE_KEY).not.toBe(WINDOW_STORAGE_KEY);
-    // The extra flag is the one thing only this window has. The box beside it is the normal one
-    // (`presentationOf` reads `restore ?? box`), so a maximised size is never written here.
-    expect(PANEL).toMatch(
-      /savePresentation\(mounted, phone, localStore\(\), DEV_STORAGE_KEY, \{\s*open: true/,
-    );
-    // And the flag alone is written through its own path, which preserves whatever box is down,
-    // including none at all — what a panel opened but never moved leaves behind.
-    expect(PANEL).toMatch(/box \? \{ \.\.\.box, max: stored\?\.max === true, open \} : \{ open \}/);
-  });
-
   test("a bad record still opens the panel, and a bad flag still opens the desk", () => {
     // A presentation preference is the shell's to keep and never to depend on. The flag is read
     // on its own, so a record whose box is nonsense still says whether the panel was standing.
@@ -230,29 +133,6 @@ describe("the second presentation record, and the last", () => {
         setItem: () => {},
       }),
     ).toBe(false);
-  });
-
-  test("opening the panel authors no box, and putting it away is heard on a phone", () => {
-    // Two failures in one place: writing the full record at mount persisted `MIN_SIZE` in the
-    // corner on a cold load, and `savePresentation`'s phone guard swallowed the flag.
-    expect(PANEL).toMatch(/rememberOpen\(true\)/);
-    expect(PANEL).toMatch(/rememberOpen\(false\)/);
-    expect(PANEL).toMatch(/function remember\(\) \{\s*if \(!mounted\?\.sized\) return;/);
-    // `rememberOpen` carries no phone guard, because a flag is not a desktop box.
-    const flagWriter = PANEL.slice(
-      PANEL.indexOf("function rememberOpen("),
-      PANEL.indexOf("function refit("),
-    );
-    expect(flagWriter).not.toContain("phone");
-    expect(flagWriter).toContain("readBox(stored)");
-  });
-
-  test("the panel writes its own key and never the capability window's", () => {
-    // `syncForm` in `desk-window.js` binds gestures whose finished drag is remembered under the
-    // capability window's key, so a panel reusing it would strand both records.
-    expect(PANEL).toContain("export function syncDevForm(");
-    expect(PANEL).not.toMatch(/\bsyncForm\(/);
-    expect(PANEL).not.toContain("WINDOW_STORAGE_KEY");
   });
 });
 
@@ -282,51 +162,20 @@ describe("where the panel opens", () => {
 });
 
 describe("the seam a classic script reaches the panel across", () => {
-  test("both ends agree on the two event names", () => {
-    expect(STAGE_PAYLOAD_EVENT).toBe("aluna:stage-payload");
-    expect(STAGES_CLEARED_EVENT).toBe("aluna:stages-cleared");
-    expect(GLUE).toContain(`STAGE_PAYLOAD_EVENT = "${STAGE_PAYLOAD_EVENT}"`);
-    expect(GLUE).toContain(`STAGES_CLEARED_EVENT = "${STAGES_CLEARED_EVENT}"`);
-  });
-
   test("every preview listener names a stage the panel actually builds", () => {
     // The listeners used to name a `<pre>` in the shell. There is no such element now, so what a
     // listener names has to be one of the eight or its payload lands nowhere.
-    const named = [...FRAGMENTS.matchAll(/\["[a-z-]+-preview", "([a-z-]+)"\]/g)].map(
-      (match) => match[1] ?? "",
+    const listeners = parseHtml(renderBuildSubscriber("build-7"), new El("div")).querySelectorAll(
+      "[data-preview-stage]",
     );
-    expect(named.length).toBeGreaterThan(0);
+    expect(listeners.length).toBeGreaterThan(0);
     const keys = new Set(DEV_STAGES.map((stage) => stage.key));
-    for (const stage of named) expect(keys.has(stage)).toBe(true);
-    expect(FRAGMENTS).not.toContain("data-preview-target");
+    for (const listener of listeners) {
+      expect(keys.has(listener.getAttribute("data-preview-stage") ?? "")).toBe(true);
+    }
     // The terminal error files under `commit`, not under the Gate whose verdict already arrived:
     // filing it there overwrote that verdict with the error that followed it.
-    expect(FRAGMENTS).toContain('["build-error-preview", "commit"]');
-  });
-
-  test("only an admitted build empties the panel", () => {
-    // The clear used to ride an out-of-band swap inside the subscriber fragment. Moved to the
-    // request it would fire on every refusal, wiping lifecycle history nothing restores.
-    expect(GLUE).toMatch(/htmx:afterSwap[\s\S]{0,600}STAGES_CLEARED_EVENT/);
-    expect(GLUE).toContain("jobId === clearedForJob");
-    expect(GLUE).not.toMatch(/htmx:beforeRequest[\s\S]{0,200}STAGES_CLEARED_EVENT/);
-  });
-
-  test("the tile stands last however the logos arrive", () => {
-    // Every logo arriving after first paint is appended to the end of the layer out of band,
-    // which left the developer tile stranded mid-grid until the next reload.
-    expect(DESK_CSS).toMatch(/\.logo--dev \{\s*order: 1;/);
-    expect(FRAGMENTS).toContain('CAPABILITY_LOGO_LAYER_TARGET = "#capability-logos"');
-    expect(FRAGMENTS).toMatch(/beforeend:\$\{CAPABILITY_LOGO_LAYER_TARGET\}/);
-  });
-
-  test("the one stage the server already knows rides the page", () => {
-    // Lifecycle metrics and committed versions are what the platform has already done, so they
-    // are seeded onto the page and filed at start, which is what survives a refresh.
-    expect(DEV_SEED_SELECTOR).toBe("[data-dev-stage-seed]");
-    expect(SHELL).toContain('data-dev-stage-seed="metrics"');
-    expect(read("src/server/http/cached-view.ts")).toContain('data-dev-stage-seed="metrics"');
-    // An empty seed is a resting stage, not an empty payload dressed as one.
-    expect(PANEL).toMatch(/if \(stage && payload\) recordStage\(stage, payload\)/);
+    const error = listeners.find((node) => node.getAttribute("sse-swap") === "build-error-preview");
+    expect(error?.getAttribute("data-preview-stage")).toBe("commit");
   });
 });

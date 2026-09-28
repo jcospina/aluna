@@ -35,8 +35,8 @@ import {
   type ScratchDbEnv,
   teardownScratchDbEnv,
 } from "../../app.test-support.ts";
-import { createApp } from "../../app.ts";
 import { renderBuildEnding } from "../../http/index.ts";
+import { createTestApp } from "../../isolated-app.test-support.ts";
 
 let env: ScratchDbEnv;
 
@@ -104,7 +104,7 @@ function promptBody(prompt: string): URLSearchParams {
 
 test("a registry change between resolution and the lease head refuses stale and restores the View", async () => {
   const resolver = racingResolver(commitCompetingVersion);
-  const app = createApp({
+  const app = createTestApp({
     getProvider: () => resolver.provider,
     recordMetrics: createMetricsRecorder(env.conns.readwrite),
     buildDatabases: env.conns,

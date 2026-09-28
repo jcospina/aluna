@@ -11,6 +11,14 @@
 //
 // Not a test file, so bun never runs it.
 
+import { PROMPT_FORM_ID } from "#shell/desk-window.js";
+import { PROMPT_FIELD_ID } from "#shell/shell-dom.js";
+import {
+  type DispatchedEvent,
+  dispatchAlong,
+  type ListenerOptions,
+  Listeners,
+} from "../../../server/dom-events.test-support.ts";
 import { El } from "./desk-dom.test-support.ts";
 
 export { DESK, deskTrace, El, everythingSaid } from "./desk-dom.test-support.ts";
@@ -75,6 +83,8 @@ export interface StandingDesk {
   readonly cookies: string[];
   /** Every window standing right now, in the order the layer holds them. */
   windows(): El[];
+  /** Every node a `ResizeObserver` is still watching: a window's frame lets go of its own. */
+  observed(): El[];
   restore(): void;
 }
 
@@ -115,9 +125,12 @@ export function standingDesk(seed: Readonly<Record<string, string>> = {}): Stand
   const sent: string[] = [];
   const cookies: string[] = [];
   const doc = documentOver(root, cookies);
+  El.pageDocument = doc;
+  El.active = null;
+  const watches = new Set<Set<El>>();
 
   Object.assign(globals, {
-    ...frameGlobals(),
+    ...frameGlobals(watches),
     document: doc,
     window: {
       matchMedia: () => ({ matches: false, addEventListener: () => {} }),
@@ -150,8 +163,11 @@ export function standingDesk(seed: Readonly<Record<string, string>> = {}): Stand
     sent,
     cookies,
     windows: () => [...layer.children],
+    observed: () => [...watches].flatMap((targets) => [...targets]),
     restore: () => {
       El.page = null;
+      El.pageDocument = null;
+      El.active = null;
       for (const name of OCCUPIED) {
         if (displaced.get(name) === undefined) delete globals[name];
         else globals[name] = displaced.get(name);
@@ -174,34 +190,35 @@ function buildDesk() {
   layer.className = "desk__windows";
 
   const bar = new El("form");
-  bar.id = "spec-build-form";
+  bar.id = PROMPT_FORM_ID;
   const field = new El("input");
-  field.id = "spec-build-prompt";
+  field.id = PROMPT_FIELD_ID;
   bar.append(field);
 
   root.append(logos, layer, bar);
   return { root, layer, logos, bar };
 }
 
-/** The globals the shared window frame reaches for while it mounts. */
-function frameGlobals() {
+/** The globals the shared window frame reaches for while it mounts, watches kept in `watches`. */
+function frameGlobals(watches: Set<Set<El>>) {
   return {
     HTMLElement: El,
     Element: El,
     Node: El,
-    CustomEvent: class {
-      constructor(
-        readonly type: string,
-        readonly init: { detail?: unknown } = {},
-      ) {}
-      get detail() {
-        return this.init.detail;
-      }
-      stopPropagation() {}
-    },
     ResizeObserver: class {
-      observe() {}
-      disconnect() {}
+      readonly targets = new Set<El>();
+      constructor() {
+        watches.add(this.targets);
+      }
+      observe(target: El) {
+        this.targets.add(target);
+      }
+      unobserve(target: El) {
+        this.targets.delete(target);
+      }
+      disconnect() {
+        this.targets.clear();
+      }
     },
     MutationObserver: class {
       observe() {}
@@ -258,6 +275,8 @@ export function dragBy(bar: El, dx: number, dy: number): void {
     pointerId: 1,
     clientX: 0,
     clientY: 0,
+    stopPropagation: () => {},
+    preventDefault: () => {},
   } as never);
   bar.dispatchEvent({ type: "pointermove", pointerId: 1, clientX: dx, clientY: dy } as never);
   bar.dispatchEvent({ type: "pointerup", pointerId: 1, clientX: dx, clientY: dy } as never);
@@ -285,9 +304,15 @@ function rewrite(address: AddressBar, next: string, how: string): void {
 export type DeskDocument = ReturnType<typeof documentOver>;
 
 function documentOver(root: El, cookies: string[]) {
+  const listeners = new Listeners();
   return {
+    listeners,
     documentElement: new El("html"),
     body: root,
+    /** The page's one focus: what `focus()` last landed on, or the body once that has gone. */
+    get activeElement(): El {
+      return El.active?.isConnected === true ? El.active : root;
+    },
     get cookie(): string {
       return cookies.join("; ");
     },
@@ -300,13 +325,14 @@ function documentOver(root: El, cookies: string[]) {
     getElementById: (id: string) => root.querySelector(`#${id}`),
     querySelector: (selector: string) => root.querySelector(selector),
     querySelectorAll: (selector: string) => root.querySelectorAll(selector),
-    contains: (node: unknown) => root.descendants().includes(node as El),
-    addEventListener: (type: string, run: (event: unknown) => void) =>
-      root.addEventListener(type, run),
-    removeEventListener: () => {},
-    dispatchEvent: (event: { type: string; detail?: unknown }) => {
-      for (const run of root.listeners.get(event.type) ?? []) run(event);
-      return true;
+    contains: (node: unknown) => node === root || root.descendants().includes(node as El),
+    addEventListener: (type: string, run: (event: never) => void, options?: ListenerOptions) =>
+      listeners.add(type, run, options),
+    removeEventListener: (type: string, run: (event: never) => void, options?: ListenerOptions) =>
+      listeners.remove(type, run, options),
+    /** An event sent at the document itself: its own listeners, and nothing else. */
+    dispatchEvent(event: DispatchedEvent): boolean {
+      return dispatchAlong([this], event);
     },
   };
 }

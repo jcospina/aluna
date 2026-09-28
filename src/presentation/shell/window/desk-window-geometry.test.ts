@@ -23,14 +23,12 @@ import {
   savePresentation,
   WINDOW_STORAGE_KEY,
 } from "#shell/desk-window.js";
-import { codeOf as code, rules } from "../../safety/source.test-support.ts";
 import { desk, fakeEl, type Stored } from "./desk-window.test-support.ts";
+import type { El } from "./standing-desk.test-support.ts";
+import { viewportDesk } from "./viewport-desk.test-support.ts";
 
 // Where the window sits, how big it is, and what survives a reload (PLAN decisions 5, 18, 47, 48;
-// design D9). The module hands its seams out, so what is left grepped for is an ordering and CSS.
-
-const MODULE = code("public/desk-window.js");
-const STORE = code("public/desk-window-store.js");
+// design D9). The sheet and the lengths the module never states are held by the policy beside it.
 
 /** A `localStorage` stand-in, and the two ways a real one fails. */
 function fakeStore(seed: Record<string, string> = {}) {
@@ -181,12 +179,6 @@ describe("opening a window on what was remembered", () => {
     // And the observer that reports the desk arriving re-fits it properly.
     expect(fitBox(state, desk(1280, 720), false)).toBe(true);
     expect(state.box.w).toBeGreaterThan(MIN_SIZE.w);
-  });
-
-  test("the frame is built only after the element is the size it will be", () => {
-    // An ordering no return value exposes: the window's chrome measures the element it
-    // is given, so a frame drawn before the box lands is drawn for the wrong window.
-    expect(MODULE).toMatch(/openingGeometry\(el, [\s\S]*?new AlunaWindow\(el/);
   });
 });
 
@@ -340,34 +332,6 @@ describe("a dismissed window is forgotten", () => {
     expect(forgetPresentation.length, "`forgetPresentation` grew a parameter").toBe(1);
   });
 
-  test("a dismissal is the only way a window going away reaches the record", () => {
-    // The lamp and a Back onto the bare desk are one gesture wearing two faces — the lamp pushes
-    // the address Back arrives at — so either forgets, and nothing else does.
-    expect(MODULE).toMatch(
-      /export function dismissWindow\(\) \{\s*return forgetOnDismissal\(putAway\(\), localStore\(\)\);\s*\}/,
-    );
-
-    // A bare-desk answer covers two things and only one is a dismissal: an address naming a
-    // capability that is not on the ground gets the same answer, and that address is wrong.
-    const bare = /ask === "bare desk"\) \{([\s\S]*?)\n {4}return;/.exec(MODULE)?.[1] ?? "";
-    expect(bare, "no bare-desk branch").not.toBe("");
-    expect(bare).toMatch(
-      /if \(pathname === DESK_ADDRESS\) \{\s*dismissWindow\(\);\s*return;\s*\}\s*putAway\(\);/,
-    );
-    // And the wrong address is corrected rather than left standing: without this the bar goes on
-    // naming a capability nobody can open.
-    expect(bare).toContain("correctUnfilledAddress(pathname, DESK_ADDRESS)");
-
-    // The other two ways a window goes away: emptied by a deletion, and opened for a
-    // read that never filled it. Neither may erase a box the user authored.
-    const unfilled = /function putAwayUnfilledWindow\([\s\S]*?\n\}/.exec(MODULE)?.[0] ?? "";
-    expect(unfilled, "no `putAwayUnfilledWindow`").not.toBe("");
-    expect(unfilled).not.toContain("dismissWindow");
-    expect(MODULE).toMatch(/PUT_WINDOW_AWAY_EVENT, \(\) => \{\s*putAway\(\);/);
-    // Two call sites and the declaration itself: a fourth match is a third dismissal.
-    expect(MODULE.match(/dismissWindow\(\)/g), "a third dismissal").toHaveLength(3);
-  });
-
   test("storage that cannot be cleared is storage a desk still works without", () => {
     const throws = {
       getItem: () => null,
@@ -446,32 +410,6 @@ describe("one record, and no extra key", () => {
 });
 
 describe("the desk changing size is a thing something reacts to", () => {
-  test("the window listener the shipped scripts were missing is there", () => {
-    // Three sources, because they no longer move together. The layer is watched because the floor
-    // and the minimum are in rem: raising the text size grows both without the viewport moving.
-    expect(MODULE).toContain("window.matchMedia(PHONE)");
-    expect(MODULE).toContain('query.addEventListener("change", onResize)');
-    expect(MODULE).toContain('window.addEventListener("resize", onResize)');
-    expect(MODULE).toContain("new ResizeObserver(onResize).observe(layer)");
-    // Installed before either opener, so the first window mounted knows its form, and
-    // installed once however many times the desk is started — the three have no way off.
-    expect(MODULE).toMatch(
-      /watchViewport\(root, layer\);[\s\S]*?root\.addEventListener\(\s*"click"/,
-    );
-    expect(MODULE).toMatch(/if \(watching\) return;\s*watching = true;/);
-  });
-
-  test("every resize re-reads the floor before it clamps to it", () => {
-    // An ordering, so it is read where it is written. The floor is a rem length read back from
-    // the stylesheet: held from module load, a maximised window would slide under a bar that grew.
-    const watch = /const onResize = \(\) => \{([\s\S]*?)\n {2}\};/.exec(MODULE)?.[1] ?? "";
-    expect(watch, "no `onResize`").not.toBe("");
-    expect(watch).toContain("refreshGeometry()");
-    expect(watch.indexOf("refreshGeometry()")).toBeLessThan(watch.indexOf("refit(mounted)"));
-    // The form is settled before the window is fitted to it.
-    expect(watch.indexOf("syncForm(mounted, phone)")).toBeLessThan(watch.indexOf("refit(mounted)"));
-  });
-
   test("a live resize clamps what is remembered rather than trusting it", () => {
     const state = { box: { x: 900, y: 40, w: 700, h: 500 }, maximised: false, sized: true };
     expect(fitBox(state, desk(1600, 900), false)).toBe(true);
@@ -480,31 +418,6 @@ describe("the desk changing size is a thing something reacts to", () => {
     expect(fitBox(state, desk(1000, 600), false)).toBe(true);
     expect(state.box.x + state.box.w).toBeLessThanOrEqual(1000);
     expect(state.box.y + state.box.h).toBeLessThanOrEqual(600 - PROMPT_CLEARANCE);
-  });
-
-  test("a clamp is not a preference, so a passing narrow screen does not erase one", () => {
-    // `fitToDesk` only ever pulls a box in, so written back on every tick one transient narrowing
-    // would erode the remembered box for good. Only a crossing is written.
-    const onResize = /const onResize = \(\) => \{([\s\S]*?)\n {2}\};/.exec(MODULE)?.[1] ?? "";
-    expect(onResize).toMatch(/if \(was !== phone\) remember\(mounted\);/);
-    expect(onResize.match(/remember\(/g), "the resize path writes unconditionally").toHaveLength(1);
-
-    // The gesture's write is guarded on the window still being the one on the desk: taking a frame
-    // out releases the pointer capture, and `onEnd` then arrives after the teardown.
-    expect(MODULE).toMatch(/onEnd: \(\) => void \(mounted === entry && remember\(entry\)\)/);
-    expect(MODULE).toMatch(/syncMaximiseLamp\(entry\);\s*remember\(entry\);/);
-    expect(MODULE.match(/remember\(/g), "a fourth place writes").toHaveLength(3);
-    // And it is the phone guard that every one of them goes through.
-    expect(MODULE).toContain("savePresentation(entry, phone, localStore())");
-  });
-
-  test("re-fitting cannot feed the observer that triggered it", () => {
-    // The box is written as custom properties on a window absolutely positioned inside
-    // the layer, so nothing a re-fit does can resize the layer being watched.
-    expect(code("design/scripts/desk-geometry.js")).toContain('el.style.setProperty("--win-w"');
-    const layer = rules("design/styles/components/desk.css");
-    expect(layer).toMatch(/\.desk__windows\s*\{[^}]*position:\s*absolute/);
-    expect(layer).toMatch(/\.window--desk\s*\{[^}]*position:\s*absolute/);
   });
 });
 
@@ -588,51 +501,37 @@ describe("what a remembered box is, asked in one place", () => {
     expect(readBox([1, 2, 3, 4])).toBeNull();
     // Nothing beyond the four is carried through.
     expect(readBox({ x: 1, y: 2, w: 3, h: 4, restore: { x: 9 } })).not.toHaveProperty("restore");
-
-    // The product and the design page believe the same things, because they ask once.
-    expect(STORE).toContain("readBox(stored)");
-    expect(code("design/scripts/desk.js")).toContain("readBox(stored.window)");
+    // That the design page believes the same things is run in its parity suite.
   });
 });
 
 describe("the floor is the token's, not this module's", () => {
-  test("the window module states no length and no breakpoint of its own", () => {
-    // 5.4/01 put every length in `tokens.css` and `desk-geometry.js` reads them back, so the logo
-    // grid and every window stop on the same floor. A number restated here is that coming apart.
-    expect(code("public/desk-window-frame.js")).toContain("PROMPT_CLEARANCE");
-    expect(MODULE).toContain("PHONE");
-    for (const restated of ["78", "4.875", "720", "620"]) {
-      expect(MODULE, `\`${restated}\` is restated here`).not.toMatch(
-        new RegExp(`(?<![\\d.])${restated.replace(".", "\\.")}(?![\\d.])`),
-      );
+  test("a drag clamps against the desk as it is now, not as it was at the press", async () => {
+    // Reading the bounds once at pointer-down let a rotation or a soft keyboard park the window
+    // inside the prompt bar's clearance.
+    const screen = await viewportDesk();
+    try {
+      screen.module.openWindow("Notes", screen.desk.doc as never);
+      const el = screen.desk.windows()[0] as El;
+      const bar = el.querySelector("header") as El;
+      const at = (name: string) => Number.parseFloat(el.props.get(name) ?? "");
+      bar.dispatchEvent({
+        type: "pointerdown",
+        target: bar,
+        pointerId: 1,
+        clientX: 0,
+        clientY: 0,
+        stopPropagation: () => {},
+        preventDefault: () => {},
+      } as never);
+      const box = screen.desk.layer.getBoundingClientRect();
+      const shorter = { ...box, height: box.height - 150 };
+      screen.desk.layer.getBoundingClientRect = () => shorter;
+      bar.dispatchEvent({ type: "pointermove", pointerId: 1, clientX: 0, clientY: 2000 } as never);
+      expect(at("--win-y") + at("--win-h")).toBeLessThanOrEqual(shorter.height - PROMPT_CLEARANCE);
+      bar.dispatchEvent({ type: "pointerup", pointerId: 1, clientX: 0, clientY: 2000 } as never);
+    } finally {
+      screen.restore();
     }
-    // And no width is compared by hand anywhere on the surface; the query answers it.
-    expect(MODULE).not.toMatch(/innerWidth|clientWidth/);
-  });
-
-  test("no window is placed except through the geometry module", () => {
-    // Every `placeWindow` call site is gated on `fitBox` having said the box is ready: the
-    // opening and every later re-fit. A third would be a box written without meeting the floor.
-    expect(MODULE.match(/placeWindow\(/g)).toHaveLength(2);
-    expect(MODULE.match(/if \(fitBox\(/g)).toHaveLength(2);
-    expect(MODULE).toContain("if (fitBox(state, bounds, isPhone)) placeWindow(el, box)");
-    expect(MODULE).toMatch(
-      /if \(fitBox\(entry, entry\.layer\.getBoundingClientRect\(\), phone\)\) \{\s*placeWindow\(entry\.el, entry\.box\);/,
-    );
-    // And the panel places through the same two, never a copy of them.
-    expect(code("public/desk-dev-panel.js")).not.toMatch(/placeWindow\((?![\s\S]{0,40}entry\.box)/);
-    expect(code("public/desk-dev-panel.js")).toMatch(
-      /if \(fitBox\(entry, entry\.layer\.getBoundingClientRect\(\), phone\)\) \{\s*placeWindow\(entry\.el, entry\.box\);/,
-    );
-    // The gestures reach the same clamps rather than a second copy of them.
-    const gestures = code("design/scripts/window-gestures.js");
-    expect(gestures).toContain(
-      'import { clampPosition, clampSize, placeWindow } from "./desk-geometry.js"',
-    );
-    // And they clamp against the screen as it is now. Reading `host.bounds()` once at pointer-down
-    // let a rotation or a soft keyboard park the window inside the prompt bar's clearance.
-    expect(gestures).toContain("clampPosition(host.bounds(), box)");
-    expect(gestures).toContain("clampSize(host.bounds(), box)");
-    expect(gestures).not.toMatch(/const bounds = host\.bounds\(\);/);
   });
 });

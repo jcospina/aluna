@@ -3,6 +3,7 @@ import {
   type CapabilitySpec,
   canonicalCapabilityLabel,
 } from "../../../registry/index.ts";
+import { containsWords, sameWords } from "./word-forms.ts";
 
 interface SeparateCapabilityIdentity {
   readonly id: string;
@@ -13,39 +14,28 @@ export class OverlapIdentityValidationError extends Error {
   override readonly name = "OverlapIdentityValidationError";
 }
 
-function normalizeToken(token: string): string {
-  if (token.length > 4 && token.endsWith("ies")) return `${token.slice(0, -3)}y`;
-  if (token.length > 3 && token.endsWith("s")) return token.slice(0, -1);
-  return token;
-}
-
 function identityTokens(value: string): Set<string> {
   const tokens = value
     .toLowerCase()
     .match(/[a-z]+|[0-9]+/g)
-    ?.map(normalizeToken)
-    .filter((token) => token.length >= 2);
+    ?.filter((token) => token.length >= 2);
   return new Set(tokens ?? []);
 }
 
-function sameTokens(left: Set<string>, right: Set<string>): boolean {
-  return left.size > 0 && left.size === right.size && [...left].every((token) => right.has(token));
-}
-
-function containsIdentityTokens(container: Set<string>, identity: Set<string>): boolean {
-  return identity.size > 0 && [...identity].every((token) => container.has(token));
+interface Identity {
+  readonly name: string;
+  readonly tokens: Set<string>;
 }
 
 /**
  * Every name this capability answers to: a rename adds one without retiring the old, and the
  * resolver sees it too (`formatCapability`), so matching fewer admits a tile the desk already has.
  */
-function identitiesFor(capability: RenameableIdentity): readonly Set<string>[] {
-  return [
-    identityTokens(capability.id),
-    identityTokens(capability.label),
-    identityTokens(canonicalCapabilityLabel(capability)),
-  ];
+function identitiesFor(capability: RenameableIdentity): readonly Identity[] {
+  return [capability.id, capability.label, canonicalCapabilityLabel(capability)].map((name) => ({
+    name,
+    tokens: identityTokens(name),
+  }));
 }
 
 type RenameableIdentity = Pick<CapabilityRow, "id" | "label" | "display_label_override">;
@@ -63,7 +53,7 @@ function hasMechanicalIdentity(
   if (!base) return false;
   const baseTokens = identityTokens(base);
   return capabilities.some((capability) =>
-    identitiesFor(capability).some((identity) => containsIdentityTokens(baseTokens, identity)),
+    identitiesFor(capability).some((identity) => containsWords(baseTokens, identity.tokens)),
   );
 }
 
@@ -88,14 +78,15 @@ export function validateProposedOverlapIdentity(input: {
   }
 
   const proposed = [identityTokens(input.proposed.id), identityTokens(input.proposed.label)];
-  const collision = input.capabilities.find((capability) =>
-    proposed.some((identity) =>
-      identitiesFor(capability).some((existing) => sameTokens(identity, existing)),
-    ),
-  );
-  if (collision) {
+  for (const capability of input.capabilities) {
+    const reused = identitiesFor(capability).find((existing) =>
+      proposed.some((identity) => sameWords(identity, existing.tokens)),
+    );
+    if (reused === undefined) continue;
+    const shown = canonicalCapabilityLabel(capability);
+    const naming = reused.name === shown ? `"${shown}"` : `"${reused.name}" (shown as "${shown}")`;
     throw new OverlapIdentityValidationError(
-      `A separate overlapping capability cannot reuse the identity "${collision.label}".`,
+      `A separate overlapping capability cannot reuse the identity ${naming}.`,
     );
   }
 }

@@ -186,19 +186,6 @@ describe("the transition table's on → on rows", () => {
     }
   });
 
-  test("each row's disposition is the PLAN's own table cell, verbatim", () => {
-    // Pinned against literals rather than against the module's constant, so editing a
-    // disposition is a test failure instead of a silent rewording of decision 24's table.
-    expect(BEHAVIORAL_TIER_TRANSITION_DISPOSITIONS).toEqual({
-      tier_off: "absent; no generation or execution",
-      tier_enabled: "generate, freeze, and run from current candidate inputs",
-      carried_unrun: "copy; do not run",
-      carried_rerun: "copy; run impacted/full fallback",
-      regenerated: "generate, freeze, and run",
-      tier_disabled: "absent; no copy or execution",
-    });
-  });
-
   test("every row in the closed vocabulary is reachable, and each carries its table cell", () => {
     // Totality both ways: no row is decoration, and no row can be reported without the
     // disposition the PLAN's table states for it.

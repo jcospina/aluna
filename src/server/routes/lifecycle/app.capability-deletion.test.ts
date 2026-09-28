@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { ACTIVE_CAPABILITY_ATTRIBUTE, PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
 import { createBuildJobQueue } from "../../../pipeline/jobs/build-jobs.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { UNKNOWN_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
@@ -15,8 +16,8 @@ import {
   setupRouterTest,
   teardownRouterTest,
 } from "../../../runtime/router/dispatch/router.test-support.ts";
-import { createApp } from "../../app.ts";
 import { NOT_FOUND_NOTICE } from "../../http/index.ts";
+import { createTestApp } from "../../isolated-app.test-support.ts";
 import { confirmationRequest, deletionTarget } from "./deletion.test-support.ts";
 
 function dependentOnNotes(id = "reading_list", label = "Reading list"): CapabilityRow {
@@ -82,7 +83,7 @@ describe("platform-owned capability deletion routes", () => {
       jobCreations += 1;
       return createBuildJob(...args);
     };
-    const app = createApp({
+    const app = createTestApp({
       artifactsRoot: join(dir, "artifacts"),
       getProvider: () => {
         providerCalls += 1;
@@ -125,8 +126,8 @@ describe("platform-owned capability deletion routes", () => {
     // there: the restoration runs on the dismissal and answers for the address itself.
     expect(confirmationHtml).toContain("I can’t delete Notes while Reading list uses it");
     expect(confirmationHtml).toContain("data-capability-deletion-ending");
-    expect(confirmationHtml).not.toContain("data-active-capability-id");
-    expect(confirmationHtml).not.toContain("prompt-notice");
+    expect(confirmationHtml).not.toContain(ACTIVE_CAPABILITY_ATTRIBUTE);
+    expect(confirmationHtml).not.toContain(PROMPT_NOTICE_ID);
     expect(confirmation.headers.get("HX-Replace-Url")).toBe(null);
 
     conns.readwrite.run("UPDATE capability_registry SET read_dependencies = ? WHERE id = ?", [
@@ -149,7 +150,7 @@ describe("platform-owned capability deletion routes", () => {
     const other = boomRow();
     install(conns, target);
     install(conns, other);
-    const app = createApp({
+    const app = createTestApp({
       artifactsRoot: join(dir, "artifacts"),
       capabilityRouter: { databases: conns },
     });
@@ -205,7 +206,7 @@ describe("platform-owned capability deletion routes", () => {
     install(conns, target);
     const mutationCoordinator = createMutationCoordinator();
     const admitted: string[] = [];
-    const app = createApp({
+    const app = createTestApp({
       artifactsRoot: join(dir, "artifacts"),
       mutationCoordinator,
       capabilityRouter: { databases: conns },
@@ -250,7 +251,7 @@ describe("platform-owned capability deletion routes", () => {
     const mutationCoordinator = createMutationCoordinator();
     const reservation = mutationCoordinator.reserveBuild();
     const before = mutationCoordinator.snapshot();
-    const app = createApp({
+    const app = createTestApp({
       artifactsRoot: join(dir, "artifacts"),
       mutationCoordinator,
       capabilityRouter: { databases: conns },
@@ -273,7 +274,7 @@ describe("platform-owned capability deletion routes", () => {
     const target = deletionTarget(dir);
     install(conns, target);
     let admitted = false;
-    const app = createApp({
+    const app = createTestApp({
       artifactsRoot: join(dir, "artifacts"),
       capabilityRouter: { databases: conns },
       capabilityDestructionFaults: {
@@ -322,7 +323,7 @@ describe("platform-owned capability deletion routes", () => {
   test("commit removes an active capability immediately and cleanup failure cannot resurrect it", async () => {
     const target = deletionTarget(dir);
     install(conns, target);
-    const app = createApp({
+    const app = createTestApp({
       artifactsRoot: join(dir, "artifacts"),
       capabilityRouter: { databases: conns },
       capabilityDestructionFaults: {
@@ -369,7 +370,7 @@ describe("platform-owned capability deletion routes", () => {
     install(conns, target);
     mkdirSync(target.artifacts_path, { recursive: true });
     writeFileSync(join(target.artifacts_path, "read.ts"), "old");
-    const app = createApp({
+    const app = createTestApp({
       artifactsRoot,
       capabilityRouter: { databases: conns },
     });
@@ -388,7 +389,7 @@ describe("platform-owned capability deletion routes", () => {
     const other = boomRow();
     install(conns, target);
     install(conns, other);
-    const app = createApp({
+    const app = createTestApp({
       artifactsRoot: join(dir, "artifacts"),
       capabilityRouter: { databases: conns },
     });
@@ -407,7 +408,7 @@ describe("platform-owned capability deletion routes", () => {
   test("a target that is already gone still gives back the capability it displaced", async () => {
     const other = boomRow();
     install(conns, other);
-    const app = createApp({
+    const app = createTestApp({
       artifactsRoot: join(dir, "artifacts"),
       capabilityRouter: { databases: conns },
     });
@@ -433,7 +434,7 @@ describe("platform-owned capability deletion routes", () => {
 
     // With nothing behind it, the region is left empty for the window to put itself away.
     const bare = await app.request("/capability-deletion/notes?restore_surface=neutral");
-    expect(await bare.text()).not.toContain("data-active-capability-id");
+    expect(await bare.text()).not.toContain(ACTIVE_CAPABILITY_ATTRIBUTE);
     expect(bare.headers.get("HX-Replace-Url")).toBe("/");
   });
 
@@ -444,7 +445,7 @@ describe("platform-owned capability deletion routes", () => {
     const identity = { capabilityId: target.id, incarnationId: target.incarnation_id };
     const tokens = readGates.tryAcquire({ catalog: [identity], incarnations: [identity] });
     expect(tokens).toBeDefined();
-    const app = createApp({
+    const app = createTestApp({
       artifactsRoot: join(dir, "artifacts"),
       readGates,
       capabilityRouter: { databases: conns, readGates },
@@ -478,7 +479,7 @@ describe("platform-owned capability deletion routes", () => {
     const target = deletionTarget(dir);
     install(conns, target);
     const readGates = createReadGateCoordinator();
-    const app = createApp({
+    const app = createTestApp({
       artifactsRoot: join(dir, "artifacts"),
       readGates,
       capabilityRouter: { databases: conns, readGates },
@@ -494,7 +495,7 @@ describe("platform-owned capability deletion routes", () => {
       confirmationRequest(target.incarnation_id),
     );
     const html = await response.text();
-    expect(html).not.toContain("data-active-capability-id");
+    expect(html).not.toContain(ACTIVE_CAPABILITY_ATTRIBUTE);
     expect(html).toContain("I couldn’t delete Notes");
     expect(html).toContain("data-capability-deletion-ending");
     expect(response.headers.get("HX-Replace-Url")).toBe(null);

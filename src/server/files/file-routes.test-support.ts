@@ -17,7 +17,8 @@ import {
   setupRouterTest,
   teardownRouterTest,
 } from "../../runtime/router/dispatch/router.test-support.ts";
-import { type AppDeps, createApp } from "../app.ts";
+import type { AppDeps } from "../app.ts";
+import { createTestApp } from "../isolated-app.test-support.ts";
 
 const photos = photosRow();
 export const PHOTOS = { capabilityId: photos.id, incarnationId: photos.incarnation_id } as const;
@@ -86,7 +87,7 @@ export function useFileRoutes() {
   const root = () => join(scratch.dir ?? "", "storage");
   const entries = (path: string) => (existsSync(path) ? readdirSync(path).sort() : []);
   const app = (deps: AppDeps = {}) =>
-    createApp({ capabilityRouter: { databases: conns() }, objectStore: store(), ...deps });
+    createTestApp({ capabilityRouter: { databases: conns() }, objectStore: store(), ...deps });
 
   return {
     conns,

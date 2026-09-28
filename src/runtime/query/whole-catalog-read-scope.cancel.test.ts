@@ -8,8 +8,6 @@
 // `src/lifecycle/deletion/destruction/two-phase-destruction.test.ts`.
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 
 import { ReadGateClosingError } from "../concurrency/read-gates.ts";
 import { NO_SHADOW } from "./query-worker.test-support.ts";
@@ -265,21 +263,5 @@ describe("what the cancel path may not become", () => {
       projected: true,
       liveness: true,
     });
-  });
-
-  test("nothing on the question's path arms a wall-clock deadline", () => {
-    // A cancel entry point is one timer away from the deadline decision 9 refused. The thread's
-    // `PRAGMA busy_timeout` is not one: it bounds waiting for another process's lock.
-    for (const module of [
-      "whole-catalog-read-scope.ts",
-      "query-worker.ts",
-      "query-worker-thread.ts",
-    ]) {
-      const source = readFileSync(join(import.meta.dir, module), "utf8");
-      expect([module, /\b(?:setTimeout|setInterval|AbortSignal\.timeout)\b/.test(source)]).toEqual([
-        module,
-        false,
-      ]);
-    }
   });
 });

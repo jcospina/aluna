@@ -1,47 +1,90 @@
-import { describe, expect, test } from "bun:test";
-import { codeOf as code } from "../../safety/source.test-support.ts";
+import { afterEach, describe, expect, test } from "bun:test";
+
+import { DEV_STORAGE_KEY } from "#shell/desk-dev-panel.js";
+import { WINDOW_STORAGE_KEY } from "#shell/desk-window.js";
+import { dragBy, type El, pressLamp } from "./standing-desk.test-support.ts";
+import { designDesk } from "./viewport-desk.test-support.ts";
 
 // One record rule, kept by the two surfaces that keep a window: the product's desk and the
-// handbook's demo of it (design D9; PLAN decision 18). Asked of both files at once.
+// handbook's demo of it (design D9; PLAN decision 18). The handbook's desk is run here, on the
+// same double the product's is, and what it writes down is read back off the browser's store.
 
-/** Where a window is remembered — its own module since M5 plan 1. */
-const STORE = code("public/desk-window-store.js");
+let design: Awaited<ReturnType<typeof designDesk>> | undefined;
+afterEach(() => {
+  design?.restore();
+  design = undefined;
+});
 
-describe("what a remembered box is, asked in one place", () => {
-  test("the design page's desk keeps the same record rule the product does", () => {
-    // `design/scripts/desk.js` is the other surface that remembers a window. It used to write the
-    // desk-filled box and the box to restore to: a second geometry in the one entry.
-    const deskScript = code("design/scripts/desk.js");
-    expect(deskScript).toMatch(
-      /function record\(box\) \{\s*const \{ x, y, w, h \} = box\.restore \?\? box;/,
-    );
-    expect(deskScript).toContain("this.layout.window === null ? null : record(this.layout.window)");
-    expect(deskScript).not.toContain("JSON.stringify(this.layout)");
-    // A window nobody has moved has no preference to keep, so the record holds nothing until one
-    // is authored: the product's `{ box: null }`, in the shape this surface keeps its layout in.
-    expect(deskScript).toContain(
-      'this.#mount("capability", "", this.layout.window ?? this.#defaultWindow())',
-    );
-    // And a box the desk chose is not one the user asked for: only a finished gesture and the leaf
-    // lamp promote it, the way the product writes from `onEnd`, the lamp and the phone crossing.
-    expect(deskScript).toMatch(
-      /#author\(entry\) \{\s*if \(entry\.kind === "capability"\) this\.layout\.window = entry\.box;\s*this\.#save\(\);/,
-    );
-    expect(deskScript).toContain("onEnd: () => this.#author(entry)");
-    // And the dismissal rule is the same: the clay lamp ends the window and the box ends with it,
-    // while a close nobody asked for, such as a cancelled build, leaves the record alone.
-    expect(deskScript).toMatch(
-      /dismiss\(\) \{[\s\S]*?this\.layout\.window = null;\s*this\.#save\(\);/,
-    );
-    expect(deskScript).toMatch(/action === "putaway"\)[\s\S]{0,120}else this\.dismiss\(\);/);
-    const close = /\n {2}close\(\) \{([\s\S]*?)\n {2}\}/.exec(deskScript)?.[1] ?? "";
-    expect(close, "no `close`").not.toBe("");
-    expect(close).not.toContain("#save");
-    // The record carries no box to give back, so the mount is where that comes from.
-    expect(deskScript).toMatch(/setMaximised\(el, box, maximised\);\s*this\.#refit\(/);
-    // And its key is its own: the handbook is served from the product's origin, so an
-    // unqualified `aluna.desk.*` would sit beside the product's two looking like a third.
-    expect(deskScript).toContain('STORAGE_KEY = "aluna.design.desk.layout.v2"');
-    expect(STORE).toContain('WINDOW_STORAGE_KEY = "aluna.desk.window.v1"');
+/** The handbook desk's own record, whatever key it keeps it under, parsed. */
+function recordOf(opened: NonNullable<typeof design>) {
+  const product: readonly string[] = [WINDOW_STORAGE_KEY, DEV_STORAGE_KEY];
+  const [key, ...more] = opened.desk.store.keys().filter((name) => !product.includes(name));
+  expect(more).toEqual([]);
+  return key === undefined ? null : JSON.parse(opened.desk.store.contents()[key] ?? "null");
+}
+
+describe("what a remembered box is, kept the same way on both desks", () => {
+  test("a window nobody has moved has no preference to keep", async () => {
+    design = await designDesk(false);
+    design.design.open("notes");
+    expect(recordOf(design)?.window ?? null).toBeNull();
+  });
+
+  test("a finished gesture authors the box, and the box is four numbers and a flag", async () => {
+    design = await designDesk(false);
+    const el = design.design.open("notes").el as El;
+    dragBy(el.querySelector("header") as El, 40, 30);
+    expect(Object.keys(recordOf(design).window).sort()).toEqual(["h", "max", "w", "x", "y"]);
+  });
+
+  test("a maximised window writes the box it gives back, never the desk it fills", async () => {
+    design = await designDesk(false);
+    const el = design.design.open("notes").el as El;
+    dragBy(el.querySelector("header") as El, 40, 30);
+    const moved = recordOf(design).window;
+    pressLamp(el, "maximise");
+    expect(recordOf(design).window).toEqual({ ...moved, max: true });
+  });
+
+  test("the clay lamp ends the window and its box; a close nobody asked for keeps it", async () => {
+    design = await designDesk(false);
+    let el = design.design.open("notes").el as El;
+    dragBy(el.querySelector("header") as El, 40, 30);
+    const kept = design.desk.store.contents();
+    design.design.close();
+    expect(design.desk.store.contents()).toEqual(kept);
+
+    el = design.design.open("notes").el as El;
+    pressLamp(el, "putaway");
+    expect(recordOf(design).window).toBeNull();
+  });
+
+  test("its key is its own, beside the product's two rather than one of them", async () => {
+    // The handbook is served from the product's origin, so a shared key would have one surface
+    // restore the other's window.
+    design = await designDesk(false);
+    const el = design.design.open("notes").el as El;
+    dragBy(el.querySelector("header") as El, 40, 30);
+    expect(design.desk.store.keys()).not.toContain(WINDOW_STORAGE_KEY);
+    expect(design.desk.store.keys()).not.toContain(DEV_STORAGE_KEY);
+    expect(recordOf(design)).not.toBeNull();
+  });
+
+  test("a record that is not four finite numbers is not believed, as on the product's desk", async () => {
+    // Asked of the key the handbook's desk writes under, found by letting it write once.
+    design = await designDesk(false);
+    const el = design.design.open("notes").el as El;
+    dragBy(el.querySelector("header") as El, 40, 30);
+    const product: readonly string[] = [WINDOW_STORAGE_KEY, DEV_STORAGE_KEY];
+    const [key] = design.desk.store.keys().filter((name) => !product.includes(name));
+    design.restore();
+
+    const broken = { window: { x: "nope", y: 1, w: 2, h: 3, max: false }, dev: null };
+    design = await designDesk(false, { [key as string]: JSON.stringify(broken) });
+    const reopened = design.design.open("notes").el as El;
+    const placed = [...reopened.props.entries()].filter(([name]) => name.startsWith("--win-"));
+    expect(placed.length).toBeGreaterThan(0);
+    for (const [, value] of placed) expect(value).not.toContain("NaN");
+    expect(placed.map(([, value]) => value)).not.toContain("2px");
   });
 });

@@ -1,7 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { PROMPT_FORM_ID } from "#shell/desk-window.js";
 import {
   closeLogoMenu,
   closeRenameEditor,
@@ -9,10 +6,8 @@ import {
   LONG_PRESS_SLOP_PX,
   labelNotice,
 } from "#shell/logo-menu.js";
-import { PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
-import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
+import { BUSY_LABEL_ATTRIBUTE } from "#shell/shell-dom.js";
 import { isCapabilityNameLabel, MAX_CAPABILITY_LABEL_CHARS } from "../../../registry/index.ts";
-import { renderCapabilityLogo } from "../../../server/http/fragments.ts";
 import { desk, type Node, pressAndHold, slotFor } from "./logo-menu.test-support.ts";
 
 describe("the three ways into a logo's menu", () => {
@@ -359,18 +354,22 @@ describe("the rename that is on its way", () => {
 
   test("the wait is exposed while the write is queued, and taken off after", () => {
     const scene = editing();
+    const idle = scene.notes.save.textContent;
 
     scene.root.fire("htmx:beforeRequest", scene.notes.form, { detail: { elt: scene.notes.form } });
     expect(scene.notes.form.getAttribute("aria-busy")).toBe("true");
     // And it says so, rather than only going grey: this write waits behind whatever is
     // already queued, so the wait is real and occasionally long.
-    expect(scene.notes.save.textContent).toBe("Saving…");
+    expect(scene.notes.save.textContent).toBe(
+      scene.notes.save.getAttribute(BUSY_LABEL_ATTRIBUTE) ?? "no busy sentence",
+    );
+    expect(scene.notes.save.textContent).not.toBe(idle);
 
     scene.root.fire("htmx:afterRequest", scene.notes.form, {
       detail: { elt: scene.notes.form, successful: true },
     });
     expect(scene.notes.form.hasAttribute("aria-busy")).toBe(false);
-    expect(scene.notes.save.textContent).toBe("Save");
+    expect(scene.notes.save.textContent).toBe(idle);
 
     closeRenameEditor({ restoreFocus: false });
   });
@@ -495,43 +494,9 @@ describe("what happens to an open panel when its logo is re-rendered", () => {
   });
 });
 
-describe("the module and the markup agree", () => {
-  const rendered = renderCapabilityLogo({
-    id: "notes",
-    label: "Notes",
-    display_label_override: null,
-    incarnation_id: FIRST_INCARNATION_ID,
-    version: 1,
-    logo: { status: "absent", attempts: 0 },
-  });
-
-  test("every hook the rules key off is on the element the server renders", () => {
-    for (const hook of [
-      "data-logo-slot",
-      "data-capability-logo",
-      "data-logo-label",
-      "data-logo-menu",
-      "data-logo-menu-rename",
-      "data-capability-delete",
-      "data-logo-rename",
-      "data-logo-rename-input",
-      "data-logo-rename-error",
-      "data-logo-rename-cancel",
-      'role="menu"',
-      'role="menuitem"',
-    ]) {
-      expect(rendered, hook).toContain(hook);
-    }
-  });
-
-  test("the menu carries two items and nothing else", () => {
-    expect(rendered.split('role="menuitem"').length - 1).toBe(2);
-    expect(rendered).toContain("Rename\n");
-    expect(rendered).toContain("Delete\n");
-  });
-
+describe("the name the editor takes", () => {
   test("the field stops where the validator stops", () => {
-    expect(rendered).toContain(`maxlength="${MAX_CAPABILITY_LABEL_CHARS}"`);
+    expect(desk().notes.input.getAttribute("maxlength")).toBe(String(MAX_CAPABILITY_LABEL_CHARS));
   });
 
   test("what the rule takes, and what it turns down for which reason", () => {
@@ -575,20 +540,14 @@ describe("the module and the markup agree", () => {
     expect(labelNotice("")).not.toBe(labelNotice("a > b"));
   });
 
-  test("the floor it stops at is the prompt bar the desk actually ships", () => {
-    const module = readFileSync(resolve("public/logo-menu.js"), "utf8");
-    const bar = readFileSync(resolve("public/prompt-bar.js"), "utf8");
-
-    expect(module).toContain(`const PROMPT_FORM_ID = "${PROMPT_FORM_ID}";`);
-    // And the slot it speaks in, which stands above the rail and raises the floor with whatever
-    // it is holding. Both read the name off `shell-dom.js` now, so the two cannot disagree at
-    // all — which is the stronger form of the pin that used to compare two restatements.
-    expect(module).toContain("PROMPT_NOTICE_ID");
-    expect(module).toContain('from "./shell-dom.js"');
-    expect(bar).toContain("PROMPT_NOTICE_ID");
-    expect(bar).toContain('from "./shell-dom.js"');
-    expect(readFileSync(resolve("public/shell-dom.js"), "utf8")).toContain(
-      `export const PROMPT_NOTICE_ID = "${PROMPT_NOTICE_ID}";`,
-    );
+  test("a sentence standing in the bar's slot raises the floor with it", () => {
+    // The slot stands above the rail and holds the refusal about the name, so a panel opened
+    // over it would cover the answer to itself.
+    const scene = desk();
+    scene.notice.box = { left: 0, top: 340, right: 500, bottom: 400, width: 500, height: 60 };
+    scene.root.fire("contextmenu", scene.notes.logo, { clientX: 10, clientY: 396 });
+    const top = Number.parseInt(scene.notes.menu.style.getPropertyValue("top"), 10);
+    expect(top + scene.notes.menu.getBoundingClientRect().height).toBeLessThanOrEqual(340);
+    closeLogoMenu({ restoreFocus: false });
   });
 });

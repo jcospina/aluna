@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-
-import { createApp } from "../../app.ts";
+import { RELEASE_REGION_EVENT } from "#shell/region-scope.js";
+import { createTestApp } from "../../isolated-app.test-support.ts";
 
 describe("the shipped shell owns the release rule", () => {
   test("starts the release scope, and the window it will release is the client's", async () => {
-    const app = createApp();
+    const app = createTestApp();
     const html = await (await app.request("/")).text();
 
     // The shell marks no region of its own any more. The one region there is lives inside the
@@ -18,11 +18,11 @@ describe("the shipped shell owns the release rule", () => {
   });
 
   test("serves the release scope module as JavaScript at its static path", async () => {
-    const app = createApp();
+    const app = createTestApp();
     const response = await app.request("/static/region-scope.js");
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type") ?? "").toContain("javascript");
-    expect(await response.text()).toContain("aluna:release-region");
+    expect(await response.text()).toContain(RELEASE_REGION_EVENT);
   });
 });

@@ -22,7 +22,6 @@ import {
   InvalidChoiceError,
   MissingRequiredFieldsError,
   materializeCapabilityActionRecord,
-  SQLITE_TYPE_BY_FIELD_TYPE,
   selectCapabilityRows,
 } from "../index.ts";
 import { noFiles, withFileDatabase } from "../tool.test-support.ts";
@@ -113,10 +112,6 @@ function withInvoices(
 }
 
 describe("a choice value stores, reads back and edits", () => {
-  test("the DDL mapper gives a choice TEXT storage", () => {
-    expect(SQLITE_TYPE_BY_FIELD_TYPE.choice).toBe("TEXT");
-  });
-
   test("a declared value survives create, read and edit", () => {
     withInvoices(({ create, rows, update }) => {
       const created = create({ title: "March", status: "draft" });

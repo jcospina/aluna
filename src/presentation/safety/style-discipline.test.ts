@@ -34,7 +34,7 @@ describe("sanitizeStyle — conforming values pass through unchanged", () => {
 
   test("every High Meadow token on each closed axis", () => {
     // The whole set, not a sample: a renamed or dropped token has to fail loudly here
-    // rather than quietly become an off-token value at build time. `design-tokens.test.ts`
+    // rather than quietly become an off-token value at build time. `design-tokens.policy.ts`
     // is where the set's membership is pinned; this asks what the sanitizer does with it.
     for (const name of PALETTE_COLOR_TOKENS) {
       expect(sanitizeStyle(`color: var(--${name})`)).toBe(`color: var(--${name})`);

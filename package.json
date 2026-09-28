@@ -13,11 +13,12 @@
     "dev": "bun scripts/dev.ts",
     "test": "bun scripts/test.ts",
     "test:serial": "bun test",
+    "mutate": "bun scripts/mutate.ts",
     "build": "bun scripts/build.ts",
     "reset": "bun scripts/reset-runtime.ts",
     "start": "bun ./dist/index.js",
     "typecheck": "rm -rf .types && tsc -p tsconfig.browser.json && tsc --noEmit",
-    "lint": "biome check . && bun scripts/comment-budget.ts && bun scripts/comment-references.ts",
+    "lint": "biome check . && bun scripts/comment-budget.ts && bun scripts/comment-references.ts && bun scripts/policy.ts",
     "format": "biome format --write .",
     "prepare": "husky"
   },
@@ -28,7 +29,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.16",
+    "@stryker-mutator/core": "^10.0.0",
     "@types/bun": "latest",
+    "fast-check": "^4.10.2",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.6",
     "typescript": "^5.9.0"

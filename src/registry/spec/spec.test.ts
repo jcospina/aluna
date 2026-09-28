@@ -11,13 +11,14 @@ import { describe, expect, test } from "bun:test";
 import { FILE_FAMILIES } from "../fields/file.ts";
 import { validSpec } from "./spec.test-support.ts";
 import {
+  ALUNA_RESERVED_FIELD_PREFIX,
   type CapabilitySpec,
   capabilitySpecSchema,
   defaultBehavioralErrorsForSchema,
+  FORM_SHADOWING_FIELD_NAMES,
   fieldTypeSchema,
   isChoiceFieldType,
   isListFieldType,
-  LIST_INPUT_MODES,
   PLATFORM_COLUMNS,
 } from "./spec.ts";
 import { MAX_SQL_NAME_LENGTH } from "./spec-text.ts";
@@ -60,7 +61,6 @@ describe("capability spec shape — valid shapes & pantry types", () => {
 
 describe("capability spec shape — list-input modes", () => {
   test("requires one closed list-input mode per active string[] in schema-field order", () => {
-    expect(LIST_INPUT_MODES).toEqual(["comma_separated", "repeatable"]);
     const schema: CapabilitySpec["schema"] = {
       fields: [
         { name: "title", label: "Title", type: "string", required: true, lifecycle: "active" },
@@ -139,146 +139,126 @@ describe("capability spec shape — list-input modes", () => {
   });
 });
 
+/** The issue paths a spec raises when its one field is `field`; empty when it parses. */
+function fieldIssuePaths(field: Record<string, unknown>): string[] {
+  const spec = validSpec({
+    schema: { fields: [field as CapabilitySpec["schema"]["fields"][number]] },
+  });
+  const parsed = capabilitySpecSchema.safeParse(spec);
+  return parsed.success ? [] : parsed.error.issues.map((issue) => issue.path.join("."));
+}
+
 describe("capability spec shape — rejected types & relations", () => {
-  test("rejects unadmitted list types and file types loudly", () => {
-    for (const type of ["number[]", "boolean[]", "date[]", "datetime[]", "file", "file[]"]) {
-      const spec = validSpec({
-        // @ts-expect-error — the type system already excludes these; the runtime gate must too.
-        schema: { fields: [{ name: "value", type, required: true }] },
-      });
-      expect(() => capabilitySpecSchema.parse(spec)).toThrow();
+  test("rejects every list spelling the pantry does not admit, on the field's type", () => {
+    const admitted: readonly string[] = fieldTypeSchema.options;
+    const unadmitted = admitted
+      .map((type) => `${type}[]`)
+      .filter((type) => !admitted.includes(type));
+    expect(unadmitted.length).toBeGreaterThan(0);
+    expect(fieldIssuePaths(pantryField("string", true))).toEqual([]);
+
+    for (const type of unadmitted) {
+      expect(fieldIssuePaths({ ...pantryField("string", true), type })).toContain(
+        "schema.fields.0.type",
+      );
     }
   });
 
   test("rejects relation shapes — no foreign keys, ever", () => {
-    // A relation as a type string fails the enum…
-    const relationType = validSpec({
-      schema: {
-        fields: [
-          {
-            name: "author",
-            label: "Author",
-            // @ts-expect-error — deliberately outside the enum.
-            type: "relation",
-            required: true,
-            lifecycle: "active",
-          },
-        ],
-      },
-    });
-    expect(capabilitySpecSchema.safeParse(relationType).success).toBe(false);
-
-    // …and a relation smuggled in as an extra key fails strictness.
-    const relationKey = validSpec({
-      schema: {
-        // @ts-expect-error — unknown keys must be rejected, not stripped.
-        fields: [{ name: "author", type: "string", required: true, references: "people" }],
-      },
-    });
-    expect(capabilitySpecSchema.safeParse(relationKey).success).toBe(false);
+    expect(fieldIssuePaths(pantryField("string", true))).toEqual([]);
+    expect(fieldIssuePaths({ ...pantryField("string", true), type: "relation" })).toEqual([
+      "schema.fields.0.type",
+    ]);
+    expect(fieldIssuePaths({ ...pantryField("string", true), references: "people" })).toEqual([
+      "schema.fields.0",
+    ]);
   });
 
   test("rejects the `auto` concept — the recorded deviation from ARCH §6.3's example", () => {
-    const spec = validSpec({
-      schema: {
-        // @ts-expect-error — `auto` does not exist in M2's pantry.
-        fields: [{ name: "logged_at", type: "datetime", required: false, auto: true }],
-      },
-    });
-    expect(capabilitySpecSchema.safeParse(spec).success).toBe(false);
+    const loggedAt = { ...pantryField("datetime", false), name: "logged_at" };
+    expect(fieldIssuePaths(loggedAt)).toEqual([]);
+    expect(fieldIssuePaths({ ...loggedAt, auto: true })).toEqual(["schema.fields.0"]);
   });
 });
 
 describe("capability spec shape — rejected & reserved field names", () => {
   // SQLite takes an identifier of any length, so an enormous id produced valid DDL and then a
   // path component past every filesystem's limit — discovered at publication, after the build.
-  test("rejects an id or a field name longer than a path component may be", () => {
+  test("rejects an id longer than a path component may be", () => {
     const longest = `a${"b".repeat(MAX_SQL_NAME_LENGTH - 1)}`;
     expect(capabilitySpecSchema.safeParse(validSpec({ id: longest })).success).toBe(true);
     expect(capabilitySpecSchema.safeParse(validSpec({ id: `${longest}c` })).success).toBe(false);
+  });
 
-    const overlong = `${longest}c`;
-    const spec = validSpec({
-      schema: {
-        fields: [
-          { name: overlong, label: "Long", type: "string", required: true, lifecycle: "active" },
-        ],
-      },
-      ui_intent: {
-        form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
-        item: { direction: "A length probe.", shows: [overlong] },
-        collection: { layout: "feed" },
-      },
-      behavioral_errors: [],
+  test("rejects a field name longer than a path component may be", () => {
+    const longest = `a${"b".repeat(MAX_SQL_NAME_LENGTH - 1)}`;
+    const base = validSpec();
+    const withField = (name: string) => ({
+      ...base,
+      schema: { fields: [...base.schema.fields, { ...pantryField("string", false), name }] },
     });
-    expect(capabilitySpecSchema.safeParse(spec).success).toBe(false);
+    expect(capabilitySpecSchema.safeParse(withField(longest)).success).toBe(true);
+    expect(capabilitySpecSchema.safeParse(withField(`${longest}c`)).success).toBe(false);
   });
 
   test("rejects platform-owned column names as spec fields", () => {
+    expect(fieldIssuePaths(pantryField("string", true))).toEqual([]);
     for (const name of PLATFORM_COLUMNS) {
-      const spec = validSpec({
-        schema: {
-          fields: [
-            { name, label: "Reserved", type: "string", required: true, lifecycle: "active" },
-          ],
-        },
-      });
-      expect(capabilitySpecSchema.safeParse(spec).success).toBe(false);
+      expect(fieldIssuePaths({ ...pantryField("string", true), name })).toEqual([
+        "schema.fields.0.name",
+      ]);
+    }
+  });
+
+  test("rejects a name that would hide a form method the browser calls on submit", () => {
+    for (const name of FORM_SHADOWING_FIELD_NAMES) {
+      expect(fieldIssuePaths({ ...pantryField("string", true), name })).toEqual([
+        "schema.fields.0.name",
+      ]);
+    }
+    for (const name of ["title", "role", "name", "action"]) {
+      expect(fieldIssuePaths({ ...pantryField("string", true), name })).toEqual([]);
     }
   });
 
   test("rejects the reserved __aluna_ wire-protocol prefix", () => {
-    const parsed = capabilitySpecSchema.safeParse({
-      ...validSpec(),
-      schema: {
-        fields: [
-          {
-            name: "__aluna_present",
-            label: "Reserved",
-            type: "string",
-            required: true,
-            lifecycle: "active",
-          },
-        ],
-      },
-      ui_intent: {
-        form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
-        item: { direction: "A reserved-name probe.", shows: ["__aluna_present"] },
-        collection: { layout: "feed" },
-      },
-      behavioral_errors: [],
-    });
-    expect(parsed.success).toBe(false);
-    if (!parsed.success) {
-      expect(parsed.error.issues.some((issue) => issue.message.includes("reserved __aluna_"))).toBe(
-        true,
-      );
-    }
+    const reserved = `${ALUNA_RESERVED_FIELD_PREFIX}present`;
+    expect(fieldIssuePaths({ ...pantryField("string", true), name: reserved.slice(2) })).toEqual(
+      [],
+    );
+    const parsed = capabilitySpecSchema.safeParse(
+      validSpec({ schema: { fields: [{ ...pantryField("string", true), name: reserved }] } }),
+    );
+    const nameIssues = parsed.success
+      ? []
+      : parsed.error.issues.filter((issue) => issue.path.join(".") === "schema.fields.0.name");
+    expect(nameIssues.some((issue) => issue.message.includes(ALUNA_RESERVED_FIELD_PREFIX))).toBe(
+      true,
+    );
   });
 
   test("rejects duplicate field names and an empty field list", () => {
-    const duplicates = validSpec({
-      schema: {
-        fields: [
-          { name: "text", label: "Text", type: "string", required: true, lifecycle: "active" },
-          { name: "text", label: "Text", type: "number", required: false, lifecycle: "active" },
-        ],
-      },
-    });
-    expect(capabilitySpecSchema.safeParse(duplicates).success).toBe(false);
-
-    const empty = validSpec({ schema: { fields: [] } });
-    expect(capabilitySpecSchema.safeParse(empty).success).toBe(false);
+    const text = { name: "text", label: "Text", type: "string", required: true } as const;
+    const fields = (second: string): CapabilitySpec["schema"]["fields"] => [
+      { ...text, lifecycle: "active" },
+      { ...text, name: second, type: "number", required: false, lifecycle: "active" },
+    ];
+    const paths = (spec: CapabilitySpec) => {
+      const parsed = capabilitySpecSchema.safeParse(spec);
+      return parsed.success ? [] : parsed.error.issues.map((issue) => issue.path.join("."));
+    };
+    expect(paths(validSpec({ schema: { fields: fields("words") } }))).toEqual([]);
+    expect(paths(validSpec({ schema: { fields: fields("text") } }))).toContain("schema.fields");
+    expect(paths(validSpec({ schema: { fields: [] } }))).toContain("schema.fields");
   });
 
   test("field and capability names must be safe SQL identifiers", () => {
+    expect(fieldIssuePaths({ ...pantryField("string", true), name: "safe_name_2" })).toEqual([]);
+    expect(capabilitySpecSchema.safeParse(validSpec({ id: "safe_name_2" })).success).toBe(true);
     for (const name of ["My Field", "1st", "UPPER", "dash-ed", ""]) {
-      const spec = validSpec({
-        schema: {
-          fields: [{ name, label: "Field", type: "string", required: true, lifecycle: "active" }],
-        },
-      });
-      expect(capabilitySpecSchema.safeParse(spec).success).toBe(false);
+      expect(fieldIssuePaths({ ...pantryField("string", true), name })).toContain(
+        "schema.fields.0.name",
+      );
       expect(capabilitySpecSchema.safeParse(validSpec({ id: name })).success).toBe(false);
     }
   });
