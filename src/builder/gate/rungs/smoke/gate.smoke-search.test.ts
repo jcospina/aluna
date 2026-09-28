@@ -1,6 +1,7 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 
 import { deriveCapabilityTableDdl } from "../../../../runtime/data/index.ts";
+import { buildUnitPrompt } from "../../../units/generation/unit-prompts.ts";
 import {
   expectGateFailure,
   gateInput,
@@ -119,7 +120,8 @@ describe("capability gate — frozen adversarial search and repair", () => {
     expect(result.handlers.search).toBe(goodSearch);
     expect(result.handlers.create).toBe(handlers.create);
     expect(prompts).toHaveLength(1);
-    expect(prompts[0]).toContain("Generate the search.ts handler");
+    const searchPrompt = buildUnitPrompt(FIVE_ACTION_SPEC, { kind: "handler", name: "search" });
+    expect(prompts[0]?.startsWith(searchPrompt)).toBe(true);
   });
 });
 

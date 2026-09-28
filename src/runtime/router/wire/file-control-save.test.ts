@@ -28,12 +28,12 @@ import {
   INVALID_FILE_REFERENCE_ERROR_CODE,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../../registry/index.ts";
-import { createApp } from "../../../server/app.ts";
 import {
   answeredReference,
   uploadInit,
   useFileRoutes,
 } from "../../../server/files/file-routes.test-support.ts";
+import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import {
   assertSubmittedFieldValues,
   fileClaimScope,
@@ -264,7 +264,7 @@ describe("a Handler behind the photo control", () => {
   }
 
   function app() {
-    return createApp({
+    return createTestApp({
       capabilityRouter: {
         databases: conns,
         loadHandler: async (_path, action) => {

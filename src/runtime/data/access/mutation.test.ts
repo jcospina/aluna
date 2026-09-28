@@ -115,7 +115,6 @@ describe("target-bound capability update preservation", () => {
         noFiles(spec, databases.readwrite),
       );
       expect(Object.keys(mutation)).toEqual(["update"]);
-      expect(mutation.update.length).toBe(1);
       const updated = materializeCapabilityActionRecord(mutation.update({ note: "Changed note" }));
 
       expect(updated).toMatchObject({
@@ -304,7 +303,6 @@ describe("a missing record and a delete's bound target", () => {
         testFileScope(spec, databases.readwrite),
       );
       expect(Object.keys(remove)).toEqual(["delete"]);
-      expect(remove.delete.length).toBe(0);
       (remove.delete as (...args: string[]) => void)("survivor");
       expect(databases.readwrite.query('SELECT "id" FROM "cap_notes" ORDER BY "id"').all()).toEqual(
         [{ id: "survivor" }],

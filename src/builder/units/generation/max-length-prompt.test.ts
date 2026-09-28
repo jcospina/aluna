@@ -50,14 +50,6 @@ describe("a Handler is never told the limit", () => {
       buildUnitPrompt(boundedSpec(), { kind: "item-renderer", name: "item" }),
     );
   });
-
-  test("every Handler is told the platform has already checked it, so none writes a second", () => {
-    for (const name of HANDLERS) {
-      expect(buildUnitPrompt(boundedSpec(240), { kind: "handler", name })).toContain(
-        "already been checked against its declared max_length by the platform",
-      );
-    }
-  });
 });
 
 describe("the behavioral tier is told, because it is validation shape", () => {

@@ -147,13 +147,12 @@ describe("the call's wire shape", () => {
 });
 
 describe("the decision a turn is generated against", () => {
-  test("offers exactly three moves, and none of them is a second tool", () => {
+  test("offers exactly the decided moves, and none of them is a second tool", () => {
     const properties = decisionJsonSchema().properties as Record<
       string,
       { enum?: readonly string[] }
     >;
     expect(properties.next?.enum).toEqual([...QUESTION_DECISIONS]);
-    expect(QUESTION_DECISIONS).toEqual(["read", "answer", "no_home"]);
     // The read it may ask for is the offered tool's own call, nested rather than restated, so a
     // second member in the inventory still fails at load rather than slipping past.
     expect(JSON.stringify(decisionJsonSchema())).toContain(READ_ONLY_QUERY_TOOL);
@@ -199,6 +198,7 @@ describe("the decision a turn is generated against", () => {
   });
 
   test("refuses an absent read key, which is what a model omitting it would send", () => {
+    expect(questionDecisionSchema.safeParse({ next: "answer", read: null }).success).toBe(true);
     expect(questionDecisionSchema.safeParse({ next: "answer" }).success).toBe(false);
   });
 

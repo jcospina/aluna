@@ -2,7 +2,8 @@
 //
 // The same declared options draw as a picker, a radio group or a segmented row; create
 // draws them with nothing chosen and edit with the stored value chosen; and all three
-// post the same wire value under the same name.
+// post the same wire value under the same name. Asserted on the parsed markup — roles, names,
+// the ids one element points another at, and what is chosen — rather than on its spelling.
 
 import { describe, expect, test } from "bun:test";
 import type { ChoicePresentation, SpecField } from "../../registry/index.ts";
@@ -12,6 +13,7 @@ import {
   probeField,
 } from "../fields/field-renderer.test-support.ts";
 import { renderCreateForm, renderEditForm } from "../fields/field-renderer.ts";
+import { Doc, type El, parseHtml } from "./choice-picker.test-support.ts";
 
 function choiceCapability(
   presentation: ChoicePresentation = "picker",
@@ -27,15 +29,46 @@ function choiceCapability(
 }
 
 const PRESENTATIONS: readonly ChoicePresentation[] = ["picker", "radio", "segmented"];
+const EDITABLE = ["create", "read", "update"] as const;
+
+/** A rendered form, parsed, with the parts of the one choice field a person meets. */
+function drawn(html: string) {
+  const root = parseHtml(html, new Doc());
+  const field = root.querySelector("[data-choice-presentation]") as El;
+  const byId = (id: string | null) => (id ? root.querySelector(`#${id}`) : null);
+  return {
+    root,
+    field,
+    byId,
+    /** What the form posts under the field's name: a carrier, or the radios themselves. */
+    posted: () => field.querySelectorAll('input[name="value"]'),
+    /** The element a role names, inside the field. */
+    role: (role: string) => field.querySelectorAll(`[role="${role}"]`),
+    option: (value: string) => field.querySelector(`[data-value="${value}"]`) as El,
+    radio: (value: string) => field.querySelector(`input[type="radio"][value="${value}"]`) as El,
+  };
+}
+
+const created = (presentation: ChoicePresentation, overrides: Partial<SpecField> = {}) =>
+  drawn(renderCreateForm(choiceCapability(presentation, overrides)));
+
+const edited = (
+  presentation: ChoicePresentation,
+  value: string,
+  overrides: Partial<SpecField> = {},
+) =>
+  drawn(
+    renderEditForm(choiceCapability(presentation, overrides, EDITABLE), { id: "probe-1", value }),
+  );
 
 /* ── what every presentation owes ──────────────────────────────────────────── */
 
 describe("the three presentations are three drawings of one field", () => {
   test("each one names itself on the field, and only the picker is a listbox", () => {
     for (const presentation of PRESENTATIONS) {
-      const html = renderCreateForm(choiceCapability(presentation));
-      expect(html).toContain(`data-choice-presentation="${presentation}"`);
-      expect(html.includes('class="field field--choice listbox"')).toBe(presentation === "picker");
+      const one = created(presentation);
+      expect(one.field.getAttribute("data-choice-presentation")).toBe(presentation);
+      expect(one.role("listbox").length > 0).toBe(presentation === "picker");
     }
   });
 
@@ -52,74 +85,59 @@ describe("the three presentations are three drawings of one field", () => {
   });
 
   test("each one posts the same stored value under the field's own name", () => {
-    const capability = choiceCapability("picker", {}, ["create", "read", "update"]);
     for (const presentation of PRESENTATIONS) {
-      const html = renderEditForm(
-        {
-          ...capability,
-          form: {
-            ...capability.form,
-            choice_inputs: [{ field: "value", presentation }],
-            long_text: [],
-            guidance: [],
-          },
-        },
-        { id: "probe-1", value: "second" },
-      );
+      const posted = edited(presentation, "second")
+        .posted()
+        .filter((input) => input.getAttribute("type") !== "radio" || input.checked)
+        .map((input) => input.value);
       // Either a carrier the control writes through, or the checked radio itself.
-      expect(html).toMatch(/name="value" value="second"|value="second" checked/);
+      expect(posted, presentation).toEqual(["second"]);
     }
   });
 
   test("each one is named by the field's label rather than a label element", () => {
     for (const presentation of PRESENTATIONS) {
-      const html = renderCreateForm(choiceCapability(presentation));
+      const one = created(presentation);
+      const named = one.field.querySelectorAll("[aria-labelledby]");
+      expect(named.length).toBeGreaterThan(0);
+      const label = one.byId(named[0]?.getAttribute("aria-labelledby") ?? null) as El;
+      expect(label.tag).toBe("span");
       // The optional marker rides inside the label, because the exception is what is
       // marked: marking required would spend an asterisk on most of a form.
-      expect(html).toContain(
-        '<span class="field__label caps" id="cap-probe-value-label">' +
-          'Value <span class="field__optional">optional</span></span>',
-      );
-      expect(html).toContain('aria-labelledby="cap-probe-value-label"');
-      expect(html).not.toContain('<label class="field__label caps"');
+      expect(label.textContent.replace(/\s+/g, " ").trim()).toBe("Value optional");
+      expect(one.field.querySelector("label[for]")).toBeNull();
     }
   });
 
   test("a required choice says so on the two roles that can carry it", () => {
     for (const presentation of ["picker", "radio"] as const) {
-      expect(
-        renderCreateForm(choiceCapability(presentation, { required: true })),
-        presentation,
-      ).toContain('aria-required="true"');
-      expect(renderCreateForm(choiceCapability(presentation))).not.toContain("aria-required");
+      const required = created(presentation, { required: true }).field;
+      expect(required.querySelectorAll('[aria-required="true"]'), presentation).toHaveLength(1);
+      expect(created(presentation).field.querySelector("[aria-required]")).toBeNull();
     }
     // `group`, which is what a segmented row is, supports no such state. Saying it there
     // would be invalid markup that conveys nothing.
-    expect(renderCreateForm(choiceCapability("segmented", { required: true }))).not.toContain(
-      "aria-required",
+    expect(created("segmented", { required: true }).field.querySelector("[aria-required]")).toBe(
+      null,
     );
   });
 
   test("only the radio group keeps a native required constraint, because only it can", () => {
-    expect(renderCreateForm(choiceCapability("radio", { required: true }))).toContain(
-      'value="first" required>',
-    );
+    expect(created("radio", { required: true }).radio("first").hasAttribute("required")).toBe(true);
     for (const presentation of ["picker", "segmented"] as const) {
       expect(
-        renderCreateForm(choiceCapability(presentation, { required: true })),
+        created(presentation, { required: true }).field.querySelector("[required]"),
         presentation,
-      ).not.toContain(" required>");
+      ).toBeNull();
     }
   });
 
   test("option labels and values are escaped on the way into markup", () => {
     for (const presentation of PRESENTATIONS) {
-      const html = renderCreateForm(
-        choiceCapability(presentation, { values: [{ value: "a&b", label: '<script>"x"' }] }),
-      );
-      expect(html).toContain("a&amp;b");
-      expect(html).toContain("&lt;script&gt;");
-      expect(html).not.toContain("<script>");
+      const one = created(presentation, { values: [{ value: "a&b", label: '<script>"x"' }] });
+      expect(one.root.querySelector("script")).toBeNull();
+      expect(one.field.textContent).toContain('<script>"x"');
+      expect(one.field.querySelector('[value="a&b"], [data-value="a&b"]')).not.toBeNull();
     }
   });
 });
@@ -128,53 +146,57 @@ describe("the three presentations are three drawings of one field", () => {
 
 describe("the picker draws the design's listbox", () => {
   test("a closed combobox button reporting the panel it controls", () => {
-    const html = renderCreateForm(choiceCapability("picker"));
-    expect(html).toContain(
-      '<button class="field__control field__control--select listbox__button" type="button"' +
-        ' id="cap-probe-value" role="combobox" aria-haspopup="listbox" aria-expanded="false"' +
-        ' aria-controls="cap-probe-value-panel" aria-labelledby="cap-probe-value-label"' +
-        ' aria-describedby="cap-probe-value-guidance">',
-    );
-    expect(html).toContain(
-      '<div class="listbox__panel" id="cap-probe-value-panel" role="listbox" tabindex="-1"' +
-        ' aria-labelledby="cap-probe-value-label" hidden>',
-    );
-    expect(html).toContain('<div class="listbox__scroll">');
-    expect(html).toContain('<span class="listbox__chevron">');
+    const one = created("picker");
+    const [button] = one.role("combobox");
+    const [panel] = one.role("listbox");
+    expect(button?.tag).toBe("button");
+    expect(button?.getAttribute("type")).toBe("button");
+    expect(button?.getAttribute("aria-haspopup")).toBe("listbox");
+    expect(button?.getAttribute("aria-expanded")).toBe("false");
+    expect(button?.getAttribute("aria-controls")).toBe(panel?.id ?? "");
+    expect(panel?.hidden).toBe(true);
+    expect(panel?.getAttribute("aria-labelledby")).toBe(button?.getAttribute("aria-labelledby"));
+    expect(one.byId(button?.getAttribute("aria-describedby") ?? null)).not.toBeNull();
   });
 
   test("nothing chosen shows the placeholder, and the carrier is empty", () => {
-    const html = renderCreateForm(choiceCapability("picker"));
-    expect(html).toContain('<span class="listbox__value is-placeholder">Choose Value…</span>');
-    expect(html).toContain('<input type="hidden" name="value" value="" data-choice-value>');
-    expect(html).not.toContain('aria-selected="true"');
+    const one = created("picker");
+    const [button] = one.role("combobox");
+    expect(button?.textContent.trim()).not.toBe("");
+    expect(one.posted().map((input) => input.value)).toEqual([""]);
+    expect(one.field.querySelector('[aria-selected="true"]')).toBeNull();
   });
 
   test("the stored value is chosen, shown and carried without a script running", () => {
-    const html = renderEditForm(choiceCapability("picker", {}, ["create", "read", "update"]), {
-      id: "probe-1",
-      value: "second",
-    });
-    expect(html).toContain('<span class="listbox__value">Second</span>');
-    expect(html).toContain('<input type="hidden" name="value" value="second" data-choice-value>');
-    expect(html).toContain('data-value="second" aria-selected="true"');
-    expect(html).toContain('data-value="first" aria-selected="false"');
+    const one = edited("picker", "second");
+    expect(one.role("combobox")[0]?.textContent.trim()).toBe("Second");
+    expect(one.posted().map((input) => input.value)).toEqual(["second"]);
+    expect(one.option("second").getAttribute("aria-selected")).toBe("true");
+    expect(one.option("first").getAttribute("aria-selected")).toBe("false");
   });
 
   test("a stored value the field never declared resolves to nothing, not to the first option", () => {
-    const html = renderEditForm(choiceCapability("picker", {}, ["create", "read", "update"]), {
+    const html = renderEditForm(choiceCapability("picker", {}, EDITABLE), {
       id: "probe-1",
       value: "third",
     });
     expect(html).not.toContain("third");
-    expect(html).toContain('<input type="hidden" name="value" value="" data-choice-value>');
-    expect(html).not.toContain('aria-selected="true"');
+    const one = drawn(html);
+    expect(one.posted().map((input) => input.value)).toEqual([""]);
+    expect(one.field.querySelector('[aria-selected="true"]')).toBeNull();
   });
 
   test("every option carries a stable id for active-descendant reporting", () => {
-    const html = renderCreateForm(choiceCapability("picker"));
-    expect(html).toContain('id="cap-probe-value-option-1"');
-    expect(html).toContain('id="cap-probe-value-option-2"');
+    const ids = created("picker")
+      .role("option")
+      .map((option) => option.id);
+    expect(ids.every((id) => id !== "")).toBe(true);
+    expect(new Set(ids).size).toBe(PROBE_CHOICE_OPTIONS.length);
+    expect(
+      created("picker")
+        .role("option")
+        .map((option) => option.id),
+    ).toEqual(ids);
   });
 });
 
@@ -182,31 +204,27 @@ describe("the picker draws the design's listbox", () => {
 
 describe("the radio group draws native inputs", () => {
   test("one labelled radiogroup of real radio inputs sharing the field's name", () => {
-    const html = renderCreateForm(choiceCapability("radio"));
-    expect(html).toContain(
-      '<div class="choice-set" id="cap-probe-value" role="radiogroup"' +
-        ' aria-labelledby="cap-probe-value-label"' +
-        ' aria-describedby="cap-probe-value-guidance">',
-    );
-    expect(html).toContain(
-      '<input class="choice__input" type="radio" id="cap-probe-value-option-1"' +
-        ' name="value" value="first">',
-    );
-    expect(html).toContain('<span class="choice__mark"><span class="choice__glyph"></span></span>');
-    expect(html).toContain('<span class="choice__title">First</span>');
+    const one = created("radio");
+    const [group, ...more] = one.role("radiogroup");
+    expect(more).toEqual([]);
+    expect(one.byId(group?.getAttribute("aria-labelledby") ?? null)).not.toBeNull();
+    expect(one.byId(group?.getAttribute("aria-describedby") ?? null)).not.toBeNull();
+    const radios = group?.querySelectorAll('input[type="radio"]') ?? [];
+    expect(radios.map((radio) => radio.getAttribute("name"))).toEqual(["value", "value"]);
+    // Each radio is named by the words beside it: its label is the one wrapping it.
+    expect(radios[0]?.closest("label")?.textContent).toContain("First");
   });
 
   test("the stored value is the checked input, and nothing else is", () => {
-    const html = renderEditForm(choiceCapability("radio", {}, ["create", "read", "update"]), {
-      id: "probe-1",
-      value: "second",
-    });
-    expect(html).toContain('value="second" checked>');
-    expect(html).not.toContain('value="first" checked');
+    const one = edited("radio", "second");
+    expect(one.radio("second").checked).toBe(true);
+    expect(one.radio("first").checked).toBe(false);
   });
 
   test("no value carrier: an unchecked group posts nothing, which is no selection", () => {
-    expect(renderCreateForm(choiceCapability("radio"))).not.toContain("data-choice-value");
+    const one = created("radio");
+    expect(one.posted().every((input) => input.getAttribute("type") === "radio")).toBe(true);
+    expect(one.posted().some((input) => input.checked)).toBe(false);
   });
 });
 
@@ -214,26 +232,24 @@ describe("the radio group draws native inputs", () => {
 
 describe("the segmented control draws one exclusive button set", () => {
   test("a labelled group of buttons, one of which is pressed", () => {
-    const html = renderEditForm(choiceCapability("segmented", {}, ["create", "read", "update"]), {
-      id: "probe-1",
-      value: "second",
-    });
-    expect(html).toContain(
-      '<div class="segmented" id="edit-probe-value" role="group"' +
-        ' aria-labelledby="edit-probe-value-label"' +
-        ' aria-describedby="edit-probe-value-guidance">',
-    );
-    expect(html).toContain(
-      '<button type="button" id="edit-probe-value-option-2" data-value="second"' +
-        ' aria-pressed="true">Second</button>',
-    );
-    expect(html).toContain('data-value="first" aria-pressed="false"');
+    const one = edited("segmented", "second");
+    const [group] = one.role("group");
+    expect(one.byId(group?.getAttribute("aria-labelledby") ?? null)).not.toBeNull();
+    expect(one.byId(group?.getAttribute("aria-describedby") ?? null)).not.toBeNull();
+    const second = one.option("second");
+    expect(second.tag).toBe("button");
+    expect(second.getAttribute("type")).toBe("button");
+    expect(second.textContent).toBe("Second");
+    expect(second.getAttribute("aria-pressed")).toBe("true");
+    expect(one.option("first").getAttribute("aria-pressed")).toBe("false");
   });
 
   test("a carrier holds the value, because a button posts nothing", () => {
-    const html = renderCreateForm(choiceCapability("segmented"));
-    expect(html).toContain('<input type="hidden" name="value" value="" data-choice-value>');
-    expect(html).not.toContain('aria-pressed="true"');
+    const one = created("segmented");
+    expect(one.posted().map((input) => [input.getAttribute("type"), input.value])).toEqual([
+      ["hidden", ""],
+    ]);
+    expect(one.field.querySelector('[aria-pressed="true"]')).toBeNull();
   });
 });
 
@@ -250,41 +266,48 @@ const RICH_GROUPS = [
   { id: "closed", heading: "Closed" },
 ];
 const rich = { values: RICH_OPTIONS, groups: RICH_GROUPS };
+const flat = { values: RICH_OPTIONS.map(({ group, note, ...rest }) => rest), groups: [] };
+
+/** Each group a role names, with the heading it is named by and the options it holds. */
+function groupsOf(one: ReturnType<typeof drawn>, role: string) {
+  return one.role(role).map((group) => ({
+    heading: one.byId(group.getAttribute("aria-labelledby"))?.textContent.trim(),
+    holds: group
+      .querySelectorAll("[data-value], input[type='radio']")
+      .map((option) => option.getAttribute("data-value") ?? option.value),
+  }));
+}
 
 describe("group headings are announced as option groups", () => {
   test("the picker wraps each run in a group named by its heading", () => {
-    const html = renderCreateForm(choiceCapability("picker", rich));
     // The wrapper carries the semantics; the heading stays presentational, as the design
     // draws it — a second non-option child would break the listbox's required children.
-    expect(html).toContain(
-      '<div role="group" aria-labelledby="cap-probe-value-group-open">' +
-        '<div class="listbox__group caps" role="presentation"' +
-        ' id="cap-probe-value-group-open">Open</div>',
-    );
-    expect(html).toContain('id="cap-probe-value-group-closed">Closed</div>');
+    const one = created("picker", rich);
+    expect(groupsOf(one, "group")).toEqual([
+      { heading: "Open", holds: ["first"] },
+      { heading: "Closed", holds: ["second", "third"] },
+    ]);
+    const heading = one.byId(one.role("group")[0]?.getAttribute("aria-labelledby") ?? null);
+    expect(heading?.getAttribute("role")).toBe("presentation");
   });
 
   test("a grouped radio set becomes one radiogroup per heading, inside a plain group", () => {
     // `radiogroup` owns radios and nothing else, so a heading wrapper inside one would
     // take its own radios out of it. The runs become the radiogroups instead.
-    const html = renderCreateForm(choiceCapability("radio", rich));
-    expect(html).toContain('<div class="choice-set" id="cap-probe-value" role="group"');
-    expect(html).toContain(
-      '<div class="choice-set__group" role="radiogroup"' +
-        ' aria-labelledby="cap-probe-value-group-open">' +
-        '<span class="choice-set__heading caps" id="cap-probe-value-group-open">Open</span>',
-    );
+    const one = created("radio", rich);
+    expect(one.role("group")).toHaveLength(1);
     // The ungrouped run is a radiogroup too, named by the field itself.
-    expect(html).toContain(
-      '<div class="choice-set__group" role="radiogroup"' +
-        ' aria-labelledby="cap-probe-value-label">',
-    );
+    expect(groupsOf(one, "radiogroup")).toEqual([
+      { heading: "Value optional", holds: ["loose"] },
+      { heading: "Open", holds: ["first"] },
+      { heading: "Closed", holds: ["second", "third"] },
+    ]);
   });
 
   test("an ungrouped radio set stays the single radiogroup the design draws", () => {
-    const html = renderCreateForm(choiceCapability("radio"));
-    expect(html).toContain('<div class="choice-set" id="cap-probe-value" role="radiogroup"');
-    expect(html).not.toContain("choice-set__group");
+    const one = created("radio");
+    expect(one.role("radiogroup")).toHaveLength(1);
+    expect(one.role("group")).toHaveLength(0);
   });
 
   test("ungrouped options come first, then each group in declared order", () => {
@@ -298,66 +321,55 @@ describe("group headings are announced as option groups", () => {
 });
 
 describe("an option note is a description, not visual-only text", () => {
-  test("the picker's note rides the row and is named as the option's description", () => {
-    const html = renderCreateForm(choiceCapability("picker", rich));
-    expect(html).toContain('aria-describedby="cap-probe-value-note-2"');
-    // Hidden from the name, not from the description: the note sits inside the option, so without
-    // this it is read twice. `aria-describedby` reaches a hidden node either way.
-    expect(html).toContain(
-      '<span class="listbox__note" id="cap-probe-value-note-2" aria-hidden="true">' +
-        "still moving</span>",
-    );
-  });
-
-  test("the radio group's note is the design's hint, described the same way", () => {
-    const html = renderCreateForm(choiceCapability("radio", rich));
-    expect(html).toContain('aria-describedby="cap-probe-value-note-2"');
-    expect(html).toContain(
-      '<span class="choice__hint" id="cap-probe-value-note-2" aria-hidden="true">' +
-        "still moving</span>",
-    );
-  });
+  for (const presentation of ["picker", "radio"] as const) {
+    test(`the ${presentation}'s note rides the option and is named as its description`, () => {
+      const one = created(presentation, rich);
+      const described = one.field
+        .querySelectorAll("[aria-describedby]")
+        .filter((node) => node.getAttribute("data-value") === "first" || node.value === "first");
+      expect(described).toHaveLength(1);
+      const note = one.byId(described[0]?.getAttribute("aria-describedby") ?? null);
+      expect(note?.textContent).toBe("still moving");
+      // Hidden from the name, not from the description: the note sits inside the option, so
+      // without this it is read twice. `aria-describedby` reaches a hidden node either way.
+      expect(note?.getAttribute("aria-hidden")).toBe("true");
+    });
+  }
 
   test("an option with no note names no description", () => {
-    const html = renderCreateForm(choiceCapability("picker"));
     // The control itself is always described, by its guidance slot, so what is checked is that it
     // is the only thing described, whatever an option called its own description.
-    expect(html.match(/aria-describedby=/g)).toHaveLength(1);
-    expect(html).toContain('aria-describedby="cap-probe-value-guidance"');
-    expect(html).not.toContain("listbox__note");
+    const one = created("picker");
+    const described = one.field.querySelectorAll("[aria-describedby]");
+    expect(described).toEqual(one.role("combobox"));
   });
 });
 
 describe("a disabled option is announced as disabled", () => {
   test("the picker marks it aria-disabled, which movement and typeahead skip", () => {
-    const html = renderCreateForm(choiceCapability("picker", rich));
-    expect(html).toContain('data-value="third" aria-selected="false" aria-disabled="true"');
-    expect(html).not.toContain('data-value="second" aria-selected="false" aria-disabled');
+    const one = created("picker", rich);
+    expect(one.option("third").getAttribute("aria-disabled")).toBe("true");
+    expect(one.option("second").hasAttribute("aria-disabled")).toBe(false);
   });
 
   test("the radio group and the segmented row use the native disabled attribute", () => {
-    expect(renderCreateForm(choiceCapability("radio", rich))).toContain('value="third" disabled>');
-    const flat = { values: RICH_OPTIONS.map(({ group, note, ...rest }) => rest), groups: [] };
-    expect(renderCreateForm(choiceCapability("segmented", flat))).toContain(
-      'data-value="third" aria-pressed="false" disabled>',
-    );
+    expect(created("radio", rich).radio("third").disabled).toBe(true);
+    expect(created("segmented", flat).option("third").disabled).toBe(true);
   });
 
   test("the option a record already holds is never refused, in any presentation", () => {
-    const stored = { id: "probe-1", value: "third" };
-    const actions = ["create", "read", "update"] as const;
+    const picker = edited("picker", "third", rich);
+    expect(picker.option("third").getAttribute("aria-selected")).toBe("true");
+    expect(picker.option("third").hasAttribute("aria-disabled")).toBe(false);
+    expect(picker.posted().map((input) => input.value)).toEqual(["third"]);
+    expect(picker.role("combobox")[0]?.textContent.trim()).toBe("Third");
 
-    const picker = renderEditForm(choiceCapability("picker", rich, actions), stored);
-    expect(picker).toContain('data-value="third" aria-selected="true">');
-    expect(picker).toContain('<input type="hidden" name="value" value="third" data-choice-value>');
-    expect(picker).toContain('<span class="listbox__value">Third</span>');
+    const radio = edited("radio", "third", rich);
+    expect(radio.radio("third").checked).toBe(true);
+    expect(radio.radio("third").disabled).toBe(false);
 
-    const radio = renderEditForm(choiceCapability("radio", rich, actions), stored);
-    expect(radio).toContain('value="third" checked>');
-    expect(radio).not.toContain('value="third" checked disabled');
-
-    const flat = { values: RICH_OPTIONS.map(({ group, note, ...rest }) => rest), groups: [] };
-    const segmented = renderEditForm(choiceCapability("segmented", flat, actions), stored);
-    expect(segmented).toContain('data-value="third" aria-pressed="true">');
+    const segmented = edited("segmented", "third", flat);
+    expect(segmented.option("third").getAttribute("aria-pressed")).toBe("true");
+    expect(segmented.option("third").disabled).toBe(false);
   });
 });

@@ -4,12 +4,17 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
+import {
+  ARTIFACTS_ROOT_ENV_VAR,
+  DEFAULT_ARTIFACTS_ROOT,
+} from "../src/builder/artifacts/artifacts-root.ts";
 import { mintFileKey } from "../src/platform/files/ledger.ts";
 import {
   OBJECT_STORE_ROOT,
   OBJECT_STORE_ROOT_ENV_VAR,
   STAGING_DIRECTORY,
 } from "../src/platform/files/object-store-root.ts";
+import { DB_PATH, DB_PATH_ENV_VAR } from "../src/platform/persistence/db-path.ts";
 import { resetRuntime } from "./reset-runtime.ts";
 
 /** A store under `storeRoot` holding a placed key, a staged one, and a file that is not the store's. */
@@ -122,5 +127,39 @@ describe("runtime reset script", () => {
     expect(readdirSync(join(root, OBJECT_STORE_ROOT)).sort()).toEqual(
       [STAGING_DIRECTORY, "notes.txt", defaultStore.placed].sort(),
     );
+  });
+
+  test("resets the configured database and artifacts root, and leaves the defaults alone", async () => {
+    const root = await mkdtemp(join(tmpdir(), "omni-crud-reset-"));
+    const elsewhere = await mkdtemp(join(tmpdir(), "omni-crud-reset-roots-"));
+    const configuredDb = join(elsewhere, "db", "platform.db");
+    const configuredArtifacts = join(elsewhere, "snapshots");
+    const withCapability = (path: string) => {
+      mkdirSync(join(path, ".."), { recursive: true });
+      const database = new Database(path, { create: true, readwrite: true });
+      database.exec("CREATE TABLE cap_notes (id TEXT PRIMARY KEY) STRICT");
+      database.close();
+    };
+    withCapability(configuredDb);
+    withCapability(join(root, DB_PATH));
+    mkdirSync(join(configuredArtifacts, "notes"), { recursive: true });
+    mkdirSync(join(root, DEFAULT_ARTIFACTS_ROOT, "notes"), { recursive: true });
+
+    const result = resetRuntime({
+      root,
+      env: { [DB_PATH_ENV_VAR]: configuredDb, [ARTIFACTS_ROOT_ENV_VAR]: configuredArtifacts },
+    });
+
+    expect(result.droppedTables).toEqual(["cap_notes"]);
+    expect(result.deletedPaths).toEqual([join(configuredArtifacts, "notes")]);
+    const tables = (path: string) => {
+      const database = new Database(path, { readonly: true });
+      const names = database.query("SELECT name FROM sqlite_master WHERE type = 'table'").all();
+      database.close();
+      return names;
+    };
+    expect(tables(configuredDb)).toEqual([]);
+    expect(tables(join(root, DB_PATH))).toEqual([{ name: "cap_notes" }]);
+    expect(readdirSync(join(root, DEFAULT_ARTIFACTS_ROOT))).toEqual(["notes"]);
   });
 });

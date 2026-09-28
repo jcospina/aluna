@@ -75,7 +75,7 @@ interface PendingRequest {
  */
 export function createQueryWorker(path: string, shadow: QueryShadow): QueryWorker {
   // Bun's bundler emits this specifier as written, so `scripts/build.ts` copies the thread beside
-  // the bundle and `build.test.ts` asserts the copy and the thread's lack of relative imports.
+  // the bundle; `build.test.ts` asserts the copy, `build.policy.ts` the thread's lack of imports.
   const worker = new Worker(new URL("./query-worker-thread.ts", import.meta.url).href);
   const pending = new Map<number, PendingRequest>();
   let nextRequestId = 1;

@@ -398,7 +398,7 @@ it. Which of the two a rule belongs to is the property it uses. `transform` says
 where a thing sits; `translate` is how far it travels and goes on `--dur-travel`;
 `scale` and `rotate` are how it changes without going anywhere and keep
 `--dur-fast`. A new component gets the behaviour by using those primitives, and a
-raw distance fails `travel-axis.test.ts` rather than shipping.
+raw distance fails `travel-axis.policy.ts` rather than shipping.
 
 The focus ring is `--focus-ring`, painted on the enclosing shell with the inner
 control's own ring suppressed, so a control never shows a second ring further in.

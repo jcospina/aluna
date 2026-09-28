@@ -8,7 +8,7 @@
 // migrations runner against the read-write connection — synchronously,
 // before serving, so the db is ready the moment the first request arrives.
 
-import { DEFAULT_ARTIFACTS_ROOT, reconcileCapabilityArtifacts } from "./builder/index.ts";
+import { reconcileCapabilityArtifacts, resolveArtifactsRoot } from "./builder/index.ts";
 import { recoverCapabilityLogos } from "./lifecycle/logo/index.ts";
 import { errorDetail } from "./platform/errors.ts";
 import { db, dbReadonly } from "./platform/persistence/db.ts";
@@ -66,7 +66,7 @@ platformReadGates.recoverAtBoot(
 );
 const reconciliation = reconcileCapabilityArtifacts({
   database: db,
-  artifactsRoot: DEFAULT_ARTIFACTS_ROOT,
+  artifactsRoot: resolveArtifactsRoot(),
   tombstonedIncarnations: listCapabilityDeletionTombstones(dbReadonly).map((tombstone) => ({
     capabilityId: tombstone.capabilityId,
     incarnationId: tombstone.incarnationId,
@@ -84,7 +84,7 @@ try {
     databases: { readwrite: db, readonly: dbReadonly },
     mutationCoordinator: platformMutationCoordinator,
     readGates: platformReadGates,
-    artifactsRoot: DEFAULT_ARTIFACTS_ROOT,
+    artifactsRoot: resolveArtifactsRoot(),
     claims: platformLogoClaims,
   });
   for (const entry of logoRecovery) {

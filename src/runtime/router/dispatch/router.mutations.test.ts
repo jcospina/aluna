@@ -3,7 +3,7 @@ import { splitCollectionCount } from "#shell/collection-count.js";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { CapabilityRow } from "../../../registry/index.ts";
 import { FULL_CAPABILITY_TOOLS } from "../../../registry/index.ts";
-import { createApp } from "../../../server/app.ts";
+import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import type {
   CapabilityCreateContext,
   CapabilityDeleteContext,
@@ -78,7 +78,7 @@ describe("deterministic capability router — target-bound mutation authority", 
         return context.present(unsafeUpdate({ text: "Updated first" }, "record-b"));
       };
     };
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases,
         loadHandler,
@@ -119,7 +119,7 @@ describe("deterministic capability router — target-bound mutation authority", 
         return "<p>gone</p>";
       };
     };
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases,
         loadHandler,
@@ -141,7 +141,7 @@ describe("deterministic capability router — target-bound mutation authority", 
   });
 
   test("missing delete stays warm and retargets the confirmation's error region", async () => {
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases,
         loadHandler:
@@ -199,7 +199,7 @@ describe("deterministic capability router — mutation transaction integrity", (
       }
       return async () => "<p>unused</p>";
     };
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases,
         loadHandler,
@@ -263,7 +263,7 @@ describe("deterministic capability router — the Handler's returned fragment", 
 
   function appReturning(fragment: string) {
     const loadHandler: HandlerLoader = async () => async () => fragment;
-    return createApp({
+    return createTestApp({
       capabilityRouter: {
         databases,
         loadHandler,
@@ -395,7 +395,7 @@ describe("deterministic capability router — nothing is held while the body arr
   // The route used to read the body last, after the read tokens, the write lease and
   // `BEGIN IMMEDIATE`, so one held-open socket refused every write and blocked every deletion.
   test("a request whose body is still arriving holds no write lease", async () => {
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases,
         loadHandler: (async () => async () => "<p>ok</p>") as HandlerLoader,

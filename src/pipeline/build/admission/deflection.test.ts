@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { notesCapabilityRow, REJECT_INTENT } from "../../../server/app.test-support.ts";
 import { INTENT_TYPES } from "../../intent/index.ts";
 import {
+  DUPLICATE_PROMPT_STOP_WORDS,
   deflectionNarration,
   duplicateIntentForPrompt,
   NotDeflectableError,
@@ -47,6 +48,36 @@ describe("deterministic exact-identity collision guard", () => {
   test("does not treat a subset of a longer identity as an exact collision", () => {
     expect(duplicateIntentForPrompt("track contacts", [workContacts])).toBeUndefined();
     expect(duplicateIntentForPrompt("track my contacts", [workContacts])).toBeUndefined();
+  });
+
+  test("reads a plural and its singular as one name, whichever way the -ies came", () => {
+    const movies = notesCapabilityRow({ id: "movies", label: "Movies" });
+    const stories = notesCapabilityRow({ id: "stories", label: "Stories" });
+    expect(duplicateIntentForPrompt("track my movie", [movies])).toMatchObject({
+      target_capability: movies.id,
+    });
+    expect(duplicateIntentForPrompt("keep my story", [stories])).toMatchObject({
+      target_capability: stories.id,
+    });
+  });
+
+  test("hears past every word a request is phrased with, however it is inflected", () => {
+    for (const word of DUPLICATE_PROMPT_STOP_WORDS) {
+      for (const spoken of word.length >= 3 ? [word, `${word}s`] : [word]) {
+        expect({
+          spoken,
+          intent: duplicateIntentForPrompt(`${spoken} contacts`, [contacts]),
+        }).toMatchObject({
+          spoken,
+          intent: { target_capability: contacts.id },
+        });
+      }
+    }
+  });
+
+  test("keeps a name ending in -ie apart from one ending in -y", () => {
+    const july = notesCapabilityRow({ id: "july", label: "July" });
+    expect(duplicateIntentForPrompt("track julie", [july])).toBeUndefined();
   });
 
   test("fails open to the resolver when more than one capability has the exact identity", () => {

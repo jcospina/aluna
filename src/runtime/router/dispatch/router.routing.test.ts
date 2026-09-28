@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { FULL_CAPABILITY_TOOLS } from "../../../registry/index.ts";
-import { createApp } from "../../../server/app.ts";
+import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import type { CapabilityContext, CapabilityInput } from "../contract.ts";
 import {
   boomRow,
@@ -42,7 +42,9 @@ describe("deterministic capability router — routing refusals and failures", ()
 
   test("an unknown capability fails cleanly, in product voice, before any handler loads", async () => {
     const spy = makeSpyLoader();
-    const app = createApp({ capabilityRouter: { databases: conns, loadHandler: spy.loadHandler } });
+    const app = createTestApp({
+      capabilityRouter: { databases: conns, loadHandler: spy.loadHandler },
+    });
 
     const res = await app.request("/capability/ghost/read");
 
@@ -59,7 +61,9 @@ describe("deterministic capability router — routing refusals and failures", ()
     // or a valid Action reached with the wrong method is refused before any file loads.
     install(conns, notesRow());
     const spy = makeSpyLoader();
-    const app = createApp({ capabilityRouter: { databases: conns, loadHandler: spy.loadHandler } });
+    const app = createTestApp({
+      capabilityRouter: { databases: conns, loadHandler: spy.loadHandler },
+    });
 
     for (const [action, method] of [
       ["frobnicate", "POST"], // not one of the five Actions
@@ -101,8 +105,8 @@ describe("deterministic capability router — admitted method/Action matrix", ()
       loadItemRenderer: async () => () => "<span>item</span>",
     } as const;
     install(conns, notesRow());
-    const transitionalApp = createApp({ capabilityRouter: routerDeps });
-    const fullActionApp = createApp({
+    const transitionalApp = createTestApp({ capabilityRouter: routerDeps });
+    const fullActionApp = createTestApp({
       capabilityRouter: {
         ...routerDeps,
         lookupCapability: () => notesRow(),
@@ -176,7 +180,7 @@ describe("deterministic capability router — rejected method/Action matrix", ()
     let lookupCalls = 0;
     let handlerLoads = 0;
     let itemLoads = 0;
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases: conns,
         lookupCapability: () => {
@@ -233,7 +237,7 @@ describe("deterministic capability router — reserved marker boundary", () => {
   test("record-target and mutation-form marker failures stay warm and load no generated code", async () => {
     let handlerLoads = 0;
     let itemLoads = 0;
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases: conns,
         lookupCapability: () => notesRow(),
@@ -311,7 +315,7 @@ describe("deterministic capability router — failures and complete inventory", 
 
   test("a handler that throws surfaces a friendly failure, never a stack trace or internals", async () => {
     install(conns, boomRow());
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const res = await app.request("/capability/boom/read");
 

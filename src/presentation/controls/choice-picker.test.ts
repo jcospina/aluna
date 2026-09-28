@@ -10,8 +10,8 @@
 // live next door, in `choice-picker.mounting.test.ts`.
 
 import { describe, expect, test } from "bun:test";
-import { FIRST_FIELD_SELECTOR } from "#shell/record-view.js";
-import { codeOf, readSource } from "../safety/source.test-support.ts";
+import { elementsOf, moduleSources } from "../../server/http/served-page.test-support.ts";
+import { readSource } from "../safety/source.test-support.ts";
 import {
   activeOf,
   form,
@@ -21,57 +21,28 @@ import {
   longList,
   OPTIONS,
   openPicker,
+  scene,
 } from "./choice-picker.fixture.test-support.ts";
-import { type El, scene } from "./choice-picker.test-support.ts";
+import { Doc, type El, parseHtml } from "./choice-picker.test-support.ts";
+import { startedOn } from "./started-module.test-support.ts";
 
 installDomGlobals();
 
 /* ── the seam ──────────────────────────────────────────────────────────────── */
 
+// Every suite below runs the module on the markup the renderer emits, so a hook the module
+// queries by that the server stopped writing fails them; this is only the page's half.
 describe("the shipped page runs the module against what the server writes", () => {
-  const MODULE = codeOf("public/choice-picker.js");
-
-  test("the shell loads it and it starts itself", () => {
-    expect(readSource("public/index.html")).toContain(
-      '<script type="module" src="/static/choice-picker.js"></script>',
+  test("the shell loads it, and it starts itself on the document it finds", async () => {
+    expect(moduleSources(await elementsOf(readSource("public/index.html")))).toContain(
+      "/static/choice-picker.js",
     );
-    expect(MODULE).toContain('if (typeof document !== "undefined") startChoiceControls(document);');
-  });
-
-  test("every hook the module queries by is one the renderer emits", () => {
-    const picker = form("picker");
-    const segmented = form("segmented", undefined, {
-      values: OPTIONS.map(({ note, ...rest }) => rest),
-    });
-    for (const hook of [
-      ".listbox__button",
-      ".listbox__panel",
-      ".listbox__value",
-      ".listbox__note",
-    ]) {
-      expect(MODULE).toContain(hook);
-      expect(picker).toContain(hook.slice(1));
-    }
-    expect(picker).toContain("data-choice-value");
-    expect(segmented).toContain('data-choice-presentation="segmented"');
-    expect(MODULE).toContain('[data-choice-presentation="segmented"] button[data-value]');
-  });
-
-  test("a form opening onto a choice field has something to put focus on", () => {
-    // Neither drawn control is a form element, so a capability whose fields are all of that kind
-    // matched neither focus selector and opened onto no focus at all.
-    // One selector now, so this asks what it admits rather than that two copies say the same.
-    expect(FIRST_FIELD_SELECTOR).toContain(".listbox__button");
-    expect(FIRST_FIELD_SELECTOR).toContain(".segmented button:not([disabled])");
-    expect(readSource("src/presentation/records/list-container.ts")).toContain(
-      "FIRST_FIELD_SELECTOR",
-    );
-    expect(form("picker")).toContain(
-      'class="field__control field__control--select listbox__button"',
-    );
-    expect(
-      form("segmented", undefined, { values: OPTIONS.map(({ note, ...rest }) => rest) }),
-    ).toContain('<div class="segmented"');
+    const doc = new Doc();
+    parseHtml(form("picker"), doc);
+    await startedOn("choice-picker.js", doc);
+    const button = doc.querySelector('[role="combobox"]') as El;
+    doc.fire("keydown", button, { key: "Enter" });
+    expect(button.getAttribute("aria-expanded")).toBe("true");
   });
 });
 
@@ -122,11 +93,12 @@ describe("the six keys that open, and the ways out", () => {
 
   test("Tab closes without taking the focus back, so it still moves on", async () => {
     const picker = await openPicker();
-    picker.doc.activeElement = null;
+    // The browser moves focus on after the key; the module must not have taken it back first.
+    picker.button.blur();
     picker.key("Tab", picker.button);
 
     expect(picker.panel?.hidden).toBe(true);
-    expect(picker.doc.activeElement).toBe(null);
+    expect(picker.doc.activeElement).toBe(picker.doc.body);
   });
 
   test("a press outside closes it, and a press inside does not", async () => {
@@ -134,10 +106,12 @@ describe("the six keys that open, and the ways out", () => {
     picker.doc.fire("pointerdown", picker.panel as El);
     expect(picker.panel?.hidden).toBe(false);
 
+    // A press on something that takes no focus leaves it on the page, as it lands.
+    picker.button.blur();
     picker.doc.fire("pointerdown", picker.form);
     expect(picker.panel?.hidden).toBe(true);
     // Closed by a press elsewhere, so the focus stays where the press landed.
-    expect(picker.doc.activeElement).toBe(null);
+    expect(picker.doc.activeElement).toBe(picker.doc.body);
   });
 
   test("the button toggles it, and focus never moves into the panel", async () => {
@@ -146,7 +120,7 @@ describe("the six keys that open, and the ways out", () => {
     expect(picker.panel?.hidden).toBe(false);
     picker.press(picker.button as El);
     expect(picker.panel?.hidden).toBe(true);
-    expect(picker.doc.activeElement).toBe(picker.button);
+    expect(picker.doc.activeElement).toBe(picker.button as El);
   });
 });
 
@@ -305,12 +279,14 @@ describe("typing jumps to a label, and only to a label", () => {
   });
 
   test("a note is not part of what an option is called", async () => {
+    // "Second" carries a note. What the closed control then reads is the option's name alone:
+    // the note is the row's, and would otherwise run on into the value it describes.
     const picker = await openPicker();
-    // "Second" carries the note "closes the record". Typing `c` must find nothing here
-    // rather than land on it, so the active row does not move.
-    const before = activeOf(picker.button);
-    picker.key("c", picker.button);
-    expect(activeOf(picker.button)).toBe(before);
+    const second = picker.options().find((o) => labelOf(o) === "second") as El;
+    const note = second.querySelector(".listbox__note") as El;
+    expect(note.textContent).not.toBe("");
+    picker.press(second);
+    expect(picker.valueEl?.textContent).toBe(second.textContent.replace(note.textContent, ""));
   });
 
   test("typeahead skips a disabled option", async () => {

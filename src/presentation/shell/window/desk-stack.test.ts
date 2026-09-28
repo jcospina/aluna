@@ -12,6 +12,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { refusePress } from "#design/window-press.js";
+import { dismissAnswerWindow, openAnswerWindow } from "#shell/desk-answer-window.js";
 import {
   BACK_Z,
   BEHIND_Z,
@@ -22,14 +23,9 @@ import {
   raiseFromPress,
   standingCount,
 } from "#shell/desk-stack.js";
-import { codeOf as code } from "../../safety/source.test-support.ts";
 import { stackMember } from "./desk-window.test-support.ts";
-
-const WINDOW = code("public/desk-window.js");
-const PANEL = code("public/desk-dev-panel.js");
-const ANSWER = code("public/desk-answer-window.js");
-const STACK = code("public/desk-stack.js");
-const DESIGN_DESK = code("design/scripts/desk.js");
+import type { El as DeskEl } from "./standing-desk.test-support.ts";
+import { designDesk, deskNodes, viewportDesk } from "./viewport-desk.test-support.ts";
 
 type Standing = ReturnType<typeof stackMember>;
 
@@ -135,11 +131,6 @@ describe("a slot is which window this is, not a number that climbs", () => {
       expect(behind.marks.z).toBe(BACK_Z);
       joinStack(front);
     });
-  });
-
-  test("the levels are a fixed list read by position, and nothing counts up", () => {
-    expect(STACK).not.toMatch(/\+\+|\+= *1|Math\.max/);
-    expect(STACK).toContain("const STACK_LEVELS = [FRONT_Z, BACK_Z, BEHIND_Z];");
   });
 
   test("a window that is not standing is not raised, and takes nobody down with it", () => {
@@ -261,24 +252,100 @@ describe("a press on the window behind is a reach, not a choice of text", () => 
   });
 });
 
+/** A press landing on `on` — a mouse's main button unless told otherwise — and whether it was refused. */
+function pressOn(on: DeskEl, how: { pointerType?: string; button?: number } = {}) {
+  const taken = { refused: false };
+  on.dispatchEvent({
+    type: "pointerdown",
+    target: on,
+    button: 0,
+    pointerType: "mouse",
+    view: null,
+    preventDefault: () => (taken.refused = true),
+    ...how,
+  } as never);
+  return taken.refused;
+}
+
+/**
+ * The presses a window behind leaves whole, on either desk: a finger, the context menu, and a
+ * press into a field, whose caret is the whole point of it. Each still brings the window forward.
+ */
+function keptWhole(behind: DeskEl, sendBehind: () => void) {
+  const field = deskNodes('<input name="title">')[0] as DeskEl;
+  behind.querySelector(".window__body")?.append(field);
+  const presses = [
+    () => pressOn(behind, { pointerType: "touch" }),
+    () => pressOn(behind, { button: 2 }),
+    () => pressOn(field),
+  ];
+  return presses.map((press) => {
+    sendBehind();
+    const wasBehind = !inFront(behind);
+    const refused = press();
+    return { wasBehind, refused, raised: inFront(behind) };
+  });
+}
+
+const inFront = (el: DeskEl) => el.classList.contains("is-focused");
+
 describe("every desk that stands a window keeps the same rule", () => {
-  test("each window hands its press to the stack, in the phase the title bar cannot beat", () => {
-    for (const source of [WINDOW, PANEL, ANSWER]) {
-      // Capture, because the bar raises the window itself before a bubbling listener runs, and a
-      // window already raised reads as the one that was in front all along.
-      expect(source).toMatch(/addEventListener\(\s*"pointerdown"[\s\S]{0,120}?raiseFromPress\(/);
-      expect(source).toMatch(/raiseFromPress\([^)]*\),\s*true\s*\)/);
-      // A window left raising behind the stack's back is a window that still selects.
-      expect(source).not.toMatch(/addEventListener\(\s*"pointerdown"[^;]*?=>\s*raise\(/);
+  test("a press on any of the three windows behind brings it forward, and is refused", async () => {
+    const screen = await viewportDesk({ panel: true });
+    try {
+      screen.module.openWindow("Notes", screen.desk.doc as never);
+      screen.devPanel?.openPanel(screen.desk.doc as never);
+      openAnswerWindow(screen.desk.doc, "how many notes?", "You have 22 notes.");
+      const [capability, panel, answer] = screen.desk.windows() as DeskEl[];
+      const three = [capability, panel, answer] as DeskEl[];
+      for (const [at, behind] of three.entries()) {
+        pressOn(three[(at + 1) % three.length] as DeskEl);
+        expect(inFront(behind)).toBe(false);
+        expect(pressOn(behind)).toBe(true);
+        expect(inFront(behind)).toBe(true);
+        // The window already in front keeps every press whole.
+        expect(pressOn(behind)).toBe(false);
+      }
+    } finally {
+      dismissAnswerWindow();
+      screen.restore();
     }
   });
 
-  test("the design page's desk refuses the same press, from the same module", () => {
+  test("the design page's desk refuses the same press", async () => {
     // One implementation, the way the gestures are one: `design/scripts/desk.js` is the other
     // surface that stands windows, and a second copy drifts the moment one of them is corrected.
-    expect(DESIGN_DESK).toContain('import { refusePress } from "./window-press.js";');
-    expect(DESIGN_DESK).toMatch(/refusePress\(\s*event,[\s\S]{0,80}?is-focused/);
-    expect(DESIGN_DESK).toMatch(/"pointerdown",[\s\S]{0,200}?true,\s*\);/);
-    expect(STACK).toContain('import { refusePress } from "../design/scripts/window-press.js";');
+    const design = await designDesk(false);
+    try {
+      const capability = design.design.open("notes").el as DeskEl;
+      design.design.openDev();
+      expect(inFront(capability)).toBe(false);
+      expect(pressOn(capability)).toBe(true);
+      expect(inFront(capability)).toBe(true);
+      // The window already in front keeps every press whole, here as on the product's desk.
+      expect(pressOn(capability)).toBe(false);
+    } finally {
+      design.restore();
+    }
+  });
+
+  test("and on both, a finger, the context menu and a field are never refused", async () => {
+    const whole = { wasBehind: true, refused: false, raised: true };
+    const screen = await viewportDesk({ panel: true });
+    try {
+      screen.module.openWindow("Notes", screen.desk.doc as never);
+      const [capability] = screen.desk.windows() as DeskEl[];
+      const toPanel = () => screen.devPanel?.openPanel(screen.desk.doc as never);
+      expect(keptWhole(capability as DeskEl, toPanel)).toEqual([whole, whole, whole]);
+    } finally {
+      screen.restore();
+    }
+    const design = await designDesk(false);
+    try {
+      const capability = design.design.open("notes").el as DeskEl;
+      expect(keptWhole(capability, () => design.design.openDev())).toEqual([whole, whole, whole]);
+    } finally {
+      design.restore();
+    }
   });
 });

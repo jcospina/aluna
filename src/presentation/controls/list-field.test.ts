@@ -2,8 +2,10 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { CREATE_CANCELLED_EVENT, RECORD_CREATED_EVENT } from "#shell/shell-dom.js";
 import { normalizeListInputValues } from "../../runtime/field-types/list-input.ts";
+import { elementsOf, moduleSources } from "../../server/http/served-page.test-support.ts";
 import { renderCreateForm } from "../fields/field-renderer.ts";
-import { codeOf, readSource } from "../safety/source.test-support.ts";
+import { readSource } from "../safety/source.test-support.ts";
+import { El as ParsedEl, parseHtml } from "./choice-picker.test-support.ts";
 import {
   editFormFor,
   el,
@@ -18,112 +20,64 @@ import {
   stuckRows,
   textOf,
 } from "./list-field.test-support.ts";
+import { startedOn } from "./started-module.test-support.ts";
 
 // Repeated-value rows: the server renders them, and the control makes them behave. The control
 // is `design/scripts/list-rows.js` and `public/list-field.js` is the product's half of the seam.
 
-const MODULE = codeOf("public/list-field.js");
-const MECHANICS = codeOf("design/scripts/list-rows.js");
-const GLUE = codeOf("public/app.js");
-const SHELL = readSource("public/index.html");
+/** A root that hands every listener it is given straight back, by event name. */
+function fakeRoot() {
+  const listeners = new Map<string, Array<(event: unknown) => void>>();
+  const root = {
+    addEventListener: (type: string, listener: (event: Event) => void) => {
+      const already = listeners.get(type) ?? [];
+      already.push(listener as (event: unknown) => void);
+      listeners.set(type, already);
+    },
+  };
+  const fire = (type: string, event: unknown) => {
+    for (const listener of listeners.get(type) ?? []) listener(event);
+  };
+  return { root, fire };
+}
 
 beforeAll(installDom);
 afterAll(removeDom);
 
 describe("the rows a list field is typed into", () => {
-  test("the shipped page loads the module, and it starts itself against the real document", () => {
-    expect(SHELL).toContain('<script type="module" src="/static/list-field.js"></script>');
-    expect(MODULE).toContain('if (typeof document !== "undefined") startListFields(document);');
-  });
-
-  test("it answers every way a row is added, moved, removed, or put back", () => {
-    expect(MODULE).toContain("collapseListFieldRows(form)");
-    // Delegated on the document, because these forms are swapped in long after load and
-    // a per-form script tag would have to be written into every one of them.
-    expect(MODULE).toContain("Element.prototype.querySelectorAll.call(form");
-    // Every gesture is asked for at once and answered by the control, not restated here. A
-    // second dispatcher in the product is how the two halves drift into disagreeing.
-    expect(MODULE).toContain("wireListRows(root)");
-    for (const gesture of ["click", "pointerdown", "pointermove", "pointerup", "keydown"]) {
-      expect(MECHANICS, `the control does not answer ${gesture}`).toContain(`on("${gesture}"`);
-      expect(MODULE, `the product answers ${gesture} itself`).not.toContain(`"${gesture}"`);
-    }
-  });
-
-  test("the product takes the control from the design layer rather than keeping a copy", () => {
-    // The same seam `public/ink.js` is: the import climbs out of `/static/`, which is
-    // `public/`, so one path is right in the browser and on disk.
-    expect(MODULE).toContain('from "../design/scripts/list-rows.js"');
-    // The rules live there and nowhere else — a second implementation under public/ is
-    // the defect this asserts against.
-    for (const rule of ["querySelectorAll(ROW)", "cloneNode(true)", 'setAttribute("disabled"']) {
-      expect(MECHANICS).toContain(rule);
-      expect(MODULE).not.toContain(rule);
-    }
-  });
-
-  test("what the module looks for is what the server writes", () => {
-    const form = renderCreateForm({
-      id: "tasks",
-      label: "Tasks",
-      noun: "task",
-      schema: {
-        fields: [
-          { name: "tags", label: "Tags", type: "string[]", required: false, lifecycle: "active" },
-        ],
-      },
-      form: {
-        list_inputs: [{ field: "tags", mode: "repeatable" }],
-        choice_inputs: [],
-        long_text: [],
-        guidance: [],
-      },
-      actions: ["create", "read", "update", "delete", "search"],
-    });
-
-    // The hooks the control queries by, verbatim on both sides.
-    for (const hook of [
-      "data-list-field",
-      "data-list-field-values",
-      "data-list-field-row",
-      "data-list-field-add",
-      "data-list-field-remove",
-      "data-list-field-grip",
-    ]) {
-      expect(form).toContain(hook);
-      expect(MECHANICS).toContain(`[${hook}]`);
-    }
-    // The live region is in the form from the start rather than written when a drag begins:
-    // a region added and filled in the same turn is one no screen reader is yet watching.
-    expect(form).toContain("data-list-field-live");
-    expect(MECHANICS).toContain("[data-list-field-live]");
-    // And the two it reads through `dataset` to re-key every row's id and accessible name. Drop
-    // either and the rows fall back to "Value 1" and collide on `list-value-N` ids.
-    expect(form).toContain('data-list-field-label="Tags"');
-    expect(MECHANICS).toContain("dataset.listFieldLabel");
-    expect(form).toContain('data-list-input-id="cap-tasks-tags"');
-    expect(MECHANICS).toContain("dataset.listInputId");
+  test("the shipped page loads the module, and it starts itself on the document it finds", async () => {
+    expect(moduleSources(await elementsOf(readSource("public/index.html")))).toContain(
+      "/static/list-field.js",
+    );
+    const { root, fire } = fakeRoot();
+    await startedOn("list-field.js", root);
+    const { addListRow } = await import("#shell/list-field.js");
+    const { field, add } = listField("green");
+    const form = el("form");
+    form.append(field);
+    addListRow(add);
+    fire(RECORD_CREATED_EVENT, { target: form });
+    expect(rowsOf(field)).toHaveLength(1);
   });
 
   test("the order can be changed without dragging, because the grip is a button", () => {
     // A drag is unavailable to a keyboard and invisible until you try it, so it may not be the
-    // only way in. The grip is a `<button>`, which is what puts it in the tab order.
-    const form = editFormFor("repeatable", { tags: ["green", "slow"] });
-    expect(form).toContain('<button class="field-list__grip" type="button" data-list-field-grip');
-    expect(form).not.toContain("draggable");
-    // The keys are named where the grip is described, because a grab is a mode and a mode
-    // nobody was told about is a row they cannot put down.
-    expect(form).toContain("Press space to pick this row up, then the arrow keys to move it.");
-    expect(form).toMatch(/aria-describedby="edit-tasks-tags-reorder-help"/);
-    expect(form).toContain('id="edit-tasks-tags-reorder-help"');
-    for (const key of ["ArrowUp", "ArrowDown", "Escape"]) {
-      expect(MECHANICS, `the control does not answer ${key}`).toContain(key);
+    // only way in. The grip is a `<button>`, which is what puts it in the tab order; the keys it
+    // answers are run in `list-field.reorder.test.ts`.
+    const page = parseHtml(
+      editFormFor("repeatable", { tags: ["green", "slow"] }),
+      new ParsedEl("div"),
+    );
+    const grips = page.querySelectorAll("button").filter((b) => b.hasAttribute("aria-describedby"));
+    expect(grips.length).toBeGreaterThan(0);
+    for (const grip of grips) {
+      expect(grip.getAttribute("type")).toBe("button");
+      expect(grip.hasAttribute("draggable")).toBe(false);
+      // The keys are named where the grip is described, because a grab is a mode and a mode
+      // nobody was told about is a row they cannot put down.
+      const help = page.querySelector(`#${grip.getAttribute("aria-describedby")}`);
+      expect(help?.textContent.trim()).not.toBe("");
     }
-  });
-
-  test("the glue kept none of it", () => {
-    expect(GLUE).not.toContain("ListRow");
-    expect(GLUE).not.toContain("data-list-field");
   });
 });
 
@@ -132,26 +86,26 @@ describe("the rows a list field is typed into", () => {
  * hook, the label and whether the control can act can each be right while the button is wrong.
  */
 function rowControls(form: string) {
-  return [...form.matchAll(/<button class="([^"]*)" type="button" ([^>]*)>/g)]
-    .filter(([, classes]) => /field-list__(grip|action)/.test(classes ?? ""))
-    .map(([, classes, rest]) => ({
-      is: /field-list__grip/.test(classes ?? "") ? "grip" : "remove",
-      hook: /data-list-field-(grip|remove)/.exec(rest ?? "")?.[1] ?? "",
-      says: /aria-label="([^"]*)"/.exec(rest ?? "")?.[1] ?? "",
-      stuck: (rest ?? "").includes(" disabled"),
-    }));
+  const rows = parseHtml(form, new ParsedEl("div")).querySelectorAll("[data-list-field-row]");
+  return rows.flatMap((row) =>
+    row.querySelectorAll("button").map((control) => ({
+      is: control.hasAttribute("data-list-field-grip") ? "grip" : "remove",
+      says: control.getAttribute("aria-label") ?? "",
+      stuck: control.hasAttribute("disabled"),
+    })),
+  );
 }
 
 describe("what the server writes on a row", () => {
   test("every control agrees with itself about which row it belongs to", () => {
     const controls = rowControls(editFormFor("repeatable", { tags: ["one", "two", "three"] }));
     expect(controls).toEqual([
-      { is: "grip", hook: "grip", says: "Reorder Tags 1 of 3", stuck: false },
-      { is: "remove", hook: "remove", says: "Remove Tags value 1", stuck: false },
-      { is: "grip", hook: "grip", says: "Reorder Tags 2 of 3", stuck: false },
-      { is: "remove", hook: "remove", says: "Remove Tags value 2", stuck: false },
-      { is: "grip", hook: "grip", says: "Reorder Tags 3 of 3", stuck: false },
-      { is: "remove", hook: "remove", says: "Remove Tags value 3", stuck: false },
+      { is: "grip", says: "Reorder Tags 1 of 3", stuck: false },
+      { is: "remove", says: "Remove Tags value 1", stuck: false },
+      { is: "grip", says: "Reorder Tags 2 of 3", stuck: false },
+      { is: "remove", says: "Remove Tags value 2", stuck: false },
+      { is: "grip", says: "Reorder Tags 3 of 3", stuck: false },
+      { is: "remove", says: "Remove Tags value 3", stuck: false },
     ]);
   });
 
@@ -159,28 +113,29 @@ describe("what the server writes on a row", () => {
     // Nowhere to move the only row there is, and a control that cannot act says so — while
     // the remove stays, because emptying the row is still something to do.
     expect(rowControls(renderCreateForm(listCapability("repeatable")))).toEqual([
-      { is: "grip", hook: "grip", says: "Reorder Tags 1 of 1", stuck: true },
-      { is: "remove", hook: "remove", says: "Remove Tags value 1", stuck: false },
+      { is: "grip", says: "Reorder Tags 1 of 1", stuck: true },
+      { is: "remove", says: "Remove Tags value 1", stuck: false },
     ]);
   });
 
   test("the grip is drawn as the six dots every sortable list is dragged by", () => {
     // The one mark on the row that is a convention rather than a decision: a person who has
     // moved a row anywhere else already knows what it is for.
-    const form = renderCreateForm(listCapability("repeatable"));
-    expect([...form.matchAll(/<circle cx="\d+" cy="\d+" r="1.6">/g)]).toHaveLength(6);
+    const page = parseHtml(renderCreateForm(listCapability("repeatable")), new ParsedEl("div"));
+    const grip = page.querySelector("[data-list-field-grip]");
+    expect(grip?.querySelectorAll("circle")).toHaveLength(6);
   });
 
   test("a required list says so on the field, because no one control can carry it", () => {
     // One nonblank row is what it wants, so `required` on a row would refuse a complete list.
     // The field says the word and `public/field-errors.js` enforces it.
-    const required = renderCreateForm(listCapability("repeatable", true));
-    expect(required).toContain("data-list-required");
-    expect(required).not.toContain(" required>");
-    expect(renderCreateForm(listCapability("repeatable"))).not.toContain("data-list-required");
+    // The refusal itself is run in `field-errors.required.test.ts` ("a required list is refused…").
+    const parsed = (html: string) => parseHtml(html, new ParsedEl("div"));
+    const required = parsed(renderCreateForm(listCapability("repeatable", true)));
+    expect(required.querySelector("[required]")).toBeNull();
     // The comma mode has one control, so it keeps the native constraint it can carry.
-    expect(renderCreateForm(listCapability("comma_separated", true))).toContain(" required>");
-    expect(codeOf("public/field-errors.js")).toContain("[data-list-required]");
+    const comma = parsed(renderCreateForm(listCapability("comma_separated", true)));
+    expect(comma.querySelector('input[name="tags"]')?.hasAttribute("required")).toBe(true);
   });
 });
 
@@ -198,8 +153,9 @@ describe("what the rows actually do", () => {
     const [first, second] = rowsOf(field);
     expect(second?.querySelector("input")?.value).toBe("");
     expect(second?.querySelector("input")?.focused).toBe(true);
-    expect(first?.querySelector("input")?.id).toBe("cap-tasks-tags-1");
-    expect(second?.querySelector("input")?.id).toBe("cap-tasks-tags-2");
+    const inputId = field.dataset.listInputId;
+    expect(first?.querySelector("input")?.id).toBe(`${inputId}-1`);
+    expect(second?.querySelector("input")?.id).toBe(`${inputId}-2`);
     expect(labelsOf(field)).toEqual(["Tags 1", "Tags 2"]);
     expect(input.value).toBe("green");
   });
@@ -274,11 +230,11 @@ describe("what the rows actually do", () => {
   test("an added row is drawn with a hand of its own, not the one it was copied from", async () => {
     const { addListRow, syncListRows } = await import("#shell/list-field.js");
     const { field, add } = listField("green");
+    // What the ink system leaves on a row it has drawn: a seed on the control, and its layers.
+    const drawn = rowsOf(field)[0]?.querySelector(".field__control") as Node;
+    drawn.setAttribute("data-ink-seed", "1000");
+    drawn.append(el("svg", { class: "ink__ground" }), el("svg", { class: "ink__layer" }));
     syncListRows(field);
-    const seedsBefore = rowsOf(field).map((row) =>
-      row.querySelector("[data-ink-seed]")?.getAttribute("data-ink-seed"),
-    );
-    expect(seedsBefore).toEqual(["1000"]);
 
     addListRow(add);
 
@@ -364,22 +320,6 @@ describe("both modes hand over the same ordered array", () => {
 });
 
 describe("finishing with a form", () => {
-  /** A root that hands every listener it is given straight back, by event name. */
-  function fakeRoot() {
-    const listeners = new Map<string, Array<(event: unknown) => void>>();
-    const root = {
-      addEventListener: (type: string, listener: (event: Event) => void) => {
-        const already = listeners.get(type) ?? [];
-        already.push(listener as (event: unknown) => void);
-        listeners.set(type, already);
-      },
-    };
-    const fire = (type: string, event: unknown) => {
-      for (const listener of listeners.get(type) ?? []) listener(event);
-    };
-    return { root, fire };
-  }
-
   test("a committed create and a cancelled one both put the rows back", async () => {
     // Both listeners were only ever proved to exist. Gutting either body left every
     // assertion about them passing, because the fake root delivered nothing but clicks.

@@ -3,6 +3,8 @@
 
 import { describe, expect, test } from "bun:test";
 
+import { linesNaming } from "../../platform/provider/prompt-lines.test-support.ts";
+
 import { CAPTION_FIELD, PHOTO_FIELD, photoSpec } from "../../registry/fields/file.test-support.ts";
 import { fieldTypeSchema } from "../../registry/index.ts";
 import { FILE_FIELD_PROMPT_LINES } from "./file-field-guidance.ts";
@@ -21,7 +23,7 @@ function stageInput(spec: unknown) {
 describe("the spec prompt", () => {
   test("offers the file type, says what it accepts, and says search never reads it", () => {
     const prompt = buildSpecPrompt(stageInput(photoSpec()));
-    expect(prompt).toContain(`- a field's type is one of: ${fieldTypeSchema.options.join(" | ")}.`);
+    expect(linesNaming(prompt, fieldTypeSchema.options)).not.toEqual([]);
     for (const line of FILE_FIELD_PROMPT_LINES) expect(prompt).toContain(line);
   });
 });

@@ -1,4 +1,5 @@
 import { capabilityDeletionUrl } from "#shell/routes.js";
+import { WINDOW_CONTENT_ID } from "#shell/shell-dom.js";
 import type { CapabilityRow } from "../../registry/index.ts";
 import { canonicalCapabilityLabel, SQL_NAME_PATTERN } from "../../registry/index.ts";
 import { escapeHtml } from "../../server/http/html.ts";
@@ -50,7 +51,7 @@ function renderDeletionPanel(
  */
 function renderBackAction(restoration: CapabilityDeletionRestorationEvidence): string {
   const url = capabilityDeletionRestorationUrl(restoration);
-  return `<button class="btn btn--outline capability-deletion__keep" type="button" ${DELETION_EXIT_ATTRIBUTE} hx-get="${escapeHtml(url)}" hx-target="#spec-build-output" hx-swap="innerHTML">Keep it</button>`;
+  return `<button class="btn btn--outline capability-deletion__keep" type="button" ${DELETION_EXIT_ATTRIBUTE} hx-get="${escapeHtml(url)}" hx-target="#${WINDOW_CONTENT_ID}" hx-swap="innerHTML">Keep it</button>`;
 }
 
 /**
@@ -107,7 +108,7 @@ export function renderCapabilityDeletionConfirmation(
     renderBackAction(restoration),
     // The marker lets the shell recognise a confirm whose response never arrived: a severed request
     // swaps nothing, so the panel would sit unchanged while the capability is permanently gone.
-    `<form method="post" hx-post="${escapeHtml(deletionUrl(target.id))}/confirm" hx-target="#spec-build-output" hx-swap="innerHTML" hx-disabled-elt="find button" data-capability-deletion-confirm="${escapeHtml(deletionUrl(target.id))}">`,
+    `<form method="post" hx-post="${escapeHtml(deletionUrl(target.id))}/confirm" hx-target="#${WINDOW_CONTENT_ID}" hx-swap="innerHTML" hx-disabled-elt="find button" data-capability-deletion-confirm="${escapeHtml(deletionUrl(target.id))}">`,
     `  <input type="hidden" name="incarnation_id" value="${escapeHtml(target.incarnation_id)}">`,
     `  <input type="hidden" name="restore_surface" value="${restoration.kind}">`,
     restoration.kind === "capability"
@@ -167,7 +168,7 @@ function renderCapabilityDeletionEnding(
   return [
     `<section class="capability-deletion capability-deletion--ending" aria-labelledby="${DELETION_ENDING_ELEMENT_ID}" ${DELETION_ENDING_ATTRIBUTE}>`,
     `  <p class="capability-deletion__ending" id="${DELETION_ENDING_ELEMENT_ID}" tabindex="-1" data-capability-deletion-focus ${DELETION_SENTENCE_ATTRIBUTE}>${escapeHtml(sentence)}</p>`,
-    `  <div class="capability-deletion__actions"><button class="btn btn--outline" type="button" ${DELETION_EXIT_ATTRIBUTE} hx-get="${escapeHtml(url)}" hx-target="#spec-build-output" hx-swap="innerHTML">Continue</button></div>`,
+    `  <div class="capability-deletion__actions"><button class="btn btn--outline" type="button" ${DELETION_EXIT_ATTRIBUTE} hx-get="${escapeHtml(url)}" hx-target="#${WINDOW_CONTENT_ID}" hx-swap="innerHTML">Continue</button></div>`,
     `</section>`,
   ].join("\n");
 }

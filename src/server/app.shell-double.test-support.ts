@@ -1,309 +1,32 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
+import { PROMPT_FORM_ID } from "#shell/desk-window.js";
 import { startPromptBar } from "#shell/prompt-bar.js";
+import {
+  ACTIVE_CAPABILITY_ATTRIBUTE,
+  BUILD_JOB_ID_ATTRIBUTE,
+  PROMPT_FIELD_ID,
+  PROMPT_NOTICE_ID,
+  WINDOW_CONTENT_ID,
+} from "#shell/shell-dom.js";
 
-import { unescapeHtml } from "./http/html.ts";
+import { DomDocument, El, Template, Text } from "./dom-double.test-support.ts";
+import type { DispatchedEvent } from "./dom-events.test-support.ts";
+
+export { El, Template, Text };
 
 // Shell glue, run rather than grepped: `public/app.js` imports nothing, so it runs with the DOM
-// globals its rules touch. Shared with app.build-ending and app.prompt-bar-messages.
+// globals its rules touch. Shared with app.build-ending and app.prompt-bar-messages. The page's ids
+// come from the modules that own them, so every rule the glue answers proves its restated copies.
 
-export const WINDOW_REGION_ID = "spec-build-output";
+export const WINDOW_REGION_ID = WINDOW_CONTENT_ID;
 
 /** As much of the shell's Alpine component as these rules touch. */
 interface ShellState {
   promptBusy: boolean;
   init(): void;
 }
-
-export class El {
-  readonly childNodes: El[] = [];
-  parent: El | null = null;
-  readonly attributes = new Map<string, string>();
-  readonly dispatched: string[] = [];
-  readonly nodeType = 1;
-  isFragment = false;
-  raw = "";
-  value = "";
-  focused = false;
-  /** This node's own words, with its children's held by the children. */
-  ownText = "";
-
-  constructor(
-    readonly tag: string,
-    attributes: Record<string, string> = {},
-  ) {
-    for (const [name, value] of Object.entries(attributes)) this.attributes.set(name, value);
-  }
-
-  get classList() {
-    const classes = (this.attributes.get("class") ?? "").split(/\s+/).filter(Boolean);
-    const write = () => this.attributes.set("class", classes.join(" "));
-    return {
-      contains: (name: string) => classes.includes(name),
-      add: (name: string) => {
-        if (!classes.includes(name)) classes.push(name);
-        write();
-      },
-      remove: (name: string) => {
-        const at = classes.indexOf(name);
-        if (at >= 0) classes.splice(at, 1);
-        write();
-      },
-    };
-  }
-
-  /** What the browser exposes for `id="…"`, and the empty string when there is none. */
-  get id(): string {
-    return this.attributes.get("id") ?? "";
-  }
-
-  get firstChild(): El | null {
-    return this.childNodes[0] ?? null;
-  }
-
-  /**
-   * A live view over `data-*`, which is what the browser's `dataset` is. A plain object was a
-   * second, empty store: a node built with `data-active-capability-id` read back as having none.
-   */
-  get dataset(): Record<string, string | undefined> {
-    const attributes = this.attributes;
-    const attributeFor = (key: string) =>
-      `data-${key.replace(/[A-Z]/g, (upper) => `-${upper.toLowerCase()}`)}`;
-    return new Proxy(
-      {},
-      {
-        get: (_target, key) =>
-          typeof key === "string" ? attributes.get(attributeFor(key)) : undefined,
-        set: (_target, key, value) => {
-          if (typeof key === "string") attributes.set(attributeFor(key), String(value));
-          return true;
-        },
-        has: (_target, key) => typeof key === "string" && attributes.has(attributeFor(key)),
-        deleteProperty: (_target, key) => {
-          if (typeof key === "string") attributes.delete(attributeFor(key));
-          return true;
-        },
-      },
-    );
-  }
-
-  /**
-   * Read through the tree and written by replacing it, the two halves of the browser's own
-   * `textContent`. As a field, the setter left the children it was meant to remove standing.
-   */
-  get textContent(): string {
-    return this.childNodes.reduce((text, child) => text + child.textContent, this.ownText);
-  }
-
-  set textContent(words: string) {
-    for (const child of [...this.childNodes]) child.remove();
-    this.ownText = words;
-  }
-
-  getAttribute(name: string): string | null {
-    return this.attributes.get(name) ?? null;
-  }
-
-  setAttribute(name: string, value: string): void {
-    this.attributes.set(name, value);
-  }
-
-  removeAttribute(name: string): void {
-    this.attributes.delete(name);
-  }
-
-  matches(selector: string): boolean {
-    // One compound selector only. A descendant selector would match on its first bracket group
-    // and quietly answer about the wrong node, which a double is not allowed to do.
-    if (/\s/.test(selector.trim())) throw new Error(`not a compound selector: ${selector}`);
-    if (selector.startsWith("#")) return this.attributes.get("id") === selector.slice(1);
-    const negated = this.negationIn(selector);
-    if (negated !== null) return negated;
-    const tagged = /^([a-z]+)\[/.exec(selector);
-    if (tagged && this.tag !== tagged[1]) return false;
-    const attributes = [...selector.matchAll(/\[([\w-]+)(?:="([^"]*)")?\]/g)];
-    if (attributes.length > 0) return this.holdsAll(attributes);
-    return selector.startsWith(".") && this.classList.contains(selector.slice(1));
-  }
-
-  /**
-   * `:not([attr])`, the one negation the shell's own selectors use — a run that is not a question.
-   * Answered before the attribute walk, which would otherwise read the negated name as a
-   * requirement and say yes to exactly the node the selector excludes. Any other negation is
-   * refused rather than answered: `:not(.class)` would come out as "no", which is a double
-   * quietly deciding a rule under test.
-   *
-   * @returns the answer, or `null` when the selector negates nothing
-   */
-  private negationIn(selector: string): boolean | null {
-    const negated = /:not\(\[([\w-]+)\]\)/.exec(selector);
-    if (!negated) {
-      if (selector.includes(":not(")) {
-        throw new Error(`only \`:not([attribute])\` is understood here: ${selector}`);
-      }
-      return null;
-    }
-    return !this.attributes.has(negated[1] ?? "") && this.matches(selector.replace(negated[0], ""));
-  }
-
-  /**
-   * Every attribute the selector names, not just the first: `[a][b]` asks for both, and a double
-   * that answered about `[a]` alone would say yes to a node the browser passes over.
-   */
-  private holdsAll(asked: readonly RegExpExecArray[]): boolean {
-    return asked.every(([, name, value]) => {
-      const held = this.attributes.get(name ?? "");
-      return held !== undefined && (value === undefined || held === value);
-    });
-  }
-
-  closest(selector: string): El | null {
-    for (let node: El | null = this; node; node = node.parent) {
-      if (node.matches(selector)) return node;
-    }
-    return null;
-  }
-
-  /** The first descendant this selector reaches, one compound step at a time. */
-  querySelector(selector: string): El | null {
-    // `:scope > x` asks about this node's own children and nothing deeper. The walk below would
-    // reach a grandchild and say yes, and the rule asking this wants a direct child.
-    const scoped = /^:scope\s*>\s*(.+)$/.exec(selector.trim());
-    if (scoped) {
-      const step = scoped[1] ?? "";
-      if (/\s/.test(step)) throw new Error(`not a compound selector after :scope: ${step}`);
-      return this.childNodes.find((child) => child.matches(step)) ?? null;
-    }
-    const [head, ...rest] = selector.trim().split(/\s+/);
-    for (const child of this.childNodes) {
-      const found = child.reachedBy(head ?? selector, rest) ?? child.querySelector(selector);
-      if (found) return found;
-    }
-    return null;
-  }
-
-  /** This node if the step ends here, or whatever the remaining steps reach inside it. */
-  private reachedBy(step: string, rest: readonly string[]): El | null {
-    if (!this.matches(step)) return null;
-    return rest.length === 0 ? this : this.querySelector(rest.join(" "));
-  }
-
-  append(...nodes: El[]): void {
-    for (const node of nodes) {
-      if (node.isFragment) {
-        this.append(...[...node.childNodes]);
-        continue;
-      }
-      node.remove();
-      node.parent = this;
-      this.childNodes.push(node);
-    }
-  }
-
-  replaceChildren(...nodes: El[]): void {
-    for (const child of [...this.childNodes]) child.remove();
-    // This node's own text is a child too, and a `replaceChildren()` that left it standing would
-    // go on answering for a slot it had just emptied.
-    this.ownText = "";
-    this.append(...nodes);
-  }
-
-  remove(): void {
-    const siblings = this.parent?.childNodes;
-    if (siblings) siblings.splice(siblings.indexOf(this), 1);
-    this.parent = null;
-  }
-
-  focus(): void {
-    this.focused = true;
-  }
-
-  /** Listeners bound to this node, which is where htmx dispatches a swap's own events. */
-  private readonly handlers = new Map<string, Array<(event: unknown) => void>>();
-
-  addEventListener(name: string, listener: (event: unknown) => void): void {
-    this.handlers.set(name, [...(this.handlers.get(name) ?? []), listener]);
-  }
-
-  removeEventListener(name: string, listener: (event: unknown) => void): void {
-    const bound = this.handlers.get(name) ?? [];
-    const at = bound.indexOf(listener);
-    if (at >= 0) bound.splice(at, 1);
-  }
-
-  /**
-   * The browser runs a node's own listeners whether or not the node is still in the document, so
-   * a rule that must hear about a swap into a detached region binds here rather than to it.
-   */
-  dispatchEvent(event: { type: string; defaultPrevented?: boolean }): boolean {
-    this.dispatched.push(event.type);
-    for (const listener of [...(this.handlers.get(event.type) ?? [])]) listener(event);
-    // The browser's answer: false once a listener has cancelled a cancellable event.
-    return event.defaultPrevented !== true;
-  }
-}
-
-/**
- * The one thing a `<template>` is for here: the parked restoration, inert and unsearchable until
- * it is asked for. Read the way the browser reads it — the outer attributes, and what it wraps.
- */
-export class Template extends El {
-  readonly content = new El("#fragment");
-
-  constructor() {
-    super("template");
-    this.content.isFragment = true;
-  }
-
-  set innerHTML(raw: string) {
-    this.raw = raw;
-    this.content.replaceChildren(...parseFragment(raw));
-  }
-}
-
-/**
- * As much of an HTML parser as the shell's rules ask a `<template>` for: nested elements with
- * their attributes and text. The rules read a marker off a child, so flattening would answer no.
- */
-function parseFragment(raw: string): El[] {
-  const roots: El[] = [];
-  const open: El[] = [];
-  for (const step of raw.matchAll(FRAGMENT_STEP)) takeStep(step, roots, open);
-  return roots;
-}
-
-/** One tag — opening or closing, with its attributes — or the text between two. */
-const FRAGMENT_STEP = /<(\/?)([\w-]+)((?:\s+[\w-]+(?:="[^"]*")?)*)\s*(\/?)>|([^<]+)/g;
-
-function takeStep(step: RegExpExecArray, roots: El[], open: El[]): void {
-  const [, closing, tag = "div", attributes = "", selfClosing, text] = step;
-  const holder = open.at(-1);
-  if (text !== undefined) {
-    // Decoded, because a browser decodes: every sentence on this desk is escaped on its way into
-    // a fragment, and a double handing it back escaped tests the desk against words nobody sees.
-    if (holder) holder.ownText += unescapeHtml(text.trim());
-    return;
-  }
-  if (closing === "/") {
-    open.pop();
-    return;
-  }
-  const node = elementFrom(tag, attributes);
-  if (holder) holder.append(node);
-  else roots.push(node);
-  if (selfClosing !== "/" && !VOID_TAGS.has(tag)) open.push(node);
-}
-
-function elementFrom(tag: string, attributes: string): El {
-  const node = new El(tag);
-  for (const [, name, value] of attributes.matchAll(/([\w-]+)(?:="([^"]*)")?/g)) {
-    if (name) node.setAttribute(name, unescapeHtml(value ?? ""));
-  }
-  return node;
-}
-
-const VOID_TAGS = new Set(["br", "hr", "img", "input", "meta", "link"]);
 
 /**
  * Note where a rule stops an event at the document. A capture-phase refusal keeps a submission
@@ -324,58 +47,46 @@ function watchForStop(event: unknown, stopped: string[]): void {
  */
 function documentOver(
   page: { page: El; region: El; notice: El; promptForm: El; promptField: El },
-  listeners: Map<string, Array<(event: unknown) => void>>,
   dispatched: Array<{ type: string; detail: unknown }>,
 ) {
-  return {
-    addEventListener(name: string, listener: (event: unknown) => void) {
-      listeners.set(name, [...(listeners.get(name) ?? []), listener]);
-    },
-    querySelector: (selector: string) => page.region.querySelector(selector),
-    getElementById: (id: string) => {
+  class ShellDocument extends DomDocument {
+    querySelector = (selector: string) => page.region.querySelector(selector);
+    getElementById = (id: string) => {
       if (id === WINDOW_REGION_ID) return page.region;
-      if (id === "prompt-notice") return page.notice;
-      if (id === "spec-build-form") return page.promptForm;
-      return id === "spec-build-prompt" ? page.promptField : null;
-    },
-    createElement: (tag: string) => (tag === "template" ? new Template() : new El(tag)),
-    /**
-     * What the browser answers for a node still in the page, and for one taken out of it — how a
-     * rule tells an answer that still has somewhere to land from one that does not.
-     */
-    contains: (node: unknown) => {
-      for (let at = node as El | null; at; at = at.parent) if (at === page.page) return true;
-      return false;
-    },
+      if (id === PROMPT_NOTICE_ID) return page.notice;
+      if (id === PROMPT_FORM_ID) return page.promptForm;
+      return id === PROMPT_FIELD_ID ? page.promptField : null;
+    };
+    createElement = (tag: string) => (tag === "template" ? new Template() : new El(tag));
+
     /** False when a listener answered a cancellable event, which is how the browser reports it. */
-    dispatchEvent: (event: { type: string; detail?: unknown; defaultPrevented?: boolean }) => {
-      dispatched.push({ type: event.type, detail: event.detail });
-      for (const listener of listeners.get(event.type) ?? []) listener(event);
-      return event.defaultPrevented !== true;
-    },
-  };
+    override dispatchEvent(event: DispatchedEvent): boolean {
+      dispatched.push({ type: event.type, detail: (event as { detail?: unknown }).detail });
+      return super.dispatchEvent(event);
+    }
+  }
+  return new ShellDocument(page.page);
 }
 
 /** One run standing in the window, with the surface it displaced beside it. */
 export function desk() {
   const region = new El("div", { id: WINDOW_REGION_ID });
-  const displaced = new El("div", { "data-active-capability-id": "tasks" });
+  const displaced = new El("div", { [ACTIVE_CAPABILITY_ATTRIBUTE]: "tasks" });
   const subscriber = new El("section", {
     class: "build-stream",
-    "data-build-job-id": "build-1",
+    [BUILD_JOB_ID_ATTRIBUTE]: "build-1",
   });
   const narration = new El("div", { class: "build-stream__narration" });
   const surface = new El("div", { class: "build-stream__fragment" });
   subscriber.append(narration, surface);
   region.append(displaced, subscriber);
 
-  const listeners = new Map<string, Array<(event: unknown) => void>>();
   /** Every event a rule stopped at the document — how a capture-phase refusal is seen. */
   const propagationStopped: string[] = [];
   const dispatched: Array<{ type: string; detail: unknown }> = [];
   const processed: El[] = [];
-  const notice = new El("div", { id: "prompt-notice" });
-  const promptField = new El("input", { id: "spec-build-prompt" });
+  const notice = new El("div", { id: PROMPT_NOTICE_ID });
+  const promptField = new El("input", { id: PROMPT_FIELD_ID });
   const frames: Array<() => void> = [];
   /**
    * The bar itself: the form a prompt is submitted from, and what the 400ms refusal cue goes on.
@@ -384,7 +95,7 @@ export function desk() {
   class FormStub extends El {
     constructor() {
       super("form", {
-        id: "spec-build-form",
+        id: PROMPT_FORM_ID,
         class: "prompt",
         "hx-target": `#${WINDOW_REGION_ID}`,
       });
@@ -398,11 +109,7 @@ export function desk() {
    * rule asking whether an answer still has somewhere to land could only be proved live. */
   const page = new El("body");
   page.append(region, notice, promptForm);
-  const documentStub = documentOver(
-    { page, region, notice, promptForm, promptField },
-    listeners,
-    dispatched,
-  );
+  const documentStub = documentOver({ page, region, notice, promptForm, promptField }, dispatched);
   /** The `shell` component, so the courtesy state can be driven the way Alpine drives it. */
   let shellFactory: (() => ShellState) | null = null;
   const windowStub = {
@@ -452,10 +159,18 @@ export function desk() {
     { TEXT_NODE: 3 },
   );
 
-  /** Every rule listening for one event, in the order the document would run them. */
+  /**
+   * Send an event the way the browser would: at its target when that is a node of the page, so it
+   * passes every capture and bubble listener on the way; at the document when it has no target.
+   */
   const fire = (name: string, event: unknown) => {
+    const typed = event as { type?: string };
+    if (typed.type === undefined) Object.assign(event as object, { type: name });
+    else if (typed.type !== name) throw new Error(`fired as ${name}, but it is a ${typed.type}`);
     watchForStop(event, propagationStopped);
-    for (const listener of listeners.get(name) ?? []) listener(event);
+    const target = (event as { target?: unknown }).target;
+    if (target instanceof El) target.dispatchEvent(event as Event);
+    else documentStub.dispatchEvent(event as Event);
   };
 
   /** Start the shell component the way Alpine does, and hand back its state. */
@@ -479,7 +194,6 @@ export function desk() {
     notice,
     promptField,
     promptForm,
-    listeners,
     fire,
     dispatched,
     processed,
@@ -502,7 +216,7 @@ export function narrateEnding(scene: ReturnType<typeof desk>) {
  * before it trusts a close, so a plain object would be waved through every rule under test.
  */
 export function eventAt(type: string, target: El, detail: unknown) {
-  const event = new CustomEvent(type, { detail, cancelable: true });
+  const event = new CustomEvent(type, { detail, cancelable: true, bubbles: true });
   Object.defineProperty(event, "target", { value: target });
   return event;
 }
@@ -533,4 +247,26 @@ export function dismiss(scene: ReturnType<typeof desk>) {
   const button = new El("button", { "data-build-dismiss": "" });
   scene.subscriber.append(button);
   scene.fire("click", eventAt("click", button, null));
+}
+
+/**
+ * One answer arriving for a request `asking` made. htmx dispatches `htmx:beforeSwap` on the swap
+ * target, with the element that asked in the request's configuration, and marks a 4xx or 5xx an
+ * error; whatever `isError` says once the listeners have run is what htmx reports as `successful`.
+ * @returns whether htmx was told to swap it where it was aimed, and whether it counts it a success
+ */
+export function answerArrives(
+  scene: ReturnType<typeof desk>,
+  asking: El,
+  { status, body }: { status: number; body: string },
+): { swapped: boolean; successful: boolean } {
+  const detail = {
+    xhr: { status, responseText: body },
+    shouldSwap: false,
+    isError: status >= 400,
+    elt: scene.region,
+    requestConfig: { elt: asking },
+  };
+  scene.fire("htmx:beforeSwap", { detail });
+  return { swapped: detail.shouldSwap, successful: !detail.isError };
 }

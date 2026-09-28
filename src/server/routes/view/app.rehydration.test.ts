@@ -4,6 +4,8 @@
 // and fixtures live in app.test-support.ts.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { DEV_STAGES } from "#design/devpanel.js";
+import { DEV_SEED_SELECTOR } from "#shell/desk-dev-panel.js";
 import {
   reconcileRunningGenerationLifecycles,
   startGenerationLifecycle,
@@ -26,8 +28,17 @@ import {
   runPromptBuild,
   teardownScratchDbEnv,
 } from "../../app.test-support.ts";
-import { createApp } from "../../app.ts";
 import { countMatches } from "../../http/fragments.test-support.ts";
+import { elementsOf } from "../../http/served-page.test-support.ts";
+import { createTestApp } from "../../isolated-app.test-support.ts";
+
+/** Every developer-stage seed a served page carries: the stage it is filed under, and its words. */
+async function devSeeds(html: string) {
+  const attribute = /^\[([\w-]+)\]$/.exec(DEV_SEED_SELECTOR)?.[1] ?? "";
+  return (await elementsOf(html))
+    .filter((one) => one.attributes.has(attribute))
+    .map((one) => ({ stage: one.attributes.get(attribute), text: one.text }));
+}
 
 // The registry's read-side payoff: on load the logo layer rehydrates from the registry. These run
 // against a scratch db shared with the router, so a committed capability stands on the desk.
@@ -45,7 +56,7 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
   });
 
   test("a fresh user (empty registry) gets a wallpaper and a prompt bar, and the modal still mounts", async () => {
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
     const html = await responseText(await app.request("/"));
 
     // No logos, and nothing gating the page: an empty desk needs no gate, so the
@@ -75,7 +86,7 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
       }),
       conns.readwrite,
     );
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const html = await responseText(await app.request("/"));
 
@@ -103,14 +114,16 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
       conns.readwrite,
     );
     reconcileRunningGenerationLifecycles(conns.readwrite);
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const html = await responseText(await app.request("/"));
 
-    // Seeded onto the page for the developer panel to pick up when it opens: the panel is a window
-    // now and may not be standing. Compact here and indented where shown, by the panel.
-    expect(html).toContain('id="dev-stage-seed"');
-    expect(html).toContain("build-interrupted-preview");
+    // Seeded onto the page for the developer panel to pick up when it opens, under a stage the
+    // panel knows: filed under any other, it lands nowhere and the readout sits at rest.
+    const [seed, ...more] = await devSeeds(html);
+    expect(more).toEqual([]);
+    expect(DEV_STAGES.map(({ key }) => key)).toContain(seed?.stage ?? "");
+    expect(seed?.text).toContain("build-interrupted-preview");
     expect(html).toContain("&quot;lifecycleStatus&quot;:&quot;interrupted&quot;");
     expect(html).toContain("&quot;outcome&quot;:&quot;interrupted&quot;");
   });
@@ -125,7 +138,7 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
       }),
       conns.readwrite,
     );
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const res = await app.request("/capability/notes", { headers: { "HX-Request": "true" } });
     const body = await responseText(res);
@@ -138,7 +151,7 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
   test("the M2 closing beat: build, refresh rehydrates the desk, and the note is still there", async () => {
     const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC);
     const { recordMetrics } = makeMetricsRecorder();
-    const app = createApp({
+    const app = createTestApp({
       getProvider: () => provider,
       recordMetrics,
       buildDatabases: conns,
@@ -193,7 +206,7 @@ test("GET / lists committed versions per capability in the developer preview", a
       }),
       env.conns.readwrite,
     );
-    const app = createApp({ capabilityRouter: { databases: env.conns } });
+    const app = createTestApp({ capabilityRouter: { databases: env.conns } });
 
     const html = await responseText(await app.request("/"));
 

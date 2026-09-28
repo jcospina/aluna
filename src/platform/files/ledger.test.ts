@@ -62,7 +62,7 @@ describe("the file ledger table", () => {
       cleanup_attempts: 0,
       cleanup_error: null,
     });
-    expect(readFileLedgerRow(env.conns.readwrite, key)?.created_at).toBeTruthy();
+    expect(Date.parse(readFileLedgerRow(env.conns.readwrite, key)?.created_at ?? "")).not.toBeNaN();
   });
 
   test("refuses a state outside the three, and a record that disagrees with its state", () => {

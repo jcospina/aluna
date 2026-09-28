@@ -8,6 +8,7 @@
 
 import type { ListInputMode } from "../../registry/index.ts";
 import { type RenderableCapability, renderEditForm } from "../fields/field-renderer.ts";
+import { El as ParsedEl, parseHtml } from "./choice-picker.test-support.ts";
 
 /** What the document is standing on. One node, the way a document has one. */
 let activeNode: Node | null = null;
@@ -295,46 +296,34 @@ export function el(tag: string, attributes: Record<string, string> = {}): Node {
   return new Built(tag, attributes);
 }
 
-/**
- * One row, built the shape the server writes it — nested rather than flat. The input carries the
- * `name` every row shares, which is what makes the order-they-post-in checkable here.
- */
-function listRow(value: string, seed: number) {
-  const row = el("div", { "data-list-field-row": "" });
-  const grip = el("button", { "data-list-field-grip": "" });
-  grip.append(el("svg", { "aria-hidden": "true" }));
-
-  const shell = el("span", { class: "field__control", "data-ink-seed": String(seed) });
-  const input = el("input", { class: "field__input", name: "tags" });
-  input.value = value;
-  shell.append(input, el("svg", { class: "ink__ground" }), el("svg", { class: "ink__layer" }));
-
-  const remove = el("button", {
-    "data-list-field-remove": "",
-    class: "btn btn--outline btn--sm",
-  });
-  remove.append(el("svg", { "aria-hidden": "true" }), el("svg", { class: "ink__layer" }));
-  row.append(grip, shell, remove);
-  return row;
+/** The server's markup carried into this document, node for node, `dataset` included. */
+function adopt(from: ParsedEl): Node {
+  const node = el(from.tag, from.attributes);
+  for (const [name, value] of Object.entries(from.attributes)) {
+    if (name.startsWith("data-")) {
+      node.dataset[name.slice(5).replace(/-(\w)/g, (_, c: string) => c.toUpperCase())] = value;
+    }
+  }
+  if (from.tag === "input") node.value = from.value;
+  node.textContent = from.ownText;
+  node.append(...from.children.filter((child) => child.tag !== "#text").map(adopt));
+  return node;
 }
 
-/** One list field as the server renders it: the wrapper, its rows, and the add control. */
+/** One list field exactly as the server renders it: the wrapper, its rows, and the add control. */
 export function listField(...values: string[]) {
-  const field = el("div", {
-    "data-list-field": "",
-  });
-  field.dataset.listFieldLabel = "Tags";
-  field.dataset.listInputId = "cap-tasks-tags";
-  const holder = el("div", { "data-list-field-values": "" });
-  const rows = (values.length > 0 ? values : ["green"]).map((value, index) =>
-    listRow(value, 1000 + index),
-  );
-  holder.append(...rows);
-  const add = el("button", { "data-list-field-add": "" });
-  const live = el("div", { "data-list-field-live": "" });
-  field.append(holder, add, live);
-  const row = rows[0] as Node;
-  return { field, values: holder, add, live, row, input: row.querySelector("input") as Node };
+  const html = editFormFor("repeatable", { tags: values.length > 0 ? values : ["green"] });
+  const form = adopt(parseHtml(html, new ParsedEl("div")).children[0] as ParsedEl);
+  const field = form.querySelector("[data-list-field]") as Node;
+  const row = rowsOf(field)[0] as Node;
+  return {
+    field,
+    values: field.querySelector("[data-list-field-values]") as Node,
+    add: field.querySelector("[data-list-field-add]") as Node,
+    live: field.querySelector("[data-list-field-live]") as Node,
+    row,
+    input: row.querySelector("input") as Node,
+  };
 }
 
 /** One capability with a single list field, in the mode asked for. */

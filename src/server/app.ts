@@ -13,7 +13,7 @@ import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { streamSSE } from "hono/streaming";
 import { capabilityUrl } from "#shell/routes.js";
-import { DEFAULT_ARTIFACTS_ROOT } from "../builder/index.ts";
+import { resolveArtifactsRoot } from "../builder/index.ts";
 import {
   alreadyGoneResponse,
   type CapabilityDestructionFaults,
@@ -96,7 +96,7 @@ export interface AppDeps {
    * same scratch pair they hand the router, so a committed capability is immediately routable.
    */
   readonly buildDatabases?: PlatformDatabase;
-  /** Where commit writes a capability's version directory. Defaults to `capabilities/`. */
+  /** Where commit writes a capability's version directory. Defaults to `OMNI_ARTIFACTS_ROOT`. */
   readonly artifactsRoot?: string;
   /** Atomic admission shared by builds, record routes, and platform writes. */
   readonly mutationCoordinator?: MutationCoordinator;
@@ -123,7 +123,7 @@ export interface AppDeps {
    * the route-walk test shrinks it so an upload route can be probed past its limit.
    */
   readonly maxFileBytes?: number;
-  /** Where uploaded bytes live. Defaults to the local store under `storage/`. */
+  /** Where uploaded bytes live. Defaults to the local store under `OMNI_OBJECT_STORE_ROOT`. */
   readonly objectStore?: ObjectStore;
 }
 
@@ -167,7 +167,7 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
   const buildDatabases = deps.buildDatabases ?? { readwrite: db, readonly: dbReadonly };
   const recordMetrics: RecordMetrics =
     deps.recordMetrics ?? createMetricsRecorder(buildDatabases.readwrite);
-  const artifactsRoot = deps.artifactsRoot ?? DEFAULT_ARTIFACTS_ROOT;
+  const artifactsRoot = deps.artifactsRoot ?? resolveArtifactsRoot();
   const mutationCoordinator = deps.mutationCoordinator ?? createMutationCoordinator();
   const readGates = resolveReadGates(deps);
   const buildJobs =
@@ -586,7 +586,7 @@ export const platformReadGates = createReadGateCoordinator();
 export const platformMutationCoordinator = createMutationCoordinator();
 export const platformDeletionCleanup = createDeletionCleanupSupervisor({
   database: db,
-  adapters: createProductionCapabilityDeletionAdapters(DEFAULT_ARTIFACTS_ROOT),
+  adapters: createProductionCapabilityDeletionAdapters(resolveArtifactsRoot()),
   mutationCoordinator: platformMutationCoordinator,
 });
 /**

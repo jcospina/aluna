@@ -83,7 +83,7 @@ describe("the layout kit ships under design/styles", () => {
   });
 
   test("gives every allowed class a rule of its own", () => {
-    // vocabulary.test.ts already pins the two sets equal. What it cannot see is a class that
+    // vocabulary.policy.ts already pins the two sets equal. What it cannot see is a class that
     // only ever appears qualified — `.media-frame > img` — and returns nothing on its own.
     const standalone = new Set(
       selectorsOf(KIT).flatMap((selector) => selector.split(",").map((part) => part.trim())),

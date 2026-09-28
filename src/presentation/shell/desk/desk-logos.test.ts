@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
 
 import {
   BUILD_NARRATION_REGION_ID,
@@ -11,7 +9,16 @@ import {
   startDeskLogos,
 } from "#shell/desk-logos.js";
 import { WINDOW_CONTENT_ID } from "#shell/desk-window.js";
-import { renderBuildSubscriber, renderProvisionalLogo } from "../../../server/http/fragments.ts";
+import { BUILD_JOB_ID_ATTRIBUTE } from "#shell/shell-dom.js";
+import {
+  DESK_LOGO_LAYER_ELEMENT_ID,
+  renderBuildSubscriber,
+  renderProvisionalLogo,
+} from "../../../server/http/fragments.ts";
+import { elementsOf, moduleSources } from "../../../server/http/served-page.test-support.ts";
+import { El as ParsedEl, parseHtml } from "../../controls/choice-picker.test-support.ts";
+import { startedOn } from "../../controls/started-module.test-support.ts";
+import { readSource } from "../../safety/source.test-support.ts";
 
 /**
  * A document small enough to run the tile's rules in Bun. They need four DOM facts: find a node
@@ -107,16 +114,34 @@ class FakeDocument extends Node {
   }
 }
 
+/** Server markup carried into this document, node for node, attributes and all. */
+function adopt(from: ParsedEl): Node {
+  return new Node({ ...from.attributes }).append(
+    ...from.children.filter((child) => child.tag !== "#text").map(adopt),
+  );
+}
+
+const served = (html: string) =>
+  parseHtml(html, new ParsedEl("div"))
+    .children.filter((child) => child.tag !== "#text")
+    .map(adopt);
+
 /** A desk with one build in flight: its tile on the ground, its subscriber in the output. */
 function deskWithBuild(buildId: string) {
   const root = new FakeDocument();
-  const tile = new Node({ [PROVISIONAL_LOGO_ATTRIBUTE]: buildId });
-  const layer = new Node({ id: "capability-logos" }).append(tile);
-  const narration = new Node({ class: "build-stream__narration" });
-  const subscriber = new Node({ "data-build-job-id": buildId }).append(narration);
-  const output = new Node({ id: "spec-build-output" }).append(subscriber);
+  // The tile rides in out of band, and what lands on the layer is the logo it carries.
+  const [carrier] = served(renderProvisionalLogo(buildId));
+  const tile = [...(carrier as Node).descendants()].find((node) =>
+    node.hasAttribute(PROVISIONAL_LOGO_ATTRIBUTE),
+  );
+  const layer = new Node({ id: DESK_LOGO_LAYER_ELEMENT_ID }).append(tile as Node);
+  const [subscriber] = served(renderBuildSubscriber(buildId));
+  const narration = [...(subscriber as Node).descendants()].find((node) =>
+    (node.getAttribute("class") ?? "").includes("narration"),
+  ) as Node;
+  const output = new Node({ id: WINDOW_CONTENT_ID }).append(subscriber as Node);
   root.append(layer, output);
-  return { root, tile, layer, narration, subscriber, output };
+  return { root, tile: tile as Node, layer, narration, subscriber: subscriber as Node, output };
 }
 
 describe("the tile an admitted build stands on the desk", () => {
@@ -205,7 +230,7 @@ describe("the terminal cleanup path", () => {
 
   test("a close belonging to another build leaves this one standing", () => {
     const { root, tile, layer } = deskWithBuild("build-1");
-    const other = new Node({ "data-build-job-id": "build-2" });
+    const other = new Node({ [BUILD_JOB_ID_ATTRIBUTE]: "build-2" });
     layer.parent?.append(other);
     startDeskLogos(root);
 
@@ -270,27 +295,18 @@ describe("pressing the tile brings the in-flight story back", () => {
 });
 
 describe("the module ships with the shell", () => {
-  const root = resolve(import.meta.dir, "../../../..");
-  const read = (path: string) => readFileSync(join(root, path), "utf8");
-
-  test("the shipped page loads it, and it starts itself against the real document", () => {
-    expect(read("public/index.html")).toContain(
-      '<script type="module" src="/static/desk-logos.js"></script>',
+  test("the shipped page loads it, and it starts itself on the document it finds", async () => {
+    expect(moduleSources(await elementsOf(readSource("public/index.html")))).toContain(
+      "/static/desk-logos.js",
     );
-    // Self-starting, like `region-scope.js` and `swap-target.js`: the page states that
-    // the rule is on, and the module is the one place it is written down.
-    expect(read("public/desk-logos.js")).toContain(
-      'if (typeof document !== "undefined") startDeskLogos(',
-    );
+    const { root, tile, subscriber } = deskWithBuild("build-1");
+    await startedOn("desk-logos.js", root);
+    root.dispatch("click", { target: tile });
+    expect(subscriber.focused).toBe(true);
   });
 
-  test("what this module looks for is what the server writes", () => {
-    // The two halves are a classic script and a server renderer, so neither can import the
-    // other's constant and they are pinned against each other here instead.
-    expect(renderProvisionalLogo("build-1")).toContain(`${PROVISIONAL_LOGO_ATTRIBUTE}="build-1"`);
-    expect(renderBuildSubscriber("build-1")).toContain('data-build-job-id="build-1"');
-    // The narration region is no longer in the shell: the window holds it, and the
-    // window is created by the client. Both halves can import that one, so they do.
+  test("the narration region the tile falls back to is the window's own", () => {
+    // Both halves can import the one id, so they do: the window holds the narration now.
     expect(BUILD_NARRATION_REGION_ID).toBe(WINDOW_CONTENT_ID);
   });
 });

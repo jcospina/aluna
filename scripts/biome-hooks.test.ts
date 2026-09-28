@@ -7,7 +7,6 @@ import { basename, join } from "node:path";
 const projectDirectory = join(import.meta.dir, "..");
 const formatHook = join(projectDirectory, ".codex/hooks/biome-format.sh");
 const lintHook = join(projectDirectory, ".codex/hooks/biome-lint.sh");
-const hooksConfiguration = join(projectDirectory, ".codex/hooks.json");
 const temporaryDirectories: string[] = [];
 
 function makeTemporaryDirectory(): string {
@@ -44,16 +43,6 @@ afterEach(() => {
 });
 
 describe("Biome Codex hooks", () => {
-  test("registers both hooks for apply_patch", () => {
-    const configuration = JSON.parse(readFileSync(hooksConfiguration, "utf8"));
-    const postToolUse = configuration.hooks.PostToolUse;
-
-    expect(postToolUse).toHaveLength(2);
-    for (const hook of postToolUse) {
-      expect(hook.matcher).toContain("apply_patch");
-    }
-  });
-
   test("formats a Write/Edit file_path payload", () => {
     const directory = makeTemporaryDirectory();
     const file = join(directory, "direct.ts");

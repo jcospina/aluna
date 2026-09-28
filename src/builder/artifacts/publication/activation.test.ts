@@ -21,8 +21,8 @@ import {
 import { getCapability } from "../../../registry/index.ts";
 import { createMutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
 import { applyCapabilityTableDdl } from "../../../runtime/data/index.ts";
-import { createApp } from "../../../server/app.ts";
 import { renderCachedCapabilityCommitSwap } from "../../../server/http/index.ts";
+import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import { generatedUnitsFor, notesFixtureGate, notesSpec } from "../../gate/gate.test-support.ts";
 import type { CapabilityGateResult } from "../../gate/gate.ts";
 import { activatePublishedSnapshot, expectedActiveCapability } from "./activation.ts";
@@ -149,7 +149,7 @@ describe("activatePublishedSnapshot — point of no return", () => {
     expect(delivered).toBe(false);
     expect(coordinator.snapshot().activeLease).toBeNull();
 
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
     const rehydrated = await app.request("/capability/notes", {
       headers: { "HX-Request": "true" },
     });

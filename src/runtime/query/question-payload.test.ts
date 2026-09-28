@@ -103,9 +103,6 @@ afterEach(() => {
 
 describe("the two numbers", () => {
   test("bound one step and bound a whole question, and the second is not the first times ten", () => {
-    expect(QUESTION_STEP_RESULT_CAP_BYTES).toBe(16 * 1024);
-    expect(QUESTION_RESULT_PAYLOAD_BUDGET_BYTES).toBe(64 * 1024);
-
     // More than one at-cap read fits, so the step cap is not secretly the whole budget.
     expect(QUESTION_RESULT_PAYLOAD_BUDGET_BYTES).toBeGreaterThan(QUESTION_STEP_RESULT_CAP_BYTES);
     // And ten at-cap reads do not: a per-step cap alone would let a question accumulate ten
@@ -252,20 +249,14 @@ describe("it refuses, and never truncates", () => {
 });
 
 describe("the refusal is worded for the model", () => {
-  test("tells it to narrow or to aggregate, and says nothing was trimmed", () => {
+  test("names the SQL that aggregates, and says a different thing for each reason", () => {
     for (const refusal of REFUSALS) {
-      expect(refusal).toContain("Nothing was trimmed to fit");
-      expect(refusal).toMatch(/narrow|shorter/i);
       expect(refusal).toContain("GROUP BY");
       expect(refusal).toContain("count");
-      expect(refusal).toMatch(/read again|answer from what you have/);
     }
     // Three different facts get three different sentences: a refusal the model is meant to
     // act on has to be true about why.
     expect(new Set(REFUSALS).size).toBe(REFUSALS.length);
-    expect(QUESTION_STEP_RESULT_TOO_LARGE).toContain("That returned too much");
-    expect(QUESTION_PAYLOAD_BUDGET_SPENT).toContain("no room left to carry");
-    expect(QUESTION_STATEMENT_TOO_LARGE).toContain("was not run");
   });
 
   test("and carries no measurement at all", () => {

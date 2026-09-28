@@ -14,8 +14,6 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { WORKER_THREAD_SOURCE } from "./build.ts";
-
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
@@ -56,24 +54,6 @@ describe("the production bundle", () => {
     const specifier = bundle.match(/new URL\("\.\/([^"]+)", import\.meta\.url\)/)?.[1];
     expect(specifier).toBe("query-worker-thread.ts");
     expect(existsSync(join(outdir, specifier as string))).toBe(true);
-  });
-
-  test("the copied thread has no relative dependency the copy could not resolve", () => {
-    const source = readFileSync(WORKER_THREAD_SOURCE, "utf8");
-
-    // A sibling import would silently stop the copy being enough, and not every shape that
-    // does it is `import … from`, which is all the first version of this assertion matched.
-    const specifiers = [
-      ...source.matchAll(/\bfrom\s+["']([^"']+)["']/g),
-      ...source.matchAll(/^\s*import\s+["']([^"']+)["']/gm),
-      ...source.matchAll(/\b(?:import|require)\s*\(\s*["']([^"']+)["']/g),
-    ].map((match) => match[1] as string);
-
-    expect(specifiers).toContain("bun:sqlite");
-    expect(specifiers.filter((specifier) => specifier.startsWith("."))).toEqual([]);
-    // A dynamic reach for a computed specifier is unresolvable by inspection, so it is
-    // refused rather than assessed.
-    expect(source).not.toMatch(/\b(?:import|require)\s*\(\s*[^"')]/);
   });
 
   test("clears the outdir, so nothing stale looks shipped", () => {

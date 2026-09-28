@@ -308,7 +308,7 @@
  * 1500ms — 7.5px/s across the bands. Chosen by eye against the alternatives, and
  * deliberately at the slow end: this tile sits on the desk for the length of a
  * build, so it is meant to read as patience rather than as urgency. The number is
- * a decision, not a default, and `desk-logo-layer.test.ts` pins it as one.
+ * a decision, not a default, and `desk-logo-layer.policy.ts` pins it as one.
  */
 .logo-tile--working {
   animation: tile-working 1500ms linear infinite;

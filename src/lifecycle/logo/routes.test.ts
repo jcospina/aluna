@@ -22,7 +22,7 @@ import {
   setupRouterTest,
   teardownRouterTest,
 } from "../../runtime/router/dispatch/router.test-support.ts";
-import { createApp } from "../../server/app.ts";
+import { createTestApp } from "../../server/isolated-app.test-support.ts";
 import { LogoGenerationError, type LogoGenerationProvider } from "./generation/provider.ts";
 import {
   ARTWORK,
@@ -61,9 +61,9 @@ afterEach(() => {
 function appWith(
   logoProvider: LogoGenerationProvider,
   readGates?: ReadGateCoordinator,
-  overrides: Partial<Parameters<typeof createApp>[0]> = {},
+  overrides: Partial<Parameters<typeof createTestApp>[0]> = {},
 ) {
-  return createApp({
+  return createTestApp({
     artifactsRoot,
     logoProvider,
     readGates,

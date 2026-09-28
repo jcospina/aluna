@@ -3,9 +3,9 @@
 //
 // Two rules hold across all of them. The copy never names an internal — no "handler",
 // "action", "capability", "route" — because the user need not, and must not, learn which
-// check failed. And any refusal the shell is expected to *show* carries a
-// `data-error-code`: htmx will not swap a 4xx unaided, so an unmarked refusal body is one
-// the user never sees (see the rescue list in `public/app.js`).
+// check failed. And any refusal the shell is expected to *show* carries both markers: htmx
+// will not swap a 4xx unaided, and `public/app.js` claims a body by an element carrying both,
+// so an unmarked refusal body is one the user never sees.
 //
 // Both rules are mechanical here rather than remembered: every shown refusal is built by
 // `refusalFragment` from the marker vocabulary generated handlers are held to, and every
@@ -37,11 +37,7 @@ import type { WireProtocolAction } from "./wire-protocol.ts";
 
 type MutationAction = "create" | "update" | "delete";
 
-/**
- * The refusal codes the platform itself emits, as opposed to the ones a capability declares.
- * `public/app.js` carries them as literals because a classic script can import nothing; a test
- * holds that list to this one.
- */
+/** The refusal codes the platform itself emits, as opposed to the ones a capability declares. */
 export const READ_UNAVAILABLE_ERROR_CODE = "read_unavailable";
 export const MUTATION_BUSY_ERROR_CODE = "mutation_busy";
 export const MUTATION_FAILED_ERROR_CODE = "mutation_failed";
@@ -59,14 +55,16 @@ function refusalFragment(code: string, copy: string, fields?: readonly string[])
     fields === undefined
       ? ""
       : ` ${fields_attribute}="${escapeHtml(fields.join(fields_separator))}"`;
-  return `<p class="notice" ${role_attribute}="${role}" ${code_attribute}="${code}"${named}>${copy}</p>`;
+  return `<p class="notice" ${role_attribute}="${role}" ${code_attribute}="${escapeHtml(code)}"${named}>${copy}</p>`;
 }
+
+const SIDEWAYS_COPY = "Hmm, something went sideways on my end just now. Mind trying again?";
 
 const READ_UNAVAILABLE_COPY =
   "I’m making a careful change here. Give me a moment, then try that again.";
 
-// Carries `data-error-code` because htmx refuses to swap a 4xx by default: the rescue in
-// `public/app.js` needs the marker, or this copy is written and never reaches a screen.
+// Carries the markers because htmx refuses to swap a 4xx by default: the rescue in
+// `public/app.js` needs them, or this copy is written and never reaches a screen.
 export const READ_UNAVAILABLE_FRAGMENT = refusalFragment(
   READ_UNAVAILABLE_ERROR_CODE,
   READ_UNAVAILABLE_COPY,
@@ -120,18 +118,28 @@ function isMutationAction(action: string): action is MutationAction {
   return action === "create" || action === "update" || action === "delete";
 }
 
+/** A refusal a Handler declared, as the router read it off the Handler's markup. */
+export interface DeclaredRefusal {
+  readonly code: string;
+  /** HTML text: entities kept, and no `<` left to start markup. */
+  readonly sentence: string;
+  readonly fields: readonly string[] | undefined;
+}
+
 /**
  * A capability's own declared refusal, delivered as the platform's typed ones are: 422, retargeted
- * into the form's error region. A bare 200 under `hx-swap="none"` read to the client as a commit.
+ * into the form's error region, and in the platform's markup, so a browser finds the element the
+ * router found however the Handler nested it. A refusal with no words says the platform's.
  */
 export function declaredRefusal(
   c: Context,
   capabilityId: string,
   action: MutationAction,
-  fragment: string,
+  refusal: DeclaredRefusal,
 ): Response {
   retargetMutationError(c, capabilityId, action);
-  return c.html(fragment, 422);
+  const copy = refusal.sentence === "" ? SIDEWAYS_COPY : refusal.sentence;
+  return c.html(refusalFragment(refusal.code, copy, refusal.fields), 422);
 }
 
 /**
@@ -139,12 +147,8 @@ export function declaredRefusal(
  * action, so nobody learns which check failed.
  */
 export const NOT_FOUND_FRAGMENT = refusalFragment(NOT_FOUND_ERROR_CODE, NOT_FOUND_NOTICE);
-export const INTERNAL_ERROR_FRAGMENT =
-  '<p class="notice">Hmm, something went sideways on my end just now. Mind trying again?</p>';
-export const MUTATION_FAILURE_FRAGMENT = refusalFragment(
-  MUTATION_FAILED_ERROR_CODE,
-  "Hmm, something went sideways on my end just now. Mind trying again?",
-);
+export const INTERNAL_ERROR_FRAGMENT = `<p class="notice">${SIDEWAYS_COPY}</p>`;
+export const MUTATION_FAILURE_FRAGMENT = refusalFragment(MUTATION_FAILED_ERROR_CODE, SIDEWAYS_COPY);
 export const WIRE_PROTOCOL_ERROR_FRAGMENT =
   '<p class="notice">Hmm — I couldn\'t make sense of that submission. Mind trying again?</p>';
 

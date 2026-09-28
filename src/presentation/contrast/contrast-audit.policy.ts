@@ -99,7 +99,7 @@ function importedSheets(): string[] {
  * rather than of a literal `<style`, which missed the gallery's inline-only exemplars entirely.
  */
 function carriesAStylesheet(path: string, name: string): boolean {
-  if (!/\.(?:html|ts)$/.test(name) || name.endsWith(".test.ts")) return false;
+  if (!/\.(?:html|ts)$/.test(name) || /\.(?:test|policy)\.ts$/.test(name)) return false;
   return styleSource(path).trim().length > 0;
 }
 

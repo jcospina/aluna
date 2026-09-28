@@ -6,6 +6,7 @@
 // stages (migration, unit generation, gate, commit) join here behind this same
 // entry point.
 
+export { resolveArtifactsRoot } from "./artifacts/artifacts-root.ts";
 export {
   DERIVED_UNIT_FILES,
   type DerivedUnitFile,
@@ -52,7 +53,6 @@ export {
   type CommitCapabilityInput,
   type CommitCapabilityResult,
   commitCapability,
-  DEFAULT_ARTIFACTS_ROOT,
   FIRST_CAPABILITY_VERSION,
 } from "./commit/commit.ts";
 export {

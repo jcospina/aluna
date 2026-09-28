@@ -7,6 +7,7 @@ import {
   OBJECT_STORE_ROOT_ENV_VAR,
   STAGING_DIRECTORY,
 } from "./platform/files/object-store-root.ts";
+import { withDefaultRoots } from "./platform/persistence/test-roots.test-support.ts";
 
 let dir: string;
 
@@ -26,7 +27,7 @@ test("boot empties the upload staging directory before the server listens", asyn
 
   const proc = Bun.spawn(["bun", join(import.meta.dir, "index.ts")], {
     cwd: dir,
-    env: { ...process.env, PORT: "0", [OBJECT_STORE_ROOT_ENV_VAR]: root },
+    env: { ...withDefaultRoots(), PORT: "0", [OBJECT_STORE_ROOT_ENV_VAR]: root },
     stdout: "pipe",
     stderr: "pipe",
   });

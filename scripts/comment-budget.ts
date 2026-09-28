@@ -6,9 +6,9 @@
 // and a pragma are all free — and everything from a block's first JSDoc tag onward documents
 // the API rather than the reasoning, so `@param` and `@typedef` cost nothing.
 //
-// Before rewriting comments in bulk, know that tests here sweep source *text*, comments
-// included: `evolution-faults.test.ts` and `question-loop.test.ts` fail on names appearing
-// anywhere under `src`, so a reworded comment can redden a suite about a retired code seam.
+// Before rewriting comments in bulk, know that the policy checks sweep source *text*, comments
+// included: `evolution-faults.policy.ts` and `question-loop.policy.ts` fail on names appearing
+// in the files they read, so a reworded comment can redden a check about a retired code seam.
 //
 // Run by `bun run lint`. `comment-budget.test.ts` proves it catches what it claims to.
 

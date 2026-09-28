@@ -73,7 +73,7 @@ describe("a photo field's guidance, which the control also writes", () => {
     await refusePick(one.host);
     one.reportMissing("caption");
     await tick();
-    expect(one.doc.activeElement).toBe(one.doc.querySelector('[name="caption"]'));
+    expect(one.doc.activeElement).toBe(one.doc.querySelector('[name="caption"]') as El);
   });
 
   test("puts a person on the photo control when a save's refusal names the photo", async () => {

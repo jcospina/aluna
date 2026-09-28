@@ -268,10 +268,16 @@ describe("providerFault (the fault the SDK swallows)", () => {
   test("a fault nothing is racing is not an unhandled rejection", async () => {
     // A caller that only iterates never touches `settle`'s promise. An unhandled
     // rejection here is a crashed process rather than a failed build.
-    const fault = providerFault();
-    fault.onError({ error: new Error("nobody is listening") });
+    const unhandled: unknown[] = [];
+    const record = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", record);
+    try {
+      providerFault().onError({ error: new Error("nobody is listening") });
+      await Bun.sleep(1);
+    } finally {
+      process.off("unhandledRejection", record);
+    }
 
-    await Bun.sleep(1);
-    expect(true).toBe(true);
+    expect(unhandled).toEqual([]);
   });
 });

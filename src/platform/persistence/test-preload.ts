@@ -1,5 +1,5 @@
-// Test preload — pins the SQLite runtime and seals the network before any test file is
-// evaluated.
+// Test preload — pins the SQLite runtime, moves the platform's roots to scratch and seals the
+// network before any test file is evaluated.
 //
 // `configureSqliteRuntime` must run before the process opens its first SQLite connection (Bun's
 // macOS SQLite is Apple's extension-disabled build, so the platform points Bun at Homebrew's).
@@ -8,9 +8,26 @@
 // importing `db.ts` loads the default build, and the later `setCustomSQLite` throws
 // `SQLite already loaded` — aborting `db.ts` and leaving every importer in the dead zone.
 
+import { afterAll } from "bun:test";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { DB_PATH_ENV_VAR } from "./db-path.ts";
 import { configureSqliteRuntime } from "./sqlite-functions.ts";
+import { PLATFORM_ROOT_DEFAULTS } from "./test-roots.test-support.ts";
 
 configureSqliteRuntime();
+
+// Every root a test does not name lands in this process's own scratch copy of the repo layout,
+// never the user's corpus. Set before any test file imports `db.ts`, which opens its file on
+// import, and over whatever `.env` or a parent process said, so no two processes share one.
+const scratch = mkdtempSync(join(tmpdir(), "omni-crud-test-roots-"));
+for (const [name, fallback] of Object.entries(PLATFORM_ROOT_DEFAULTS)) {
+  const root = join(scratch, fallback);
+  process.env[name] = root;
+  mkdirSync(name === DB_PATH_ENV_VAR ? dirname(root) : root, { recursive: true });
+}
+afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
 // Every test drives the Builder through fake providers, so an outbound request means a fake was
 // missed: it bills per call and makes results depend on the environment. Loopback stays open.

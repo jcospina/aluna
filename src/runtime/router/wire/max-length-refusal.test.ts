@@ -7,10 +7,9 @@
 // the server as well as in the browser.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
-import { createApp } from "../../../server/app.ts";
+import { answerArrives, desk, El } from "../../../server/app.shell-double.test-support.ts";
+import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import { applyCapabilityTableDdl } from "../../data/index.ts";
 import {
   createCapabilityDataTool,
@@ -86,7 +85,7 @@ describe("an over-length string on the wire", () => {
     const spec = boundedNotesSpec();
     install(conns, notesRow(spec));
     applyCapabilityTableDdl(spec, conns.readwrite);
-    return createApp({
+    return createTestApp({
       capabilityRouter: {
         databases: conns,
         loadHandler,
@@ -179,9 +178,17 @@ describe("an over-length string on the wire", () => {
     expect(await response.text()).toContain('data-error-code="max_length_exceeded"');
   });
 
-  test("the shell claims the code, or htmx drops the answer on the floor", () => {
-    expect(readFileSync(join(import.meta.dir, "../../../../public/app.js"), "utf8")).toContain(
-      '"max_length_exceeded"',
+  test("the shell swaps it into the form it came from, where htmx would have dropped it", async () => {
+    const response = await appForBoundedNotes().request(
+      "/capability/notes/create",
+      body("x".repeat(LIMIT + 1)),
     );
+    const scene = desk();
+    const form = new El("form", { id: "notes-create" });
+    scene.region.append(form);
+
+    expect(
+      answerArrives(scene, form, { status: response.status, body: await response.text() }),
+    ).toEqual({ swapped: true, successful: false });
   });
 });

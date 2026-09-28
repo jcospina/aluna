@@ -11,7 +11,7 @@ import {
 } from "../../../registry/incarnations.test-support.ts";
 import type { ReadDependencies } from "../../../registry/index.ts";
 import { FULL_CAPABILITY_TOOLS } from "../../../registry/index.ts";
-import { createApp } from "../../../server/app.ts";
+import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import { createMutationCoordinator } from "../../concurrency/mutation-coordinator.ts";
 import { createReadGateCoordinator, ReadGateReleasedError } from "../../concurrency/read-gates.ts";
 import type { CapabilityContext, CapabilityHandler } from "../contract.ts";
@@ -135,7 +135,7 @@ describe("capability router read-gate ownership", () => {
   test("a Handler that never settles is abandoned, so the gate still drains for deletion", async () => {
     install(conns, notesRow());
     const readGates = createReadGateCoordinator();
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases: conns,
         readGates,
@@ -164,7 +164,7 @@ describe("capability router read-gate ownership", () => {
     install(conns, notesRow());
     let escapedWrite: unknown;
     const released = Promise.withResolvers<void>();
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases: conns,
         handlerTimeoutMs: 40,
@@ -202,7 +202,7 @@ describe("capability router read-gate ownership", () => {
     const readGates = createReadGateCoordinator();
     const entered = deferred();
     const finish = deferred();
-    const app = createApp({
+    const app = createTestApp({
       readGates,
       capabilityRouter: {
         databases: conns,
@@ -258,7 +258,7 @@ describe("capability router read-gate ownership", () => {
       incarnationId: SHELVES_INCARNATION,
     });
     let handlerLoads = 0;
-    const app = createApp({
+    const app = createTestApp({
       readGates,
       capabilityRouter: {
         databases: conns,
@@ -294,7 +294,7 @@ describe("capability router read-gate ownership", () => {
       const readGates = createReadGateCoordinator();
       const entered = deferred();
       const finish = deferred();
-      const app = createApp({
+      const app = createTestApp({
         readGates,
         capabilityRouter: {
           databases: conns,
@@ -346,7 +346,7 @@ describe("capability router read-gate ownership", () => {
         incarnationId: SHELVES_INCARNATION,
       });
       let handlerLoads = 0;
-      const app = createApp({
+      const app = createTestApp({
         readGates,
         capabilityRouter: {
           databases: conns,
@@ -385,7 +385,7 @@ describe("capability router read-gate ownership", () => {
     const readGates = createReadGateCoordinator();
     const entered = deferred();
     const continueHandler = deferred();
-    const app = createApp({
+    const app = createTestApp({
       readGates,
       capabilityRouter: {
         databases: conns,
@@ -428,7 +428,7 @@ describe("capability route read-gate finally boundaries", () => {
   test("Handler failure and direct-View refusal both preserve exact reader counts", async () => {
     install(conns, notesRow());
     const readGates = createReadGateCoordinator();
-    const app = createApp({
+    const app = createTestApp({
       readGates,
       capabilityRouter: {
         databases: conns,
@@ -456,7 +456,7 @@ describe("capability route read-gate finally boundaries", () => {
     const mutationCoordinator = createMutationCoordinator();
     const entered = deferred();
     const finish = deferred();
-    const app = createApp({
+    const app = createTestApp({
       readGates,
       mutationCoordinator,
       capabilityRouter: {
@@ -483,7 +483,7 @@ describe("capability route read-gate finally boundaries", () => {
   test("a retained query port loses ownership as soon as its route settles", async () => {
     install(conns, notesRow());
     let retainedQuery: CapabilityContext["query"] | undefined;
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases: conns,
         loadHandler: readLoader(async ({ query }) => {

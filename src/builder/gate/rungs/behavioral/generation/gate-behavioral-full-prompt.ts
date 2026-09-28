@@ -85,17 +85,30 @@ function inputGuidance(action: HandlerUnitName): readonly string[] {
   return [`- \`input\`: always empty for ${action}.`];
 }
 
+/** Update's and delete's platform-owned failure: one case, when the record they name is gone. */
+export function missingRecordPlatformError(action: "update" | "delete"): string {
+  return `- \`expectedPlatformError\`: null except for exactly one missing-record ${action} case, with code \`record_not_found\`.`;
+}
+
+/** The case that failure is proved by, which update and delete are each told to include once. */
+export function missingRecordCaseDuty(action: "update" | "delete"): string {
+  return `- Include exactly one missing-record ${action} case. That failure is platform-owned and never appears in \`behavioral_errors\`. It may still seed rows to prove unrelated data is unchanged.`;
+}
+
+/** Every Action's suite proves at least one ordinary run of it. */
+export function normalCaseDuty(action: HandlerUnitName): string {
+  return `- Include at least one normal ${action} case.`;
+}
+
 function platformErrorGuidance(action: HandlerUnitName): readonly string[] {
   if (action === "update" || action === "delete") {
-    return [
-      `- \`expectedPlatformError\`: null except for exactly one missing-record ${action} case, with code \`record_not_found\`.`,
-    ];
+    return [missingRecordPlatformError(action)];
   }
   return [`- \`expectedPlatformError\`: always null for ${action}.`];
 }
 
 function coverage(inputs: ActionTestInputs): readonly string[] {
-  const lines = [`- Include at least one normal ${inputs.action} case.`];
+  const lines = [normalCaseDuty(inputs.action)];
   if (inputs.behavioral_errors.length > 0) {
     lines.push(
       "- Include exactly one case for every entry in `behavioral_errors`, copied field-for-field.",
@@ -108,7 +121,7 @@ function coverage(inputs: ActionTestInputs): readonly string[] {
   }
   if (inputs.action === "update" || inputs.action === "delete") {
     lines.push(
-      `- Include exactly one missing-record ${inputs.action} case. That failure is platform-owned and never appears in \`behavioral_errors\`. It may still seed rows to prove unrelated data is unchanged.`,
+      missingRecordCaseDuty(inputs.action),
       `- A normal ${inputs.action} case bound to \`first_setup_row\` must provide at least one setup row.`,
     );
   }

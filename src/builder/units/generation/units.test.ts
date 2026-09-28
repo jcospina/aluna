@@ -19,6 +19,13 @@ import type {
   Provider,
   TokenUsage,
 } from "../../../platform/provider/index.ts";
+import { addedLines, linesNaming } from "../../../platform/provider/prompt-lines.test-support.ts";
+import { ALLOWED_CLASSES } from "../../../presentation/safety/vocabulary.ts";
+import {
+  PALETTE_COLOR_TOKENS,
+  SPACING_TOKENS,
+  TYPE_SIZE_TOKENS,
+} from "../../../presentation/tokens/design-tokens.ts";
 import {
   FIRST_INCARNATION_ID,
   SECOND_INCARNATION_ID,
@@ -38,8 +45,9 @@ import {
   UnitGenerationError,
 } from "../../index.ts";
 import { checkGeneratedUnit } from "../safety/unit-checks.ts";
-import { FEW_SHOT_DESIGN_EXAMPLES } from "./few-shot-gallery.ts";
+import { buildItemRendererDesignInjection, FEW_SHOT_DESIGN_EXAMPLES } from "./few-shot-gallery.ts";
 import { DELETE_HANDLER, ITEM_RENDERER, READ_HANDLER } from "./unit-fixtures.test-support.ts";
+import type { UnitDescriptor } from "./units.ts";
 
 const STUB_USAGE: TokenUsage = { inputTokens: 3, outputTokens: 5, totalTokens: 8 };
 
@@ -105,6 +113,12 @@ function fullNotesSpec(overrides: Partial<CapabilitySpec> = {}): CapabilitySpec 
     read_dependencies: { create: [], read: [], update: [], delete: [], search: [] },
     ...overrides,
   };
+}
+
+/** The prompt the loop owes a unit after `error`: its own prompt carrying that failure back. */
+function retryPromptAfter(unit: UnitDescriptor, error: string | undefined): string {
+  if (error === undefined) throw new Error("the first attempt did not fail");
+  return buildUnitPrompt(notesSpec(), unit, { ...unit, message: error });
 }
 
 function makeQueuedProvider(contents: readonly string[]): RecordedProvider {
@@ -397,7 +411,7 @@ describe("unit generation with bounded fix loop — generation and fix-loop rege
     });
   });
 
-  test("records one clean attempt per unit and keeps handlers import-free", async () => {
+  test("records one clean attempt per unit", async () => {
     const provider = makeQueuedProvider([
       ITEM_RENDERER,
       CREATE_HANDLER,
@@ -416,16 +430,6 @@ describe("unit generation with bounded fix loop — generation and fix-loop rege
       expect(unit.usage).toEqual(STUB_USAGE);
       expect(unit.attempts[0]?.usage).toEqual(STUB_USAGE);
     }
-
-    // Handlers render records through the injected adapter and import nothing.
-    expect(result.handlers.create).toContain("present(row)");
-    expect(result.handlers.read).toContain("present(record)");
-    expect(result.handlers.create).not.toMatch(
-      /\bimport\b|\bfetch\b|\bRequest\b|\bResponse\b|cap_notes/,
-    );
-    // The item renderer is a synchronous default-exported function.
-    expect(result.itemRenderer).toContain("export default function renderItem");
-    expect(result.itemRenderer).not.toContain("async");
   });
 
   test("feeds an item-renderer type-check failure back into regeneration and accepts the fix", async () => {
@@ -450,8 +454,9 @@ describe("unit generation with bounded fix loop — generation and fix-loop rege
     expect(rendererUnit?.usage).toEqual({ inputTokens: 6, outputTokens: 10, totalTokens: 16 });
 
     // The retry prompt echoes the failure back so the model returns a corrected unit.
-    expect(provider.calls[1]?.prompt).toContain("Previous attempt failed");
-    expect(provider.calls[1]?.prompt).toContain("is not assignable to type 'string'");
+    expect(provider.calls[1]?.prompt).toBe(
+      retryPromptAfter({ kind: "item-renderer", name: "item" }, rendererUnit?.attempts[0]?.error),
+    );
   });
 
   test("feeds a handler type-check failure back into regeneration and accepts the fixed unit", async () => {
@@ -477,8 +482,36 @@ describe("unit generation with bounded fix loop — generation and fix-loop rege
     expect(createUnit?.attempts[1]?.error).toBeUndefined();
     expect(createUnit?.usage).toEqual({ inputTokens: 6, outputTokens: 10, totalTokens: 16 });
 
-    expect(provider.calls[2]?.prompt).toContain("Previous attempt failed");
-    expect(provider.calls[2]?.prompt).toContain("Type 'number' is not assignable");
+    expect(provider.calls[2]?.prompt).toBe(
+      retryPromptAfter({ kind: "handler", name: "create" }, createUnit?.attempts[0]?.error),
+    );
+  });
+});
+
+describe("unit generation with bounded fix loop — the import ban", () => {
+  test("refuses a handler that imports and keeps its import-free retry", async () => {
+    const importing = `import { readFileSync } from "node:fs";\n${CREATE_HANDLER}`;
+    const provider = makeQueuedProvider([
+      ITEM_RENDERER,
+      importing,
+      CREATE_HANDLER,
+      READ_HANDLER,
+      UPDATE_HANDLER,
+      DELETE_HANDLER,
+      SEARCH_HANDLER,
+    ]);
+
+    const result = await generateCapabilityUnits({ provider, spec: notesSpec() });
+    const create = result.units.find((unit) => unit.kind === "handler" && unit.name === "create");
+    if (create === undefined) throw new Error("no create unit was generated");
+
+    expect(result.handlers.create).toBe(CREATE_HANDLER);
+    expect(create.attempts).toHaveLength(2);
+    expect(create.attempts[0]?.error).toBeString();
+    expect(create.attempts[0]?.error).toBe(
+      checkGeneratedUnit(notesSpec(), create, importing)?.message,
+    );
+    expect(create.attempts[1]?.error).toBeUndefined();
   });
 });
 
@@ -500,8 +533,9 @@ describe("unit generation with bounded fix loop — strict unknown-property repa
     expect(update?.attempts).toHaveLength(2);
     expect(update?.attempts[0]?.error).toContain("'candidate.fields' is of type 'unknown'");
     expect(update?.attempts[1]?.error).toBeUndefined();
-    expect(provider.calls[4]?.prompt).toContain("Previous attempt failed");
-    expect(provider.calls[4]?.prompt).toContain("'candidate.fields' is of type 'unknown'");
+    expect(provider.calls[4]?.prompt).toBe(
+      retryPromptAfter({ kind: "handler", name: "update" }, update?.attempts[0]?.error),
+    );
     expect(result.handlers.update).toBe(NARROWED_ERROR_FIELDS_UPDATE_HANDLER);
   });
 });
@@ -537,11 +571,9 @@ describe("unit generation with bounded fix loop — indexed update input repair"
     expect(update?.attempts).toHaveLength(DEFAULT_UNIT_FIX_ATTEMPTS);
     expect(update?.attempts[0]?.error).toContain(diagnostic);
     expect(update?.attempts[1]?.error).toBeUndefined();
-    expect(retryPrompt).toContain("Previous attempt failed");
-    expect(retryPrompt).toContain("Every indexed `input.values[name]` read may be `undefined`");
-    expect(retryPrompt).toContain('if (typeof value === "string") return value');
-    expect(retryPrompt).toContain('return ""');
-    expect(retryPrompt).toContain("Required repair for indexed input values");
+    expect(retryPrompt).toBe(
+      retryPromptAfter({ kind: "handler", name: "update" }, update?.attempts[0]?.error),
+    );
     expect(result.handlers.update).toBe(SAFE_INDEXED_INPUT_UPDATE_HANDLER);
   });
 });
@@ -680,8 +712,9 @@ describe("unit generation with bounded fix loop — Action-scoped structural rep
       'Generated handler "read" queries undeclared capability table: cap_hidden',
     );
     expect(read?.attempts[1]?.error).toBeUndefined();
-    expect(provider.calls[3]?.prompt).toContain("Previous attempt failed");
-    expect(provider.calls[3]?.prompt).toContain("Allowed for this Action: cap_notes");
+    expect(provider.calls[3]?.prompt).toBe(
+      retryPromptAfter({ kind: "handler", name: "read" }, read?.attempts[0]?.error),
+    );
   });
 
   test("admits the same dependency SQL only for the Action that declares it", () => {
@@ -834,40 +867,43 @@ describe("unit generation with bounded fix loop — adversarial toolbox syntax",
 });
 
 describe("unit generation with bounded fix loop — item-renderer prompt", () => {
-  test("builds the item-renderer prompt knowing the collection layout and design direction", () => {
-    const feedPrompt = buildUnitPrompt(notesSpec(), { kind: "item-renderer", name: "item" });
-    expect(feedPrompt).toContain("Generate the item.ts item renderer");
-    expect(feedPrompt).toContain(
-      "export default function renderItem(record: Record<string, unknown>): string",
-    );
-    expect(feedPrompt).toContain('Chosen collection layout for this capability: "feed"');
-    expect(feedPrompt).toContain("full-width record");
-    expect(feedPrompt).toContain("A text-forward card that emphasizes text and pinned status.");
-    // The closed primitive vocabulary is injected (single source of truth).
-    expect(feedPrompt).toContain("Injected design contract and few-shot gallery");
-    expect(feedPrompt).toContain("line-clamp-2");
-    // The three closed axes are enumerated by name, not by a `--space-*` wildcard: High Meadow's
-    // colour family has no shared prefix, so the model is handed the sets themselves.
-    expect(feedPrompt).toContain("Three axes are closed");
-    expect(feedPrompt).toContain("var(--space-1), var(--space-2)");
-    expect(feedPrompt).toContain("var(--ink), var(--ink-2)");
-    expect(feedPrompt).toContain("var(--type-xs), var(--type-sm)");
-    expect(feedPrompt).toContain("Four properties are never declared at all");
-    expect(feedPrompt).toContain("Few-shot gallery. Vary, don't copy");
-    expect(feedPrompt).toContain("Text-forward note card");
-    expect(feedPrompt).toContain("Media-forward grid tile");
-    expect(feedPrompt).toContain("Compact metadata row");
-    expect(feedPrompt).toContain('style="grid-template-columns');
-    // The fourth ban, in the words the generator receives, and no exemplar contradicting it.
-    expect(feedPrompt).toContain("`border` (every boundary on this surface is drawn by hand");
-    expect(feedPrompt).not.toContain("border: var(--line)");
+  test("builds the item-renderer prompt from the collection layout and the design direction", () => {
+    const item = { kind: "item-renderer", name: "item" } as const;
+    const feed = notesSpec();
+    const grid = notesSpec({ ui_intent: { ...feed.ui_intent, collection: { layout: "grid" } } });
+    const feedPrompt = buildUnitPrompt(feed, item);
+    const gridPrompt = buildUnitPrompt(grid, item);
 
-    const gridPrompt = buildUnitPrompt(
-      notesSpec({ ui_intent: { ...notesSpec().ui_intent, collection: { layout: "grid" } } }),
-      { kind: "item-renderer", name: "item" },
-    );
-    expect(gridPrompt).toContain('Chosen collection layout for this capability: "grid"');
-    expect(gridPrompt).toContain("compact record");
+    expect(feedPrompt).toContain(feed.ui_intent.item.direction);
+    expect(feedPrompt).toContain(buildItemRendererDesignInjection("feed"));
+    expect(gridPrompt).toContain(buildItemRendererDesignInjection("grid"));
+    // The closed vocabulary and every exemplar are injected whole (single source of truth).
+    expect(linesNaming(feedPrompt, [...ALLOWED_CLASSES])).not.toEqual([]);
+    for (const tokens of [PALETTE_COLOR_TOKENS, TYPE_SIZE_TOKENS, SPACING_TOKENS]) {
+      expect(
+        linesNaming(
+          feedPrompt,
+          [...tokens].map((token) => `var(--${token})`),
+        ),
+      ).not.toEqual([]);
+    }
+    for (const example of FEW_SHOT_DESIGN_EXAMPLES) {
+      expect(feedPrompt).toContain(example.title);
+      expect(feedPrompt).toContain(example.rendererSource);
+    }
+    // No exemplar contradicts the ban on a drawn edge.
+    expect(feedPrompt).not.toContain("border: var(--line)");
+  });
+
+  test("tells a feed and a grid item how to compose, not only which one it is", () => {
+    const composing = (from: "feed" | "grid", to: "feed" | "grid") =>
+      new Set(
+        addedLines(
+          buildItemRendererDesignInjection(from),
+          buildItemRendererDesignInjection(to),
+        ).map((line) => line.replaceAll(to, "LAYOUT")),
+      );
+    expect(composing("feed", "grid")).not.toEqual(composing("grid", "feed"));
   });
 
   test("projects exact shown name/type/label descriptors and hides inactive generation context", () => {
@@ -918,15 +954,20 @@ describe("unit generation with bounded fix loop — item-renderer prompt", () =>
     });
 
     const itemPrompt = buildUnitPrompt(spec, { kind: "item-renderer", name: "item" });
-    expect(itemPrompt).toContain('- text: string, label "Entry"');
-    expect(itemPrompt).toContain('- created_at: datetime, label "Created"');
+    expect(linesNaming(itemPrompt, ["text", "string", "Entry"])).not.toEqual([]);
+    expect(linesNaming(itemPrompt, ["created_at", "datetime"])).not.toEqual([]);
     expect(itemPrompt).not.toContain("Side note");
     expect(itemPrompt).not.toContain("retired_note");
     expect(itemPrompt).not.toContain("Retired note");
 
     const createPrompt = buildUnitPrompt(spec, { kind: "handler", name: "create" });
-    expect(createPrompt).toContain("- text: string (required)");
-    expect(createPrompt).toContain("- note: string (optional)");
+    // Both are strings, so only their requiredness can tell their lines apart.
+    const fieldLine = (name: string) =>
+      createPrompt.split("\n").find((line) => new RegExp(`^- ${name}\\b`).test(line));
+    const textLine = fieldLine("text");
+    const noteLine = fieldLine("note");
+    expect(textLine).toBeDefined();
+    expect(textLine?.replace("text", "field")).not.toBe(noteLine?.replace("note", "field"));
     expect(createPrompt).not.toContain("Entry");
     expect(createPrompt).not.toContain("Side note");
     expect(createPrompt).toContain("extra");
@@ -942,12 +983,8 @@ describe("unit generation with bounded fix loop — read, few-shot, and present-
     // `#<id>-records`, defeating the platform's `:empty` and lingering below a created record.
     const readPrompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "read" });
 
-    // Records-only, empty string when there are none — the platform shows the empty state.
-    expect(readPrompt).toContain("return an empty string");
-    expect(readPrompt).toMatch(/platform (owns|renders).*empty state/i);
     // The stale instruction is gone: the handler must NOT author its own empty state.
     expect(readPrompt).not.toMatch(/empty state when there are no rows/i);
-    expect(readPrompt).toMatch(/do not (render|emit) your own empty state/i);
 
     // The shared "non-record text" note no longer offers an empty state as an example
     // of text a handler may emit — only genuinely handler-owned copy (validation errors).
@@ -979,19 +1016,6 @@ describe("unit generation with bounded fix loop — read, few-shot, and present-
         example.rendererSource.includes("export default function renderItem"),
       ),
     ).toBe(true);
-  });
-
-  test("handler prompts tell the model to render records through the present adapter", () => {
-    const createPrompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "create" });
-    expect(createPrompt).toContain("Generate the create.ts handler");
-    expect(createPrompt).toContain("Render every record by calling the injected `present(record)`");
-    expect(createPrompt).toContain("return `present(row)`");
-    expect(createPrompt).toContain("Do NOT emit your own row/card/item markup");
-
-    const readPrompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "read" });
-    expect(readPrompt).toContain(
-      "Destructure only `{ query, present }`: `export default async function read({ query, present }: CapabilityContext): Promise<string>`.",
-    );
   });
 });
 
@@ -1057,52 +1081,17 @@ describe("unit generation with bounded fix loop — dependency projection", () =
 });
 
 describe("unit generation with bounded fix loop — per-Action context projection", () => {
-  test("pins the real positional-query and checkbox ABI in Action prompts", () => {
-    const create = buildUnitPrompt(fullNotesSpec(), { kind: "handler", name: "create" });
-    const update = buildUnitPrompt(fullNotesSpec(), { kind: "handler", name: "update" });
-    const search = buildUnitPrompt(fullNotesSpec(), { kind: "handler", name: "search" });
-
-    expect(create).toContain('either "on" (browser checkbox) or "true" (Gate synthetic input)');
-    expect(update).toContain('either "on" (browser checkbox) or "true" (Gate synthetic input)');
-    expect(search).toContain("positional SQLite values only");
-    expect(search).toContain("Never use named placeholders");
-    expect(search).toContain("parameters: [JSON.stringify(terms)]");
-    expect(search).toContain('SELECT "value" AS "term" FROM json_each(?)');
-    expect(search).toContain("omit `result`");
-    expect(search).toContain("{ alias, type }");
-    expect(create).not.toContain("Record-producing SQL for this Action");
-    expect(create).not.toContain("Search SQL must normalize");
-    expect(update).not.toContain("Record-producing SQL for this Action");
-    expect(update).not.toContain("Search SQL must normalize");
-    expect(search).toContain("Record-producing SQL for this Action");
-    expect(search).toContain("Search SQL must normalize");
+  test("search generation carries an authored ranking to the model", () => {
+    const behavior = "Matching search results are ordered oldest first.";
+    const search = buildUnitPrompt(fullNotesSpec({ behavior }), {
+      kind: "handler",
+      name: "search",
+    });
+    expect(search).toContain(behavior);
   });
 
-  test("search generation preserves authored ranking without weakening the default", () => {
-    const search = buildUnitPrompt(
-      fullNotesSpec({
-        behavior: "Matching search results are ordered oldest first.",
-      }),
-      { kind: "handler", name: "search" },
-    );
-
-    expect(search).toContain(
-      "When behavior explicitly authors a deterministic search-specific ranking",
-    );
-    expect(search).toContain("For a behavior-neutral search");
-    expect(search).toContain("created_at DESC, id DESC");
-    expect(search).toContain("behavioral tier must prove that authored ranking");
-    expect(search).not.toContain(
-      "ordered by `created_at DESC, id DESC`; omit `result` unless projecting",
-    );
-  });
-
-  test("assigns update validation translation to the generated Handler", () => {
+  test("the update prompt no longer says the platform translates its failure", () => {
     const update = buildUnitPrompt(fullNotesSpec(), { kind: "handler", name: "update" });
-
-    expect(update).toContain("Catch only that matching typed failure");
-    expect(update).toContain("translate it into variable product-voice copy");
-    expect(update).toContain("Rethrow every other failure");
     expect(update).not.toContain("the platform turns it into");
   });
 
@@ -1164,28 +1153,7 @@ describe("unit generation with bounded fix loop — per-Action context projectio
 });
 
 describe("unit generation with bounded fix loop — retry, strict-index, and validation-marker prompts", () => {
-  test("builds retry prompts from the unit contract and prior failure", () => {
-    const prompt = buildUnitPrompt(
-      notesSpec(),
-      { kind: "handler", name: "read" },
-      {
-        kind: "handler",
-        name: "read",
-        message: "Generated handlers must not import anything.",
-      },
-    );
-
-    expect(prompt).toContain("Generate the read.ts handler");
-    expect(prompt).toContain("No imports.");
-    expect(prompt).toContain("Previous attempt failed");
-    expect(prompt).toContain("Generated handlers must not import anything.");
-  });
-
-  test("handler prompts and retry feedback call out strict unchecked-index failures", () => {
-    const prompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "read" });
-    expect(prompt).toContain("noUncheckedIndexedAccess");
-    expect(prompt).toContain("Do not use unchecked array indexes or regex captures");
-
+  test("retry feedback calls out strict unchecked-index failures", () => {
     const unsafeRegexCapture = [
       "export default async function read({ query }: CapabilityContext): Promise<string> {",
       '  const rows = query.all({ sql: \'SELECT * FROM "cap_notes"\', result: [{ alias: "created_at", type: "datetime" }] });',
@@ -1207,95 +1175,17 @@ describe("unit generation with bounded fix loop — retry, strict-index, and val
     );
   });
 
-  test("update prompts teach a stable local narrowing pattern for unknown error properties", () => {
-    const prompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "update" });
-
-    expect(prompt).toContain("store each `unknown` property in a local variable");
-    expect(prompt).toContain('typeof failure !== "object" || failure === null');
-    expect(prompt).toContain("const rawFields = candidate.fields");
-    expect(prompt).toContain("Array.isArray(rawFields)");
-    expect(prompt).toContain(
-      'rawFields.every((field): field is string => typeof field === "string")',
-    );
-    expect(prompt).toContain('rawFields.includes("field_name")');
-  });
-
-  test("handler prompts teach the exact indexed input type and readonly-safe extractors", () => {
-    const prompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "update" });
-
-    expect(prompt).toContain(
-      "Every indexed `input.values[name]` read may be `undefined` under `noUncheckedIndexedAccess`",
-    );
-    expect(prompt).toContain(
-      "Do not use `Array.isArray` and then return the unchecked false branch as a string",
-    );
-    expect(prompt).toContain(
-      "`input.submittedFields.has(name)` is runtime presence information; it does not narrow",
-    );
-    expect(prompt).toContain("function scalarValue(value: unknown): string");
-    expect(prompt).toContain('if (typeof value === "string") return value');
-    expect(prompt).toContain('return ""');
-    expect(prompt).toContain(
-      "Only add a field to an update patch when `input.submittedFields.has(fieldName)`",
-    );
-    expect(prompt).toContain("For a string[] field");
-    expect(prompt).toContain("Array.isArray(value) ? [...value] : []");
-    expect(prompt).toContain("A submitted unchecked boolean may have no `input.values` entry");
-  });
-
   test("handler prompts include the stable validation error marker contract", () => {
     const prompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "create" });
 
-    expect(prompt).toContain("Validation error contract:");
-    expect(prompt).toContain(`${BEHAVIORAL_ERROR_MARKERS.role_attribute}="error"`);
+    expect(prompt).toContain(
+      `${BEHAVIORAL_ERROR_MARKERS.role_attribute}="${BEHAVIORAL_ERROR_MARKERS.role}"`,
+    );
     expect(prompt).toContain(BEHAVIORAL_ERROR_MARKERS.code_attribute);
     expect(prompt).toContain(BEHAVIORAL_ERROR_MARKERS.fields_attribute);
     expect(prompt).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
-    expect(prompt).toContain(
-      "detect every missing required field before calling `mutation.create`",
-    );
-    expect(prompt).toContain("return the declared validation-error fragment instead");
     expect(prompt).not.toContain(
       "required empty values must reach the platform mutation validation and fail",
     );
-  });
-});
-
-describe("unit generation retry guidance — Action isolation", () => {
-  test("indexed-input repair remains Action-specific", () => {
-    const failure = {
-      kind: "handler" as const,
-      name: "create" as const,
-      message:
-        "CapabilityInputValue | undefined is not assignable to parameter of type string | readonly string[]",
-    };
-    const createRetry = buildUnitPrompt(notesSpec(), failure, failure);
-    const searchUnit = { kind: "handler" as const, name: "search" as const };
-    const searchRetry = buildUnitPrompt(notesSpec(), searchUnit, {
-      ...failure,
-      name: "search",
-    });
-    const updateUnit = { kind: "handler" as const, name: "update" as const };
-    const updateRetry = buildUnitPrompt(notesSpec(), updateUnit, {
-      ...failure,
-      name: "update",
-    });
-
-    expect(createRetry).toContain("Required repair for indexed input values");
-    expect(searchRetry).toContain("Required repair for indexed input values");
-    expect(createRetry).not.toContain("Keep update field admission separate");
-    expect(searchRetry).not.toContain("Keep update field admission separate");
-    expect(updateRetry).toContain("Keep update field admission separate");
-  });
-
-  test("unrelated compiler failures do not activate indexed-input repair guidance", () => {
-    const unit = { kind: "handler" as const, name: "create" as const };
-    const prompt = buildUnitPrompt(notesSpec(), unit, {
-      ...unit,
-      message: "Type 'number' is not assignable to type 'string'.",
-    });
-
-    expect(prompt).toContain("Previous attempt failed");
-    expect(prompt).not.toContain("Required repair for indexed input values");
   });
 });

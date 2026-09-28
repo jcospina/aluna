@@ -3,9 +3,9 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
-import { createApp } from "../../../server/app.ts";
 import { probeBody, streamedInit } from "../../../server/http/writing-route-guard.test-support.ts";
 import { TEXT_BODY_LIMIT_BYTES } from "../../../server/http/writing-route-guard.ts";
+import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import { resolveServeOptions } from "../../../server/serve-options.ts";
 import {
   createCapabilityDataTool,
@@ -36,7 +36,9 @@ describe("the record router refuses at its door", () => {
 
   test("a chunked body over its limit, before any Handler loads", async () => {
     const spy = makeSpyLoader();
-    const app = createApp({ capabilityRouter: { databases: conns, loadHandler: spy.loadHandler } });
+    const app = createTestApp({
+      capabilityRouter: { databases: conns, loadHandler: spy.loadHandler },
+    });
     for (const action of WRITES) {
       const response = await app.request(
         `/capability/notes/${action}`,
@@ -50,7 +52,9 @@ describe("the record router refuses at its door", () => {
 
   test("another site's write, before the body is read or any Handler loads", async () => {
     const spy = makeSpyLoader();
-    const app = createApp({ capabilityRouter: { databases: conns, loadHandler: spy.loadHandler } });
+    const app = createTestApp({
+      capabilityRouter: { databases: conns, loadHandler: spy.loadHandler },
+    });
     for (const action of WRITES) {
       const body = probeBody(64, "text=");
       const response = await app.request(
@@ -67,7 +71,7 @@ describe("the record router refuses at its door", () => {
   });
 
   test("over a real socket, where Bun's own cap let a chunked body through", async () => {
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
     const server = Bun.serve({ ...resolveServeOptions({ PORT: "0" }), fetch: app.fetch });
     // Each request on its own connection: Bun's `fetch` client abandons a refused chunked body
     // unfinished and sends the next request down the same connection, which the server then

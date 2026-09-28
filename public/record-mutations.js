@@ -17,8 +17,8 @@ const EDIT_FORM_SELECTOR = "[data-record-edit-form]";
 const CREATE_FORM_SELECTOR = '[data-post-mutation-refresh][data-mutation-kind="create"]';
 const CREATE_CANCEL_SELECTOR = "[data-create-cancel]";
 const RECORD_CANCEL_SELECTOR = "[data-record-cancel]";
-const DELETE_FORM_SELECTOR = "[data-record-delete-form]";
-const DELETE_TRIGGER_SELECTOR = "[data-record-delete]";
+export const DELETE_FORM_SELECTOR = "[data-record-delete-form]";
+export const DELETE_TRIGGER_SELECTOR = "[data-record-delete]";
 const DELETE_CANCEL_SELECTOR = "[data-record-cancel-delete]";
 const LIVE_REGION_SELECTOR = '[aria-live="polite"]';
 const EDIT_ACTIONS_SELECTOR = ".capability-edit-form__actions";
@@ -257,6 +257,15 @@ export function unconfirmedMutationAnswer({ surfaceGone, hasField, inField }) {
     : { where: "field", sentence: inField };
 }
 
+/** The code an unconfirmed outcome's notice carries, beside the codes a Handler refuses with. */
+export const MUTATION_OUTCOME_UNKNOWN = "mutation_outcome_unknown";
+
+/** What an unconfirmed outcome says in a form still standing: a create re-read, anything else not. */
+export const UNCONFIRMED_AFTER_REFRESH =
+  "I couldn’t confirm that change. I refreshed what’s here — please check before trying again.";
+export const UNCONFIRMED_IN_THE_FORM =
+  "I couldn’t confirm that change. Go back and check before trying again.";
+
 /** @param {HTMLFormElement} form @param {string} message @param {boolean} [surfaceGone] */
 function showMutationNotice(form, message, surfaceGone = false) {
   const target = form.querySelector(LIVE_REGION_SELECTOR);
@@ -272,7 +281,7 @@ function showMutationNotice(form, message, surfaceGone = false) {
   const notice = document.createElement("p");
   notice.className = "notice";
   notice.dataset.role = "error";
-  notice.dataset.errorCode = "mutation_outcome_unknown";
+  notice.dataset.errorCode = MUTATION_OUTCOME_UNKNOWN;
   notice.textContent = answer.sentence;
   target.replaceChildren(notice);
 }
@@ -312,11 +321,12 @@ async function finishCommittedCreate(form) {
     return;
   }
   setCreatePending(form, false);
-  form.reset();
+  // A form answers to its fields' names first, and a capability may call one `reset` or `dataset`.
+  HTMLFormElement.prototype.reset.call(form);
   form.dispatchEvent(
     new CustomEvent(RECORD_CREATED_EVENT, {
       bubbles: true,
-      detail: { capabilityId: form.dataset.capabilityId },
+      detail: { capabilityId: form.getAttribute("data-capability-id") },
     }),
   );
 }
@@ -341,10 +351,7 @@ async function handleCreateOutcome(form, successful, outcomeUnknown, surfaceGone
   if (outcomeUnknown && !(await reconcileUnknownCreate(form))) return;
   setCreatePending(form, false);
   if (outcomeUnknown) {
-    showMutationNotice(
-      form,
-      "I couldn’t confirm that change. I refreshed what’s here — please check before trying again.",
-    );
+    showMutationNotice(form, UNCONFIRMED_AFTER_REFRESH);
   }
 }
 
@@ -362,11 +369,7 @@ function handleEditOutcome(form, successful, outcomeUnknown, surfaceGone) {
     return;
   }
   if (outcomeUnknown) {
-    showMutationNotice(
-      form,
-      "I couldn’t confirm that change. Go back and check before trying again.",
-      surfaceGone,
-    );
+    showMutationNotice(form, UNCONFIRMED_IN_THE_FORM, surfaceGone);
   }
   // Back to the top, unless a refusal has just put the person on a field lower down.
   const fields = form.querySelector(".capability-edit-form__fields");
@@ -402,11 +405,7 @@ function handleDeleteOutcome(form, successful, outcomeUnknown, surfaceGone) {
     return;
   }
   if (disposition === "stand-and-say") {
-    showMutationNotice(
-      form,
-      "I couldn’t confirm that change. Go back and check before trying again.",
-      surfaceGone,
-    );
+    showMutationNotice(form, UNCONFIRMED_IN_THE_FORM, surfaceGone);
   }
 }
 
@@ -519,13 +518,11 @@ function installRecordMutations() {
     if (!(input instanceof HTMLInputElement) || !input.matches("[data-edit-datetime-input]"))
       return;
     const fieldName = input.dataset.editDatetimeInput;
-    const exactValue = fieldName ? input.form?.elements.namedItem(fieldName) : null;
-    if (
-      exactValue instanceof HTMLInputElement &&
-      exactValue.matches("[data-edit-datetime-value]")
-    ) {
-      exactValue.value = input.value;
-    }
+    // Found by selector: `form.elements` is a field, for a capability with one called `elements`.
+    const exactValue = fieldName
+      ? input.form?.querySelector(`[data-edit-datetime-value][name="${CSS.escape(fieldName)}"]`)
+      : null;
+    if (exactValue instanceof HTMLInputElement) exactValue.value = input.value;
   });
 }
 

@@ -3,7 +3,7 @@
 
 export const MAX_NAME_BYTES = 255;
 /** Longer than this after its last dot, the tail is part of the name and the cap may cut it. */
-const MAX_EXTENSION_BYTES = 16;
+export const MAX_EXTENSION_BYTES = 16;
 
 /**
  * Invisible characters with no place in a name: the marks, embeddings, overrides and isolates of

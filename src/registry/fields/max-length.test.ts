@@ -155,17 +155,23 @@ describe("the name→limit lookup every reader shares", () => {
 
 test("the refusal code is platform-owned and a capability may not author it", () => {
   const base = validSpec();
-  const spec = {
-    ...base,
-    behavioral_errors: [
-      {
-        action: "create" as const,
-        trigger: MAX_LENGTH_EXCEEDED_ERROR_CODE,
-        code: MAX_LENGTH_EXCEEDED_ERROR_CODE,
-        fields: [],
-        expected_markers: base.behavioral_errors[0]?.expected_markers,
-      },
-    ],
+  const authoring = (code: string) => {
+    const authored = {
+      action: "create" as const,
+      trigger: code,
+      code,
+      fields: ["text"],
+      expected_markers: base.behavioral_errors[0]?.expected_markers,
+    };
+    const parsed = capabilitySpecSchema.safeParse({
+      ...base,
+      behavioral_errors: [...base.behavioral_errors, authored],
+    });
+    return parsed.success ? [] : parsed.error.issues.map((issue) => issue.path.join("."));
   };
-  expect(capabilitySpecSchema.safeParse(spec).success).toBe(false);
+
+  expect(authoring(`${MAX_LENGTH_EXCEEDED_ERROR_CODE}_authored`)).toEqual([]);
+  expect(authoring(MAX_LENGTH_EXCEEDED_ERROR_CODE)).toEqual([
+    `behavioral_errors.${base.behavioral_errors.length}`,
+  ]);
 });

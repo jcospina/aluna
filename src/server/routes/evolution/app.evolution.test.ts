@@ -12,6 +12,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } fr
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { ZodType } from "zod";
+import { ACTIVE_CAPABILITY_ATTRIBUTE } from "#shell/shell-dom.js";
 import {
   candidateFrom,
   journalCapabilityRow,
@@ -48,8 +49,8 @@ import {
   type ScratchDbEnv,
   teardownScratchDbEnv,
 } from "../../app.test-support.ts";
-import { createApp } from "../../app.ts";
 import { renderBuildEnding } from "../../http/index.ts";
+import { createTestApp } from "../../isolated-app.test-support.ts";
 import {
   buildEvolutionRouteGates,
   type EvolutionRouteFixture,
@@ -104,7 +105,7 @@ describe("the capability surface", () => {
     // is the client's to create. The developer panel is a window too, so the page carries a tile.
     expect(html).toContain('data-capability-id="journal"');
     expect(html).toContain('class="desk__windows"');
-    expect(html).not.toContain("data-active-capability-id");
+    expect(html).not.toContain(ACTIVE_CAPABILITY_ATTRIBUTE);
     expect(html).toContain("data-dev-tile");
     expect(html).toContain('aria-label="Open Developer"');
     expect(html).not.toContain('class="devbar"');
@@ -336,7 +337,7 @@ describe("an accepted candidate", () => {
     // A spy loader records which version directory each Action was loaded from — the
     // proof that the router follows the swapped pointer, not a cached v1.
     const loadedPaths: string[] = [];
-    const app = createApp({
+    const app = createTestApp({
       getProvider: () => resolvedBy(journalEvolutionIntent("Add a mood field"), provider),
       recordMetrics: metrics.recordMetrics,
       buildDatabases: env.conns,

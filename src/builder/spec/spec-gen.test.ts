@@ -10,20 +10,75 @@
 
 import { describe, expect, test } from "bun:test";
 import { zodSchema } from "ai";
+import fc from "fast-check";
+import { ZodError } from "zod";
+import { INTENT_TYPES, type IntentClassification } from "../../pipeline/intent/index.ts";
 import type { TokenUsage } from "../../platform/provider/index.ts";
 import {
+  addedLines,
+  linesNaming,
+  occurrences,
+} from "../../platform/provider/prompt-lines.test-support.ts";
+import {
+  BEHAVIORAL_ERROR_MARKERS,
+  CHOICE_PRESENTATIONS,
+  FORM_SHADOWING_FIELD_NAMES,
   FULL_CAPABILITY_TOOLS,
+  fieldTypeSchema,
+  LIST_INPUT_MODES,
+  type ListInputMode,
   LOGO_HUE_FAMILIES,
+  MAX_CAPABILITY_NOUN_LENGTH,
+  MAX_CHOICE_GROUP_HEADING_LENGTH,
+  MAX_CHOICE_GROUPS,
+  MAX_CHOICE_OPTION_LABEL_LENGTH,
+  MAX_CHOICE_OPTION_NOTE_LENGTH,
+  MAX_CHOICE_OPTION_VALUE_LENGTH,
+  MAX_CHOICE_OPTIONS,
+  MAX_DECLARED_MAX_LENGTH,
+  MAX_FIELD_GUIDANCE_LENGTH,
+  MAX_LOGO_SUBJECT_LENGTH,
+  MIN_DECLARED_MAX_LENGTH,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  PLATFORM_COLUMNS,
+  PLATFORM_OWNED_ERROR_CODES,
   promptCapabilitySpecSchema,
+  uiCollectionLayoutSchema,
 } from "../../registry/index.ts";
 import { buildSpecPrompt, generateSpec } from "../index.ts";
+
 import {
   makeSpecProvider,
   notesIntent,
   notesSpec,
   recordingSend,
+  structuredOutputKeys,
 } from "./spec-gen.test-support.ts";
+
+function specPrompt(request = "track my notes", intent: IntentClassification = notesIntent()) {
+  return buildSpecPrompt({
+    provider: makeSpecProvider(notesSpec()),
+    prompt: request,
+    intent,
+    send: recordingSend().send,
+  });
+}
+
+/** The issue paths the stage's gate raises for a model's `raw` spec; empty when it passes. */
+async function issuePathsOf(raw: unknown): Promise<string[]> {
+  try {
+    await generateSpec({
+      provider: makeSpecProvider(raw),
+      prompt: "track my notes",
+      intent: notesIntent(),
+      send: recordingSend().send,
+    });
+    return [];
+  } catch (error) {
+    if (!(error instanceof ZodError)) throw error;
+    return error.issues.map((issue) => issue.path.join("."));
+  }
+}
 
 describe("spec generation stage — schema contract, generation, and prompt", () => {
   test("emits OpenAI-compatible JSON Schema for the fixed five-Action list", async () => {
@@ -123,177 +178,134 @@ describe("spec generation stage — required-field errors", () => {
 });
 
 describe("spec generation stage — authored prompt", () => {
-  test("asks the model for the spec inside the field/action pantry, with reshaped ui_intent", async () => {
+  test("the stage sends the prompt its exported builder makes from the same input", async () => {
     const provider = makeSpecProvider(notesSpec());
     const { send } = recordingSend();
     const intent = notesIntent();
 
-    await generateSpec({
-      provider,
-      prompt: "track my notes",
-      intent,
-      send,
-    });
+    await generateSpec({ provider, prompt: "track my notes", intent, send });
 
     expect(provider.calls).toHaveLength(1);
-    const prompt = provider.calls[0]?.prompt ?? "";
-    // The stage builds its prompt with the exported builder — same input, same text.
-    expect(prompt).toBe(buildSpecPrompt({ provider, prompt: "track my notes", intent, send }));
-    // The pantry, stated to the model (the schema is the hard wall behind it).
-    expect(prompt).toContain(
-      "tools: exactly [create, read, update, delete, search] in that canonical order",
+    expect(provider.calls[0]?.prompt).toBe(
+      buildSpecPrompt({ provider, prompt: "track my notes", intent, send }),
     );
-    expect(prompt).toContain('"update": [], "delete": [], "search": []');
-    expect(prompt).toContain("ui_intent.item");
-    expect(prompt).toContain("ui_intent.form.list_inputs contains exactly one");
-    expect(prompt).toContain("comma_separated only for short atomic values");
-    expect(prompt).toContain("tags, genres, categories, skills");
-    expect(prompt).toContain("quotes, addresses, citations, or names as entered");
-    expect(prompt).toContain("never choose it for comma-bearing element semantics");
-    expect(prompt).toContain("ui_intent.collection.layout is one of: feed | grid");
-    expect(prompt).not.toContain("ui_intent.detail");
-    expect(prompt).toContain("Do not include ui_intent.views");
-    expect(prompt).toContain("Do not author how a record opens");
-    expect(prompt).toContain("string | number | boolean | datetime | date | choice | string[]");
-    expect(prompt).toContain("string[] is the only list type");
-    expect(prompt).toContain("id, created_at, extra are platform-owned");
-    // Identity: engineering id vs user-facing label, kept distinct.
-    expect(prompt).toContain("id is the engineering identity");
-    expect(prompt).toContain("label is the short user-facing capability name");
-    expect(prompt).toContain("not a sentence, narration, promise, or confirmation");
-    expect(prompt).toContain("behavioral_errors: structured validation-error cases");
-    expect(prompt).toContain(MISSING_REQUIRED_FIELDS_ERROR_CODE);
-    expect(prompt).toContain('"data-error-fields"');
-    // The resolved intent and the user's words both reach the model.
-    expect(prompt).toContain(intent.proposed_action);
-    expect(prompt).toContain(intent.user_facing_label);
-    expect(prompt).toContain("track my notes");
   });
 
-  test("asks for the logo's subject and one of the eight hue families, and for the record noun", () => {
-    const provider = makeSpecProvider(notesSpec());
-    const { send } = recordingSend();
-    const prompt = buildSpecPrompt({
-      provider,
-      prompt: "track my notes",
-      intent: notesIntent(),
-      send,
-    });
+  test("carries the resolved intent, and ends on the user's own words", () => {
+    fc.assert(
+      fc.property(
+        fc.string({ minLength: 8 }),
+        fc.string({ minLength: 8 }),
+        fc.string({ minLength: 8 }),
+        fc.constantFrom(...INTENT_TYPES),
+        (request, action, label, type) => {
+          const intent = notesIntent({ type, proposed_action: action, user_facing_label: label });
+          const prompt = specPrompt(request, intent);
+          expect(prompt.endsWith(`\n${request}`)).toBe(true);
+          const instructions = prompt.slice(0, -request.length);
+          for (const value of [type, action, label]) expect(instructions).toContain(value);
+        },
+      ),
+      { seed: 20260926, numRuns: 200 },
+    );
+  });
 
-    // Both colours are word lists read off the registry's own enum, so the prompt
-    // cannot drift from the schema that gates the answer.
-    expect(prompt).toContain(`ground is exactly one of: ${LOGO_HUE_FAMILIES.join(" | ")}`);
-    expect(prompt).toContain(
-      "companion is exactly one of the same list and must never be the same value as ground",
-    );
-    expect(prompt).not.toContain("signal");
-    // Subject: one concrete object, no art direction, no lettering.
-    expect(prompt).toContain("subject is a short noun phrase naming one concrete object");
-    expect(prompt).toContain(
-      "Never letters, words, initials, logos, or a described scene; never a style, medium, palette, layout, or composition instruction.",
-    );
-    // The user does not steer it — the subject comes from what the capability is for.
-    expect(prompt).toContain(
-      "Derive the subject from what the capability is for, never from art direction in the user's words.",
-    );
-    // One rule, not two: the builder is told where the subject comes from, and the
-    // refusing is left to the intent classifier (ADR-0007).
-    expect(prompt).toContain("not a second refusal");
-    expect(prompt).toContain("chosen once, at birth, and can never be changed afterwards");
-    // Each colour is asked for by what it does, so the model has something to choose against.
-    // This is the whole of the presentation it touches — no size, no style, no composition.
-    expect(prompt).toContain("It is the hue of the flat colour the whole square is filled with");
-    expect(prompt).toContain("It is the hue the object itself is drawn in");
-    // The model names a hue, not a colour: it is told so, because a model asked for a
-    // colour and handed a hue would reasonably think its choice was the final word.
-    expect(prompt).toContain("Aluna resolves which of that hue's four shades");
-    for (const forbidden of ["substyle", "vector_illustration", "1024x1024", "no_text", "seed"]) {
-      expect(prompt, `the prompt must not leak "${forbidden}"`).not.toContain(forbidden);
+  test("names every closed vocabulary off the registry, each on one line", () => {
+    const prompt = specPrompt();
+    for (const vocabulary of [
+      FULL_CAPABILITY_TOOLS,
+      fieldTypeSchema.options,
+      uiCollectionLayoutSchema.options,
+      CHOICE_PRESENTATIONS,
+      LIST_INPUT_MODES,
+      LOGO_HUE_FAMILIES,
+      PLATFORM_COLUMNS,
+      FORM_SHADOWING_FIELD_NAMES,
+      PLATFORM_OWNED_ERROR_CODES,
+    ]) {
+      expect(linesNaming(prompt, vocabulary), vocabulary.join()).not.toEqual([]);
     }
-    expect(prompt).toContain("noun is the singular common noun for one stored record");
+    const [toolLine] = linesNaming(prompt, FULL_CAPABILITY_TOOLS);
+    const positions = FULL_CAPABILITY_TOOLS.map((tool) => toolLine?.indexOf(tool) ?? -1);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+  });
+
+  test("states every registry bound beside the one it pairs with", () => {
+    const prompt = specPrompt();
+    for (const bounds of [
+      [MAX_CHOICE_OPTION_VALUE_LENGTH, MAX_CHOICE_OPTION_LABEL_LENGTH],
+      [MAX_CHOICE_OPTIONS, MAX_CHOICE_GROUPS],
+      [MIN_DECLARED_MAX_LENGTH, MAX_DECLARED_MAX_LENGTH],
+      [MAX_CHOICE_OPTION_NOTE_LENGTH],
+      [MAX_CHOICE_GROUP_HEADING_LENGTH],
+      [MAX_FIELD_GUIDANCE_LENGTH],
+      [MAX_LOGO_SUBJECT_LENGTH],
+      [MAX_CAPABILITY_NOUN_LENGTH],
+    ]) {
+      expect(linesNaming(prompt, bounds), bounds.join()).not.toEqual([]);
+    }
+  });
+
+  test("hands over the required-field case exactly as the Gate will compare it", () => {
+    const markers = JSON.stringify(BEHAVIORAL_ERROR_MARKERS);
+    expect(
+      linesNaming(specPrompt(), [MISSING_REQUIRED_FIELDS_ERROR_CODE, markers, "create", "update"]),
+    ).not.toEqual([]);
+  });
+
+  test("names every key the structured output asks for", async () => {
+    const prompt = specPrompt();
+    // A birth declares no dependency, so the two keys a dependency entry carries are never filled.
+    const unfilled = new Set(["capability_id", "incarnation_id"]);
+    const keys = await structuredOutputKeys();
+    expect(keys.length).toBeGreaterThan(unfilled.size);
+    for (const key of keys) if (!unfilled.has(key)) expect(prompt, key).toContain(key);
   });
 
   // Balancing the mentions was not enough: five probe builds against the balanced prompt came
   // back with the same companion three times, so variety is bought by seed in `resolveLogoShades`.
-  test("the colour instructions name no hue at all outside the vocabulary list", () => {
-    const provider = makeSpecProvider(notesSpec());
-    const { send } = recordingSend();
-    const prompt = buildSpecPrompt({
-      provider,
-      prompt: "track my notes",
-      intent: notesIntent(),
-      send,
-    });
-
-    const instructions = prompt
-      .split("\n")
-      .filter(
-        (line) =>
-          line.startsWith("- ground is exactly one of") ||
-          line.startsWith("- companion is exactly one of") ||
-          line.startsWith("- There is no default hue"),
-      )
-      .join(" ")
-      .replace(LOGO_HUE_FAMILIES.join(" | "), "");
-
-    expect(instructions).not.toBe("");
-    for (const family of LOGO_HUE_FAMILIES) {
-      expect(
-        instructions.match(new RegExp(`\\b${family}\\b`, "g")),
-        `"${family}" is named in the colour instructions`,
-      ).toBeNull();
-    }
+  test("offers every hue once, in the vocabulary, and singles none out anywhere else", () => {
+    const prompt = specPrompt();
+    for (const family of LOGO_HUE_FAMILIES) expect(occurrences(prompt, family), family).toBe(1);
   });
 
-  // The failure mode the four live capabilities showed: a subject with no colour of its own,
-  // where "what a background usually looks like" is the answer it kept reaching for.
-  test("tells the model there is no default hue", () => {
-    const provider = makeSpecProvider(notesSpec());
-    const { send } = recordingSend();
-    const prompt = buildSpecPrompt({
-      provider,
-      prompt: "track my notes",
-      intent: notesIntent(),
-      send,
-    });
-
-    expect(prompt).toContain("There is no default hue and no safe choice");
-    expect(prompt).toContain("never from what a backdrop usually looks like");
+  test("leaks none of the logo request's own settings", () => {
+    const prompt = specPrompt();
+    for (const forbidden of ["substyle", "vector_illustration", "1024x1024", "no_text", "seed"]) {
+      expect(prompt, `the prompt must not leak "${forbidden}"`).not.toContain(forbidden);
+    }
+    expect(prompt).not.toContain("signal");
+    expect(prompt).not.toContain("ui_intent.detail");
   });
 });
 
 describe("spec generation stage — authored modes, narration, and identity", () => {
-  test("admits semantically appropriate authored modes from prompt-built list capabilities", async () => {
-    for (const [field, mode, prompt] of [
-      ["tags", "comma_separated", "keep a list of books with genres and tags"],
-      ["quotes", "repeatable", "keep quotations exactly as entered"],
-    ] as const) {
-      const spec = notesSpec({
-        id: field,
-        label: field === "tags" ? "Tagged books" : "Quotes",
+  test("admits every authored list-input mode and refuses one outside the closed set", async () => {
+    const listSpec = (mode: string) =>
+      notesSpec({
         schema: {
           fields: [
-            {
-              name: field,
-              label: field === "tags" ? "Tags" : "Quotes",
-              type: "string[]",
-              required: false,
-              lifecycle: "active",
-            },
+            { name: "tags", label: "Tags", type: "string[]", required: false, lifecycle: "active" },
           ],
         },
         ui_intent: {
-          form: { list_inputs: [{ field, mode }], choice_inputs: [], long_text: [], guidance: [] },
-          item: { direction: `Show ${field} in their authored order.`, shows: [field] },
+          form: {
+            list_inputs: [{ field: "tags", mode: mode as ListInputMode }],
+            choice_inputs: [],
+            long_text: [],
+            guidance: [],
+          },
+          item: { direction: "Show tags in their authored order.", shows: ["tags"] },
           collection: { layout: "feed" },
         },
         behavioral_errors: [],
       });
-      const provider = makeSpecProvider(spec);
-      const { send } = recordingSend();
-      const result = await generateSpec({ provider, prompt, intent: notesIntent(), send });
-      expect(result.spec.ui_intent.form.list_inputs).toEqual([{ field, mode }]);
+
+    for (const mode of LIST_INPUT_MODES) {
+      expect(await issuePathsOf(listSpec(mode))).toEqual([]);
     }
+    const unlisted = `${LIST_INPUT_MODES.join("_")}_unlisted`;
+    expect(await issuePathsOf(listSpec(unlisted))).toEqual(["ui_intent.form.list_inputs.0.mode"]);
   });
 
   test("narrates in product voice from the intent label and leaks no internals", async () => {
@@ -312,131 +324,71 @@ describe("spec generation stage — authored modes, narration, and identity", ()
     }
   });
 
-  test("derives an engineering id distinct from the user-facing label", async () => {
-    const provider = makeSpecProvider(notesSpec({ id: "reading_list", label: "Reading list" }));
-    const { send } = recordingSend();
-
-    const { spec } = await generateSpec({
-      provider,
-      prompt: "keep a reading list",
-      intent: notesIntent(),
-      send,
-    });
-
-    // The id is the SQL-safe engineering name; the label is the human one.
-    expect(spec.id).toBe("reading_list");
-    expect(spec.label).toBe("Reading list");
-    expect(spec.id).toMatch(/^[a-z][a-z0-9_]*$/);
+  test("refuses a spec whose id is the human label rather than an engineering name", async () => {
+    expect(await issuePathsOf(notesSpec({ id: "reading_list", label: "Reading list" }))).toEqual(
+      [],
+    );
+    expect(await issuePathsOf(notesSpec({ id: "Reading list", label: "Reading list" }))).toEqual([
+      "id",
+    ]);
   });
 
-  test("keeps the namespace mechanism out of the Builder prompt", async () => {
-    const provider = makeSpecProvider(notesSpec({ id: "work_contacts", label: "Work contacts" }));
-    const { send } = recordingSend();
-    const intent = notesIntent({
-      target_capability: "contacts",
-      resolution: "namespace",
-      proposed_identity: { id: "work_contacts", label: "Work contacts" },
-      proposed_action: "Create a separate capability for work contacts.",
-    });
-    const prompt = buildSpecPrompt({
-      provider,
-      prompt: "track my work contacts separately",
-      intent,
-      send,
-    });
+  test("keeps the namespace mechanism out of the Builder prompt", () => {
+    const identity = { id: "work_contacts", label: "Work contacts" };
+    const plain = specPrompt("track my work contacts separately", notesIntent());
+    const bound = specPrompt(
+      "track my work contacts separately",
+      notesIntent({ target_capability: "contacts", proposed_identity: identity }),
+    );
 
-    expect(prompt).not.toContain("namespace");
-    expect(prompt).not.toContain("overlap_resolution");
-    expect(prompt).toContain("meaningful semantic label and id");
-    expect(prompt).toContain("Resolver-owned distinct identity — return these values exactly");
-    expect(prompt).toContain("- id: work_contacts");
-    expect(prompt).toContain("- label: Work contacts");
+    expect(bound).not.toContain("namespace");
+    expect(bound).not.toContain("overlap_resolution");
+    // The resolver's identity is the only thing a bound identity adds, and nothing is taken away.
+    const added = addedLines(plain, bound);
+    expect(addedLines(bound, plain)).toEqual([]);
+    expect(linesNaming(added.join("\n"), [identity.id])).toHaveLength(1);
+    expect(linesNaming(added.join("\n"), [identity.label])).toHaveLength(1);
+    expect(plain).not.toContain(identity.id);
   });
 });
 
 describe("spec generation stage — rejects non-conforming specs", () => {
   test("fails the build cleanly when the model's spec is non-conforming — nothing flows downstream", async () => {
-    const outsideThePantry: Array<{ why: string; raw: unknown }> = [
+    const spec = notesSpec();
+    const [text] = spec.schema.fields;
+    const outsideThePantry: Array<{ where: string; raw: unknown }> = [
+      { where: "tools", raw: { ...spec, tools: FULL_CAPABILITY_TOOLS.slice(0, -1) } },
+      { where: "ui_intent", raw: { ...spec, ui_intent: { ...spec.ui_intent, views: ["list"] } } },
       {
-        why: "a partial Action inventory",
-        raw: { ...notesSpec(), tools: ["create", "read", "update"] },
+        where: "ui_intent.collection.layout",
+        raw: { ...spec, ui_intent: { ...spec.ui_intent, collection: { layout: "masonry" } } },
       },
+      { where: "ui_intent", raw: { ...spec, ui_intent: { ...spec.ui_intent, modal: true } } },
       {
-        why: "the retired views shape",
-        raw: { ...notesSpec(), ui_intent: { views: ["list", "create"] } },
-      },
-      {
-        why: "a collection layout outside feed+grid",
+        where: "ui_intent.item.shows",
         raw: {
-          ...notesSpec(),
-          ui_intent: {
-            form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
-            item: { direction: "A visual tile.", shows: ["text"] },
-            collection: { layout: "masonry" },
-          },
+          ...spec,
+          ui_intent: { ...spec.ui_intent, item: { ...spec.ui_intent.item, shows: ["missing"] } },
         },
       },
       {
-        why: "a stored modal flag",
-        raw: {
-          ...notesSpec(),
-          ui_intent: {
-            form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
-            item: { direction: "A visual tile.", shows: ["text"] },
-            collection: { layout: "grid" },
-            modal: true,
-          },
-        },
+        where: "schema.fields.0.type",
+        raw: { ...spec, schema: { fields: [{ ...text, type: "relation" }] } },
       },
       {
-        why: "a detail field not present in schema",
-        raw: {
-          ...notesSpec(),
-          ui_intent: {
-            form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
-            item: { direction: "A text-forward card.", shows: ["missing"] },
-            collection: { layout: "feed" },
-          },
-        },
+        where: "schema.fields.0.name",
+        raw: { ...spec, schema: { fields: [{ ...text, name: PLATFORM_COLUMNS[0] }] } },
       },
-      {
-        why: "a field type outside the pantry",
-        raw: {
-          ...notesSpec(),
-          schema: {
-            fields: [
-              {
-                name: "tags",
-                label: "Tags",
-                type: "string[]",
-                required: false,
-                lifecycle: "active",
-              },
-            ],
-          },
-        },
-      },
-      {
-        why: "a platform-owned field name",
-        raw: {
-          ...notesSpec(),
-          schema: {
-            fields: [
-              { name: "id", label: "Id", type: "string", required: true, lifecycle: "active" },
-            ],
-          },
-        },
-      },
-      { why: "an extra top-level key", raw: { ...notesSpec(), version: 1 } },
+      { where: "", raw: { ...spec, version: 1 } },
     ];
 
-    for (const { why, raw } of outsideThePantry) {
-      const provider = makeSpecProvider(raw);
-      const { send } = recordingSend();
-      await expect(
-        generateSpec({ provider, prompt: "track my notes", intent: notesIntent(), send }),
-        why,
-      ).rejects.toThrow();
+    expect(await issuePathsOf(spec)).toEqual([]);
+    for (const { where, raw } of outsideThePantry) {
+      const paths = await issuePathsOf(raw);
+      expect(
+        paths.some((path) => path === where || path.startsWith(`${where}.`)),
+        where,
+      ).toBe(true);
     }
   });
 });

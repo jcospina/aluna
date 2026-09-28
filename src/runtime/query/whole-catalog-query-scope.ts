@@ -52,7 +52,7 @@ export class WholeCatalogQueryStatementError extends Error {
  * SQLite's result codes for *the statement*, as opposed to the connection carrying it. Everything
  * absent is the connection's fault, and *rewrite your SQL* about one burns a loop's whole budget.
  * Mirrored in `query-worker-thread.ts` for the reason the regex below is, and pinned against it
- * by `query-worker.test.ts` rather than left to agree by hand.
+ * by `query-worker-thread.test.ts` rather than left to agree by hand.
  */
 export const STATEMENT_RESULT_CODES: ReadonlySet<number> = new Set([
   1, // SQLITE_ERROR

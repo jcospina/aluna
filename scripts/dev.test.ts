@@ -9,9 +9,10 @@ describe("dev runner restart predicate", () => {
     expect(isRestartWorthy("/repo/src/pipeline/prompts/build.json")).toBe(true);
   });
 
-  test("ignores test files, which never enter the running server's module graph", () => {
+  test("ignores test and policy files, which never enter the running server's module graph", () => {
     expect(isRestartWorthy("/repo/src/server/app.test.ts")).toBe(false);
     expect(isRestartWorthy("/repo/src/runtime/router/dispatch/router.test-support.ts")).toBe(false);
+    expect(isRestartWorthy("/repo/src/presentation/tokens/layout-kit.policy.ts")).toBe(false);
   });
 
   test("ignores editor scratch files and an unnamed change", () => {

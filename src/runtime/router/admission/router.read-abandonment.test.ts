@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
-import { createApp } from "../../../server/app.ts";
+import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import { createReadGateCoordinator } from "../../concurrency/read-gates.ts";
 import type { CapabilityContext, CapabilityHandler } from "../contract.ts";
 import {
@@ -43,7 +43,7 @@ describe("a read is abandoned when its reader goes away", () => {
     const readGates = createReadGateCoordinator();
     const entered = deferred();
     const handlerTimeoutMs = 30_000;
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases: conns,
         readGates,
@@ -83,7 +83,7 @@ describe("a read is abandoned when its reader goes away", () => {
     const readGates = createReadGateCoordinator();
     const entered = deferred();
     const finish = deferred();
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases: conns,
         readGates,

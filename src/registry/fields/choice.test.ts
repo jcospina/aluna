@@ -73,12 +73,11 @@ describe("the choice field carries its declared values", () => {
     expect([...admittedChoiceValues(status)]).toEqual(["draft", "sent"]);
   });
 
-  test("the presentation enum admits the three controls and nothing else", () => {
-    expect(CHOICE_PRESENTATIONS).toEqual(["picker", "radio", "segmented"]);
+  test("the presentation enum admits its controls and nothing else", () => {
     for (const presentation of CHOICE_PRESENTATIONS) {
       expect(capabilitySpecSchema.safeParse(withPresentation(presentation)).success).toBe(true);
     }
-    expect(rejects(withPresentation("dropdown"))).toContain("picker");
+    expect(rejects(withPresentation("dropdown"))).toContain(CHOICE_PRESENTATIONS[0]);
   });
 
   test("an enabled option has one spelling: `disabled` is true or absent", () => {

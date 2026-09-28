@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { capFileName, decodeFileName, inlineContentDisposition } from "./file-name.ts";
+import fc from "fast-check";
+import {
+  capFileName,
+  decodeFileName,
+  inlineContentDisposition,
+  MAX_EXTENSION_BYTES,
+  MAX_NAME_BYTES,
+} from "./file-name.ts";
 
 const bytes = (text: string) => new TextEncoder().encode(text).byteLength;
 const char = (codePoint: number) => String.fromCodePoint(codePoint);
@@ -10,6 +17,25 @@ describe("a filename from the upload header", () => {
   test("is percent-decoded, so a name beyond Latin-1 round-trips", () => {
     expect(decoded("日本.jpg")).toBe("日本.jpg");
     expect(decodeFileName("harbour%20at%20dawn.jpg")).toBe("harbour at dawn.jpg");
+  });
+
+  test("accepts every printable ASCII character as written, from the space through the tilde", () => {
+    // The escape and the two slashes mean something before they are characters, so they are
+    // written escaped here; the slashes' own meaning is the case further down.
+    const printable = fc.integer({ min: 0x20, max: 0x7e }).map(char);
+    const plain = printable.filter((c) => !"%/\\".includes(c));
+    fc.assert(
+      fc.property(fc.string({ unit: plain, minLength: 1 }), (name) => {
+        expect(decodeFileName(name)).toBe(name);
+      }),
+      { seed: 20260926, numRuns: 300 },
+    );
+    fc.assert(
+      fc.property(fc.string({ unit: printable.filter((c) => !"/\\".includes(c)) }), (name) => {
+        expect(decoded(name)).toBe(name);
+      }),
+      { seed: 20260926, numRuns: 300 },
+    );
   });
 
   test("is normalized to NFC, as macOS sends NFD", () => {
@@ -50,11 +76,86 @@ describe("a filename from the upload header", () => {
   });
 });
 
+const segments = (text: string): string[] =>
+  [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)].map(
+    ({ segment }) => segment,
+  );
+
+const anyName = fc
+  .tuple(
+    fc.string({
+      unit: fc.oneof(
+        fc.constantFrom(".", "a", "e\u0301"),
+        fc.constant("日"),
+        fc.string({ unit: "grapheme", minLength: 1, maxLength: 1 }),
+      ),
+      maxLength: 160,
+    }),
+    fc.nat({ max: 4 }).map((n) => "x".repeat(n * 60)),
+  )
+  .map(([name, padding]) => padding + name);
+
+/**
+ * A tail after a final dot, with whether the cap keeps it, known by how it was built rather than
+ * read back off the name: a tail within the extension limit in bytes is kept, a longer one is
+ * part of the name. The last is no tail at all, so the name it ends carries no dot.
+ */
+const tails = fc.oneof(
+  fc.nat({ max: MAX_EXTENSION_BYTES - 1 }).map((n) => ({ tail: `.${"e".repeat(n)}`, kept: true })),
+  fc
+    .integer({ min: MAX_EXTENSION_BYTES, max: MAX_EXTENSION_BYTES + 24 })
+    .map((n) => ({ tail: `.${"e".repeat(n)}`, kept: false })),
+  // Three bytes a character: `.` and as many as fit, then one more than fits.
+  fc
+    .nat({ max: Math.floor((MAX_EXTENSION_BYTES - 1) / 3) })
+    .map((n) => ({ tail: `.${"日".repeat(n)}`, kept: true })),
+  fc.constant({
+    tail: `.${"日".repeat(Math.floor((MAX_EXTENSION_BYTES - 1) / 3) + 1)}`,
+    kept: false,
+  }),
+  fc.constant({ tail: "", kept: false }),
+);
+
+/** A name over the cap, and the extension the cap must keep on it. */
+const longFile = fc
+  .tuple(anyName, tails)
+  .map(([stem, { tail, kept }]) => ({
+    name: (tail === "" ? stem.replaceAll(".", "") : stem) + tail,
+    extension: kept ? tail : "",
+  }))
+  .filter(({ name }) => bytes(name) > MAX_NAME_BYTES);
+
 describe("the cap on a filename", () => {
-  test("is 255 bytes, keeping the extension and cutting between characters", () => {
+  test("keeps any name within the byte cap whole, and cuts a longer one to fit", () => {
+    fc.assert(
+      fc.property(anyName, (name) => {
+        const capped = capFileName(name);
+        expect(bytes(capped)).toBeLessThanOrEqual(MAX_NAME_BYTES);
+        if (bytes(name) <= MAX_NAME_BYTES) expect(capped).toBe(name);
+      }),
+      { seed: 1, numRuns: 400 },
+    );
+  });
+
+  test("keeps a short extension and as many whole graphemes of the rest as fit before it", () => {
+    fc.assert(
+      fc.property(longFile, ({ name, extension }) => {
+        const capped = capFileName(name);
+        expect(capped.endsWith(extension)).toBe(true);
+        const stem = segments(name.slice(0, name.length - extension.length));
+        const kept = segments(capped.slice(0, capped.length - extension.length));
+        expect(kept).toEqual(stem.slice(0, kept.length));
+        const next = stem[kept.length] ?? "";
+        expect(bytes(capped) + bytes(next)).toBeGreaterThan(MAX_NAME_BYTES);
+      }),
+      { seed: 1, numRuns: 400 },
+    );
+  });
+
+  test("is the byte cap, keeping the extension and cutting between characters", () => {
     for (const stem of ["a".repeat(300), "日".repeat(120), `${"e".repeat(250)}${char(0x301)}x`]) {
       const name = capFileName(`${stem}.jpeg`);
-      expect(bytes(name)).toBeLessThanOrEqual(255);
+      expect(bytes(name)).toBeLessThanOrEqual(MAX_NAME_BYTES);
       expect(name.endsWith(".jpeg")).toBe(true);
       expect(stem.startsWith(name.slice(0, -".jpeg".length))).toBe(true);
     }
@@ -67,10 +168,25 @@ describe("the cap on a filename", () => {
     ).toBe(true);
   });
 
-  test("keeps a name of exactly 255 bytes, and cuts a long tail that is no extension", () => {
-    const exact = `${"b".repeat(251)}.png`;
+  test("keeps a name of exactly the cap, and cuts a long tail that is no extension from the end", () => {
+    const exact = `${"b".repeat(MAX_NAME_BYTES - 4)}.png`;
     expect(capFileName(exact)).toBe(exact);
-    expect(bytes(capFileName(`photo.${"x".repeat(300)}`))).toBe(255);
+    const name = `photo.${"x".repeat(MAX_NAME_BYTES)}`;
+    expect(capFileName(name)).toBe(name.slice(0, MAX_NAME_BYTES));
+  });
+
+  test("keeps an extension of exactly the extension limit, and drops one a byte longer", () => {
+    const stem = "s".repeat(MAX_NAME_BYTES);
+    const longest = `.${"e".repeat(MAX_EXTENSION_BYTES - 1)}`;
+    const capped = capFileName(`${stem}${longest}`);
+    expect(capped).toBe(`${stem.slice(0, MAX_NAME_BYTES - longest.length)}${longest}`);
+    const tooLong = `${stem}.${"e".repeat(MAX_EXTENSION_BYTES)}`;
+    expect(capFileName(tooLong)).toBe(tooLong.slice(0, MAX_NAME_BYTES));
+  });
+
+  test("cuts a long name with no dot to its first bytes", () => {
+    const name = `${"n".repeat(MAX_NAME_BYTES)}XYZ`;
+    expect(capFileName(name)).toBe(name.slice(0, MAX_NAME_BYTES));
   });
 });
 
@@ -78,6 +194,21 @@ describe("the disposition a served file carries", () => {
   test("names the file in ASCII and, whole, in RFC 8187's encoding", () => {
     expect(inlineContentDisposition("日本.jpg")).toBe(
       `inline; filename="__.jpg"; filename*=UTF-8''%E6%97%A5%E6%9C%AC.jpg`,
+    );
+  });
+
+  test("keeps every printable ASCII character but quotes, backslashes and percent signs in the fallback", () => {
+    const printable = fc.integer({ min: 0x20, max: 0x7e }).map(char);
+    fc.assert(
+      fc.property(fc.string({ unit: printable }), (name) => {
+        const fallback = /^inline; filename="([^"]*)"; /.exec(inlineContentDisposition(name))?.[1];
+        expect(fallback).toHaveLength(name.length);
+        [...name].forEach((written, at) => {
+          const expected = ['"', "\\", "%"].includes(written) ? "_" : written;
+          expect({ written, kept: fallback?.[at] }).toEqual({ written, kept: expected });
+        });
+      }),
+      { seed: 20260926, numRuns: 300 },
     );
   });
 

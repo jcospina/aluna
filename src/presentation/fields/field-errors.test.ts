@@ -9,9 +9,11 @@ import { describe, expect, test } from "bun:test";
 
 import { MissingRequiredFieldsError } from "../../runtime/data/internal.ts";
 import { missingRequiredFieldsFailure } from "../../runtime/router/wire/failure-responses.ts";
+import { elementsOf, moduleSources } from "../../server/http/served-page.test-support.ts";
 import { installDomGlobals } from "../controls/choice-picker.fixture.test-support.ts";
-import { type El, parseHtml } from "../controls/choice-picker.test-support.ts";
-import { codeOf, readSource } from "../safety/source.test-support.ts";
+import { Doc, El, parseHtml } from "../controls/choice-picker.test-support.ts";
+import { startedOn } from "../controls/started-module.test-support.ts";
+import { readSource } from "../safety/source.test-support.ts";
 import { REQUIRED_FIELD_SENTENCE } from "./field-chrome.ts";
 import {
   capabilityOf,
@@ -27,80 +29,49 @@ installDomGlobals();
 
 /* ── the seam ──────────────────────────────────────────────────────────────── */
 
+// Every suite below runs the module on the markup the renderer emits and the refusals the real
+// response builders write, so a hook it queries by that the server stopped writing fails them.
 describe("the shipped page runs the module against what the server writes", () => {
-  const MODULE = codeOf("public/field-errors.js");
-
-  test("the shell loads it and it starts itself", () => {
-    expect(readSource("public/index.html")).toContain(
-      '<script type="module" src="/static/field-errors.js"></script>',
+  test("the shell loads it, and it starts itself on the document it finds", async () => {
+    expect(moduleSources(await elementsOf(readSource("public/index.html")))).toContain(
+      "/static/field-errors.js",
     );
-    expect(MODULE).toContain('if (typeof document !== "undefined") startFieldErrors(document);');
+    const doc = new Doc();
+    parseHtml(renderCreateForm(capabilityOf([probeField("string")])), doc);
+    await startedOn("field-errors.js", doc);
+    const control = doc.querySelector('[name="value"]') as El;
+    Object.assign(control, { validity: { valueMissing: true } });
+    expect(doc.fire("invalid", control).prevented).toBe(true);
+    expect(control.closest(".field")?.textContent).toContain(REQUIRED_FIELD_SENTENCE);
   });
 
-  test("every hook the module queries by is one the renderer emits", () => {
-    // One form drawing every control the module knows how to speak for.
-    const rendered = renderCreateForm(
-      capabilityOf(
-        [
-          probeField("string", { name: "title", label: "Title" }),
-          probeField("choice", { name: "status", label: "Status" }),
-          probeField("choice", { name: "mood", label: "Mood" }),
-          probeField("choice", { name: "shape", label: "Shape" }),
-        ],
-        {
-          choice_inputs: [
-            { field: "status", presentation: "picker" },
-            { field: "mood", presentation: "radio" },
-            { field: "shape", presentation: "segmented" },
-          ],
-        },
-      ),
-    );
-    for (const hook of [
-      "data-field-guidance",
-      "data-choice-value",
-      "data-choice-required",
-      "listbox__button",
-      "field__input",
-      "choice-set",
-      "segmented",
-      'aria-live="polite"',
-    ]) {
-      expect(MODULE).toContain(hook);
-      expect(rendered).toContain(hook);
-    }
-    // The two classes it writes rather than reads, which the design system is what
-    // defines: the error's own line, and the state the field goes into.
-    const design = readSource("design/styles/components/form-controls.css");
-    for (const written of ["field__guidance--error", "is-invalid"]) {
-      expect(MODULE).toContain(written);
-      expect(design).toContain(written);
-    }
-    // The dataset spelling is the same attribute read the other way round.
-    expect(MODULE).toContain("requiredMessage");
-    expect(rendered).toContain("data-required-message=");
-  });
-
-  test("the marker it reads is the one the failure responses write", () => {
-    expect(MODULE).toContain("data-error-fields");
-    expect(requiredRefusal(["value"])).toContain('data-error-fields="value"');
-    expect(overLengthRefusal(["value"])).toContain('data-error-fields="value"');
+  test("a refusal writes a mark on the field and on the line that says it", async () => {
+    const one = await scene(capabilityOf([probeField("string")]));
+    const field = one.fieldNamed("value");
+    const slot = one.slotOf("value");
+    const classes = () =>
+      [field, slot].flatMap((node) => (node.getAttribute("class") ?? "").split(/\s+/));
+    const before = classes();
+    one.landRefusal(requiredRefusal(["value"]));
+    expect(
+      classes().filter((name) => name !== "" && !before.includes(name)).length,
+    ).toBeGreaterThan(0);
   });
 
   test("the marker is escaped on its way out, like every other authored string", () => {
     // Field names are validated to `[a-z][a-z0-9_]*` long before here, and the client checks the
     // same shape again before spending one in a selector. This is the third lock, and it is free.
-    expect(requiredRefusal(['title" onx="'])).toContain(
-      'data-error-fields="title&quot; onx=&quot;"',
-    );
+    const refusal = parseHtml(requiredRefusal(['title" onx="']), new El("div"));
+    const marked = refusal.querySelector("[data-error-fields]");
+    expect(marked?.getAttribute("data-error-fields")).toBe('title" onx="');
+    expect(marked?.hasAttribute("onx")).toBe(false);
   });
 
-  test("the required sentence has one author, and the form is where it is written", () => {
-    // The client holds no copy of its own: it reads the words off the form the server
-    // rendered. A second literal here would be a second source for one sentence.
-    expect(MODULE).not.toContain(REQUIRED_FIELD_SENTENCE);
-    expect(renderCreateForm(capabilityOf([probeField("string")]))).toContain(
-      `data-required-message="${REQUIRED_FIELD_SENTENCE}"`,
+  test("the form carries the required sentence, for the client to read off it", () => {
+    // The client holds no copy of its own: it reads the words off the form the server rendered.
+    const form = parseHtml(renderCreateForm(capabilityOf([probeField("string")])), new El("div"));
+    expect(form.querySelector("form")?.getAttribute("data-required-message")).toBe(
+      REQUIRED_FIELD_SENTENCE,
     );
   });
 });
@@ -364,5 +335,22 @@ describe("clearing the error puts the field back the way it was rendered", () =>
     expect([one.isInvalid("title"), one.isInvalid("status")]).toEqual([false, false]);
     expect(one.saidIn("title")).toBe("A few words.");
     expect(one.slotOf("status").hidden).toBe(true);
+  });
+});
+
+describe("what the field-error module leaves to others", () => {
+  test("the two marks it writes are ones the design system defines", async () => {
+    // A field goes into a state and its line says the error: both are the design's to paint.
+    const one = await scene(capabilityOf([probeField("string")]));
+    const field = one.fieldNamed("value");
+    const slot = one.slotOf("value");
+    const classes = () =>
+      [field, slot].flatMap((node) => (node.getAttribute("class") ?? "").split(/\s+/));
+    const before = classes();
+    one.landRefusal(requiredRefusal(["value"]));
+    const written = classes().filter((name) => name !== "" && !before.includes(name));
+    expect(written.length).toBeGreaterThan(0);
+    const design = readSource("design/styles/components/form-controls.css");
+    for (const name of written) expect(design).toContain(`.${name}`);
   });
 });

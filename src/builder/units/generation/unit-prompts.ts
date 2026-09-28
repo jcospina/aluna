@@ -131,15 +131,7 @@ function buildHandlerPrompt(
     "- Do not use unchecked array indexes or regex captures. Guard them first or provide a fallback before returning/assigning them as strings.",
     "- It returns an HTML fragment string.",
     "",
-    ...(rendersRecords
-      ? [
-          "Rendering records — the presentation adapter:",
-          "- Render every record by calling the injected `present(record)` adapter. It returns that target record wrapped as safe item HTML (the accessible trigger, escaped payload, click-to-open behavior, and enforced item markup).",
-          "- Do NOT emit your own row/card/item markup, and do NOT build the item wrapper, a `data-item` attribute, or any click handling — the platform's adapter owns all of that.",
-          "- Every other value you place in the fragment — a search term echoed back, a count, a name, any validation copy carrying user input — MUST be escaped first. Include a small escaping helper locally and run every interpolated value through it; records themselves go through `present`.",
-          "",
-        ]
-      : []),
+    ...(rendersRecords ? [...PRESENT_ADAPTER_RULES, ""] : []),
     "Available global types in the isolated type-check:",
     contextContract(action),
     ...inputValueContract(spec, action),
@@ -164,6 +156,35 @@ function buildHandlerPrompt(
   ].join("\n");
 }
 
+/** Every record-rendering Handler draws records through `present` (ADR-0005 §2); delete draws none. */
+export const PRESENT_ADAPTER_RULES: readonly string[] = Object.freeze([
+  "Rendering records — the presentation adapter:",
+  "- Render every record by calling the injected `present(record)` adapter. It returns that target record wrapped as safe item HTML (the accessible trigger, escaped payload, click-to-open behavior, and enforced item markup).",
+  "- Do NOT emit your own row/card/item markup, and do NOT build the item wrapper, a `data-item` attribute, or any click handling — the platform's adapter owns all of that.",
+  "- Every other value you place in the fragment — a search term echoed back, a count, a name, any validation copy carrying user input — MUST be escaped first. Include a small escaping helper locally and run every interpolated value through it; records themselves go through `present`.",
+]);
+
+/** The one instruction only update is given: an omitted field stays out of the patch. */
+export const UPDATE_PATCH_ADMISSION_RULE =
+  "- Only add a field to an update patch when `input.submittedFields.has(fieldName)`; the extracted fallback is a submitted value, never evidence that an omitted field should be patched.";
+
+/** What a file field holds when it reaches create, and when it reaches update. */
+export const FILE_ARRIVES_ON_CREATE =
+  "or `null` when it was submitted empty; a file field a request left out is not in `input.values` at all and holds nothing";
+export const FILE_ARRIVES_ON_UPDATE =
+  "or `null` when the edit empties it or it holds nothing; a file field the edit left out is not in `input.values` and keeps its file";
+
+/** The `query` port's rules, which every Handler is given. */
+export const QUERY_PORT_RULES: readonly string[] = Object.freeze([
+  "- `query` parameters are positional SQLite values only (`string | number | bigint | boolean | null | Uint8Array`) paired with `?` placeholders. Never use named placeholders or `{ name, value }` parameter objects.",
+  "- `query.all({ sql, parameters, result })` runs parameterized SQL inside this Action's declared catalog. Extra result descriptors use exactly `{ alias, type }` and return only those aliases.",
+  "- Capability-table SQL may name only this capability's target table and the dependencies declared for this Action; the static checker rejects every other `cap_*` table before execution.",
+]);
+
+/** Search's own query rule: every term and stored value goes through the registered normalizer. */
+export const SEARCH_NORMALIZATION_RULE =
+  "- Search SQL must normalize both stored values and terms with the registered `platform_search_normalize(value)` SQL function (JavaScript NFKD compatibility decomposition + locale-independent lowercase + Latin-base combining-diacritic folding + NFKC recomposition).";
+
 function inputValueContract(spec: CapabilitySpec, action: HandlerUnitName): string[] {
   const files =
     (action === "create" || action === "update") && hasActiveFileField(spec.schema.fields);
@@ -187,19 +208,12 @@ function inputValueContract(spec: CapabilitySpec, action: HandlerUnitName): stri
     ...(files ? fileInputRules(action, spec) : []),
     "- Use the scalar extractor only for scalar schema fields. For a string[] field, use `Array.isArray(value) ? [...value] : []`; do not take only its first element.",
     "- A submitted unchecked boolean may have no `input.values` entry. Interpret that `undefined` as false only after `input.submittedFields` proves the boolean was submitted.",
-    ...(action === "update"
-      ? [
-          "- Only add a field to an update patch when `input.submittedFields.has(fieldName)`; the extracted fallback is a submitted value, never evidence that an omitted field should be patched.",
-        ]
-      : []),
+    ...(action === "update" ? [UPDATE_PATCH_ADMISSION_RULE] : []),
   ];
 }
 
 function fileInputRules(action: "create" | "update", spec: CapabilitySpec): string[] {
-  const arrives =
-    action === "create"
-      ? "or `null` when it was submitted empty; a file field a request left out is not in `input.values` at all and holds nothing"
-      : "or `null` when the edit empties it or it holds nothing; a file field the edit left out is not in `input.values` and keeps its file";
+  const arrives = action === "create" ? FILE_ARRIVES_ON_CREATE : FILE_ARRIVES_ON_UPDATE;
   const required = activeSpecFields(spec.schema.fields).some(
     (field) => field.required && isFileFieldType(field.type),
   );
@@ -246,22 +260,14 @@ function buildValidationErrorContract(
 }
 
 function queryPortContract(action: HandlerUnitName): string[] {
-  const common = [
-    "- `query` parameters are positional SQLite values only (`string | number | bigint | boolean | null | Uint8Array`) paired with `?` placeholders. Never use named placeholders or `{ name, value }` parameter objects.",
-    "- `query.all({ sql, parameters, result })` runs parameterized SQL inside this Action's declared catalog. Extra result descriptors use exactly `{ alias, type }` and return only those aliases.",
-    "- Capability-table SQL may name only this capability's target table and the dependencies declared for this Action; the static checker rejects every other `cap_*` table before execution.",
-  ];
+  const common = [...QUERY_PORT_RULES];
   if (action !== "read" && action !== "search") return common;
 
   const records =
     "- Record-producing SQL for this Action returns ordered target ids through `query.records({ sql, parameters, targetIdAlias, result })`; each result is `{ record, values }`. The target-id alias is special: omit `result` when there are no additional projected values, and never declare the target id in `result`.";
   if (action === "read") return [...common, records];
 
-  return [
-    ...common,
-    records,
-    "- Search SQL must normalize both stored values and terms with the registered `platform_search_normalize(value)` SQL function (JavaScript NFKD compatibility decomposition + locale-independent lowercase + Latin-base combining-diacritic folding + NFKC recomposition).",
-  ];
+  return [...common, records, SEARCH_NORMALIZATION_RULE];
 }
 
 function contextContract(action: HandlerUnitName): string {

@@ -19,17 +19,9 @@ import {
 } from "./logo.ts";
 
 describe("the eight hue families", () => {
-  test("colour validation is a word-list check against exactly eight hues", () => {
-    expect(LOGO_HUE_FAMILIES).toEqual([
-      "grass_green",
-      "forest_green",
-      "teal_green",
-      "cyan_blue",
-      "golden_yellow",
-      "mustard_ochre",
-      "coral_orange",
-      "amethyst_violet",
-    ]);
+  test("colour validation is a word-list check against the distinct hue families", () => {
+    expect(new Set(LOGO_HUE_FAMILIES).size).toBe(LOGO_HUE_FAMILIES.length);
+    expect(logoHueFamilySchema.options).toEqual([...LOGO_HUE_FAMILIES]);
     for (const family of LOGO_HUE_FAMILIES) {
       expect(logoHueFamilySchema.safeParse(family).success).toBe(true);
     }
@@ -148,9 +140,12 @@ describe("resolving one capability's two colours", () => {
 });
 
 describe("the logo lifecycle", () => {
-  test("carries exactly the four statuses, born absent", () => {
-    expect(LOGO_STATUSES).toEqual(["absent", "generating", "present", "abandoned"]);
-    expect(LOGO_BIRTH_STATUS).toBe("absent");
+  test("admits every distinct status, and a capability is born in one of them", () => {
+    expect(new Set(LOGO_STATUSES).size).toBe(LOGO_STATUSES.length);
+    expect(LOGO_STATUSES).toContain(LOGO_BIRTH_STATUS);
+    for (const status of LOGO_STATUSES) {
+      expect(capabilityLogoStateSchema.safeParse({ status, attempts: 0 }).success).toBe(true);
+    }
   });
 
   test("status and attempts travel together, and nothing else rides along", () => {

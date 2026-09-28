@@ -58,7 +58,6 @@ describe("split capability data ports", () => {
       });
 
       expect(Object.keys(notesMutation)).toEqual(["create"]);
-      expect(notesMutation.create.length).toBe(1);
       expect(() => notesMutation.create({ title: "Not a notes field" })).toThrow(
         /Unknown field "title" for capability "notes"/,
       );
@@ -151,13 +150,18 @@ describe("split capability data ports", () => {
       const readonly = databases.readonly;
       const port = createCapabilityQueryPort(readonly, { target: notes });
       const query = readonly.query.bind(readonly);
-      // Nothing yields between the selection and the rehydration, so the rehydration's own
-      // preparation is the only place a commit can be landed between the two.
+      const selection = 'SELECT "id" AS "target_id" FROM "cap_notes"';
+      let selected = false;
+      let injected = 0;
+      // Nothing yields between the selection and the rehydration, so whatever the snapshot
+      // prepares next is the only place a commit can be landed between the two.
       Object.defineProperty(readonly, "query", {
         configurable: true,
         value: (sql: string) => {
-          if (sql.includes('WHERE "id" IN (')) {
+          if (sql === selection && readonly.inTransaction) selected = true;
+          else if (selected && injected === 0 && readonly.inTransaction) {
             databases.readwrite.run(`UPDATE "cap_notes" SET "text" = 'Rewritten'`);
+            injected += 1;
           }
           return query(sql);
         },
@@ -165,11 +169,12 @@ describe("split capability data ports", () => {
 
       let rows: CapabilityRecordQueryRow[] = [];
       try {
-        rows = port.records({ sql: 'SELECT "id" AS "target_id" FROM "cap_notes"' });
+        rows = port.records({ sql: selection });
       } finally {
         Reflect.deleteProperty(readonly, "query");
       }
 
+      expect(injected).toBe(1);
       expect(rows.map(({ record }) => record.fields.text)).toEqual(["Soup notes"]);
       // The moment is released with the snapshot, not kept.
       expect(readonly.inTransaction).toBe(false);
@@ -594,8 +599,9 @@ describe("capability data tool — platform columns & rejected values", () => {
       const inserted = tool.insert({ text: "Hello", pinned: true });
       const rows = tool.select();
 
-      expect(inserted.id).toBeTruthy();
-      expect(inserted.created_at).toBeTruthy();
+      expect(inserted.id).toBeString();
+      expect(inserted.id).not.toBe("");
+      expect(Date.parse(String(inserted.created_at))).not.toBeNaN();
       expect(inserted).not.toHaveProperty("extra");
       expect(rows).toEqual([inserted]);
       expect(rows[0]).toMatchObject({

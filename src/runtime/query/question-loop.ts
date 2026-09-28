@@ -3,18 +3,19 @@
 // ordinary turns rather than retry branches. Ten steps is a guess a real question never approaches;
 // bytes are the second budget, in `question-payload.ts`.
 //
-// Nothing on this path arms a wall-clock deadline; `question-loop.test.ts` pins the
-// absence by warping every clock years forward, watching a whole budget finish, then sweeping ten
-// files. Waiting is a cost the user accepts; freezing was the liveness bug, which was fixed by
-// moving execution into a worker. The one clock that does bound a question is ADR-0003's
-// five-minute per-generation deadline, inherited because the SDK leaves handles pending on a fault.
+// Nothing on this path arms a wall-clock deadline; `question-loop.test.ts` pins the absence by
+// warping every clock years forward and watching a whole budget finish, and
+// `question-loop.policy.ts` sweeps the files. Waiting is a cost the user accepts; freezing was the
+// liveness bug, which was fixed by moving execution into a worker. The one clock that does bound a
+// question is ADR-0003's five-minute per-generation deadline, inherited because the SDK leaves
+// handles pending on a fault.
 //
 // The sentence a person reads is Aluna's (ADR-0001), in `question-narration.ts`.
 //
 // An answered question costs one generation more than it took steps: `question-answer.ts` writes
-// what she found, out of the steps alone. It runs no statement, so it spends no read.
-// A question that matched no rows costs none: nothing-found is the platform's own sentence. So is
-// the gap, bar the one call that names what there is nowhere for, in this person's own words.
+// what she found, out of the steps alone. It runs no statement, so it spends no read. A question
+// that matched no rows costs none: nothing-found is the platform's own sentence. So is the gap, bar
+// the one call that names what there is nowhere for, in this person's own words.
 
 import { assertNever } from "../../platform/errors.ts";
 import { runQuestionAnswer } from "./question-answer.ts";

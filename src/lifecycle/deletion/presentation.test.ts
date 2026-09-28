@@ -1,12 +1,14 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
+import { capabilityDeletionPreflightUrl } from "#shell/capability-deletion.js";
+import { ACTIVE_CAPABILITY_ATTRIBUTE, PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
+import { El, parseHtml } from "../../presentation/controls/choice-picker.test-support.ts";
 import type { CapabilityRow } from "../../registry/index.ts";
 import { boomRow, notesRow } from "../../runtime/router/dispatch/router.test-support.ts";
+import { capabilityLogoElementId } from "../../server/http/index.ts";
+import { createTestApp } from "../../server/isolated-app.test-support.ts";
 import {
   type CapabilityDeletionRestorationEvidence,
-  DELETION_RECHECK_PARAM,
   dependentCapabilityNames,
   renderCapabilityDeletionAlreadyGone,
   renderCapabilityDeletionCommitted,
@@ -16,6 +18,42 @@ import {
 } from "./presentation.ts";
 
 const NEUTRAL: CapabilityDeletionRestorationEvidence = { kind: "neutral" };
+
+interface TopLevelPart {
+  readonly tag: string;
+  readonly id: string | null;
+  readonly oob: string | null;
+  text: string;
+}
+
+/** The top-level elements of `html` with their out-of-band swap and text, plus any stray text. */
+async function topLevelParts(html: string): Promise<{ stray: string; parts: TopLevelPart[] }> {
+  const parts: TopLevelPart[] = [];
+  let stray = "";
+  let depth = 0;
+  const rewriter = new HTMLRewriter()
+    .on("*", {
+      element(element) {
+        if (depth === 0) {
+          const [id, oob] = [element.getAttribute("id"), element.getAttribute("hx-swap-oob")];
+          parts.push({ tag: element.tagName, id, oob, text: "" });
+        }
+        depth += 1;
+        element.onEndTag(() => {
+          depth -= 1;
+        });
+      },
+    })
+    .onDocument({
+      text(chunk) {
+        const part = parts.at(-1);
+        if (depth === 0) stray += chunk.text;
+        else if (part) part.text += chunk.text;
+      },
+    });
+  await new Response(rewriter.transform(new Response(html)).body).text();
+  return { stray, parts };
+}
 
 describe("capability-deletion presentation", () => {
   test("names the capability and explains permanent loss in plain product voice", () => {
@@ -92,12 +130,17 @@ describe("capability-deletion presentation", () => {
     expect(html).not.toMatch(/Tom & Jerry/);
   });
 
-  test("leaves the primary output truly empty after a neutral committed deletion", () => {
-    const html = renderCapabilityDeletionCommitted(notesRow(), "", false);
-
-    expect(html).toBe(
-      '<div data-capability-deletion-logo-removal hx-swap-oob="delete:#capability-logo-notes"></div><div id="prompt-notice" hx-swap-oob="innerHTML">I deleted Notes permanently.</div>',
+  test("leaves the primary output truly empty after a neutral committed deletion", async () => {
+    const { stray, parts } = await topLevelParts(
+      renderCapabilityDeletionCommitted(notesRow(), "", false),
     );
+
+    expect(stray).toBe("");
+    expect(parts).toEqual([
+      { tag: "div", id: null, oob: `delete:#${capabilityLogoElementId("notes")}`, text: "" },
+      { tag: "div", id: PROMPT_NOTICE_ID, oob: "innerHTML", text: expect.any(String) },
+    ]);
+    expect(parts[1]?.text).toContain(notesRow().label);
   });
 
   test("Confirm carries the preflight URL the shell re-asks when a response never lands", () => {
@@ -115,10 +158,6 @@ describe("capability-deletion presentation", () => {
     expect(recovered).toContain("It’s gone.");
     expect(recovered).not.toContain("I didn’t delete anything");
     expect(pressed).toContain("I didn’t delete anything");
-    // And the shell and the server agree on the mark that tells them apart.
-    expect(
-      readFileSync(resolve(import.meta.dir, "../../../public/capability-deletion.js"), "utf8"),
-    ).toContain(`const DELETION_RECHECK_PARAM = "${DELETION_RECHECK_PARAM}";`);
   });
 
   test("Confirm names the act while it runs and locks both controls", () => {
@@ -133,13 +172,15 @@ describe("capability-deletion presentation", () => {
     expect(html).toContain('hx-disabled-elt="find button"');
   });
 
-  test("an already-gone target lands on the neutral home state, not a dead-end panel", () => {
-    const html = renderCapabilityDeletionAlreadyGone("notes");
+  test("an already-gone target lands on the neutral home state, not a dead-end panel", async () => {
+    const { stray, parts } = await topLevelParts(renderCapabilityDeletionAlreadyGone("notes"));
 
-    expect(html).toBe(
-      '<div data-capability-deletion-logo-removal hx-swap-oob="delete:#capability-logo-notes"></div><div id="prompt-notice" hx-swap-oob="innerHTML">That’s already gone, so I didn’t delete anything.</div>',
-    );
-    expect(html).not.toContain("capability-deletion__actions");
+    expect(stray).toBe("");
+    expect(parts).toEqual([
+      { tag: "div", id: null, oob: `delete:#${capabilityLogoElementId("notes")}`, text: "" },
+      { tag: "div", id: PROMPT_NOTICE_ID, oob: "innerHTML", text: expect.any(String) },
+    ]);
+    expect(parts[1]?.text.trim()).not.toBe("");
   });
 
   // The already-gone branch takes a raw URL segment that no registry row proved. `escapeHtml` stops
@@ -163,7 +204,7 @@ describe("the ending a deletion that did not happen leaves in the window", () =>
     for (const ending of [failure, refusal]) {
       // The sentence lives in the window now, not on the prompt bar behind it, and the
       // window holds it: nothing is restored and no address moves until the press.
-      expect(ending).not.toContain("prompt-notice");
+      expect(ending).not.toContain(PROMPT_NOTICE_ID);
       expect(ending).toContain("data-capability-deletion-ending");
       expect(ending).toContain('hx-get="/capability-deletion-restoration?restore_surface=neutral"');
       expect(ending).toContain(">Continue</button>");
@@ -217,7 +258,7 @@ describe("the ending a deletion that did not happen leaves in the window", () =>
     expect(ending).toContain(
       `hx-get="/capability-deletion-restoration?restore_surface=capability&amp;restore_capability_id=ledger&amp;restore_incarnation_id=inc-ledger"`,
     );
-    expect(ending).not.toContain("data-active-capability-id");
+    expect(ending).not.toContain(ACTIVE_CAPABILITY_ATTRIBUTE);
   });
 
   test("an ending escapes every label it renders", () => {
@@ -241,5 +282,30 @@ describe("the ending a deletion that did not happen leaves in the window", () =>
     expect(ending).not.toContain("<img");
     expect(ending).not.toContain("&lt;img");
     expect(ending).toContain("Notes changed after you opened this page");
+  });
+});
+
+// The shell restates the recheck mark (a classic module cannot import this file), so it is proved
+// by the preflight the real shell builds off the real Confirm form, sent to the real route.
+describe("the recheck a Confirm sends", () => {
+  test("the recheck the shell sends off a Confirm is one the server reads as after-confirm", async () => {
+    const page = parseHtml(
+      renderCapabilityDeletionConfirmation(notesRow(), [], {
+        kind: "capability",
+        capabilityId: "ledger",
+        incarnationId: "inc-ledger",
+      }),
+      new El("div"),
+    );
+    const form = page.querySelector("[data-capability-deletion-confirm]");
+    const url = new URL(capabilityDeletionPreflightUrl(form as never) ?? "", "http://desk");
+
+    // The displaced capability the Confirm form carried, so a recovered panel still knows where
+    // Keep it goes back to, and the route answering a Confirm whose capability is already gone.
+    expect(url.searchParams.get("restore_capability_id")).toBe("ledger");
+    expect(url.searchParams.get("restore_incarnation_id")).toBe("inc-ledger");
+    const answered = await (await createTestApp().request(`${url.pathname}${url.search}`)).text();
+    expect(answered).toBe(renderCapabilityDeletionAlreadyGone("notes", "", "after-confirm"));
+    expect(answered).not.toBe(renderCapabilityDeletionAlreadyGone("notes", "", "never-asked"));
   });
 });

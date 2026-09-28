@@ -1,6 +1,6 @@
 // What stops a submission before it is sent: the browser's own required check with its
-// foreign tooltip taken off it, the drawn picker's recovered one, the shapes a marked field
-// says so on, and the paint all of it depends on.
+// foreign tooltip taken off it, the drawn picker's recovered one, and the shapes a marked field
+// says so on. The paint all of it depends on is held by `field-errors.required.policy.ts`.
 
 import { describe, expect, test } from "bun:test";
 
@@ -9,7 +9,6 @@ import { FILE_URL_PREFIX } from "../../platform/files/file-url.ts";
 import { mintFileKey } from "../../platform/files/ledger.ts";
 import { installDomGlobals } from "../controls/choice-picker.fixture.test-support.ts";
 import { El, parseHtml } from "../controls/choice-picker.test-support.ts";
-import { readSource } from "../safety/source.test-support.ts";
 import { REQUIRED_FIELD_SENTENCE } from "./field-chrome.ts";
 import {
   capabilityOf,
@@ -34,22 +33,11 @@ describe("a required field is refused in the browser", () => {
     expect(one.isInvalid("value")).toBe(true);
   });
 
-  test("the pass ends standing on the first field it marked, not the first event", async () => {
-    // Cancelling every `invalid` takes the browser's focus and its scroll along with the
-    // bubble, so a refusal on a form taller than its scroller would happen off screen.
-    const one = await scene(
-      capabilityOf(
-        [
-          probeField("choice", { name: "status", label: "Status" }),
-          probeField("string", { name: "title", label: "Title" }),
-        ],
-        { choice_inputs: [{ field: "status", presentation: "picker" }] },
-      ),
-    );
-    // The browser reports the only control it can validate, which is the second field.
-    one.reportMissing("title");
-    await tick();
-    expect(one.doc.activeElement?.classList.contains("listbox__button")).toBe(true);
+  test("a field called `dataset` is refused in the same words", async () => {
+    // A form answers to its fields' names first, so `form.dataset` would be this very input.
+    const one = await scene(capabilityOf([probeField("string", { name: "dataset" })]));
+    one.reportMissing("dataset");
+    expect(one.saidIn("dataset")).toBe(REQUIRED_FIELD_SENTENCE);
   });
 
   test("a required field left empty is never refused with nothing said", async () => {
@@ -74,7 +62,7 @@ describe("a required field is refused in the browser", () => {
     one.submit();
     expect(one.refusals).toHaveLength(1);
     expect(one.isInvalid("status")).toBe(false);
-    expect(one.doc.activeElement).toBeNull();
+    expect(one.doc.activeElement).toBe(one.doc.body);
   });
 
   test("anything other than a missing value keeps the browser's own words", async () => {
@@ -176,6 +164,43 @@ describe("a required field is refused in the browser", () => {
     expect(one.isInvalid("status")).toBe(true);
   });
 });
+
+describe("where a refusal leaves the person", () => {
+  test("the pass ends standing on the first field it marked, not the first event", async () => {
+    // Cancelling every `invalid` takes the browser's focus and its scroll along with the
+    // bubble, so a refusal on a form taller than its scroller would happen off screen.
+    const one = await scene(
+      capabilityOf(
+        [
+          probeField("choice", { name: "status", label: "Status" }),
+          probeField("string", { name: "title", label: "Title" }),
+        ],
+        { choice_inputs: [{ field: "status", presentation: "picker" }] },
+      ),
+    );
+    // The browser reports the only control it can validate, which is the second field.
+    one.reportMissing("title");
+    await tick();
+    expect(one.doc.activeElement?.classList.contains("listbox__button")).toBe(true);
+    expect(one.doc.activeElement.focusOptions).toEqual({ focusVisible: true });
+  });
+});
+
+describe("a required list is the field's to refuse", () => {
+  test("a required list is refused while every row is blank, and not once one holds a value", async () => {
+    // No one row can carry `required`, since one nonblank row is all the field wants, so the
+    // field says it and this module is what enforces it.
+    const list = capabilityOf([probeField("string[]", { required: true })], {
+      list_inputs: [{ field: "value", mode: "repeatable" }],
+    });
+    const blank = await scene(list);
+    expect(blank.form.querySelector("input[required]")).toBeNull();
+    expect(blank.submit().prevented).toBe(true);
+    const holding = await scene(list, { record: { id: "probe-1", value: ["", "second"] } });
+    expect(holding.submit().prevented).toBe(false);
+  });
+});
+
 describe("a required photo is refused in the browser", () => {
   test("a required photo is refused empty or cleared, and the request is never made", async () => {
     const photo = capabilityOf([probeField("file", { name: "photo", label: "Photo" })]);
@@ -286,53 +311,6 @@ describe("a field says it is invalid on every control it is made of", () => {
     );
     one.doc.fire("input", one.doc.querySelector('[name="value"]') as El);
     expect(one.saidIn("value")).toBe("Keep it short.");
-  });
-});
-
-/* ── what the two stylesheets have to be saying for any of it to show ───────── */
-
-describe("the paint the marked state depends on", () => {
-  const DESIGN = readSource("design/styles/components/form-controls.css");
-  const PRODUCT = readSource("public/css/fields.css");
-
-  /** One rule's body, by its exact selector list. */
-  const body = (css: string, selector: string) => css.split(selector).at(1)?.split("}").at(0) ?? "";
-
-  test("an empty slot takes no line, which the guidance's own display would deny it", () => {
-    // `.field__guidance { display: block }` outranks the user agent's `[hidden]`, so
-    // without this restatement every field on the form grows a blank line under it.
-    expect(body(DESIGN, ".field__guidance[hidden] {")).toContain("display: none");
-  });
-
-  test("signal goes to the line that is the error, not to every line beside it", () => {
-    expect(body(DESIGN, ".field.is-invalid .field__control {")).toContain("var(--well-alert)");
-    expect(
-      body(
-        DESIGN,
-        [
-          ".field.is-invalid .field__guidance--error,",
-          ".field.is-invalid .field__guidance.is-over {",
-        ].join("\n"),
-      ),
-    ).toContain("var(--signal)");
-    // And not the blanket rule this replaced: a declared hint and a character count stay
-    // what they were while the field is invalid.
-    expect(DESIGN).not.toContain(".field.is-invalid .field__guidance {");
-  });
-
-  test("the three controls with no well of their own still take the fill", () => {
-    // A radio group and a segmented row are sets of their own marks and a checkbox is a
-    // mark, so `.field__control` — the only thing the design recolours — is not there.
-    expect(
-      body(
-        PRODUCT,
-        [
-          '.field--choice[data-choice-presentation="radio"].is-invalid,',
-          '.field--choice[data-choice-presentation="segmented"].is-invalid,',
-          ".field--inline.is-invalid {",
-        ].join("\n"),
-      ),
-    ).toContain("var(--well-alert)");
   });
 });
 

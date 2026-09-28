@@ -13,7 +13,7 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
-import { createApp } from "../../../server/app.ts";
+import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import { createMutationCoordinator } from "../../concurrency/mutation-coordinator.ts";
 import type { CapabilityCreateContext } from "../contract.ts";
 import {
@@ -43,7 +43,7 @@ describe("deterministic capability router — create and persistence", () => {
 
   test("tracer bullet: hand-written create persists and read returns a fragment with the record", async () => {
     install(conns, notesRow());
-    const app = createApp({ capabilityRouter: { databases: conns } });
+    const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     // POST to `create`: the handler receives parsed input + the scoped data tool,
     // persists through it, and returns a fragment the platform wraps in the response.
@@ -86,7 +86,7 @@ describe("deterministic capability router — build lease and concurrency", () =
     const mutationCoordinator = createMutationCoordinator();
     const reservation = mutationCoordinator.reserveBuild();
     const buildLease = await mutationCoordinator.acquireBuild(reservation);
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: { databases: conns },
       mutationCoordinator,
     });
@@ -116,7 +116,7 @@ describe("deterministic capability router — build lease and concurrency", () =
     const mutationCoordinator = createMutationCoordinator();
     const reservation = mutationCoordinator.reserveBuild();
     const buildLease = await mutationCoordinator.acquireBuild(reservation);
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: { databases: conns },
       mutationCoordinator,
     });
@@ -144,7 +144,7 @@ describe("deterministic capability router — presence and requiredness markers"
 
   test("platform requiredness returns warm structured markers and does not reset a failed create", async () => {
     install(conns, notesRow());
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases: conns,
         loadHandler:
@@ -172,7 +172,7 @@ describe("deterministic capability router — presence and requiredness markers"
     install(conns, notesRow());
     let handlerLoads = 0;
     let rendererLoads = 0;
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases: conns,
         loadHandler: async () => {
@@ -266,7 +266,7 @@ describe("deterministic capability router — create presence for scalars and bo
       }),
     );
     let receivedInput: Parameters<Awaited<ReturnType<HandlerLoader>>>[0]["input"] | undefined;
-    const app = createApp({
+    const app = createTestApp({
       capabilityRouter: {
         databases: conns,
         loadHandler:

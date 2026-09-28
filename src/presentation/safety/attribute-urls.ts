@@ -58,6 +58,11 @@ const ASCII_REFERENCES: ReadonlyMap<string, string> = new Map([
   ["fjlig", "fj"],
 ]);
 
+/** The table as frozen pairs: an importer can read what the decoder decodes, never change it. */
+export const ASCII_REFERENCE_ENTRIES: readonly (readonly [string, string])[] = Object.freeze(
+  [...ASCII_REFERENCES].map((entry) => Object.freeze(entry)),
+);
+
 /**
  * Whether a URL value carries a script-executing or smuggling scheme. C0 controls are stripped from
  * a `src`, so `java\tscript:` cannot pass; a `srcset` splits there, as a browser does. Item markup
@@ -114,7 +119,8 @@ export function decodeAttributeValue(raw: string): string {
     (reference, decimal?: string, hex?: string, name?: string) => {
       if (name !== undefined) return ASCII_REFERENCES.get(name) ?? reference;
       const code = decimal === undefined ? Number.parseInt(hex ?? "", 16) : Number(decimal);
-      return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : "\u{FFFD}";
+      const scalar = code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff);
+      return scalar ? String.fromCodePoint(code) : "\u{FFFD}";
     },
   );
 }

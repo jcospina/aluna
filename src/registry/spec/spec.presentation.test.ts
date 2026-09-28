@@ -120,17 +120,24 @@ describe("capability spec shape — presentation lists & created_at", () => {
 
 describe("capability spec shape — labels & lifecycle", () => {
   test("requires explicit field labels and lifecycle values", () => {
-    const missingLabel = validSpec() as unknown as Record<string, unknown>;
-    missingLabel.schema = {
-      fields: [{ name: "text", type: "string", required: true, lifecycle: "active" }],
+    const issuePaths = (field: Record<string, unknown>) => {
+      const spec = { ...validSpec(), schema: { fields: [field] } };
+      const parsed = capabilitySpecSchema.safeParse(spec);
+      return parsed.success ? [] : parsed.error.issues.map((issue) => issue.path.join("."));
     };
-    expect(capabilitySpecSchema.safeParse(missingLabel).success).toBe(false);
+    const text = {
+      name: "text",
+      label: "Entry",
+      type: "string",
+      required: true,
+      lifecycle: "active",
+    };
+    const { label: _label, ...missingLabel } = text;
+    const { lifecycle: _lifecycle, ...missingLifecycle } = text;
 
-    const missingLifecycle = validSpec() as unknown as Record<string, unknown>;
-    missingLifecycle.schema = {
-      fields: [{ name: "text", label: "Entry", type: "string", required: true }],
-    };
-    expect(capabilitySpecSchema.safeParse(missingLifecycle).success).toBe(false);
+    expect(issuePaths(text)).toEqual([]);
+    expect(issuePaths(missingLabel)).toEqual(["schema.fields.0.label"]);
+    expect(issuePaths(missingLifecycle)).toEqual(["schema.fields.0.lifecycle"]);
   });
 
   test("generated labels must be short names, not product-voice sentences", () => {

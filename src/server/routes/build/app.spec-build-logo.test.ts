@@ -29,7 +29,7 @@ import {
   runPromptBuild,
   teardownScratchDbEnv,
 } from "../../app.test-support.ts";
-import { createApp } from "../../app.ts";
+import { createTestApp } from "../../isolated-app.test-support.ts";
 
 setDefaultTimeout(15_000);
 
@@ -67,14 +67,14 @@ const ARTWORK = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><rect/></sv
 const ATTEMPT: RequestInit = { method: "POST", headers: { "HX-Request": "true" } };
 
 function buildingApp(logoProvider: LogoGenerationProvider): {
-  app: ReturnType<typeof createApp>;
+  app: ReturnType<typeof createTestApp>;
   rows: GenerationMetrics[];
 } {
   const { rows, recordMetrics } = makeMetricsRecorder();
   const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC);
   return {
     rows,
-    app: createApp({
+    app: createTestApp({
       getProvider: () => provider,
       recordMetrics,
       buildDatabases: conns,
@@ -178,7 +178,7 @@ describe("a build that never activates", () => {
       repairs: ["export const create = (", "export const create = ("],
     });
     const { rows, recordMetrics } = makeMetricsRecorder();
-    const app = createApp({
+    const app = createTestApp({
       getProvider: () => provider,
       recordMetrics,
       buildDatabases: conns,

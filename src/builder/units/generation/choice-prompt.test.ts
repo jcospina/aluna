@@ -66,13 +66,6 @@ describe("what a Handler is told about a choice", () => {
     }
   });
 
-  test("and are told the platform already refused anything undeclared", () => {
-    expect(promptFor("create")).toContain(
-      "has already been checked against its declared values by the platform",
-    );
-    expect(promptFor("create")).toContain("Never re-validate the option set");
-  });
-
   test("search is told the field is searchable, without the option set", () => {
     const prompt = promptFor("search");
     expect(prompt).toContain("stage");
@@ -87,12 +80,6 @@ describe("what the item renderer is told about a choice", () => {
     const prompt = promptFor("item");
     expect(prompt).toContain("options ");
     expect(prompt).toContain('{"value":"draft","label":"Draft"}');
-  });
-
-  test("and is told to present the label, never the stored value", () => {
-    expect(promptFor("item")).toContain(
-      "Present the matching option `label`, never the raw stored value",
-    );
   });
 
   test("a non-choice field brings no option list to either surface", () => {

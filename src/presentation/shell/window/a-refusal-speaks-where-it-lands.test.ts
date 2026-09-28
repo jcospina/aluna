@@ -146,6 +146,9 @@ describe("where a refused sentence lands", () => {
     // A transport reconnect is deliberately not this — it is the same run, and it must not take
     // the refused words away, so the flag is retired where a run starts rather than at an open.
     submitPrompt(scene);
+    // The refused run was dropped at the submission; the answer stands the next one's subscriber.
+    expect(scene.subscriber.isConnected).toBe(false);
+    scene.region.append(scene.subscriber);
     openStream(scene);
     scene.promptField.value = "track my houseplants";
     closeStream(scene);
