@@ -56,9 +56,15 @@ proves the path against a concurrent unlink. A long video must keep streaming af
 bytes are unlinked partway through a response.
 
 **Video plays inline, and plays in the record.** A video is served inline under
-`default-src 'none'; sandbox`, and it plays when opened in a tab of its own. The
-control's filled video state from 7.2/01 plays and seeks inside the open record. When the
-browser refuses the codec, the control's download link stands where the player would be.
+`default-src 'none'; sandbox`, and it plays when opened in a tab of its own. This issue
+builds the record's render view drawn in 7.2/01 (`design/controls.html`, Files, "Inside
+the open record"; C18): the control's filled video state previews it, its Open takes the
+window to the render view without leaving the record, and the full player there
+(`design/scripts/file-player.js`) plays and seeks. When the browser won't play the file,
+the download link stands where the player would be, and the form's preview drops its play
+control and says why. A WebM or Ogg file's declared `video/` or `audio/` type names its
+family; failing that, a field that takes only one of the two does, and failing both, the
+extension's usual family does (`.webm` video, `.ogg` audio).
 
 **The HTML filter and the card.** The platform filter puts `preload="metadata"` on a
 player and strips `autoplay`, so no generated template can forget them. Module 7 makes
@@ -101,8 +107,8 @@ checks before it answers is the only guard.
 - [ ] A test unlinks a file partway through a response and the response completes
 - [ ] The filter sets `preload="metadata"` and strips `autoplay` on players, and
       enforcing twice changes nothing
-- [ ] The control plays and seeks a video inside the open record, and shows the download
-      link when the codec is refused
+- [ ] The record's render view plays and seeks a video, and shows the download link where
+      the player would be when the browser won't play it
 - [ ] A video few-shot example and item-renderer guidance exist, and the card doesn't
       depend on a first frame
 - [ ] Behavioral tokens accept `video`, and the digest covers it

@@ -138,6 +138,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "design/styles/components/controls.css § .segmented button:focus-visible [outline]",
       "design/styles/components/form-controls.css § .choice__input:focus-visible + .choice__mark [outline]",
       'design/styles/components/form-controls.css § .field__control:has(:is(input:not([type="checkbox"], [type="radio"]), textarea):focus), .field__control:focus-visible, .field__control:has(select:focus-visible) [outline]',
+      "design/styles/components/file-field.css § .file-player__seek:has(.file-player__range:focus-visible) [outline]",
       "public/css/collection.css § .capability-search__clear:focus-visible [outline]",
       "public/css/collection.css § .capability-search__control:has(.capability-search__input:focus) [outline]",
     ],
@@ -275,6 +276,40 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     sites: [
       'design/styles/components/file-field.css § .file__well[role="progressbar"] .file__glyph, .file.is-invalid .file__glyph [color]',
     ],
+  },
+  {
+    what: "the seek line's played part, and the square that marks where a player has got to",
+    foreground: ink,
+    background: surface,
+    threshold: "non-text",
+    note:
+      "A player stands in the record's render view on the window's own fill, so its line and " +
+      "its square are read against paper rather than a well.",
+    sites: [
+      "design/styles/components/file-field.css § .file-player__played [border-top-color]",
+      "design/styles/components/file-field.css § .file-player__thumb [border-color]",
+    ],
+  },
+  {
+    what: "the seek line's length ahead of where a player has got to",
+    foreground: ink3,
+    background: surface,
+    threshold: "non-text",
+    note:
+      "Unlike the upload's track, this line is a control: it is what a pointer seeks along, " +
+      "so it owes §1.4.11 even at the start, before the ink line behind the square has grown.",
+    sites: ["design/styles/components/file-field.css § .file-player__rail [border-top-color]"],
+  },
+  {
+    what: "the line around a refused player's stand-in",
+    foreground: ink,
+    background: surface2,
+    threshold: "non-text",
+    note:
+      "The region the player would have filled, drawn as that region, with the sentence and " +
+      "the download link inside it on the well's fill.",
+    alsoCovers: [surface],
+    sites: ["design/styles/components/file-field.css § .file-player__refused [border-color]"],
   },
   {
     what: "the track under an upload's progress line",

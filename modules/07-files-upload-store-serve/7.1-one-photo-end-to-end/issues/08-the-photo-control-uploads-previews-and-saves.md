@@ -1,7 +1,6 @@
 # The photo control uploads, previews and saves
 
-Status: ready-for-agent — built and verified; the sign-off gate is the only box left
-
+Status: done
 Type: HITL — this issue closes the epic's done-when test, and the control is new
 furniture drawn in 7.1/02. A human runs the whole photo round trip and confirms the
 control matches the drawing.
@@ -93,7 +92,7 @@ or status 0 on a file over the cap, to the same sentence.
       remains
 - [x] Save claims the photo (`owned`), an edit that doesn't touch the field keeps it,
       replacing enqueues the old key, and clearing empties the field
-- [ ] **Sign-off gate:** the human has run the done-when steps below and confirmed the
+- [x] **Sign-off gate:** the human has run the done-when steps below and confirmed the
       control matches `design/controls.html`
 - [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 

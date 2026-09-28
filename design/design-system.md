@@ -16,7 +16,7 @@ the same palette and the same line.
 
 The system is settled on two pages you can open in a browser: `design/index.html`
 for the desk and decisions D1–D14, `design/controls.html` for the control set and
-C1–C12. Language and product voice live in [CONTEXT.md](../CONTEXT.md).
+C1–C20. Language and product voice live in [CONTEXT.md](../CONTEXT.md).
 
 ## Colour
 
@@ -251,7 +251,8 @@ A record is a `<button>`. Opening one is the only thing you can do with it, and 
 button is what the keyboard already reaches, so a record carries no `role`, no
 `tabindex` and no key handling of its own. What opens is the form, in edit mode.
 Aluna has no read view of a record, so the form is where a record is read as well
-as changed.
+as changed. The one exception is a video or a sound, which the form only previews and the
+record's render view plays in full (see Forms).
 
 The collection's order is fixed and is the same for every capability: the search
 rail with the create action beside it, then the count, then the records in the
@@ -318,6 +319,29 @@ screen reader says what it is waiting on, and its fill is held back rather than 
 the sentence stays legible. Clear is the only way to empty a file field, and the preview is
 the file as it is served, not the copy that was picked.
 
+A card cannot play, open or download a file, so the open record does. The form's control
+only previews a video or a sound; its Open takes the window to the record's render view,
+`.file-player`, which holds the full player under a back control that returns to the form.
+Opening a file doesn't leave the record: the form keeps its edits and uploads, nothing asks
+first, and Back lands the keyboard on the Open that was pressed. The player has play and
+pause, the time, a ruled seek line with an unseen native range over it and a drawn square
+marking the place, the length, and the file's download link. A file the browser won't play
+shows that download link where the player would be, in a drawn region the player's size.
+From a row, a PDF opens in a tab of its own and any other document downloads under its own
+name. A card shows a file and never plays it: a video's card is its frame over the well
+with its kind and length in words, because some browsers draw no first frame.
+
+A field is a frame only when every family it takes fills one, a photo and a video; a field
+that takes a sound or a document is a row, because a frame can't show a document and a row
+can show a photo, small. The held file's own kind decides how it previews.
+
+A field that holds many files is a column of `.file__row`s in `.field-list__values`, one
+per file in the order they were picked, with an add well at its foot. It has no grip:
+removing a file and adding another is how its order changes. Each file travels on its own
+upload and holds the save until it lands, removing a travelling row stops its upload, and a
+pick that would take the list past its count is refused whole before anything travels. A
+list names every file it refuses, since several may be travelling at once.
+
 Two keys sit on a field. `guidance` is a short hint under the field, and it also
 carries the sentence announcing a default, so a default needs no key of its own.
 `max_length` is declared once and drives both the handler's validation and the
@@ -328,9 +352,9 @@ Two states are the renderer's alone and touch no schema. Optional is marked and
 required is not, since the other way round spends an asterisk on most of the
 fields on screen. Disabled fades the whole object, line included, because a drawn
 boundary cannot be greyed on its own without becoming a second ink. Read-only is
-not a third: the form is the only view a record has, so no field is ever printed
-rather than filled, and an absent value is an empty input rather than a muted em
-dash.
+not a third: the form is where a record is read, apart from a video's or a sound's
+render view, so no field is ever printed rather than filled, and an absent value is an
+empty input rather than a muted em dash.
 
 Errors sit in the field, replacing that field's guidance. The browser checks
 required fields before submitting, which recovers the native constraint validation

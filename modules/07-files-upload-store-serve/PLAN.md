@@ -105,7 +105,8 @@ in ADR-0009, and in the architecture and design documents.
      text with no zero bytes, such as the Windows-1252 Excel writes for Spanish text. The
      check streams over the whole file and records the encoding it found for Module 9.
    - Containers are checked and codecs are not. A video whose codec the browser refuses
-     shows the platform control's download link where the player would be.
+     shows its download link where the player would be, in the record's render view
+     (decision 29).
 4. **The recorded type is the verified one.** Everything downstream — the card, the
    player, the disposition header — trusts the reference, so the reference may not carry a
    claim we never checked.

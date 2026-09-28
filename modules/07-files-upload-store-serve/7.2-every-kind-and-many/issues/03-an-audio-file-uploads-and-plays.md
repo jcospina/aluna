@@ -29,8 +29,10 @@ seeks in the open record through the Range support 7.2/02 built.
 
 The issue records the audio extensions it admits.
 
-**The control and the card.** The control's filled audio state from 7.2/01 plays and
-seeks in the open record, and shows the download link when the browser refuses the codec.
+**The control and the card.** The control's filled audio state from 7.2/01 previews a
+sound with play, pause and the time, and the record's render view 7.2/02 built plays and
+seeks it, showing the download link where the player would be when the browser won't play
+it.
 Audio is served inline under the media policy and plays when opened in a tab of its own.
 An audio few-shot example and item-renderer guidance land here. Behavioral tokens gain
 `audio`, and the picker's `accept` includes the audio family.
@@ -42,8 +44,8 @@ An audio few-shot example and item-renderer guidance land here. Behavioral token
       after its tag is refused
 - [ ] An `.m4a` is admitted as audio by extension and container; the aliases
       `audio/x-m4a` and `audio/x-wav` are not contradictions
-- [ ] The control plays and seeks audio in the open record and falls back to a download
-      link for a refused codec
+- [ ] The render view plays and seeks audio, and falls back to a download link when the
+      browser won't play it
 - [ ] An audio few-shot example and item-renderer guidance exist; behavioral tokens
       accept `audio`
 - [ ] **Sign-off gate:** the human has played an audio file in its own tab in Chrome,

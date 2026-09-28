@@ -25,7 +25,9 @@ through the app's full header middleware, not the route alone, because a header 
 later in the chain is what blanks the viewer. Every response still carries `nosniff`.
 
 **The control and the card.** The control's filled document state from 7.2/01 opens a PDF
-from the open record through a link carrying `rel="noopener"`. A document few-shot example
+from the open record through a link carrying `rel="noopener"`, chosen by the reference's
+verified type rather than the file's name (decision 4): `file-control.ts` writes the
+reference's type as `data-holds-type`, and a document without it downloads. A document few-shot example
 and item-renderer guidance land here, and 7.2/05 reuses them. Behavioral tokens gain
 `document`, and the picker's `accept` includes `.pdf`.
 

@@ -1,6 +1,6 @@
 # Every writing route guards its own door
 
-Status: ready-for-agent — the work below is complete and waiting on sign-off
+Status: done
 
 ## Epic
 

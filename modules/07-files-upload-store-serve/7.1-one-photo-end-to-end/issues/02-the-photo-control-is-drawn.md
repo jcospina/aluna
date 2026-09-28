@@ -45,18 +45,18 @@ something next to it.
 
 ## Acceptance criteria
 
-- [ ] The "one absence left" note is gone from `design/controls.html`, replaced by the
+- [x] The "one absence left" note is gone from `design/controls.html`, replaced by the
       drawn control
-- [ ] Empty, filled-with-preview, progress and refusal-in-field states are drawn for an
+- [x] Empty, filled-with-preview, progress and refusal-in-field states are drawn for an
       image field, in create and in edit
-- [ ] The filled field shows replace and clear, and the held save during an upload is
+- [x] The filled field shows replace and clear, and the held save during an upload is
       drawn
-- [ ] The control uses the token layer and the drawn line and adds no boundary styling of
+- [x] The control uses the token layer and the drawn line and adds no boundary styling of
       its own
-- [ ] `form-controls.css` stays within its ceiling
-- [ ] **Sign-off gate:** the human has seen every state on the page and approved the
+- [x] `form-controls.css` stays within its ceiling
+- [x] **Sign-off gate:** the human has seen every state on the page and approved the
       shape and the refusal sentences
-- [ ] `bun run test`, `bun run typecheck`, `bun run lint` clean
+- [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
 

@@ -9,9 +9,11 @@
  * and a refusal said in the guidance's place. `scripts/file-field.js` writes each state.
  *
  * It lives beside `form-controls.css` for the reason `list-field.css` does: that file draws a
- * control, and this one arranges several into a field. Every boundary here already belongs
- * to something the ink draws — a well is a `.field__control`, an action a `.btn` — so the
- * one line this file adds is the upload's progress, and that line is ruled.
+ * control, and this one arranges several into a field — one file, a list of them, or the
+ * full player the record's render view holds. Every boundary here belongs to something the
+ * ink draws — a well is a `.field__control`, an action a `.btn`, the seek square and a refused
+ * player's stand-in ask by name — and the lines that grow, the upload's progress and the seek
+ * line, are ruled.
  */
 
 @property --file-progress {
@@ -167,9 +169,50 @@
   height: 1.75rem;
 }
 
-/* An empty row gives way from the hint, never from what it asks for. */
+/* A narrow well keeps the name: the type and size, or the time, give way whole rather than
+ * shrinking to a letter. The upload's percentage and the empty well's hint stay. */
+.file__well {
+  container: file-well / inline-size;
+}
+
+@container file-well (max-width: 13rem) {
+  .file__meta:not([data-file-pct], .file__hint) {
+    display: none;
+  }
+}
+
+/* An empty row gives way from the hint first, whole, below the width it needs beside what the
+ * row asks for, which grows with each family a field names. What the row asks for then ends
+ * in an ellipsis rather than leaving the well, and its whole sentence is still the well's
+ * accessible name. */
+@container file-well (max-width: 22rem) {
+  .file__hint {
+    display: none;
+  }
+}
+
+@container file-well (max-width: 31rem) {
+  [data-families="2"] .file__hint {
+    display: none;
+  }
+}
+
+@container file-well (max-width: 35rem) {
+  [data-families="3"] .file__hint {
+    display: none;
+  }
+}
+
+@container file-well (max-width: 38rem) {
+  [data-families="4"] .file__hint {
+    display: none;
+  }
+}
+
 .file__row .file__cta {
-  flex-shrink: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -310,7 +353,9 @@
 }
 
 .file__bar {
+  container: file-bar / inline-size;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   width: min(100%, 22rem);
@@ -323,4 +368,159 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A narrow frame gives the name a line of its own, above the actions, rather than none. */
+@container file-bar (max-width: 19rem) {
+  .file__bar .file__meta {
+    flex-basis: 100%;
+  }
+}
+
+/* A file's way out of its row, an open or a download, is a link that wears a button. */
+a.file__action,
+.file-player a.btn {
+  text-decoration: none;
+}
+
+/* ── The list: many files, one row each ──────────────────────────────────── */
+
+/* The column gives way to a narrow window rather than to its longest name. */
+.file .field-list__values {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* A photo in a list shows itself, small, where every other kind shows its glyph. */
+.file__thumb {
+  overflow: hidden;
+}
+
+.file__thumb > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── The player: a video or a sound in the record's render view ──────────── */
+
+.file-player__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Contained rather than covered: the render view shows the whole picture, and the band the
+ * frame leaves is the window's well. */
+.file-player__screen {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--surface-2);
+}
+
+.file-player__screen > video {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.file-player__controls,
+.file-player__foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.file-player__foot .file__meta {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * The seek line: ruled, as the upload's progress line is, with a square that marks where the
+ * file has got to. A native range lies over it unseen, so the pointer, the keyboard and a
+ * screen reader all work a real slider; the ring goes on the line it stands for.
+ */
+.file-player__seek {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+}
+
+.file-player__seek:has(.file-player__range:focus-visible) {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.file-player__rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: var(--line) solid;
+  border-top-color: var(--ink-3);
+}
+
+.file-player__played {
+  position: absolute;
+  left: 0;
+  top: calc(var(--line) * -1);
+  width: calc(var(--file-at) * 100%);
+  border-top: var(--line) solid;
+  border-top-color: var(--ink);
+}
+
+.file-player__thumb {
+  position: absolute;
+  left: calc(var(--file-at) * (100% - 0.75rem));
+  top: calc(-0.375rem - var(--line) / 2);
+  width: 0.75rem;
+  height: 0.75rem;
+  background: var(--surface);
+  border: var(--line) solid;
+  border-color: var(--ink);
+}
+
+.file-player__range {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* Where the player would be, for a file this browser can't play: what it is, the sentence,
+ * and the download link that stands in its place, drawn as the region it stands in for. */
+.file-player__refused {
+  border: var(--line) solid;
+  border-color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--control-h);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-2);
+}
+
+.file-player__refused--screen {
+  flex-direction: column;
+  justify-content: center;
+  aspect-ratio: 16 / 9;
+  text-align: center;
+}
+
+.file-player__refused .file__sub {
+  flex: 1;
+}
+
+.file-player__refused--screen .file__sub {
+  flex: 0;
 }
