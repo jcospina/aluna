@@ -71,7 +71,7 @@ On the Aluna running on `:3030`, type "keep track of my trips with their photos"
 trip's field holds many files. Upload three photos to one trip, remove one before saving,
 and save. The card shows two photos in order, and the removed one's row is enqueued.
 
-Once 7.2/02 to 7.2/05 have landed, this also runs the epic's done-when test. Build Notes
+Once 7.2/02 to 7.2/06 have landed, this also runs the epic's done-when test. Build Notes
 with a many-file field that accepts documents and video. One note should hold a PDF that
 opens in the browser, a DOCX that downloads under its own accented name, and a video that
 plays and seeks.

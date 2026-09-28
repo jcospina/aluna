@@ -40,4 +40,4 @@ and neither contains an address.
 
 ## Blocked by
 
-- modules/07-files-upload-store-serve/7.2-every-kind-and-many/issues/06-a-field-holds-many-files.md
+- modules/07-files-upload-store-serve/7.2-every-kind-and-many/issues/07-a-field-holds-many-files.md

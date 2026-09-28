@@ -79,7 +79,7 @@ Waiting on the sign-off gate; everything else is done.
 - **A field that takes several families** is a frame only when every family fills one
   (C20); `data-kind` takes a list.
 - **The refusals**, settled on the page: one wrong-family sentence per family and one for
-  several, the renamed-file and password sentences 7.2/05 needs, the list's named
+  several, the renamed-file and password sentences 7.2/06 needs, the list's named
   refusals, the pick-time and save-time count-cap sentences, and "I can’t play … here."
 - **Decisions** C18, C19 and C20; one open question: how many files a list holds by
   default (the page uses six).
@@ -94,7 +94,7 @@ Waiting on the sign-off gate; everything else is done.
 Four rounds, every finding fixed. Round one covered code and
 design separately. It found a list that kept only its last refusal, stale media listeners
 writing into a new player, a stuck seek flag, a ruled seek square, and no drawn cards. It
-also found that a single field couldn't take several families, 7.2/05's sentences were
+also found that a single field couldn't take several families, 7.2/06's sentences were
 missing, and 7.2/02–03 contradicted the drawing. Round two caught focus loss, the refusal
 order, the type-before-extension rule, and a CTA escaping its well at phone width. Round
 three found that a reachability probe can't work against the product's `/files` route,

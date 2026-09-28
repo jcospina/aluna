@@ -56,11 +56,11 @@ every document extension.
 
 ## Living demo
 
-In the manuals capability from 7.2/04 on the Aluna running on `:3030`, upload
+In the manuals capability from 7.2/05 on the Aluna running on `:3030`, upload
 `Presupuesto año.docx` and download it from the record. It saves under that exact name.
 Upload a `.md` file, which is admitted. An `.xlsx` renamed `.docx` and a
 password-protected `.docx` are each refused, with their own sentences.
 
 ## Blocked by
 
-- modules/07-files-upload-store-serve/7.2-every-kind-and-many/issues/04-a-pdf-opens-in-the-browser.md
+- modules/07-files-upload-store-serve/7.2-every-kind-and-many/issues/05-a-pdf-opens-in-the-browser.md

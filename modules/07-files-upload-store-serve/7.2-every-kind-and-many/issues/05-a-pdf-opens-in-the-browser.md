@@ -13,7 +13,7 @@ Module 7 — Files: Upload, Store & Serve · Epic 7.2 — Every kind, and many
 ## What to build
 
 A field can accept documents, and a PDF opens in the browser from the open record. The
-other document formats download, which is 7.2/05's work.
+other document formats download, which is 7.2/06's work.
 
 **`accepts` gains `document`.** Admission gets its PDF row, and the issue records the
 extension it admits.
@@ -28,7 +28,7 @@ later in the chain is what blanks the viewer. Every response still carries `nosn
 from the open record through a link carrying `rel="noopener"`, chosen by the reference's
 verified type rather than the file's name (decision 4): `file-control.ts` writes the
 reference's type as `data-holds-type`, and a document without it downloads. A document few-shot example
-and item-renderer guidance land here, and 7.2/05 reuses them. Behavioral tokens gain
+and item-renderer guidance land here, and 7.2/06 reuses them. Behavioral tokens gain
 `document`, and the picker's `accept` includes `.pdf`.
 
 ## Acceptance criteria
@@ -54,3 +54,4 @@ and Firefox.
 
 - modules/07-files-upload-store-serve/7.1-one-photo-end-to-end/issues/09-alunas-questions-never-see-a-photos-key.md
 - modules/07-files-upload-store-serve/7.2-every-kind-and-many/issues/01-every-kind-is-drawn.md
+- modules/07-files-upload-store-serve/7.2-every-kind-and-many/issues/04-a-voice-note-records-in-the-field.md

@@ -168,7 +168,7 @@ The Handler prompts say how a required photo goes missing. Dependency rows the G
 required files. The question prompt no longer calls a required column always set.
 
 **Out of this issue's files.** A Handler's fragment loses Alpine directives (`x-*`, `@*`, `:*`),
-which the page's Alpine would otherwise run (`fragment-safety.ts`). 7.2/06 and 7.4/01 carry notes
+which the page's Alpine would otherwise run (`fragment-safety.ts`). 7.2/07 and 7.4/01 carry notes
 on a required `file[]` and on making a file field required by evolution.
 
 ## Findings from adversarial review, all fixed

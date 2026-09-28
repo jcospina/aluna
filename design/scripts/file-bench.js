@@ -138,7 +138,7 @@ const NAMED_AS = {
 
 /**
  * What admission finds inside the files this page pretends to pick whose names say otherwise:
- * a spreadsheet renamed `.docx`, and a Word document locked with a password (7.2/05).
+ * a spreadsheet renamed `.docx`, and a Word document locked with a password (7.2/06).
  *
  * @type {Record<string, "renamed" | "locked">}
  */

@@ -21,7 +21,7 @@ by `kind` without mapping types in SQL.
 
 **`accepts` names the families a field takes.** Four families exist: `image`, `video`,
 `audio` and `document`. In this epic the family enum holds `image` alone, and 7.2/02,
-7.2/03 and 7.2/04 each add their own. `accepts` is required-nullable in the provider
+7.2/03 and 7.2/05 each add their own. `accepts` is required-nullable in the provider
 schema, because OpenAI's strict structured outputs need every property in `required`. It
 is non-null only on a file field and never empty. It is stored in canonical order, so
 reordering it is no change.
@@ -29,7 +29,7 @@ reordering it is no change.
 **A file field is its own kind of type.** It gets `FILE_FIELD_TYPES`, separate from
 `LIST_FIELD_TYPES`. Joining the list types would make it searchable, demand a list-input
 mode, comma-split its values and let an empty submission clear it. `file[]` becomes the
-second member in 7.2/06. Every caller of `isListFieldType` is audited, and the audit is
+second member in 7.2/07. Every caller of `isListFieldType` is audited, and the audit is
 recorded in this issue. A file field is not searchable: its only text is a filename such
 as `IMG_4821.JPG`, and a match the card cannot show is worse than no match.
 
@@ -94,7 +94,7 @@ required-nullable on the provider's, and `null` turns into absence on the way in
 
 **Storage.** The DDL mapper gives a file field `TEXT` with a CHECK that the value is `NULL` or
 a JSON object. `JSON_SHAPE_BY_FIELD_TYPE` is total over the pantry, so `file[]` has to state
-its own shape in 7.2/06. The data tool refuses a non-null file value from generated code
+its own shape in 7.2/07. The data tool refuses a non-null file value from generated code
 (`FileFieldWriteError`), and so does the update port for a submitted file field. The read
 path fails closed on a non-null column, because nothing writes a reference before 7.1/04.
 A Handler cannot declare a `file` query-result column. That list lives in
