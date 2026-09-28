@@ -41,6 +41,19 @@ describe("a generated spec carrying a file field", () => {
     ]);
   });
 
+  test("passes the stage when a field takes videos, alone or beside pictures", async () => {
+    const clips = { ...PHOTO_FIELD, name: "clip", label: "Clip", accepts: ["video" as const] };
+    const either = { ...PHOTO_FIELD, name: "moment", label: "Moment", accepts: ["video", "image"] };
+    const { spec } = await generateSpec(
+      stageInput(photoSpec([CAPTION_FIELD, clips, either as typeof PHOTO_FIELD])),
+    );
+    const files = spec.schema.fields.filter((field) => field.type === "file");
+    expect(files.map((field) => [field.name, field.accepts])).toEqual([
+      ["clip", ["video"]],
+      ["moment", ["image", "video"]],
+    ]);
+  });
+
   test("passes the stage when it marks the file field required", async () => {
     const required = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, required: true }]);
     const { spec } = await generateSpec(stageInput(required));

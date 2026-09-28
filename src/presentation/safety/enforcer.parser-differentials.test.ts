@@ -78,6 +78,10 @@ describe("enforcer — a raw-text element cannot launder its content into markup
       ...SPLICES.map(splicedOpener),
       '<svg/><<a></a>![CDATA[><div x-init="alert(1)">]]>',
       "<img src=x onerror=alert(1)//",
+      `<video autoplay preload=auto autoplay src="${FILE_URL_PREFIX}k"><a></video><p>x</p>`,
+      "<audio autoplay><button></audio><video preload=none>",
+      "<svg><video autoplay/></svg><video/autoplay>",
+      "<video autoplay",
     ]) {
       const once = enforceItemMarkup(markup);
       expect(enforceItemMarkup(once), markup).toBe(once);

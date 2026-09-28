@@ -17,6 +17,7 @@ import {
   type BehavioralErrorCase,
   type CapabilityRow,
   type CapabilitySpec,
+  type FileFamily,
   hasActiveFileField,
   isFileFieldType,
   isSearchableTextType,
@@ -370,27 +371,45 @@ function buildItemRendererPrompt(spec: CapabilitySpec): string {
     "- Any URL you emit must be same-origin — a path — or an inline `data:image/*`. Never point at another host: a record does not fetch from anywhere else, which is the same rule that forbids `url(...)` in a style.",
     "- For string[] fields, narrow with Array.isArray, preserve element order, and escape each element independently. Do not stringify or comma-split the list as one scalar.",
     "",
-    buildItemRendererDesignInjection(layout),
+    buildItemRendererDesignInjection(layout, itemFileFieldRules(spec).length > 0),
     "",
     `Design direction (ui_intent.item.direction): ${spec.ui_intent.item.direction}`,
     "",
     "Declared item fields (the renderer receives exactly these names/types/labels):",
     itemFieldList(spec),
     "- A choice field's record value is one of its option `value` strings. Present the matching option `label`, never the raw stored value; fall back to the stored value only if no option matches.",
-    ...(showsFileField(spec) ? [ITEM_FILE_FIELD_RULE] : []),
+    ...itemFileFieldRules(spec),
     "",
     "Item generation context JSON:",
     JSON.stringify(itemGenerationContext(spec), null, 2),
   ].join("\n");
 }
 
-/** What the item renderer is told about a file field its card shows. */
-export const ITEM_FILE_FIELD_RULE = `- A file field's record value is \`${FILE_PROJECTION_SHAPE}\`, or \`null\` when the record holds no file. Draw the picture from \`url\` inside a \`media-frame\`, and draw the empty frame with a short note when the value is \`null\`. Never build a file address yourself. The card is announced by its own text, so when it also shows the field that describes the picture, such as a title, give the picture \`alt=""\` and a screen reader reads that text once. \`name\` is the file's name as uploaded, often something like IMG_4821.JPG, and describes nothing.`;
+/** What the item renderer is told about any file field its card shows. */
+export const ITEM_FILE_FIELD_RULE = `- A file field's record value is \`${FILE_PROJECTION_SHAPE}\`, or \`null\` when the record holds no file. Draw the file from \`url\` inside a \`media-frame\`, and draw the empty frame with a short note when the value is \`null\`. Never build a file address yourself. \`name\` is the file's name as uploaded, often something like IMG_4821.JPG, and describes nothing.`;
 
-function showsFileField(spec: CapabilitySpec): boolean {
-  return spec.schema.fields.some(
+/** How a card draws a photo. */
+export const ITEM_PHOTO_RULE = `- A photo is an \`<img>\`. The card is announced by its own text, so when it also shows the field that describes the picture, such as a title, give the picture \`alt=""\` and a screen reader reads that text once.`;
+
+/** How a card draws a video (Module 7 PLAN decisions 28 and 29): it shows one, and never plays it. */
+export const ITEM_VIDEO_RULE = `- A video is a \`<video muted playsinline>\` with no \`controls\`, \`autoplay\` or \`poster\`: the card shows it, and the open record plays it. Some browsers, iOS Safari among them, draw no first frame, so the frame may stay empty. Say in words beside it that the file is a video, such as "Video", so the card reads without a picture.`;
+
+/** How a card draws a field that takes more than one family. */
+export const ITEM_FAMILIES_RULE = `- A file field that takes several families holds one file at a time. Draw it by its \`kind\`: "image" is a photo and "video" is a video.`;
+
+/** The file rules for the families the card's shown file fields take, and nothing for a card with none. */
+function itemFileFieldRules(spec: CapabilitySpec): readonly string[] {
+  const shown = spec.schema.fields.filter(
     (field) => isFileFieldType(field.type) && spec.ui_intent.item.shows.includes(field.name),
   );
+  if (shown.length === 0) return [];
+  const takes = (family: FileFamily) => shown.some((field) => field.accepts?.includes(family));
+  return [
+    ITEM_FILE_FIELD_RULE,
+    ...(takes("image") ? [ITEM_PHOTO_RULE] : []),
+    ...(takes("video") ? [ITEM_VIDEO_RULE] : []),
+    ...(shown.some((field) => (field.accepts?.length ?? 0) > 1) ? [ITEM_FAMILIES_RULE] : []),
+  ];
 }
 
 function handlerFieldList(spec: CapabilitySpec, action: HandlerUnitName): string {

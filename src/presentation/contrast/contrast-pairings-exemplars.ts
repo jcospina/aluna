@@ -26,7 +26,9 @@ export const EXEMPLAR_PAIRINGS: readonly Pairing[] = [
       "src/builder/units/generation/few-shot-gallery.ts § span.text-bold.truncate[style] [color]",
       "src/builder/units/generation/few-shot-gallery.ts § span.text-bold[style] [color]",
       "src/builder/units/generation/few-shot-gallery.ts § span.text-xs.text-bold[style] [color]",
-      "src/builder/units/generation/few-shot-gallery.ts § time.text-bold[style] [color]",
+      "src/builder/units/generation/few-shot-media.ts § span.text-bold.truncate[style] [color]",
+      "src/builder/units/generation/few-shot-media.ts § span.text-bold[style] [color]",
+      "src/builder/units/generation/few-shot-media.ts § time.text-bold[style] [color]",
     ],
   },
   {

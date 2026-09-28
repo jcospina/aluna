@@ -8,7 +8,6 @@ const CONTENT_ATTRIBUTES: ReadonlySet<string> = new Set([
   "aria-label",
   "datetime",
   "label",
-  "poster",
   "src",
   "srcset",
   "title",

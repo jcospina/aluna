@@ -278,17 +278,24 @@ in ADR-0009, and in the architecture and design documents.
     `Content-Range`; that header's end is inclusive and `Bun.file().slice()`'s is
     exclusive. An unsatisfiable range gets a 416 with `bytes */size`, a multi-range falls
     back to a 200, `If-Range` is checked against a strong ETag that can be the key itself,
-    and `HEAD` gets the same headers.
+    and `HEAD` gets the same headers. As RFC 9110 has it, `HEAD` ignores Range. A span is
+    read whole from the opened file, at most 4 MiB of it, so a 206 carries its length: Bun
+    sends a stream chunked, and a range read that fails answers as absent instead of
+    arriving short. A player asks past a short span. *(7.2/02)*
 26. **Immutable caching for bytes, never for an absence.** A key is random and its bytes
     never change, so a 200 or 206 carries `public, max-age=31536000, immutable`, as the
     logo route's present picture does. Every other answer — a 404, a 416, a refusal while
     the incarnation closes — carries `no-store`, as the logo route's absence does. A
     browser that cached a file keeps its copy after the file is deleted.
 27. **Media and PDF open inline; everything else downloads** under its original name.
-    Every response carries `X-Content-Type-Options: nosniff`. Images, video and audio
-    carry their own `default-src 'none'; sandbox` policy, as the logo route does. A PDF
-    carries a policy of its own, because the app-wide `object-src 'none'` is reported to
-    blank Chrome's PDF viewer. 7.2 proves, through the app's full header middleware, that a
+    Every response carries `X-Content-Type-Options: nosniff`. Images carry their own
+    `default-src 'none'; sandbox` policy, as the logo route does. Video and audio carry
+    `default-src 'none'; media-src 'self'; sandbox allow-same-origin`: Chrome opens a video
+    in a tab as a page of its own making whose player fetches the file again, in cors mode
+    as a video, and a plain sandbox gives that page an opaque origin that refuses the fetch.
+    The page still runs no script, and the route lets a cors-mode request through only for a
+    player's destination. *(7.2/02)* A PDF carries a policy of its own, because the
+    app-wide `object-src 'none'` is reported to blank Chrome's PDF viewer. 7.2 proves, through the app's full header middleware, that a
     PDF opens in Chrome, Safari and Firefox and that video and audio play when opened in a
     tab of their own. A link that opens a file carries `rel="noopener"`.
 28. **No derivatives.** No thumbnails, no video posters. The platform HTML filter puts

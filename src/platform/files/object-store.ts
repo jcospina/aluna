@@ -27,7 +27,16 @@ export interface StagedObject {
   discard(): Promise<void>;
 }
 
-/** An object opened for reading. Its body closes the descriptor when it ends or is cancelled. */
+/** The bytes of an object a read asks for: `length` of them from `start`. */
+export interface ByteSpan {
+  readonly start: number;
+  readonly length: number;
+}
+
+/**
+ * An object opened for reading. `size` is the whole object's, and `body` holds the span asked for.
+ * The body closes the descriptor when it ends or is cancelled.
+ */
 export interface OpenedObject {
   readonly size: number;
   readonly body: ReadableStream<Uint8Array>;
@@ -38,8 +47,11 @@ export interface OpenedObject {
 export interface ObjectStore {
   /** Streams `chunks` into staging under `key`. A failure removes what it wrote and rethrows. */
   put(key: string, chunks: AsyncIterable<Uint8Array>): Promise<StagedObject>;
-  /** Opens the object now, or answers null when no regular file is there. */
-  get(key: string): Promise<OpenedObject | null>;
+  /**
+   * Opens the object now, or answers null when no regular file is there. The body holds `span`,
+   * the whole object without one, and a span past the object's end errors the body there.
+   */
+  get(key: string, span?: ByteSpan): Promise<OpenedObject | null>;
   /** Removes the object, staged copy first, so a racing `place` cannot leave bytes behind. */
   delete(key: string): Promise<void>;
   /** Always the same-origin address: the page's CSP and the HTML filter refuse any other. */
@@ -133,29 +145,30 @@ function readDescriptor(handle: FileHandle) {
 }
 
 /**
- * Reads `size` bytes one pull at a time, and closes the descriptor however the body ends. A file
- * that ends early errors the body, though Bun 1.3.12 still ends that response on the wire as if
- * whole; the serve route checks the size before it answers, which is as far as it can.
+ * Reads `span` one pull at a time, and closes the descriptor however the body ends. A file that
+ * ends early errors the body, though Bun 1.3.12 still ends that response on the wire as if whole;
+ * the serve route checks the size before it answers, which is as far as it can.
  */
 function readBody(
   descriptor: ReturnType<typeof readDescriptor>,
-  size: number,
+  span: ByteSpan,
 ): ReadableStream<Uint8Array> {
-  let position = 0;
+  let position = span.start;
+  const end = span.start + span.length;
   return new ReadableStream<Uint8Array>(
     {
       async pull(controller) {
         if (descriptor.closed()) return;
-        if (position >= size) {
+        if (position >= end) {
           await descriptor.close();
           return controller.close();
         }
-        const buffer = new Uint8Array(Math.min(READ_CHUNK_BYTES, size - position));
+        const buffer = new Uint8Array(Math.min(READ_CHUNK_BYTES, end - position));
         let bytesRead = 0;
         try {
           ({ bytesRead } = await descriptor.read(buffer, position));
           if (bytesRead === 0)
-            throw new Error(`The object ended after ${position} of ${size} bytes.`);
+            throw new Error(`The object ended after ${position} bytes, short of byte ${end}.`);
         } catch (error) {
           await descriptor.close();
           throw error;
@@ -170,7 +183,13 @@ function readBody(
   );
 }
 
-async function openObject(path: string): Promise<OpenedObject | null> {
+function requireSpan(span: ByteSpan): ByteSpan {
+  const whole = (n: number) => Number.isSafeInteger(n) && n >= 0;
+  if (!whole(span.start) || !whole(span.length)) throw new Error("A span is two whole numbers.");
+  return span;
+}
+
+async function openObject(path: string, span?: ByteSpan): Promise<OpenedObject | null> {
   let handle: FileHandle;
   try {
     handle = await open(path, READ_FLAGS);
@@ -185,7 +204,8 @@ async function openObject(path: string): Promise<OpenedObject | null> {
       await descriptor.close();
       return null;
     }
-    return { size: stats.size, body: readBody(descriptor, stats.size), close: descriptor.close };
+    const body = readBody(descriptor, span ?? { start: 0, length: stats.size });
+    return { size: stats.size, body, close: descriptor.close };
   } catch (error) {
     await descriptor.close();
     throw error;
@@ -220,7 +240,7 @@ export function createLocalObjectStore(root: string = resolveObjectStoreRoot()):
       await mkdir(staging, { recursive: true });
       return staged(key, await writeStaged(path, chunks));
     },
-    get: async (key) => openObject(objectPath(key)),
+    get: async (key, span) => openObject(objectPath(key), span && requireSpan(span)),
     async delete(key) {
       await rm(stagedPath(key), { force: true });
       await rm(objectPath(key), { force: true });

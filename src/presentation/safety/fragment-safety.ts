@@ -151,13 +151,17 @@ function carriesCode(name: string, value: string): boolean {
   return HTMX_SCRIPTABLE.has(name) && SCRIPT_PREFIX.test(decoded);
 }
 
-/** A swap past the target, a document of its own, or a script URL — `xlink:href` read as `href`. */
+/**
+ * A swap past the target, a document of its own, a script URL — `xlink:href` read as `href` — or a
+ * `crossorigin` load, which asks `/files/:key` for an answer a script could read.
+ */
 function reachesOut(name: string, value: string): boolean {
   const local = name.slice(name.lastIndexOf(":") + 1);
   return (
     OUT_OF_BAND_ATTRS.has(name) ||
     HTMX_EXTENSION.test(name) ||
     local === "srcdoc" ||
+    local === "crossorigin" ||
     (HANDLER_URL_ATTRS.has(local) && isDangerousUrl(value, local))
   );
 }

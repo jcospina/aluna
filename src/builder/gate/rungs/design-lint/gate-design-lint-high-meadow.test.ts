@@ -314,8 +314,8 @@ describe("the few-shot exemplars the generator is shown", () => {
     const rendered = FEW_SHOT_DESIGN_EXAMPLES.map(renderedExample);
     const all = rendered.join("");
 
-    expect(rendered).toHaveLength(3);
-    expect(all.match(/class="capability-item"/g)).toHaveLength(6);
+    const samples = FEW_SHOT_DESIGN_EXAMPLES.flatMap((example) => example.previewSamples);
+    expect(all.match(/class="capability-item"/g)).toHaveLength(samples.length);
     expect(all).toContain('class="capability-records capability-records--feed"');
     expect(all).toContain('class="capability-records capability-records--grid"');
 

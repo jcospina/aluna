@@ -43,7 +43,7 @@ export function hasActiveFileField(
 }
 
 /** The families a file field may take, in their canonical order. */
-export const FILE_FAMILIES = ["image"] as const;
+export const FILE_FAMILIES = ["image", "video"] as const;
 export type FileFamily = (typeof FILE_FAMILIES)[number];
 
 /**

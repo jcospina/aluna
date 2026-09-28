@@ -5,6 +5,7 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { zodSchema } from "ai";
 
+import { isAdmittedType } from "../../../../platform/files/admission.ts";
 import { requireFileLedgerRow } from "../../../../platform/files/ledger.test-support.ts";
 import {
   CAPTION_FIELD,
@@ -189,6 +190,15 @@ describe("the contract over file tokens", () => {
     for (const value of ["image", null]) {
       expect(() =>
         assertActionSuiteContract(photoSpec(), "create", createSuite(withInput(value))),
+      ).not.toThrow();
+    }
+  });
+
+  test("admits video where the field takes it, and still refuses it where it doesn't", () => {
+    const videos = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, accepts: ["image", "video"] }]);
+    for (const value of ["video", "image", null]) {
+      expect(() =>
+        assertActionSuiteContract(videos, "create", createSuite(withInput(value))),
       ).not.toThrow();
     }
   });
@@ -378,6 +388,20 @@ describe("the harness", () => {
       const form = scratchFormInput(photoSpec(), input, database);
       const row = requireFileLedgerRow(database, String(form.values.photo));
       expect(row).toMatchObject({ state: "pending", kind: "image", name: tokenFileName("image") });
+    });
+  });
+
+  test("posts a video token as a pending scratch video, of the type admission records", () => {
+    const videos = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, accepts: ["video"] }]);
+    withScratch(videos, (database) => {
+      const input = inputValuesToHandlerInput(videos, [
+        { field: "caption", value: "A day" },
+        { field: "photo", value: "video" },
+      ]);
+      const form = scratchFormInput(videos, input, database);
+      const row = requireFileLedgerRow(database, String(form.values.photo));
+      expect(row).toMatchObject({ state: "pending", kind: "video", name: tokenFileName("video") });
+      expect(isAdmittedType("video", row.mime)).toBe(true);
     });
   });
 

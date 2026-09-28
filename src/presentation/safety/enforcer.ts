@@ -8,7 +8,7 @@
 // out of its interpolation is seen as the elements it really forms. It neutralizes rather than
 // throws: a record that slipped past the gate must still render inertly, never crash a live view.
 // Conforming markup passes through unchanged, but for the loading attributes a served file's image
-// is given.
+// and every player are given.
 
 import { isOffOriginUrl, namesServedFile } from "./attribute-urls.ts";
 import { rewriteAttributes } from "./attribute-verdicts.ts";
@@ -26,15 +26,17 @@ import {
 
 /**
  * Return the allow-listed, inert form of one record's generated inner markup, with the attributes
- * a served file's image always carries. Pure and synchronous, and a second pass changes nothing.
+ * a served file's image and every player always carry. Pure and synchronous, and a second pass
+ * changes nothing.
  */
 export function enforceItemMarkup(innerHtml: string): string {
-  return completeServedImages(neutralizeItemMarkup(innerHtml));
+  return completeMedia(neutralizeItemMarkup(innerHtml));
 }
 
 /**
- * The enforcer without the image attributes it adds (Module 7 PLAN decision 28). Design lint diffs
- * a renderer against this: an attribute the platform supplies is not one the renderer got wrong.
+ * The enforcer without the loading attributes it settles (Module 7 PLAN decision 28). Design lint
+ * diffs a renderer against this: an attribute the platform supplies is not one the renderer got
+ * wrong.
  */
 export function neutralizeItemMarkup(innerHtml: string): string {
   const endTags = impliedEndTags();
@@ -104,14 +106,15 @@ function impliedEndTags(): ImpliedEndTags {
 }
 
 /**
- * A served file's image loads lazily and decodes off the main thread, whatever its template said.
- * A pass of its own over neutralized markup, so a second enforcement sees the same structure. An
- * `<img>` names the file itself, or through a `<source>` of the `<picture>` it sits in.
+ * A served file's image loads lazily and decodes off the main thread, and a player reads only its
+ * metadata, whatever its template said; neutralizing already took its `autoplay`. A pass of its
+ * own over neutralized markup, so a second enforcement sees the same structure. An `<img>` names the file itself, or
+ * through a `<source>` of the `<picture>` it sits in.
  */
-function completeServedImages(markup: string): string {
+function completeMedia(markup: string): string {
   const frames: MediaFrame[] = [];
   return new HTMLRewriter()
-    .on("*", { element: (element) => completeServedImage(element, frames) })
+    .on("*", { element: (element) => completeMediaElement(element, frames) })
     .transform(markup);
 }
 
@@ -121,8 +124,9 @@ interface MediaFrame {
   served: boolean;
 }
 
-function completeServedImage(element: HTMLRewriterTypes.Element, frames: MediaFrame[]): void {
+function completeMediaElement(element: HTMLRewriterTypes.Element, frames: MediaFrame[]): void {
   const tag = element.tagName.toLowerCase();
+  if (PLAYERS.has(tag)) setIfDifferent(element, "preload", "metadata");
   if (MEDIA_FRAMES.has(tag)) {
     openMediaFrame(element, tag, frames);
     return;
@@ -146,7 +150,8 @@ function openMediaFrame(
   element.onEndTag(() => void frames.pop());
 }
 
-const MEDIA_FRAMES: ReadonlySet<string> = new Set(["picture", "video", "audio"]);
+const PLAYERS: ReadonlySet<string> = new Set(["video", "audio"]);
+const MEDIA_FRAMES: ReadonlySet<string> = new Set(["picture", ...PLAYERS]);
 
 /** Set only a value that differs, so markup already carrying it passes byte-identical. */
 function setIfDifferent(element: HTMLRewriterTypes.Element, name: string, value: string): void {
@@ -165,6 +170,8 @@ function keptValue(tag: string, lower: string, value: string): string | null {
   if (lower === "class") return keptClass(value);
   if (lower === "style") return keptStyle(value);
   if (!isSafeAttr(tag, lower)) return null;
+  // A caption track that names a served file would fetch the video itself as text.
+  if (tag === "track" && lower === "src" && namesServedFile(value, lower)) return null;
   return URL_ATTRS.has(lower) && isOffOriginUrl(value, lower) ? null : value;
 }
 

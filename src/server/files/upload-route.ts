@@ -20,10 +20,7 @@ import {
   type PendingFile,
 } from "../../platform/files/ledger.ts";
 import type { ObjectStore, StagedObject } from "../../platform/files/object-store.ts";
-import {
-  ADD_FILE_AGAIN_SENTENCE,
-  NOT_ADMITTED_SENTENCES,
-} from "../../platform/files/refusal-copy.ts";
+import { ADD_FILE_AGAIN_SENTENCE, notAdmittedSentence } from "../../platform/files/refusal-copy.ts";
 import { FILE_UPLOAD_ROUTE } from "../../platform/files/upload-path.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import { activeFileFields, type FileFamily, getCapability } from "../../registry/index.ts";
@@ -94,7 +91,7 @@ function refuse(c: Context, status: 409 | 415, refusal: string, message: string)
 }
 
 function notAdmitted(c: Context, field: UploadField, error: FileAdmissionRefusal): Response {
-  return refuse(c, 415, error.reason, NOT_ADMITTED_SENTENCES[field.accepts[0]]);
+  return refuse(c, 415, error.reason, notAdmittedSentence(field.accepts));
 }
 
 /** The name to keep and the family its extension names, or the refusal owed before a byte is read. */

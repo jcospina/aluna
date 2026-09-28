@@ -1,9 +1,22 @@
-// File admission for the image rows (Module 7 PLAN decisions 1 to 4, ADR-0009). The table below is
-// the allowlist. The extension names a family, and the bytes may then pick any row of it, so a PNG
-// called `.jpg` is recorded as the PNG it is. A HEIC or HEIF major brand, TIFF and SVG match no
-// row. 7.2 adds the other families' rows. A leaf at runtime: the one import is a type.
+// File admission (Module 7 PLAN decisions 1 to 4, ADR-0009). The table below is the allowlist. The
+// extension names a family, and the bytes may then pick any row of it, so a PNG called `.jpg` is
+// recorded as the PNG it is. Containers are checked and codecs are not. A HEIC or HEIF brand, TIFF,
+// SVG and a Matroska that isn't WebM match no row. It imports only the byte tests, a leaf, and a
+// type.
+//
+// The video extensions admitted: mp4, m4v, mov, webm, ogv and ogg.
 
 import type { FileFamily } from "../../registry/fields/file.ts";
+import {
+  asciiAt,
+  bytesAt,
+  EBML_HEAD_BYTES,
+  isoMovie,
+  majorBrandIn,
+  quickTimeFits,
+  quickTimeMovie,
+  webmDocument,
+} from "./container-signatures.ts";
 
 /** The most of a body the bytes are read from before the rows must have decided. */
 export const SIGNATURE_WINDOW_BYTES = 64 * 1024;
@@ -32,23 +45,12 @@ interface SignatureRow {
   /** How many leading bytes {@link SignatureRow.matches} reads. */
   readonly headBytes: number;
   readonly matches: (head: Uint8Array) => boolean;
-}
-
-function bytesAt(head: Uint8Array, offset: number, expected: readonly number[]): boolean {
-  return expected.every((byte, index) => head[offset + index] === byte);
-}
-
-function asciiAt(head: Uint8Array, offset: number, text: string): boolean {
-  return bytesAt(
-    head,
-    offset,
-    [...text].map((char) => char.charCodeAt(0)),
-  );
-}
-
-/** An ISO-BMFF `ftyp` box whose major brand is one of `brands`; HEIC's and HEIF's are not here. */
-function majorBrandIn(head: Uint8Array, brands: readonly string[]): boolean {
-  return asciiAt(head, 4, "ftyp") && brands.some((brand) => asciiAt(head, 8, brand));
+  /** At the end of the body: whether what `matches` read fits the `total` bytes that arrived. */
+  readonly fits?: (head: Uint8Array, total: number) => boolean;
+  /** Declared types that name the container and no family, which the row takes as no claim. */
+  readonly familyless?: readonly string[];
+  /** The extensions its picker offers, when not every one it admits. */
+  readonly offers?: readonly string[];
 }
 
 const SIGNATURES: readonly SignatureRow[] = [
@@ -87,11 +89,56 @@ const SIGNATURES: readonly SignatureRow[] = [
     headBytes: 12,
     matches: (head) => majorBrandIn(head, ["avif", "avis"]),
   },
+  {
+    kind: "video",
+    mime: "video/mp4",
+    extensions: ["mp4", "m4v"],
+    headBytes: 12,
+    matches: isoMovie,
+  },
+  {
+    kind: "video",
+    mime: "video/quicktime",
+    extensions: ["mov"],
+    headBytes: 16,
+    matches: quickTimeMovie,
+    fits: quickTimeFits,
+  },
+  {
+    kind: "video",
+    mime: "video/webm",
+    extensions: ["webm"],
+    headBytes: EBML_HEAD_BYTES,
+    matches: webmDocument,
+  },
+  {
+    kind: "video",
+    mime: "video/ogg",
+    extensions: ["ogv", "ogg"],
+    headBytes: 4,
+    matches: (head) => asciiAt(head, 0, "OggS"),
+    familyless: ["application/ogg", "application/x-ogg"],
+    // A browser declares any `.ogg` a sound, which names the audio family, so a video's picker
+    // offers only `.ogv`. An `.ogg` sent with no claim is still admitted.
+    offers: ["ogv"],
+  },
 ];
 
 /** Every type admission records a file of `kind` as, in table order: what its picker offers. */
 export function admittedTypes(kind: string): readonly string[] {
   return [...new Set(SIGNATURES.filter((row) => row.kind === kind).map((row) => row.mime))];
+}
+
+/**
+ * What a picker for `families` offers: every type admission records them as, then every extension
+ * it admits, since a system names some files by a type no row records, as it does an `.m4v`.
+ */
+export function offeredTypes(families: readonly string[]): readonly string[] {
+  const rows = SIGNATURES.filter((row) => families.includes(row.kind));
+  const extensions = rows.flatMap((row) =>
+    (row.offers ?? row.extensions).map((extension) => `.${extension}`),
+  );
+  return [...new Set([...rows.map((row) => row.mime), ...extensions])];
 }
 
 /** Whether admission could have recorded a file of `kind` as `mime`. */
@@ -103,7 +150,12 @@ const TYPE_ALIASES: ReadonlyMap<string, string> = new Map([
   ["image/jpg", "image/jpeg"],
   ["image/pjpeg", "image/jpeg"],
   ["image/x-png", "image/png"],
+  ["video/x-m4v", "video/mp4"],
+  ["video/x-quicktime", "video/quicktime"],
 ]);
+
+/** The extensions whose container holds sound or picture alike. */
+const EITHER_FAMILY = new Set(["webm", "ogg"]);
 
 /** What an operating system sends when it has no idea: no claim, so nothing to contradict. */
 const NO_CLAIM = new Set(["", "application/octet-stream"]);
@@ -132,9 +184,14 @@ export function admitClaims(
   const extension = extensionOf(name);
   const row = SIGNATURES.find((candidate) => candidate.extensions.includes(extension));
   if (!row) throw new FileAdmissionRefusal("extension");
-  if (!accepts.includes(row.kind)) throw new FileAdmissionRefusal("not_accepted");
   const claimed = declaredType(declared);
-  if (!NO_CLAIM.has(claimed) && claimed !== row.mime) {
+  const named = /^(video|audio)\//.exec(claimed)?.[1];
+  // A WebM or an Ogg holds sound or picture alike, so its declared type names the family.
+  const kind = EITHER_FAMILY.has(extension) && named !== undefined ? named : row.kind;
+  if (!(accepts as readonly string[]).includes(kind) || kind !== row.kind) {
+    throw new FileAdmissionRefusal("not_accepted");
+  }
+  if (!NO_CLAIM.has(claimed) && !row.familyless?.includes(claimed) && claimed !== row.mime) {
     throw new FileAdmissionRefusal("declared_type");
   }
   return row.kind;
@@ -149,6 +206,7 @@ export class SignatureCheck {
   readonly #rows: readonly SignatureRow[];
   readonly #needed: number;
   #head = new Uint8Array(0);
+  #total = 0;
   #admitted: SignatureRow | undefined;
 
   constructor(kind: FileFamily) {
@@ -160,6 +218,7 @@ export class SignatureCheck {
   }
 
   inspect(chunk: Uint8Array): void {
+    this.#total += chunk.byteLength;
     if (this.#admitted) return;
     const room = this.#needed - this.#head.byteLength;
     const head = new Uint8Array(this.#head.byteLength + Math.min(room, chunk.byteLength));
@@ -172,6 +231,7 @@ export class SignatureCheck {
   /** At the end of the body: the type the bytes proved, or the refusal a short body earns. */
   finish(): AdmittedType {
     const row = this.#admitted ?? this.#decide();
+    if (row.fits && !row.fits(this.#head, this.#total)) throw new FileAdmissionRefusal("signature");
     return { kind: row.kind, mime: row.mime };
   }
 
@@ -182,7 +242,8 @@ export class SignatureCheck {
     );
     if (!row) throw new FileAdmissionRefusal("signature");
     this.#admitted = row;
-    this.#head = new Uint8Array(0);
+    // What `fits` reads at the end; a row without it keeps nothing.
+    this.#head = row.fits ? head.slice(0, row.headBytes) : new Uint8Array(0);
     return row;
   }
 }

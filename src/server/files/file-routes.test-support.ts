@@ -127,3 +127,23 @@ export function heldBody() {
     cancelled: () => cancelled,
   };
 }
+
+/** The app behind a real socket for `body`, which sees each request's abort signal. */
+export async function overSocket(
+  app: { fetch(request: Request): Response | Promise<Response> },
+  body: (url: URL, signals: readonly AbortSignal[]) => Promise<void>,
+) {
+  const signals: AbortSignal[] = [];
+  const server = Bun.serve({
+    port: 0,
+    fetch: (request) => {
+      signals.push(request.signal);
+      return app.fetch(request);
+    },
+  });
+  try {
+    await body(server.url, signals);
+  } finally {
+    server.stop(true);
+  }
+}

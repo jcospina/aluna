@@ -200,6 +200,18 @@ describe("a Handler's fragment opens no document of its own", () => {
       expect(enforceHandlerFragment(`<div ${attribute}>t</div>`).html).toBe("<div>t</div>");
     }
   });
+
+  // A cors-mode player load is the one `/files/:key` serves a page, so no Handler may ask for one.
+  test("crossorigin is removed from any player or picture, prefixed or not", () => {
+    for (const attribute of ["crossorigin", 'crossorigin="anonymous"', "data-crossorigin"]) {
+      expect(enforceHandlerFragment(`<video ${attribute} src="/files/k"></video>`).html).toBe(
+        '<video src="/files/k"></video>',
+      );
+      expect(enforceHandlerFragment(`<img ${attribute} src="/files/k">`).html).toBe(
+        '<img src="/files/k">',
+      );
+    }
+  });
 });
 
 describe("a Handler's fragment keeps no SVG link that could run", () => {

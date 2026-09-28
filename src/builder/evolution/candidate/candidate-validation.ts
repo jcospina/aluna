@@ -15,6 +15,7 @@ import {
   type CapabilitySpec,
   capabilitySpecSchema,
   isChoiceFieldType,
+  isFileFieldType,
   type SpecField,
   sameOrderedStrings,
 } from "../../../registry/index.ts";
@@ -169,6 +170,7 @@ function committedFieldIssues(
   }
   if (returned.type === committedField.type) {
     issues.push(...choiceOptionIssues(committedField, returned));
+    issues.push(...fileFamilyIssues(committedField, returned));
   }
   const transitionIssue = lifecycleTransitionIssue(committedField, returned);
   if (transitionIssue) issues.push(transitionIssue);
@@ -198,6 +200,29 @@ function choiceOptionIssues(
     ];
   }
   return choiceGroupIssues(committedField, returned);
+}
+
+/**
+ * A file field's stored files are of the families it took, so `accepts` may only widen: a family
+ * dropped would leave those files outside the field.
+ */
+function fileFamilyIssues(
+  committedField: SpecField,
+  returned: SpecField,
+): readonly CandidateValidationIssue[] {
+  if (!isFileFieldType(committedField.type)) return [];
+  const dropped = (committedField.accepts ?? []).find(
+    (family) => !(returned.accepts ?? []).includes(family),
+  );
+  if (dropped === undefined) return [];
+  return [
+    {
+      path: `schema.fields.${committedField.name}.accepts`,
+      message:
+        `file family "${dropped}" holds stored files; a committed family may not be dropped, ` +
+        "and accepts may only widen",
+    },
+  ];
 }
 
 /**

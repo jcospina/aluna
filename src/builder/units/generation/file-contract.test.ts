@@ -5,13 +5,24 @@
 import { describe, expect, test } from "bun:test";
 
 import { mintFileKey } from "../../../platform/files/ledger.ts";
-import { photoSpec } from "../../../registry/fields/file.test-support.ts";
-import type { CapabilitySpec } from "../../../registry/index.ts";
+import {
+  CAPTION_FIELD,
+  PHOTO_FIELD,
+  photoSpec,
+} from "../../../registry/fields/file.test-support.ts";
+import type { CapabilitySpec, FileFamily } from "../../../registry/index.ts";
 import { notesSpec } from "../../../registry/spec/spec.test-support.ts";
 import { projectFileLedgerRow } from "../../../runtime/data/index.ts";
 import { handlerContractDeclarations } from "../../generated-code-check.ts";
 import { checkGeneratedUnit } from "../safety/unit-checks.ts";
-import { buildUnitPrompt, ITEM_FILE_FIELD_RULE } from "./unit-prompts.ts";
+import { FEW_SHOT_DESIGN_EXAMPLES } from "./few-shot-gallery.ts";
+import {
+  buildUnitPrompt,
+  ITEM_FAMILIES_RULE,
+  ITEM_FILE_FIELD_RULE,
+  ITEM_PHOTO_RULE,
+  ITEM_VIDEO_RULE,
+} from "./unit-prompts.ts";
 
 const create = { kind: "handler", name: "create" } as const;
 
@@ -184,18 +195,41 @@ export default async function update({ input, mutation, present }: CapabilityUpd
 
 describe("the item renderer's prompt", () => {
   const item = { kind: "item-renderer", name: "item" } as const;
-  const showing = (shows: string[]): CapabilitySpec => {
-    const spec = photoSpec();
+  const showing = (shows: string[], accepts: FileFamily[] = ["image"]): CapabilitySpec => {
+    const spec = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, accepts }]);
     return { ...spec, ui_intent: { ...spec.ui_intent, item: { ...spec.ui_intent.item, shows } } };
   };
+  const RULES = [ITEM_FILE_FIELD_RULE, ITEM_PHOTO_RULE, ITEM_VIDEO_RULE, ITEM_FAMILIES_RULE];
+  const rulesIn = (prompt: string) => RULES.filter((rule) => prompt.includes(rule));
 
-  test("says what a shown file field arrives as, and that it may be null", () => {
-    const prompt = buildUnitPrompt(showing(["caption", "photo"]), item);
-    expect(prompt).toContain(ITEM_FILE_FIELD_RULE);
+  test("says what a shown file field arrives as, and how to draw each family it takes", () => {
+    const photos = buildUnitPrompt(showing(["caption", "photo"]), item);
+    expect(rulesIn(photos)).toEqual([ITEM_FILE_FIELD_RULE, ITEM_PHOTO_RULE]);
+    const videos = buildUnitPrompt(showing(["caption", "photo"], ["video"]), item);
+    expect(rulesIn(videos)).toEqual([ITEM_FILE_FIELD_RULE, ITEM_VIDEO_RULE]);
+    const either = buildUnitPrompt(showing(["photo"], ["image", "video"]), item);
+    expect(rulesIn(either)).toEqual(RULES);
+  });
+
+  test("tells a card that shows a video it never plays one, and reads without a first frame", () => {
+    for (const words of ["controls", "autoplay", "poster", "first frame", "muted playsinline"]) {
+      expect(ITEM_VIDEO_RULE).toContain(words);
+    }
+  });
+
+  test("shows the exemplars that draw a file only to a card that shows one", () => {
+    const files = FEW_SHOT_DESIGN_EXAMPLES.filter(({ onlyForFiles }) => onlyForFiles);
+    expect(files).not.toEqual([]);
+    for (const example of files) {
+      expect(buildUnitPrompt(showing(["photo"], ["video"]), item)).toContain(
+        example.rendererSource,
+      );
+      expect(buildUnitPrompt(showing(["caption"]), item)).not.toContain(example.rendererSource);
+    }
   });
 
   test("says nothing of files to a card that shows none", () => {
-    expect(buildUnitPrompt(showing(["caption"]), item)).not.toContain(ITEM_FILE_FIELD_RULE);
-    expect(buildUnitPrompt(notesSpec(), item)).not.toContain(ITEM_FILE_FIELD_RULE);
+    expect(rulesIn(buildUnitPrompt(showing(["caption"], ["image", "video"]), item))).toEqual([]);
+    expect(rulesIn(buildUnitPrompt(notesSpec(), item))).toEqual([]);
   });
 });

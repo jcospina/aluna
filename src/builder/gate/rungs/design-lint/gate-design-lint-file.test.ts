@@ -93,9 +93,61 @@ describe("a card that shows a file field", () => {
   });
 });
 
-describe("the photo exemplar", () => {
-  const example = FEW_SHOT_DESIGN_EXAMPLES.find(({ id }) => id === "photo_grid_tile");
-  if (!example) throw new Error("Expected the photo_grid_tile exemplar.");
+describe("a card whose file field takes photos and videos", () => {
+  const either = () => {
+    const spec = showingThePhoto();
+    const fields = spec.schema.fields.map((field) =>
+      field.name === "photo" ? { ...field, accepts: ["image" as const, "video" as const] } : field,
+    );
+    return { ...spec, schema: { fields } };
+  };
+  const byKind = (video: string) =>
+    renderer(
+      `!file ? "<span>Nothing yet</span>" : (file as { kind?: string }).kind === "video" ? ${video} : \`<img src="\${escapeHtml(file.url)}" alt="">\``,
+    );
+
+  test("passes when every family it takes is drawn inside the contract", () => {
+    const video =
+      '`<video src="${escapeHtml(file.url)}" muted playsinline></video><span>Video</span>`';
+    expect(findDesignViolation(either(), byKind(video))).toBeUndefined();
+  });
+
+  test("fails when it draws a video as a picture, or a photo as a video", () => {
+    const asPicture = '`<img src="${escapeHtml(file.url)}" alt=""><span>Video</span>`';
+    expect(findDesignViolation(either(), byKind(asPicture))).toContain(
+      "it draws a video with <img>, as if it were a photo",
+    );
+    const videosOnly = () => {
+      const spec = either();
+      const fields = spec.schema.fields.map((field) =>
+        field.name === "photo" ? { ...field, accepts: ["video" as const] } : field,
+      );
+      return { ...spec, schema: { fields } };
+    };
+    expect(findDesignViolation(videosOnly(), renderer(DRAWS_BOTH))).toContain(
+      "it draws a video with <img>",
+    );
+    const photoAsVideo = renderer(
+      'file ? `<video src="${escapeHtml(file.url)}" muted playsinline></video>` : "<span>None</span>"',
+    );
+    expect(findDesignViolation(showingThePhoto(), photoAsVideo)).toContain(
+      "it draws a photo with <video>, as if it were a video",
+    );
+  });
+
+  test("is reviewed down its video branch, not only the photo's", () => {
+    const controls = '`<video src="${escapeHtml(file.url)}" controls></video>`';
+    expect(findDesignViolation(either(), byKind(controls))).toContain(
+      "for a synthetic video record the platform enforcer had to neutralize the output",
+    );
+    const throws = '(() => { throw new Error("no video branch"); })()';
+    expect(findDesignViolation(either(), byKind(throws))).toContain("no video branch");
+  });
+});
+
+describe.each(["photo_grid_tile", "walk_media_feed"])("the %s exemplar", (id) => {
+  const example = FEW_SHOT_DESIGN_EXAMPLES.find((candidate) => candidate.id === id);
+  if (!example) throw new Error(`Expected the ${id} exemplar.`);
 
   function exemplarSpec(): CapabilitySpec {
     const base = validSpec();
@@ -107,7 +159,7 @@ describe("the photo exemplar", () => {
       schema: { fields: fields.map((field) => ({ ...field })) },
       ui_intent: {
         ...base.ui_intent,
-        collection: { ...base.ui_intent.collection, layout: "grid" },
+        collection: { ...base.ui_intent.collection, layout: example?.layout ?? "grid" },
         item: { ...base.ui_intent.item, shows: fields.map((field) => field.name) },
       },
     });

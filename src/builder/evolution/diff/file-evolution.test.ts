@@ -5,7 +5,11 @@
 import { describe, expect, test } from "bun:test";
 
 import { PHOTO_FIELD } from "../../../registry/fields/file.test-support.ts";
-import { type CapabilityRow, capabilitySpecFromRow } from "../../../registry/index.ts";
+import {
+  type CapabilityRow,
+  capabilitySpecFromRow,
+  type FileFamily,
+} from "../../../registry/index.ts";
 import { deriveAdditiveCapabilityMigration } from "../../../runtime/data/index.ts";
 import {
   type CandidateDraft,
@@ -24,10 +28,13 @@ function withPhoto(draft: CandidateDraft, photo: Record<string, unknown> = {}): 
 }
 
 /** The journal with a committed file field. */
-function journalWithPhoto(lifecycle: "active" | "inactive" = "active"): CapabilityRow {
+function journalWithPhoto(
+  lifecycle: "active" | "inactive" = "active",
+  accepts: FileFamily[] = ["image"],
+): CapabilityRow {
   const base = journalCapabilityRow();
   return journalCapabilityRow({
-    schema: { fields: [...base.schema.fields, { ...PHOTO_FIELD, lifecycle }] },
+    schema: { fields: [...base.schema.fields, { ...PHOTO_FIELD, lifecycle, accepts }] },
   });
 }
 
@@ -145,9 +152,61 @@ describe("candidate validation holds accepts to its rules", () => {
 
   test("refuses a file field whose accepts is missing, null, empty, unknown or repeated", () => {
     const at = `schema.fields.${journalCapabilityRow().schema.fields.length}.accepts`;
-    for (const accepts of [undefined, null, [], ["video"], ["image", "image"]]) {
+    for (const accepts of [undefined, null, [], ["pdf"], ["image", "image"]]) {
       const issues = rejection(journalCapabilityRow(), (draft) => withPhoto(draft, { accepts }));
       expect(issues.some((issue) => issue.path.startsWith(at))).toBe(true);
     }
+  });
+});
+
+describe("a committed file field's accepts", () => {
+  const widen = (draft: CandidateDraft) =>
+    Object.assign(photoOf(draft), { accepts: ["image", "video"] });
+
+  test("widens through the fact that moves admission and the writing suites, not the Handlers", () => {
+    const diff = workFor(journalWithPhoto(), widen);
+    expect(diff.facts).toEqual([{ kind: "file_families", field: "photo" }]);
+    expect(diff.workPlan.platformWork).toEqual(["file_admitted_families"]);
+    expect(diff.workPlan.regeneratedUnits).toEqual([]);
+    expect(diff.workPlan.gate.behavioral.actions).toEqual(["create", "update"]);
+  });
+
+  test("an authored reorder is no change, since accepts is held in canonical order", () => {
+    const row = journalWithPhoto("active", ["image", "video"]);
+    expect(
+      factsFor(row, (draft) => Object.assign(photoOf(draft), { accepts: ["video", "image"] })),
+    ).toEqual([]);
+  });
+
+  test("refuses a candidate that drops a committed family, before the Diff", () => {
+    for (const accepts of [["image"], ["video"]]) {
+      const issues = rejection(journalWithPhoto("active", ["image", "video"]), (draft) =>
+        Object.assign(photoOf(draft), { accepts }),
+      );
+      expect(issues.map((issue) => issue.path)).toContain("schema.fields.photo.accepts");
+    }
+    const swapped = rejection(journalWithPhoto(), (draft) =>
+      Object.assign(photoOf(draft), { accepts: ["video"] }),
+    );
+    expect(swapped.map((issue) => issue.path)).toContain("schema.fields.photo.accepts");
+  });
+
+  test("refuses a reactivation that drops a family, since the hidden column kept its files", () => {
+    const issues = rejection(journalWithPhoto("inactive", ["image", "video"]), (draft) =>
+      Object.assign(photoOf(draft), { lifecycle: "active", accepts: ["video"] }),
+    );
+    expect(issues.map((issue) => issue.path)).toContain("schema.fields.photo.accepts");
+  });
+
+  test("is frozen by a hide, as max_length is: a hide may not widen it either", () => {
+    const issues = rejection(journalWithPhoto(), (draft) =>
+      Object.assign(widen(draft), { lifecycle: "inactive" }),
+    );
+    expect(issues.map((issue) => issue.path)).toContain("schema.fields.photo");
+    expect(
+      factsFor(journalWithPhoto("inactive"), (draft) =>
+        Object.assign(widen(draft), { lifecycle: "active" }),
+      ),
+    ).toEqual(["file_families", "field_lifecycle"]);
   });
 });

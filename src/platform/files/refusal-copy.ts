@@ -8,10 +8,27 @@ import type { FileFamily } from "../../registry/fields/file.ts";
 export const ADD_FILE_AGAIN_SENTENCE =
   "I can’t save that file in this field. Mind adding it here again?";
 
-/** What a field says of a file admission refused, by the family the field takes. */
+/** What a field of one family says of a file admission refused. */
 export const NOT_ADMITTED_SENTENCES = {
   image: "That isn’t a photo I can show here. Mind picking a different one?",
+  video: "That isn’t a video I can play here. Mind picking a different one?",
 } as const satisfies Record<FileFamily, string>;
+
+const FAMILY_NOUNS = { image: "a photo", video: "a video" } as const satisfies Record<
+  FileFamily,
+  string
+>;
+
+/**
+ * What a field says of a file admission refused. A field that takes several families names them
+ * all, and keeps rather than shows or plays, as `design/controls.html` settles.
+ */
+export function notAdmittedSentence(accepts: readonly [FileFamily, ...FileFamily[]]): string {
+  if (accepts.length === 1) return NOT_ADMITTED_SENTENCES[accepts[0]];
+  const nouns = accepts.map((family) => FAMILY_NOUNS[family]);
+  const last = nouns.pop();
+  return `That isn’t ${nouns.join(", ")} or ${last} I can keep here. Mind picking a different one?`;
+}
 
 /** The cap as a person reads it: whole megabytes, as the drawn "500 MB" is, and never rounded up. */
 function sizeInWords(bytes: number): string {

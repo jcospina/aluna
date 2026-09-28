@@ -201,18 +201,9 @@ const ELEMENT_ATTRS: Readonly<Record<string, ReadonlySet<string>>> = {
   source: new Set(["src", "srcset", "sizes", "type", "media", "width", "height"]),
   // `controls` is the one media attribute the item wrapper cannot honour: a record is a
   // `<button>`, so a transport control inside one is unreachable and invalid markup besides.
-  video: new Set([
-    "src",
-    "poster",
-    "width",
-    "height",
-    "muted",
-    "loop",
-    "autoplay",
-    "playsinline",
-    "preload",
-  ]),
-  audio: new Set(["src", "muted", "loop", "autoplay", "preload"]),
+  // A card never starts a player, and Module 7 makes no posters (PLAN decision 28).
+  video: new Set(["src", "width", "height", "muted", "loop", "playsinline", "preload"]),
+  audio: new Set(["src", "muted", "loop", "preload"]),
   track: new Set(["src", "kind", "srclang", "label", "default"]),
   time: new Set(["datetime"]),
   data: new Set(["value"]),
@@ -230,7 +221,7 @@ const ELEMENT_ATTRS: Readonly<Record<string, ReadonlySet<string>>> = {
 };
 
 /** URL-bearing attributes whose value is scheme-checked before it is kept. */
-export const URL_ATTRS: ReadonlySet<string> = new Set(["src", "srcset", "poster", "cite"]);
+export const URL_ATTRS: ReadonlySet<string> = new Set(["src", "srcset", "cite"]);
 
 /** Whether `name` is a keepable attribute on an allowed `tag` (lowercased inputs). */
 export function isSafeAttr(tag: string, name: string): boolean {

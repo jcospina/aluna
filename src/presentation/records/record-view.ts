@@ -12,6 +12,7 @@
 // destroying a record starts by opening it (PLAN decision 22).
 
 import { capabilityActionUrl } from "#shell/routes.js";
+import { RECORD_TITLE_ATTRIBUTE } from "#shell/shell-dom.js";
 import { ALUNA_RECORD_ID_MARKER } from "../../runtime/router/wire/wire-protocol.ts";
 import { escapeHtml } from "../../server/http/html.ts";
 import { busyLabelAttribute, DELETING_RECORD_LABEL } from "../controls/busy-label.ts";
@@ -65,6 +66,45 @@ export function renderRecordFormBar(label: string, controlAttributes: string): s
   );
 }
 
+/** The most of a title a way back names: a long first line can't push the bar off the window. */
+const TITLE_MAX_CHARACTERS = 40;
+
+const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+
+/** `text` cut to the title's length by what a reader sees as characters, so no emoji is split. */
+function clipped(text: string): string {
+  const characters = [...GRAPHEMES.segment(text)].map(({ segment }) => segment);
+  if (characters.length <= TITLE_MAX_CHARACTERS) return text;
+  return `${characters
+    .slice(0, TITLE_MAX_CHARACTERS - 1)
+    .join("")
+    .trimEnd()}…`;
+}
+
+/**
+ * What the record's render view calls the record on its way back: the first line of its first
+ * filled text field as it was saved, or its noun when it has none. Never the capability's name,
+ * which the form's own way back to the collection already carries.
+ */
+export function recordTitle(
+  capability: RenderableCapability,
+  record: Readonly<Record<string, unknown>>,
+): string {
+  for (const field of capability.schema.fields) {
+    if (field.lifecycle !== "active" || field.type !== "string") continue;
+    const value = record[field.name];
+    const line = typeof value === "string" ? (value.trim().split(/\r?\n/)[0] ?? "").trim() : "";
+    if (line !== "") return clipped(line);
+  }
+  const [first = "", ...rest] = capability.noun;
+  return `${first.toUpperCase()}${rest.join("")}`;
+}
+
+/** The record title a surface carries, escaped for the attribute it rides. */
+export function recordTitleAttribute(title: string): string {
+  return ` ${RECORD_TITLE_ATTRIBUTE}="${escapeHtml(title)}"`;
+}
+
 /**
  * Render one record's view: the back control, then the record's form in edit mode, with the
  * deletion confirmation beside it. A capability that cannot update renders nothing at all.
@@ -78,7 +118,8 @@ export function renderRecordView(
   const itemTargetId = escapeHtml(itemElementIdForTemplate(templateId));
   return (
     `<div class="capability-record-view" ${RECORD_VIEW_ATTR}` +
-    ` data-item-target-id="${itemTargetId}">` +
+    ` data-item-target-id="${itemTargetId}"` +
+    `${recordTitleAttribute(recordTitle(capability, record))}>` +
     renderRecordFormBar(capability.label, ` ${RECORD_BACK_ATTR}`) +
     renderEditForm(capability, record) +
     renderDeleteConfirmation(capability, record) +
