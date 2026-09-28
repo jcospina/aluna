@@ -1290,17 +1290,23 @@
         <p class="sm">
           A video keeps one control in the frame, play and the time, in a corner so the picture
           stays whole. There is no poster, and some browsers draw no first frame, so the video's
-          glyph stands behind it and shows wherever nothing is drawn. The full player, with seeking,
-          belongs to a render view of the record, which is not drawn yet.
+          glyph stands behind it and shows wherever nothing is drawn. Open, on the line under the
+          frame, takes the window to the record's render view, where the video plays in full.
         </p>
         <p class="sm">
           The row's actions are squares exactly as tall as the control, and a sound's toggle is a
           fill rather than a box, because a button drawn inside the drawn well would read as two
-          boxes. A file of the wrong kind is refused in the field, as a photo field refuses one; the
-          wording of those three sentences is a draft for 7.2 to settle.
+          boxes. The first square is where the file goes: a sound opens in the render view, a PDF
+          opens in a tab of its own, and any other document downloads under its own name. A file the
+          browser won't play loses its play control, the kind's glyph stands in its place, and the
+          field says it can't play it to a screen reader. Pick the one it can't play to watch that
+          happen.
         </p>
 
-        <div class="forms">
+        <div
+          class="forms"
+          style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr))"
+        >
           <div>
             <div class="note" data-file-bench style="margin-bottom: 14px; padding: 12px">
               <div class="row">
@@ -1320,6 +1326,14 @@
                   data-target="file-video"
                 >
                   A PDF
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="video-refused"
+                  data-target="file-video"
+                >
+                  A video it can’t play
                 </button>
               </div>
             </div>
@@ -1360,6 +1374,14 @@
                   data-target="file-audio"
                 >
                   A PDF
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="sound-refused"
+                  data-target="file-audio"
+                >
+                  A sound it can’t play
                 </button>
               </div>
             </div>
@@ -1410,6 +1432,8 @@
               data-kind="document"
               data-holds-name="repotting-guide.pdf"
               data-holds-size="184320"
+              data-holds-src="./assets/media/repotting-guide.pdf"
+              data-holds-type="application/pdf"
             >
               <span class="field__label caps" id="file-document-label">Care sheet</span>
               <div data-file-body></div>
@@ -1418,36 +1442,399 @@
               >
             </div>
           </div>
+
+          <div>
+            <div class="note" data-file-bench style="margin-bottom: 14px; padding: 12px">
+              <div class="row">
+                <span class="caps">Pick</span>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="docx"
+                  data-target="file-word"
+                >
+                  A Word file
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="video"
+                  data-target="file-word"
+                >
+                  A video
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="renamed"
+                  data-target="file-word"
+                >
+                  A spreadsheet renamed .docx
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="locked"
+                  data-target="file-word"
+                >
+                  A Word file with a password
+                </button>
+              </div>
+            </div>
+            <div
+              class="field file"
+              id="file-word"
+              data-file-field
+              data-kind="document"
+              data-holds-name="Presupuesto año.docx"
+              data-holds-size="48128"
+              data-holds-src="./assets/media/presupuesto.docx"
+              data-holds-type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            >
+              <span class="field__label caps" id="file-word-label">Budget</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="file-word-guidance"
+                >The nursery’s quote for the year.</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <h3 class="kicker" style="margin-top: 30px">A field that takes several families</h3>
+        <p class="sm">
+          A field is a frame only when every family it takes fills one, a photo and a video. Any
+          field that takes a sound or a document is a row, because a frame can't show a document and
+          a row can show a photo, small. Its picker offers every family it takes, its empty well
+          names them all, and so does its refusal.
+        </p>
+        <div
+          class="forms"
+          style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr))"
+        >
+          <div>
+            <div class="note" data-file-bench style="margin-bottom: 14px; padding: 12px">
+              <div class="row">
+                <span class="caps">Pick</span>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="sound"
+                  data-target="file-mixed"
+                >
+                  A sound
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="pdf"
+                  data-target="file-mixed"
+                >
+                  A PDF
+                </button>
+                <button
+                  class="btn btn--outline btn--sm"
+                  type="button"
+                  data-file-pretend="photo"
+                  data-target="file-mixed"
+                >
+                  A photo
+                </button>
+              </div>
+            </div>
+            <div class="field file" id="file-mixed" data-file-field data-kind="audio document">
+              <span class="field__label caps" id="file-mixed-label"
+                >Talk notes <span class="field__optional">optional</span></span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="file-mixed-guidance"
+                >The recording of the talk, or the notes you took.</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <h3 class="kicker" style="margin-top: 30px">Inside the open record</h3>
+        <p class="sm">
+          A card is a button, and a button can't hold a player or a link, so a card shows a file and
+          the open record plays, opens or downloads it. A video's card is its frame over the
+          window's well, with its kind and length in words under it, because there is no poster and
+          some browsers draw no first frame. A sound's or a document's card says what it holds in
+          words.
+        </p>
+        <div class="records records--grid" style="max-width: 560px; margin: 14px 0 22px">
+          <button class="record" type="button">
+            <span class="media-frame media-frame--wide" style="align-self: stretch"
+              ><video
+                src="./assets/media/repotting.mp4"
+                preload="metadata"
+                muted
+                playsinline
+              ></video></span
+            >
+            <span class="record__text"
+              ><b class="record__title">Repotting the monstera</b
+              ><span class="record__detail">Video · 0:18</span></span
+            >
+          </button>
+          <button class="record" type="button">
+            <span class="media-frame media-frame--wide" style="align-self: stretch"
+              ><video
+                src="./assets/media/greenhouse-walk.mov"
+                preload="metadata"
+                muted
+                playsinline
+              ></video></span
+            >
+            <span class="record__text"
+              ><b class="record__title">A walk through the greenhouse</b
+              ><span class="record__detail">Video · 0:42</span></span
+            >
+          </button>
+          <button class="record" type="button">
+            <span class="record__text"
+              ><b class="record__title">Watering notes</b
+              ><span class="record__detail">Audio · 0:06</span></span
+            >
+          </button>
+          <button class="record" type="button">
+            <span class="record__text"
+              ><b class="record__title">Care sheet</b
+              ><span class="record__detail">PDF · 180 KB</span></span
+            >
+          </button>
+        </div>
+        <p class="xs">
+          The second card's video draws no first frame, which is how iOS Safari shows every video
+          here: the well and the words under it carry the card.
+        </p>
+        <p class="sm">
+          The form's control only previews a video or a sound. Its Open takes the window to the
+          record's render view, which holds the file's full player under a back control. Opening a
+          file doesn't leave the record: the form stays as it was, edits and uploads included, and
+          nothing asks first. The back control names the record by its title, or New and the
+          record's noun while it is being created, and Back returns the keyboard to the Open that
+          was pressed.
+        </p>
+        <p class="sm">
+          The player has play and pause, the time so far, a line to drag or step along, and the
+          length. The file's name, size and download link sit under it. The line is ruled, as the
+          upload's progress line is, because it neither divides nor encloses; the square that marks
+          the place is drawn, in the close hand. When the browser won't play the file, a drawn
+          region the size of the player stands in its place, with a sentence saying it can't play it
+          and the download link.
+        </p>
+        <div class="row">
+          <span class="caps">Plays</span>
+          <span class="segmented" role="group" aria-label="Files the render view plays">
+            <button type="button" aria-pressed="true" data-file-view-show="video">Video</button>
+            <button type="button" aria-pressed="false" data-file-view-show="audio">Sound</button>
+          </span>
+          <span class="caps">Won’t play</span>
+          <span class="segmented" role="group" aria-label="Files the browser won’t play">
+            <button type="button" aria-pressed="false" data-file-view-show="video-refused">
+              Video
+            </button>
+            <button type="button" aria-pressed="false" data-file-view-show="audio-refused">
+              Sound
+            </button>
+          </span>
+        </div>
+        <div
+          class="stage stage--flush stage--paper"
+          style="padding: clamp(10px, 4vw, 22px); max-width: 560px; margin-top: 14px"
+          data-file-view-stage
+        >
+          <div class="detail">
+            <div class="detail__bar">
+              <button class="detail__back" type="button" data-file-view-back>
+                <span class="detail__arrow"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    width="12"
+                    height="12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3"
+                    aria-hidden="true"
+                  >
+                    <path d="M14 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round"></path>
+                  </svg></span
+                >
+                <span>Monstera</span>
+              </button>
+              <b class="detail__title" data-file-view-title>monstera-new-pot.mp4</b>
+            </div>
+            <div data-file-view></div>
+          </div>
+        </div>
+
+        <h3 class="kicker" style="margin-top: 30px">Many files</h3>
+        <p class="sm">
+          A field that holds many files is a column of rows, one per file in the order they were
+          picked, with a well at its foot that adds more. Each row is the row a single field draws:
+          a sound keeps its toggle and its time, a photo shows itself small, and a video, which has
+          no frame here, opens in the render view to play. One square opens or downloads the file,
+          except a photo's, and the last square removes it. There is no grip, because the order is
+          the order of picking: removing one and adding another is how it changes.
+        </p>
+        <p class="sm">
+          Every file travels on its own the moment it is picked, so a pick of two is two rows
+          filling at once, each with a Stop, and the save waits until the last one lands. Removing a
+          row that is still travelling stops its upload. A list names every file it refuses from one
+          picking. How many files a list holds is the platform's to set; this one holds six so you
+          can reach it.
+        </p>
+        <div class="note" data-file-bench style="margin: 22px 0 14px; padding: 12px">
+          <div class="row">
+            <span class="caps">Pick</span>
+            <button
+              class="btn btn--outline btn--sm"
+              type="button"
+              data-file-pretend="pdf docx"
+              data-target="file-list"
+            >
+              A PDF and a Word file
+            </button>
+            <button
+              class="btn btn--outline btn--sm"
+              type="button"
+              data-file-pretend="video"
+              data-target="file-list"
+            >
+              A video
+            </button>
+            <button
+              class="btn btn--outline btn--sm"
+              type="button"
+              data-file-pretend="photo"
+              data-target="file-list"
+            >
+              A photo
+            </button>
+            <button
+              class="btn btn--outline btn--sm"
+              type="button"
+              data-file-pretend="pdf docx video notes"
+              data-target="file-list"
+            >
+              Four at once
+            </button>
+            <button
+              class="btn btn--outline btn--sm"
+              type="button"
+              data-file-pretend="photo big"
+              data-target="file-list"
+            >
+              Two it refuses
+            </button>
+          </div>
+        </div>
+        <div
+          class="stage stage--flush stage--paper"
+          style="padding: clamp(10px, 4vw, 22px); max-width: 560px"
+        >
+          <div class="form">
+            <div
+              class="field file"
+              id="file-list"
+              data-file-list
+              data-kind="video document"
+              data-file-cap="6"
+              data-holds='[{"name":"repotting-guide.pdf","size":184320,"url":"./assets/media/repotting-guide.pdf","kind":"document","type":"application/pdf"},{"name":"monstera-new-pot.mp4","size":38797312,"url":"./assets/media/repotting.mp4","duration":18,"kind":"video"}]'
+            >
+              <span class="field__label caps" id="file-list-label">Attachments</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="file-list-guidance"
+                >Anything you’d hand over with the plant.</span
+              >
+            </div>
+            <div class="form__actions">
+              <button class="btn btn--primary" type="button" data-held-save>
+                <span data-held-save-label>Save changes</span>
+              </button>
+              <button class="btn btn--outline" type="button" data-file-cancel>Cancel</button>
+            </div>
+          </div>
         </div>
 
         <div class="cols" style="margin-top: 30px">
           <div class="note note--sky">
             <h4>The refusals, word for word</h4>
             <p class="sm">
-              A file that is not a photo:
+              Each of the field's refusals takes the guidance's place. The well turns to the alert
+              fill only when the field is empty; a refused replacement leaves the kept file, and its
+              well, as they were.
+            </p>
+            <p class="sm">
+              A file of a family the field doesn't take, one sentence for each family:
               <em>That isn’t a photo I can show here. Mind picking a different one?</em>
+              <em>That isn’t a video I can play here. Mind picking a different one?</em>
+              <em>That isn’t an audio file I can play here. Mind picking a different one?</em>
+              <em>That isn’t a document I can keep here. Mind picking a different one?</em>
+              A field that takes several families names them all, and says keep, because show and
+              play each fit only one family:
+              <em
+                >That isn’t an audio file or a document I can keep here. Mind picking a different
+                one?</em
+              >
+            </p>
+            <p class="sm">
+              A file whose contents aren't what its name says, and a Word document locked with a
+              password, each get a sentence of their own:
+              <em
+                >That isn’t the Word document its name says it is. Mind picking a different one?</em
+              >
+              <em
+                >That Word document has a password on it, so I can’t keep it. Mind saving a copy
+                without one?</em
+              >
+            </p>
+            <p class="sm">
               A file over the cap, whatever its kind:
               <em
                 >That’s over 500 MB, more than I can keep in one file. Mind picking a smaller one?</em
               >
-              The other kinds say the same of themselves, as drafts:
-              <em>That isn’t a video I can play here.</em>
-              <em>That isn’t a sound I can play here.</em>
-              <em>That isn’t a document I can keep here.</em>
+              A list names the file it refuses, because several may be travelling at once:
+              <em
+                >coffee-beans.jpg isn’t a video or a document I can keep here. Mind picking a
+                different one?</em
+              >
+              <em
+                >night-sky-panorama.png is over 500 MB, more than I can keep in one file. Mind
+                picking a smaller one?</em
+              >
             </p>
             <p class="sm">
-              Each takes the guidance's place. The well turns to the alert fill only when the field
-              is empty; a refused replacement leaves the kept file, and its well, as they were.
+              A pick that would take a list past its count is refused whole, before anything
+              travels:
+              <em
+                >This field takes up to 6 files, and that would make 7. Mind removing one first?</em
+              >
+              It asks for <em>a few</em> when one isn't enough, and ends
+              <em>Mind picking fewer?</em>
+              while there is still room. A save that reaches the server with too many says what the
+              list holds:
+              <em>This field takes up to 6 files, and it has 7. Mind removing one?</em>
+            </p>
+            <p class="sm">
+              A video or a sound that won't play says so where its player would be, and the form's
+              preview says it to a screen reader. A browser reports a codec it lacks and a file it
+              couldn't fetch alike, so the sentence claims neither, and a list names the file:
+              <em>I can’t play this video here.</em>
+              <em>I can’t play this audio file here.</em>
+              <em>I can’t play creek-at-dusk.m4a here.</em>
             </p>
           </div>
           <div class="note note--sun">
             <h4>The save that waits</h4>
             <p class="sm">
               While anything in a form is uploading, its save says what it is waiting on —
-              <em>I’m waiting on the photo…</em>, or <em>the files…</em> when there is more than one
-              — and does nothing when pressed. It stays in the tab order, so a keyboard reaches it
-              and a screen reader says why, and its fill is held back rather than faded, so what it
-              says stays legible. Replace the site photo under
+              <em>I’m waiting on the photo…</em>, <em>the video…</em>, <em>the audio file…</em> or
+              <em>the document…</em>, <em>the file…</em> for a field that takes several families,
+              and <em>the files…</em> when more than one is travelling — and does nothing when
+              pressed. It stays in the tab order, so a keyboard reaches it and a screen reader says
+              why, and its fill is held back rather than faded, so what it says stays legible.
+              Replace the site photo under
               <a href="#form">A record, assembled</a>
               to watch it.
             </p>
@@ -1828,6 +2215,39 @@
                   </td>
                   <td class="sm">The fields under <a href="#files">Files</a></td>
                 </tr>
+                <tr>
+                  <td>C18</td>
+                  <td>
+                    <strong>The card shows a file; the record plays it.</strong>
+                    The form's control only previews a video or a sound, and its Open takes the
+                    window to the record's render view, where the full player seeks. A PDF opens in
+                    a tab of its own and any other document downloads under its own name. A file the
+                    browser can't play shows its download link where the player would be
+                  </td>
+                  <td class="sm">Inside the open record, under <a href="#files">Files</a></td>
+                </tr>
+                <tr>
+                  <td>C19</td>
+                  <td>
+                    <strong>Many files are a list of rows, in the order they were picked.</strong>
+                    Each file travels on its own and holds the save until it lands, and removing a
+                    travelling row stops it. There is no grip. A pick past the list's count is
+                    refused whole, and a list names every file it refuses
+                  </td>
+                  <td class="sm">Many files, under <a href="#files">Files</a></td>
+                </tr>
+                <tr>
+                  <td>C20</td>
+                  <td>
+                    <strong>A field is a frame only when every family it takes fills one.</strong>
+                    A field that takes a sound or a document is a row, because a frame can't show a
+                    document and a row can show a photo. The held file's own kind decides how it
+                    previews
+                  </td>
+                  <td class="sm">
+                    A field that takes several families, under <a href="#files">Files</a>
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -1855,6 +2275,14 @@
           </p>
         </div>
 
+        <div class="note note--sun">
+          <h4>How many files should a list hold?</h4>
+          <p class="sm">
+            The server refuses a list past its count, and nothing has set that count yet. This
+            page's list holds six so the refusal is easy to reach. The list's own issue, 7.2/06,
+            needs the product's number.
+          </p>
+        </div>
         <div class="note note--sun">
           <h4>The date and number pickers are still the browser's</h4>
           <p class="sm">
