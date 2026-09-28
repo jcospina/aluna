@@ -100,8 +100,9 @@ export function scratchFileProjection(
   spec: CapabilitySpec,
   field: SpecField,
   name: string,
+  family?: FileFamily,
 ): CapabilityFileProjection {
-  return projectFileLedgerRow(scratchPendingFile(spec, field, name, PROBE_KEY));
+  return projectFileLedgerRow(scratchPendingFile(spec, field, name, PROBE_KEY, family));
 }
 
 export interface ScratchSubmission {

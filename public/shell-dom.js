@@ -62,6 +62,12 @@ export const FILE_FIELD_ATTRIBUTES = Object.freeze({
   required: "data-file-required",
 });
 
+/**
+ * What the record's render view names its way back by, drawn on the surface a record's form sits in:
+ * the record's title, or New and its noun while it is being created.
+ */
+export const RECORD_TITLE_ATTRIBUTE = "data-record-title";
+
 /** How long the collection search waits after a keystroke before it asks the server. */
 export const DEFAULT_SEARCH_DEBOUNCE_MS = 300;
 

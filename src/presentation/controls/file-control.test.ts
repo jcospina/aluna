@@ -6,7 +6,7 @@ import { describe, expect, test } from "bun:test";
 
 import { FILE_FIELD_HOOKS as HOOKS } from "#design/file-field.js";
 import { FILE_FIELD_ATTRIBUTES as WIRE } from "#shell/shell-dom.js";
-import { admittedTypes } from "../../platform/files/admission.ts";
+import { offeredTypes } from "../../platform/files/admission.ts";
 import { resolveMaxFileBytes } from "../../platform/files/file-cap.ts";
 import { FILE_URL_PREFIX } from "../../platform/files/file-url.ts";
 import { mintFileKey } from "../../platform/files/ledger.ts";
@@ -76,9 +76,28 @@ describe("the photo control's host", () => {
 
   test("offers every type admission takes a photo as, and no HEIC or HEIF", () => {
     const offered = hostOf(renderCreateForm(photos())).getAttribute(HOOKS.accept);
-    expect(offered?.split(",")).toEqual([...admittedTypes(KIND)]);
+    expect(offered?.split(",")).toEqual([...offeredTypes([KIND])]);
     expect(offered).not.toContain("heic");
     expect(offered).not.toContain("heif");
+    expect(offered).not.toContain("video");
+  });
+
+  test("names every family a field takes, and offers each one's types and extensions", () => {
+    const moments = photos({
+      fields: [CAPTION_FIELD, { ...PHOTO_FIELD, accepts: ["image", "video"] }],
+    });
+    const host = hostOf(renderCreateForm(moments));
+    expect(host.getAttribute(HOOKS.kind)).toBe("image video");
+    const offered = host.getAttribute(HOOKS.accept)?.split(",") ?? [];
+    expect(offered).toEqual([...offeredTypes(["image", "video"])]);
+    for (const type of ["image/jpeg", "video/mp4", "video/quicktime", "video/webm", "video/ogg"]) {
+      expect(offered).toContain(type);
+    }
+    for (const extension of [".mp4", ".m4v", ".mov", ".webm", ".ogv", ".jpg"]) {
+      expect(offered).toContain(extension);
+    }
+    // A browser declares an `.ogg` a sound, so a field without sound doesn't offer one.
+    expect(offered).not.toContain(".ogg");
   });
 
   test("has nowhere to send a file when the capability has no incarnation to receive it", () => {
@@ -104,6 +123,7 @@ describe("the photo control's host", () => {
     expect(host.getAttribute(HOOKS.holdsName)).toBe("dawn.jpg");
     expect(host.getAttribute(HOOKS.holdsSize)).toBe("2048");
     expect(host.getAttribute(HOOKS.holdsSrc)).toBe(`${FILE_URL_PREFIX}${key}`);
+    expect(host.getAttribute(HOOKS.holdsType)).toBe(projection(key).mime);
     expect(await photoValue(form)).toBe(key);
     expect(postedInput(host).getAttribute(WIRE.heldKey)).toBe(key);
   });
@@ -151,11 +171,15 @@ describe("the photo control's host", () => {
   test("escapes the label and the held file's name it draws", () => {
     const hostile = '<img src=x onerror="alert(1)">';
     const capability = photos({ fields: [CAPTION_FIELD, { ...PHOTO_FIELD, label: hostile }] });
-    const record = { id: "r1", caption: "Dawn", photo: projection(mintFileKey(), hostile) };
+    const photo = { ...projection(mintFileKey(), hostile), mime: `video/mp4"><img src=x>` };
+    const record = { id: "r1", caption: "Dawn", photo };
     for (const form of [renderCreateForm(capability), renderEditForm(capability, record)]) {
       expect(form).not.toContain("<img");
       expect(form).toContain("&lt;img src=x");
     }
+    expect(hostOf(renderEditForm(capability, record)).getAttribute(HOOKS.holdsType)).toBe(
+      photo.mime,
+    );
   });
 });
 

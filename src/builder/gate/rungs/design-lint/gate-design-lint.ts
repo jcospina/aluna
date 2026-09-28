@@ -48,6 +48,7 @@ import type { CapabilityGateInput, DesignLintAttempt, DesignLintGateResult } fro
 import { loadItemRenderer } from "../../gate-internal.ts";
 import { scratchFileProjection } from "../../gate-scratch-files.ts";
 import { scratchFileName } from "../../gate-scratch-names.ts";
+import { fileKindViolation } from "./gate-file-kinds.ts";
 import { observableItemRecordContent } from "./gate-item-content.ts";
 import { findInlineStyleViolation } from "./inline-style-scan.ts";
 
@@ -285,6 +286,14 @@ function reviewProbe(
     };
   }
 
+  const misdrawn = fileKindViolation(probe.record, inner);
+  if (misdrawn) {
+    return {
+      inner,
+      violation: offContractMessage(`for a ${probe.label} record ${misdrawn}`, probe),
+    };
+  }
+
   const enforced = neutralizeItemMarkup(inner);
   if (enforced !== inner) {
     return {
@@ -303,7 +312,7 @@ function reviewProbe(
 interface DesignProbe {
   readonly label: string;
   readonly record: PresentableRecord;
-  readonly kind: "baseline" | "contrast" | "hostile";
+  readonly kind: "baseline" | "contrast" | "family" | "hostile";
   /** Set on a contrast probe: the one `item.shows` field this record varies. */
   readonly contrastFor?: string;
 }
@@ -325,6 +334,7 @@ function buildProbeRecords(spec: CapabilitySpec): readonly DesignProbe[] {
       record: contrastingRecord(spec, fieldName),
       contrastFor: fieldName,
     })),
+    ...familyProbes(spec),
   ];
   for (const [index, payload] of HOSTILE_FIELD_VALUES.entries()) {
     probes.push({
@@ -334,6 +344,28 @@ function buildProbeRecords(spec: CapabilitySpec): readonly DesignProbe[] {
     });
   }
   return probes;
+}
+
+/**
+ * A record for each further family a shown file field takes, holding a file of it, so a renderer
+ * that draws by `kind` is reviewed down every branch rather than the first family's alone.
+ */
+function familyProbes(spec: CapabilitySpec): readonly DesignProbe[] {
+  const baseline = recordWith(spec, (field) => syntheticValue(spec, field));
+  return spec.schema.fields
+    .filter(
+      (field) => isFileFieldType(field.type) && spec.ui_intent.item.shows.includes(field.name),
+    )
+    .flatMap((field) =>
+      (field.accepts ?? []).slice(1).map((family) => ({
+        label: `synthetic ${family}`,
+        kind: "family" as const,
+        record: {
+          ...baseline,
+          [field.name]: scratchFileProjection(spec, field, scratchFileName("synthetic"), family),
+        },
+      })),
+    );
 }
 
 /**

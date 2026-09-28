@@ -142,6 +142,76 @@ describe("the local object store's bytes", () => {
   });
 });
 
+describe("the local object store's spans", () => {
+  const bytes = sampleFile("isom", 1_500_000);
+  let key: string;
+  beforeEach(async () => {
+    key = mintFileKey();
+    await (await store.put(key, chunksOf(bytes, 64 * 1024))).place();
+  });
+
+  const read = async (start: number, length: number) => {
+    const opened = await store.get(key, { start, length });
+    return {
+      size: opened?.size,
+      bytes: new Uint8Array(await new Response(opened?.body).arrayBuffer()),
+    };
+  };
+
+  test("reads only the bytes asked for, and knows the whole object's size", async () => {
+    for (const [start, length] of [
+      [0, 1],
+      [1000, 5000],
+      [700_000, 600_000],
+      [1_499_999, 1],
+      [0, 1_500_000],
+      [42, 0],
+    ] as const) {
+      expect(await read(start, length)).toEqual({
+        size: 1_500_000,
+        bytes: bytes.subarray(start, start + length),
+      });
+    }
+  });
+
+  test("errors a span that runs past the object's end", async () => {
+    const opened = await store.get(key, { start: 1_400_000, length: 200_000 });
+    await expect(new Response(opened?.body).arrayBuffer()).rejects.toThrow("ended after");
+  });
+
+  test("opens nothing for a span that isn't two whole numbers", async () => {
+    const before = openRegularFiles();
+    for (const span of [
+      { start: -1, length: 10 },
+      { start: 0, length: -1 },
+      { start: 0.5, length: 10 },
+      { start: 0, length: Number.NaN },
+      { start: Number.POSITIVE_INFINITY, length: 1 },
+    ]) {
+      await expect(store.get(key, span)).rejects.toThrow("two whole numbers");
+    }
+    expect(openRegularFiles()).toBe(before);
+  });
+
+  test("keeps streaming a span opened before its object was deleted", async () => {
+    const opened = await store.get(key, { start: 300_000, length: 1_000_000 });
+    await store.delete(key);
+    const streamed = new Uint8Array(await new Response(opened?.body).arrayBuffer());
+    expect(streamed).toEqual(bytes.subarray(300_000, 1_300_000));
+  });
+
+  test("gives its descriptor back when a span ends or is cancelled", async () => {
+    const before = openRegularFiles();
+    await read(10, 700_000);
+    expect(openRegularFiles()).toBe(before);
+    const cancelled = await store.get(key, { start: 10, length: 1_000_000 });
+    const reader = cancelled?.body.getReader();
+    await reader?.read();
+    await reader?.cancel();
+    expect(openRegularFiles()).toBe(before);
+  });
+});
+
 describe("the local object store's keys", () => {
   test("deletes a key from staging first and from its place, and a missing key is no failure", async () => {
     const placed = await store.put(mintFileKey(), chunksOf(sampleFile("avif")));

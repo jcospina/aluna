@@ -98,7 +98,7 @@ describe("accepts fails closed", () => {
     for (const accepts of [null, [], [...FILE_FAMILIES, ...FILE_FAMILIES]]) {
       expect(refusedAt(withPhoto({ accepts }))).toEqual(["schema.fields.1.accepts"]);
     }
-    for (const family of ["video", "pdf", "IMAGE", ""]) {
+    for (const family of ["pdf", "movie", "IMAGE", "Video", ""]) {
       expect(refusedAt(withPhoto({ accepts: [family] }))).toEqual(["schema.fields.1.accepts.0"]);
     }
   });

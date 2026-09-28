@@ -28,7 +28,11 @@ import {
 } from "../fields/field-renderer.ts";
 import { capabilityCountLabelId, renderCollectionCountLabel } from "./collection-count.ts";
 import { inkSeedAttr } from "./ink-seed.ts";
-import { itemElementIdForTemplate, renderRecordFormBar } from "./record-view.ts";
+import {
+  itemElementIdForTemplate,
+  recordTitleAttribute,
+  renderRecordFormBar,
+} from "./record-view.ts";
 
 export { itemElementIdForTemplate } from "./record-view.ts";
 
@@ -205,7 +209,8 @@ export function renderCollection(options: CollectionOptions): string {
     renderSearchFeedback(capability) +
     `<p class="capability-empty">Nothing here yet — add your first ${escapeHtml(capability.noun)} above.</p>` +
     `</div>` +
-    `<div class="capability-collection__create" x-ref="createPanel" x-show="createOpen" x-cloak>` +
+    `<div class="capability-collection__create" x-ref="createPanel" x-show="createOpen" x-cloak` +
+    `${recordTitleAttribute(`New ${capability.noun}`)}>` +
     renderRecordFormBar(capability.label, ` @click="${backToTrigger}"`) +
     renderCreateForm(capability) +
     `</div>` +

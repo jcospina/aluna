@@ -73,6 +73,22 @@ describe("what the upload route's answer means", () => {
     });
   });
 
+  test("an admitted file carries the family and type its bytes proved, and no other", () => {
+    const answer = { key: "k2", url: "/files/k2", name: "steps.webm", size: 9 };
+    const video = { ...answer, kind: "video", mime: "video/webm" };
+    expect(settleUpload(201, JSON.stringify(video), LIMITS).held).toEqual({
+      name: "steps.webm",
+      size: 9,
+      url: "/files/k2",
+      kind: "video",
+      type: "video/webm",
+    });
+    for (const kind of ["movie", 7, null, "<b>"]) {
+      const held = settleUpload(201, JSON.stringify({ ...answer, kind }), LIMITS).held;
+      expect(held.kind).toBeUndefined();
+    }
+  });
+
   test("a refusal the route wrote is said in its own words", () => {
     const notAPhoto = JSON.stringify({
       refusal: "signature",

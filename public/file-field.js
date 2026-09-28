@@ -15,6 +15,7 @@ import {
   settleFileFields,
   uploadingIn,
 } from "../design/scripts/file-field.js";
+import { kindsIn } from "../design/scripts/file-parts.js";
 import { watchArrivals } from "./dom-arrivals.js";
 import { registerRegionRelease } from "./region-scope.js";
 import { FILE_NAME_HEADER, onCreateFinished, FILE_FIELD_ATTRIBUTES as WIRE } from "./shell-dom.js";
@@ -91,12 +92,22 @@ export function settleUpload(status, body, limits) {
   throw new Error(`The upload failed with status ${status}.`);
 }
 
-/** @param {Record<string, unknown>} answer @returns {Admitted | undefined} */
-function admittedFrom({ key, url, name, size }) {
+/**
+ * The file as the route admitted it, with the family and type its bytes proved, so a video the
+ * field took is previewed as one whatever its name says.
+ *
+ * @param {Record<string, unknown>} answer
+ * @returns {Admitted | undefined}
+ */
+function admittedFrom({ key, url, name, size, kind, mime }) {
   const named = typeof key === "string" && typeof url === "string" && typeof name === "string";
-  return named && Number.isSafeInteger(size)
-    ? { held: { name, size: /** @type {number} */ (size), url }, key }
-    : undefined;
+  if (!named || !Number.isSafeInteger(size)) return undefined;
+  const [family] = kindsIn(typeof kind === "string" ? kind : "");
+  /** @type {Held} */
+  const held = { name, size: /** @type {number} */ (size), url };
+  if (family) held.kind = family;
+  if (typeof mime === "string") held.type = mime;
+  return { held, key };
 }
 
 /** @param {Record<string, unknown>} answer */

@@ -8,7 +8,6 @@
 // them now is `gate-design-lint-high-meadow.test.ts`, which composes each sample through
 // the real presentation adapter rather than serving it.
 
-import { fileUrl } from "../../../platform/files/file-url.ts";
 import { ALLOWED_CLASSES } from "../../../presentation/safety/vocabulary.ts";
 import {
   PALETTE_COLOR_TOKENS,
@@ -16,14 +15,9 @@ import {
   TYPE_SIZE_TOKENS,
   tokenList,
 } from "../../../presentation/tokens/design-tokens.ts";
-import {
-  FILE_FAMILIES,
-  type FieldType,
-  isFileFieldType,
-  type SpecField,
-  type UiCollectionLayout,
-  type UiFormIntent,
-} from "../../../registry/index.ts";
+import type { SpecField, UiCollectionLayout, UiFormIntent } from "../../../registry/index.ts";
+import { PHOTO_GRID_TILE, WALK_MEDIA_FEED } from "./few-shot-media.ts";
+import { ESCAPE_HELPER_SOURCE, fields } from "./few-shot-parts.ts";
 
 export interface FewShotPreviewCapability {
   readonly id: string;
@@ -43,26 +37,17 @@ export interface FewShotDesignExample {
   readonly capability: FewShotPreviewCapability;
   readonly previewSamples: readonly FewShotPreviewSample[];
   readonly rendererSource: string;
+  /**
+   * Shown only to a card that shows a file, so a card of text alone isn't taught its frame. The
+   * photo tile is not marked: it is the gallery's one grid composition, which every grid card needs.
+   */
+  readonly onlyForFiles?: boolean;
 }
 
 export interface FewShotPreviewSample {
   readonly record: Readonly<Record<string, unknown>>;
   readonly previewInnerHtml: string;
 }
-
-/** The key the photo exemplar's preview names, served at `/files/<key>` like any stored photo. */
-const PREVIEW_PHOTO_KEY = "3f6c1a2e-8b4d-4e7a-9c1f-5d2b7a9e0c41";
-
-const ESCAPE_HELPER_SOURCE = [
-  "function escapeHtml(value: unknown): string {",
-  "  return String(value)",
-  '    .replaceAll("&", "&amp;")',
-  '    .replaceAll("<", "&lt;")',
-  '    .replaceAll(">", "&gt;")',
-  '    .replaceAll(\'"\', "&quot;")',
-  '    .replaceAll("\'", "&#39;");',
-  "}",
-].join("\n");
 
 export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
   {
@@ -153,106 +138,8 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
       ESCAPE_HELPER_SOURCE,
     ].join("\n"),
   },
-  {
-    id: "photo_grid_tile",
-    title: "Media-forward grid tile",
-    layout: "grid",
-    suitedFor: "Visual records where the picture should carry the scan pattern.",
-    composition:
-      "Large square media frame, bold caption, and vivid metadata chips. The picture owns the tile while the text still scans in a responsive grid, and a record without one keeps its frame.",
-    notes: [
-      "Uses the media-frame primitive, whose own tinted fill gives the box presence without a boundary — the platform draws every line, and nothing inside a window casts a shadow.",
-      "Draws the picture from its url with empty alt text, because the title beside it already names the card.",
-      "Draws the empty frame with a short note when the photo is null, so a record saved before its picture was added still reads as a tile.",
-      "Leaves loading and decoding out: the platform sets both on every picture it serves.",
-    ],
-    capability: {
-      id: "photo_roll",
-      noun: "photo",
-      label: "Photo roll",
-      schema: {
-        fields: fields([
-          ["photo", "file", false],
-          ["title", "string", true],
-          ["place", "string", false],
-          ["taken_on", "date", false],
-        ]),
-      },
-      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
-    },
-    previewSamples: [
-      {
-        record: {
-          id: "photo-1",
-          photo: {
-            url: fileUrl(PREVIEW_PHOTO_KEY),
-            name: "IMG_4821.JPG",
-            kind: "image",
-            mime: "image/jpeg",
-            size: 48213,
-          },
-          title: "Morning market colors",
-          place: "Valledupar",
-          taken_on: "2026-07-08",
-        },
-        previewInnerHtml: [
-          '<div class="stack gap-2">',
-          '<figure class="media-frame media-frame--square w-full" style="margin: 0; aspect-ratio: 1 / 1; min-height: 12rem;">',
-          `<img src="${fileUrl(PREVIEW_PHOTO_KEY)}" alt="" loading="lazy" decoding="async">`,
-          "</figure>",
-          '<span class="text-xl text-bold line-clamp-2">Morning market colors</span>',
-          '<div class="cluster gap-1 text-xs">',
-          '<span class="text-bold truncate" style="background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">Valledupar</span>',
-          '<time class="text-bold" style="background-color: var(--sun); color: var(--ink); padding: var(--space-1) var(--space-1);" datetime="2026-07-08">2026-07-08</time>',
-          "</div>",
-          "</div>",
-        ].join(""),
-      },
-      {
-        record: {
-          id: "photo-2",
-          photo: null,
-          title: "Workshop wall before launch",
-          place: "Bogota",
-          taken_on: "2026-07-09",
-        },
-        previewInnerHtml: [
-          '<div class="stack gap-2">',
-          '<figure class="media-frame media-frame--square w-full" style="margin: 0; aspect-ratio: 1 / 1; min-height: 12rem;">',
-          '<div class="flex items-center justify-center" style="height: 100%;"><span class="text-sm text-subtle">No photo yet</span></div>',
-          "</figure>",
-          '<span class="text-xl text-bold line-clamp-2">Workshop wall before launch</span>',
-          '<div class="cluster gap-1 text-xs">',
-          '<span class="text-bold truncate" style="background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">Bogota</span>',
-          '<time class="text-bold" style="background-color: var(--sun); color: var(--ink); padding: var(--space-1) var(--space-1);" datetime="2026-07-09">2026-07-09</time>',
-          "</div>",
-          "</div>",
-        ].join(""),
-      },
-    ],
-    rendererSource: [
-      "export default function renderItem(record: Record<string, unknown>): string {",
-      "  const photo = record.photo as { url: string } | null;",
-      "  const title = escapeHtml(record.title);",
-      '  const place = escapeHtml(record.place ?? "Unplaced");',
-      '  const takenOn = escapeHtml(record.taken_on ?? "");',
-      "  const media = photo",
-      '    ? `<img src="${escapeHtml(photo.url)}" alt="">`',
-      '    : \'<div class="flex items-center justify-center" style="height: 100%;"><span class="text-sm text-subtle">No photo yet</span></div>\';',
-      "",
-      '  return `<div class="stack gap-2">',
-      '    <figure class="media-frame media-frame--square w-full" style="margin: 0; aspect-ratio: 1 / 1; min-height: 12rem;">${media}</figure>',
-      '    <span class="text-xl text-bold line-clamp-2">${title}</span>',
-      '    <div class="cluster gap-1 text-xs">',
-      '      <span class="text-bold truncate" style="background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">${place}</span>',
-      '      <time class="text-bold" style="background-color: var(--sun); color: var(--ink); padding: var(--space-1) var(--space-1);" datetime="${takenOn}">${takenOn}</time>',
-      "    </div>",
-      "  </div>`;",
-      "}",
-      "",
-      ESCAPE_HELPER_SOURCE,
-    ].join("\n"),
-  },
+  PHOTO_GRID_TILE,
+  WALK_MEDIA_FEED,
   {
     id: "saved_link_metadata_feed",
     title: "Compact metadata row",
@@ -340,7 +227,13 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
   },
 ];
 
-export function buildItemRendererDesignInjection(layout: UiCollectionLayout): string {
+export function buildItemRendererDesignInjection(
+  layout: UiCollectionLayout,
+  showsFiles = false,
+): string {
+  const examples = FEW_SHOT_DESIGN_EXAMPLES.filter(
+    (example) => showsFiles || !example.onlyForFiles,
+  );
   return [
     "Injected design contract and few-shot gallery:",
     "",
@@ -370,7 +263,7 @@ export function buildItemRendererDesignInjection(layout: UiCollectionLayout): st
     "- Treat these as range examples for the contract, not templates to clone.",
     "- Keep the export shape and safety discipline, but choose hierarchy, ordering, density, and emphasis from this capability's own fields.",
     "- Prefer examples with the matching collection layout, then borrow only small composition ideas from the others when useful.",
-    ...FEW_SHOT_DESIGN_EXAMPLES.flatMap(formatExampleForPrompt),
+    ...examples.flatMap(formatExampleForPrompt),
   ].join("\n");
 }
 
@@ -390,17 +283,4 @@ function formatExampleForPrompt(example: FewShotDesignExample, index: number): s
 
 function allowedClassList(): string {
   return [...ALLOWED_CLASSES].sort().join(", ");
-}
-
-function fields(
-  rows: readonly (readonly [name: string, type: FieldType, required: boolean])[],
-): SpecField[] {
-  return rows.map(([name, type, required]) => ({
-    name,
-    label: name,
-    type,
-    required,
-    lifecycle: "active",
-    ...(isFileFieldType(type) ? { accepts: [...FILE_FAMILIES] } : {}),
-  }));
 }

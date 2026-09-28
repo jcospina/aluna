@@ -78,6 +78,7 @@ export const AUDITED_SHEETS: readonly string[] = [
   // The gallery's exemplars paint through inline `style` attributes and are fed verbatim into
   // the item-renderer prompt as approved examples, so a failure here is one the platform teaches.
   "src/builder/units/generation/few-shot-gallery.ts",
+  "src/builder/units/generation/few-shot-media.ts",
 ];
 
 /**

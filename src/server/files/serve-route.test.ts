@@ -12,7 +12,12 @@ import { openRegularFiles, sampleFile } from "../../platform/files/sample-files.
 import { UNKNOWN_INCARNATION_ID } from "../../registry/incarnations.test-support.ts";
 import { createReadGateCoordinator } from "../../runtime/concurrency/read-gates.ts";
 import { IMMUTABLE, NO_STORE } from "../http/cache-headers.ts";
-import { answeredReference, PHOTOS, useFileRoutes } from "./file-routes.test-support.ts";
+import {
+  answeredReference,
+  overSocket,
+  PHOTOS,
+  useFileRoutes,
+} from "./file-routes.test-support.ts";
 import { INERT_IMAGE_POLICY } from "./serve-route.ts";
 
 const files = useFileRoutes();
@@ -159,26 +164,6 @@ describe("/files/:key", () => {
   });
 });
 
-/** The app behind a real socket for `body`, which sees each request's abort signal. */
-async function overSocket(
-  app: ReturnType<typeof files.app>,
-  body: (url: URL, signals: readonly AbortSignal[]) => Promise<void>,
-) {
-  const signals: AbortSignal[] = [];
-  const server = Bun.serve({
-    port: 0,
-    fetch: (request) => {
-      signals.push(request.signal);
-      return app.fetch(request);
-    },
-  });
-  try {
-    await body(server.url, signals);
-  } finally {
-    server.stop(true);
-  }
-}
-
 describe("/files/:key on the wire", () => {
   test("sends the whole file", async () => {
     const bytes = sampleFile("jpeg", 3_000_000);
@@ -298,6 +283,6 @@ describe("/files/:key and what its row says", () => {
     const loaded = { headers: { "sec-fetch-mode": "no-cors", "sec-fetch-dest": "image" } };
     const picture = await files.app().request(fileUrl(key), loaded);
     expectInert(picture, "image/jpeg");
-    expect(picture.headers.get("vary")?.toLowerCase()).toContain("sec-fetch-mode");
+    expect(picture.headers.get("vary")?.toLowerCase()).toBe("sec-fetch-mode, sec-fetch-dest");
   });
 });

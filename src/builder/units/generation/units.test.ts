@@ -887,7 +887,7 @@ describe("unit generation with bounded fix loop — item-renderer prompt", () =>
         ),
       ).not.toEqual([]);
     }
-    for (const example of FEW_SHOT_DESIGN_EXAMPLES) {
+    for (const example of FEW_SHOT_DESIGN_EXAMPLES.filter(({ onlyForFiles }) => !onlyForFiles)) {
       expect(feedPrompt).toContain(example.title);
       expect(feedPrompt).toContain(example.rendererSource);
     }
@@ -996,7 +996,7 @@ describe("unit generation with bounded fix loop — read, few-shot, and present-
   });
 
   test("curates diverse repo-only few-shot exemplars, including a token-disciplined style hatch", () => {
-    expect(FEW_SHOT_DESIGN_EXAMPLES).toHaveLength(3);
+    expect(FEW_SHOT_DESIGN_EXAMPLES.length).toBeGreaterThanOrEqual(3);
     expect(new Set(FEW_SHOT_DESIGN_EXAMPLES.map((example) => example.layout))).toEqual(
       new Set(["feed", "grid"]),
     );

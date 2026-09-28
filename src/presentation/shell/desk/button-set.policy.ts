@@ -49,12 +49,40 @@ describe("the button set", () => {
       const shell = rule.exec(SHELL)?.[1] ?? "";
       const filled = variant !== "outline";
       expect(manifest.includes("--btn-fill:"), `${variant} in the manifest`).toBe(filled);
-      // The product sets `background` directly; outline's is the transparent one.
-      expect(/background:\s*transparent/.test(shell), `${variant} in the product`).toBe(!filled);
+      // The product sets `background` directly; outline's is the manifest's hook, which the base
+      // below leaves transparent and only a control that asks for paper over a picture fills.
+      const unfilled = /background:\s*(transparent|var\(--btn-fill\))/.test(shell);
+      expect(unfilled, `${variant} in the product`).toBe(!filled);
     }
     // And the base carries no fill of its own, which is what makes outline a name for
     // something rather than a second way of spelling nothing.
     expect(MANIFEST).toMatch(/\.btn\s*\{[^}]*--btn-fill:\s*transparent/);
+  });
+
+  test("fills a button through the hook only where a rule names a face, or paper over a picture", () => {
+    // Outline's product rule reads the hook, so a rule setting it on a button with no face of its
+    // own would fill an outline button. Every setter outside the manifest is named here.
+    const setters: string[] = [];
+    for (const [path, css] of shippedStylesheets()) {
+      if (path.endsWith("form-controls.css")) continue;
+      const bare = css.replace(/\/\*[\s\S]*?\*\//g, "");
+      for (const found of bare.matchAll(/([^{}]+)\{[^}]*--btn-fill\s*:/g)) {
+        setters.push((found[1] ?? "").trim());
+      }
+    }
+    expect(setters.sort()).toEqual(['.btn--primary[aria-disabled="true"]', ".file__play"]);
+  });
+
+  test("is filled through the hook by no script and no page, only by those rules", () => {
+    const pages = ["public", "design"].flatMap((root) =>
+      [...new Bun.Glob("**/*.{js,html}").scanSync({ cwd: root })]
+        .filter((name) => !name.startsWith("vendor/"))
+        .map((name) => `${root}/${name}`),
+    );
+    expect(pages.length).toBeGreaterThan(0);
+    for (const path of pages) {
+      expect(readSource(path), `${path} sets the button fill`).not.toContain("--btn-fill");
+    }
   });
 
   test("keeps no name the design system refuses, anywhere it ships", () => {

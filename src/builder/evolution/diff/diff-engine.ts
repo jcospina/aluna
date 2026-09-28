@@ -17,7 +17,6 @@ import {
   type FieldType,
   FULL_CAPABILITY_TOOLS,
   isChoiceFieldType,
-  isListFieldType,
   isSearchableTextType,
   type SpecField,
   sameOrderedStrings,
@@ -26,6 +25,11 @@ import { canonicalCapabilityLabel } from "../../../registry/labels.ts";
 import { handlersWithMovedFileContract } from "../../generated-code-check.ts";
 import { detectChoiceFacts } from "./diff-choice.ts";
 import { detectFormIntentFacts } from "./diff-form-intent.ts";
+import {
+  behavioralErrorCasesByKey,
+  canonicalDependencyKeys,
+  listInputModesByField,
+} from "./diff-keys.ts";
 import { assertTotalCoverage } from "./diff-totality.ts";
 
 export { UnmappedChangeFactError } from "./diff-totality.ts";
@@ -41,6 +45,7 @@ export type ChangeFact =
   | { readonly kind: "new_active_field"; readonly field: string; readonly fieldType: FieldType }
   | { readonly kind: "required_change"; readonly field: string }
   | { readonly kind: "max_length"; readonly field: string }
+  | { readonly kind: "file_families"; readonly field: string }
   | { readonly kind: "field_label"; readonly field: string }
   | {
       readonly kind: "field_lifecycle";
@@ -75,6 +80,7 @@ const FACT_KIND_ORDER: readonly ChangeFactKind[] = [
   "new_active_field",
   "required_change",
   "max_length",
+  "file_families",
   "field_label",
   "field_lifecycle",
   "list_input_mode",
@@ -116,6 +122,7 @@ export const PLATFORM_WORK_KINDS = [
   "platform_form_detail", // new/label/lifecycle field → platform form + detail View
   "resulting_record_validation", // required change → resulting-record validation
   "max_length_validation", // max_length → mutation validation + the native limit and counter
+  "file_admitted_families", // widened accepts → admission, the picker and the control's shape
   "list_input_intent", // hide/reactivate → remove/require active list-input intent
   "form_subset_intent", // hide/reactivate → remove/require a long_text or guidance entry
   "list_input_form_normalization", // list input mode → create/edit form + raw-input normalization
@@ -266,6 +273,10 @@ function fieldFacts(
   // the same platform work, and the pre-activation scan reads the direction for itself.
   if (committedField.max_length !== candidateField.max_length) {
     facts.push({ kind: "max_length", field: candidateField.name });
+  }
+  // Validation refused a narrowing, so a difference here is a widening.
+  if (!sameOrderedStrings(committedField.accepts ?? [], candidateField.accepts ?? [])) {
+    facts.push({ kind: "file_families", field: candidateField.name });
   }
   if (committedField.label !== candidateField.label) {
     facts.push({ kind: "field_label", field: candidateField.name });
@@ -503,6 +514,12 @@ function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
       sink.platform.add("max_length_validation");
       selectWriteTests(sink);
       return;
+    case "file_families":
+      // Admission reads the registry row, and the picker and the control's shape read it too.
+      // The families never enter a Handler's prompt, so only the writing suites' inputs move.
+      sink.platform.add("file_admitted_families");
+      selectWriteTests(sink);
+      return;
     case "long_text_input":
       // Which control a string field's form draws. Nothing is stored differently, nothing
       // validates differently, and a Handler is never told what drew a value.
@@ -583,41 +600,6 @@ function selectSearch(sink: WorkSink): void {
 }
 
 // ── Canonicalization + small helpers ────────────────────────────────────────
-
-function listInputModesByField(spec: CapabilitySpec): Map<string, string> {
-  const active = new Set(
-    spec.schema.fields
-      .filter((field) => field.lifecycle === "active" && isListFieldType(field.type))
-      .map((field) => field.name),
-  );
-  const modes = new Map<string, string>();
-  for (const entry of spec.ui_intent.form.list_inputs) {
-    if (active.has(entry.field)) modes.set(entry.field, entry.mode);
-  }
-  return modes;
-}
-
-function canonicalDependencyKeys(
-  dependencies: CapabilitySpec["read_dependencies"][CapabilityTool],
-): readonly string[] {
-  return dependencies
-    .map((dependency) => `${dependency.capability_id}\u0000${dependency.incarnation_id}`)
-    .sort(compareStrings);
-}
-
-function behavioralErrorCasesByKey(spec: CapabilitySpec): Map<string, CapabilityTool> {
-  const byKey = new Map<string, CapabilityTool>();
-  for (const errorCase of spec.behavioral_errors) {
-    const key = JSON.stringify({
-      action: errorCase.action,
-      trigger: errorCase.trigger,
-      code: errorCase.code,
-      fields: [...errorCase.fields].sort(compareStrings),
-    });
-    byKey.set(key, errorCase.action);
-  }
-  return byKey;
-}
 
 function sortFacts(facts: readonly ChangeFact[]): readonly ChangeFact[] {
   return [...facts].sort((left, right) => {

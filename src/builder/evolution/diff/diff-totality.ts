@@ -77,5 +77,7 @@ function blankedField(field: SpecField): Record<string, unknown> {
     // option shape without a row is still caught: no detector reads it, so it moves nothing.
     ...(field.values === undefined ? {} : { values: RESIDUAL_SENTINEL }),
     ...(field.groups === undefined ? {} : { groups: RESIDUAL_SENTINEL }),
+    // The `file_families` fact explains a widening; validation refuses the rest.
+    ...(field.accepts === undefined ? {} : { accepts: RESIDUAL_SENTINEL }),
   }) as Record<string, unknown>;
 }
