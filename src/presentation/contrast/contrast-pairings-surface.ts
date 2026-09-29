@@ -15,8 +15,8 @@ const surface2 = { token: "surface-2" } as const;
 const ground = { token: "ground" } as const;
 const ink2 = { token: "ink-2" } as const;
 const ink3 = { token: "ink-3" } as const;
-/** The halo `--shadow-desk-label` lays around type read straight off the wallpaper. */
-const deskLabelHalo = { token: "ink", alpha: 0.85, over: ground } as const;
+/** The halo `--filter-desk-label` lays around a name read straight off the wallpaper. */
+const deskLabelHalo = { token: "ink", over: ground } as const;
 /** The same halo under the prompt notice, where two more passes close it over the glyph. */
 const noticeHalo = { token: "ink", over: ground } as const;
 const wellFaint = { mix: ["surface", "ink"], toward: 0.4, space: "oklab" } as const;
@@ -225,11 +225,11 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     note:
       "The one pairing whose background is not a fill. What is behind the glyph is a " +
       "photograph, which cannot be measured; what is *adjacent* to it is the ink " +
-      "`--shadow-desk-label` lays around it, which is what the treatment exists for. " +
-      "Measured at the alpha the token states. Be plain about the " +
+      "`--filter-desk-label` lays around it, which is what the treatment exists for. " +
+      "Measured at the alpha of its first pass, which is solid. Be plain about the " +
       "limit: the three layers are drop shadows offset a pixel or two down, so the " +
       "halo is strongest under a glyph and thinnest above it, where the widest layer's " +
-      "7px blur is all there is. This row records a number rather than proving one.",
+      "4px blur is all there is. This row records a number rather than proving one.",
     sites: ["design/styles/components/logo-contract.css § .logo-label [color]"],
   },
   {
@@ -249,12 +249,12 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
   {
     what: "the developer tile's name",
     foreground: { token: "surface", alpha: 0.85, over: deskLabelHalo },
-    background: { token: "ink", alpha: 0.7225, over: ground },
+    background: { token: "ink", alpha: 0.85, over: ground },
     threshold: "text",
     note:
       "The one label that dims, and the halo dims with it — `opacity` takes the whole " +
-      "element, shadow included, so the background here is the halo at 0.85 of 0.85. " +
-      "Modelling only the glyph would have read 6.96 instead of 4.80.",
+      "element, filter included, so the background here is the halo's solid first pass " +
+      "at 0.85. Modelling only the glyph would have read 10.29 instead of 6.69.",
     sites: ["design/styles/components/desk.css § .logo--dev .logo-label [opacity]"],
   },
   {

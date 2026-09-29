@@ -1,6 +1,9 @@
 // Whether a card draws each file it holds as the kind of file it is (Module 7 PLAN decisions 28
-// and 29): a video in a player and a photo in a picture. The enforcer keeps both elements, so a
-// renderer that draws a video with `<img>` passes it, and every such card is a broken picture.
+// and 29): a video in a player, a photo in a picture, and a sound in words alone. The enforcer
+// keeps every one of those elements, so a renderer that draws a video with `<img>` passes it, and
+// every such card is a broken picture.
+
+import { decodeAttributeValue } from "../../../../presentation/index.ts";
 
 /** What an element draws a file it names as: a picture, or the player it is or sits in. */
 type Drawn = "image" | "video" | "audio";
@@ -26,15 +29,37 @@ function drawnAs(tag: string, frame: string | undefined): Drawn | undefined {
   return frame === "video" || frame === "audio" ? frame : "image";
 }
 
-/** The kind of the first file `element` names that it draws as something else. */
+/**
+ * The path an address loads as a browser reads it: tabs and newlines dropped, a backslash as a
+ * slash, each escape decoded, dot segments resolved, and a key's hex in either case.
+ */
+function pathOf(address: string): string {
+  const cleaned = address
+    .replace(/[\t\n\r]/g, "")
+    .replaceAll("\\", "/")
+    .replace(/%([0-9a-f]{2})/gi, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
+  return (URL.parse(cleaned, "http://origin.invalid/")?.pathname ?? cleaned).toLowerCase();
+}
+
+/** Every address `element`'s `src` and `srcset` name, as paths. */
+function namedPaths(element: HTMLRewriterTypes.Element): string[] {
+  const src = decodeAttributeValue(element.getAttribute("src") ?? "");
+  const srcset = decodeAttributeValue(element.getAttribute("srcset") ?? "")
+    .split(",")
+    .map((candidate) => candidate.trim().split(/\s+/)[0] ?? "");
+  return [src, ...srcset].filter((address) => address !== "").map(pathOf);
+}
+
+/** The kind of the first file `element` draws as something else, or of a sound it draws at all. */
 function misdrawnKind(
   element: HTMLRewriterTypes.Element,
   drawn: Drawn,
   kinds: ReadonlyMap<string, string>,
 ): string | undefined {
-  const named = ["src", "srcset"].map((attribute) => element.getAttribute(attribute) ?? "");
+  const named = namedPaths(element);
   for (const [url, kind] of kinds) {
-    if (kind !== drawn && named.some((value) => value.includes(url))) return kind;
+    const misdrawn = kind !== drawn || kind === "audio";
+    if (misdrawn && named.includes(pathOf(url))) return kind;
   }
   return undefined;
 }
@@ -57,9 +82,7 @@ export function fileKindViolation(
         const tag = element.tagName.toLowerCase();
         const drawn = drawnAs(tag, frames.at(-1));
         const kind = drawn && misdrawnKind(element, drawn, kinds);
-        if (kind && drawn) {
-          violation ??= `it draws ${NOUNS[kind] ?? kind} with <${tag}>, as if it were ${NOUNS[drawn]}. Draw a file by its \`kind\`: "image" in an <img>, "video" in a <video>.`;
-        }
+        if (kind && drawn) violation ??= misdrawnSentence(kind, drawn, tag);
         if (FRAMES.has(tag) && element.canHaveContent) {
           frames.push(tag);
           element.onEndTag(() => void frames.pop());
@@ -70,6 +93,15 @@ export function fileKindViolation(
   return violation;
 }
 
+function misdrawnSentence(kind: string, drawn: Drawn, tag: string): string {
+  const rule =
+    'Draw a file by its `kind`: "image" in an <img>, "video" in a <video>, and "audio" in words alone.';
+  if (kind === "audio") {
+    return `it draws a sound with <${tag}>, and a card holds no player. ${rule}`;
+  }
+  return `it draws ${NOUNS[kind] ?? kind} with <${tag}>, as if it were ${NOUNS[drawn]}. ${rule}`;
+}
+
 const FRAMES: ReadonlySet<string> = new Set(["picture", "video", "audio"]);
 
 const NOUNS: Readonly<Record<string, string>> = {
@@ -77,3 +109,19 @@ const NOUNS: Readonly<Record<string, string>> = {
   video: "a video",
   audio: "a sound",
 };
+
+/** Whether `markup` draws a media frame, which a card showing only sounds has nothing for. */
+export function drawsMediaFrame(markup: string): boolean {
+  let framed = false;
+  new HTMLRewriter()
+    .on("[class]", {
+      element(element) {
+        const classes = (element.getAttribute("class") ?? "").split(/\s+/);
+        framed ||= classes.some(
+          (name) => name === "media-frame" || name.startsWith("media-frame--"),
+        );
+      },
+    })
+    .transform(markup);
+  return framed;
+}

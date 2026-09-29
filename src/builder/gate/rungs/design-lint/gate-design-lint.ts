@@ -48,7 +48,7 @@ import type { CapabilityGateInput, DesignLintAttempt, DesignLintGateResult } fro
 import { loadItemRenderer } from "../../gate-internal.ts";
 import { scratchFileProjection } from "../../gate-scratch-files.ts";
 import { scratchFileName } from "../../gate-scratch-names.ts";
-import { fileKindViolation } from "./gate-file-kinds.ts";
+import { drawsMediaFrame, fileKindViolation } from "./gate-file-kinds.ts";
 import { observableItemRecordContent } from "./gate-item-content.ts";
 import { findInlineStyleViolation } from "./inline-style-scan.ts";
 
@@ -232,6 +232,16 @@ export function findDesignViolation(
     const outcome = reviewProbe(probe, renderItem);
     if (outcome.violation) return outcome.violation;
     rendered.push({ probe, inner: outcome.inner });
+  }
+
+  const framed = rendered.find(
+    ({ probe, inner }) => showsOnlySounds(spec, probe.record) && drawsMediaFrame(inner),
+  );
+  if (framed) {
+    return offContractMessage(
+      `for a ${framed.probe.label} record it draws a media-frame, though the card shows only a sound, which has no picture. Say in words that the record holds a sound, and draw no frame.`,
+      framed.probe,
+    );
   }
 
   const contentViolation = findRecordContentViolation(spec, rendered);
@@ -500,7 +510,7 @@ function contrastViolation(
   const fieldName = contrast.probe.contrastFor ?? "unknown";
   if (contrastContent.length === 0 && isFileField(spec, fieldName)) {
     return offContractMessage(
-      `the item renderer drew nothing for a record whose file field "${fieldName}" holds no file. When the value is null, draw the empty frame with a short note.`,
+      `the item renderer drew nothing for a record whose file field "${fieldName}" holds no file. When the value is null, say so with a short note, in the empty frame when the card draws a photo or a video.`,
       contrast.probe,
     );
   }
@@ -511,6 +521,20 @@ function contrastViolation(
     );
   }
   return undefined;
+}
+
+/**
+ * Whether the card shows only sounds for `record`: every file field it shows takes sounds alone, or
+ * holds one there.
+ */
+function showsOnlySounds(spec: CapabilitySpec, record: PresentableRecord): boolean {
+  const shown = spec.schema.fields.filter(
+    (field) => isFileFieldType(field.type) && spec.ui_intent.item.shows.includes(field.name),
+  );
+  const sound = (field: SpecField) =>
+    field.accepts?.join() === "audio" ||
+    (record[field.name] as { kind?: unknown } | null)?.kind === "audio";
+  return shown.length > 0 && shown.every(sound);
 }
 
 function isFileField(spec: CapabilitySpec, name: string): boolean {

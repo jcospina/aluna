@@ -329,6 +329,8 @@ export class Desk {
 
     const logoLayer = document.createElement("div");
     logoLayer.className = "desk__logos";
+    // A scroller with no focusable child of its own is a tab stop in Firefox; the logos are.
+    logoLayer.tabIndex = -1;
 
     const windowLayer = document.createElement("div");
     windowLayer.className = "desk__windows";

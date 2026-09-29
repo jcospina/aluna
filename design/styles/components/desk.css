@@ -22,20 +22,23 @@
  * many tools as you want" carries no fixed ceiling.
  *
  * The bottom edge stops clear of the prompt bar, which is the same floor a
- * window may not be dragged past.
+ * window may not be dragged past. The right edge is pinned too: left to shrink-to-fit,
+ * Firefox sizes a column-flowing grid as one long row and scrolls the page sideways.
  */
 
 .desk__logos {
   position: absolute;
-  inset: 1.25rem auto calc(1.25rem + var(--prompt-clearance)) 1.25rem;
+  inset: 1.25rem 1.25rem calc(1.25rem + var(--prompt-clearance)) 1.25rem;
   z-index: 1;
   /*
-   * The layer is as tall as the desk whether it holds twenty logos or one, so it
-   * must not be what a press lands on. The logos take the presses; the ground and
-   * whatever stands on it keep every press in the empty space around them, the
-   * same way `.desk__windows` below hands its presses to the windows it holds.
+   * More columns than the desk is wide scroll here, never the page, and the lane is always
+   * kept so a classic bar arriving cannot take a row. The gutter keeps a logo's lift and focus
+   * ring clear of the clip. It takes presses so its bar can; windows stand above it.
    */
-  pointer-events: none;
+  margin: calc(-1 * var(--space-2));
+  padding: var(--space-2);
+  scroll-padding: var(--space-2);
+  overflow: scroll hidden;
   display: grid;
   grid-auto-flow: column;
   grid-template-rows: repeat(auto-fill, var(--logo-cell-h));
@@ -55,9 +58,7 @@
  * button across the cell exactly as the button used to stretch itself, so the press area
  * is the one it always was.
  *
- * It passes presses on like the layer above it: the layer is as tall as the desk whether
- * it holds twenty logos or one, and a slot inherits that reach. What is in the slot takes
- * the presses.
+ * It passes presses on: what is in the slot takes them, and the rest of the cell is ground.
  */
 .logo-slot {
   position: relative;
@@ -92,6 +93,12 @@
  */
 [data-renaming] .logo-label {
   display: none;
+}
+
+/* The name has the whole cell rather than the button's padded inside, so a word only breaks
+   where it would otherwise reach the next logo. */
+.logo .logo-label {
+  margin-inline: calc(-1 * var(--space-1));
 }
 
 /* ── The menu on a logo ───────────────────────────────────────────────── */
@@ -762,8 +769,13 @@
     min-height: 35rem;
   }
 
+  /* The phone home screen: the list scrolls under a prompt bar that stays put. */
   .desk__logos {
     position: static;
+    flex: 1 1 auto;
+    min-height: 0;
+    margin: 0;
+    overflow: hidden auto;
     display: grid;
     grid-auto-flow: row;
     grid-template-rows: none;

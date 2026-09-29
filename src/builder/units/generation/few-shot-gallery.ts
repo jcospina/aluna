@@ -15,8 +15,18 @@ import {
   TYPE_SIZE_TOKENS,
   tokenList,
 } from "../../../presentation/tokens/design-tokens.ts";
-import type { SpecField, UiCollectionLayout, UiFormIntent } from "../../../registry/index.ts";
-import { PHOTO_GRID_TILE, WALK_MEDIA_FEED } from "./few-shot-media.ts";
+import type {
+  FileFamily,
+  SpecField,
+  UiCollectionLayout,
+  UiFormIntent,
+} from "../../../registry/index.ts";
+import {
+  PHOTO_GRID_TILE,
+  VOICE_MEMO_FEED,
+  VOICE_MEMO_TILE,
+  WALK_MEDIA_FEED,
+} from "./few-shot-media.ts";
 import { ESCAPE_HELPER_SOURCE, fields } from "./few-shot-parts.ts";
 
 export interface FewShotPreviewCapability {
@@ -38,10 +48,13 @@ export interface FewShotDesignExample {
   readonly previewSamples: readonly FewShotPreviewSample[];
   readonly rendererSource: string;
   /**
-   * Shown only to a card that shows a file, so a card of text alone isn't taught its frame. The
-   * photo tile is not marked: it is the gallery's one grid composition, which every grid card needs.
+   * Shown only to a card that shows a file of one of these families, so a card isn't taught to
+   * draw a kind it never holds. The photo tile has none: every grid card needs a grid
+   * composition, and only a card holding just sounds is kept from it, by `notForOnly`.
    */
-  readonly onlyForFiles?: boolean;
+  readonly onlyFor?: readonly FileFamily[];
+  /** Kept from a card whose shown files can only be of this family, which it would draw wrong. */
+  readonly notForOnly?: FileFamily;
 }
 
 export interface FewShotPreviewSample {
@@ -140,6 +153,8 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
   },
   PHOTO_GRID_TILE,
   WALK_MEDIA_FEED,
+  VOICE_MEMO_FEED,
+  VOICE_MEMO_TILE,
   {
     id: "saved_link_metadata_feed",
     title: "Compact metadata row",
@@ -227,12 +242,16 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
   },
 ];
 
+/** @param shown the families the card's shown file fields take */
 export function buildItemRendererDesignInjection(
   layout: UiCollectionLayout,
-  showsFiles = false,
+  shown: readonly FileFamily[] = [],
 ): string {
+  const only = shown.length === 1 ? shown[0] : undefined;
   const examples = FEW_SHOT_DESIGN_EXAMPLES.filter(
-    (example) => showsFiles || !example.onlyForFiles,
+    (example) =>
+      (!example.onlyFor || example.onlyFor.some((family) => shown.includes(family))) &&
+      (only === undefined || example.notForOnly !== only),
   );
   return [
     "Injected design contract and few-shot gallery:",

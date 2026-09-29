@@ -48,13 +48,6 @@ describe("the logo layer", () => {
     expect(phone).toMatch(/position:\s*static/);
   });
 
-  test("the layer takes no press of its own", () => {
-    // It is as tall as the desk holding one logo or twenty, and placed over the content region,
-    // so without this it is an invisible dead strip down the left of the capability.
-    expect(LAYER[0] as string).toMatch(/pointer-events:\s*none/);
-    expect(bodies(DESK, ".logo")[0] as string).toMatch(/pointer-events:\s*auto/);
-  });
-
   test("the shipped page inherits the layout rather than restating it", () => {
     // The rules above are the design's; this makes them the product's. The layer is inside the
     // one positioned box, without which `position: absolute` resolves against the viewport.
@@ -62,7 +55,7 @@ describe("the logo layer", () => {
     expect(shell).toContain('<link rel="stylesheet" href="/design/styles/index.css">');
     expect(read("design/styles/index.css")).toContain("./components/desk.css");
     const column = shell.indexOf('<div class="content-column">');
-    const layer = shell.indexOf('<div class="desk__logos" id="capability-logos">');
+    const layer = shell.indexOf('<div class="desk__logos" id="capability-logos" tabindex="-1">');
     expect(column).toBeGreaterThan(-1);
     expect(layer).toBeGreaterThan(column);
     expect(body(rules("public/css/shell.css"), ".content-column")).toMatch(/position:\s*relative/);
@@ -76,7 +69,7 @@ describe("the logo layer", () => {
     expect(tile).toMatch(/width:\s*64px/);
     expect(tile).toMatch(/border-radius:\s*10%/);
     expect(tile).toMatch(/box-shadow:\s*3px 4px 0 /);
-    expect(bodies(contract, ".logo-label")[0]).toMatch(/text-shadow:\s*var\(--shadow-desk-label\)/);
+    expect(bodies(contract, ".logo-label")[0]).toMatch(/filter:\s*var\(--filter-desk-label\)/);
 
     // `ink.css` registers three names as non-inheriting `@property`s, so below `:root` they
     // resolve to nothing and a `box-shadow` built on one is invalid: the tile would cast nothing.
@@ -160,6 +153,54 @@ describe("the logo layer", () => {
   });
 });
 
+describe("more logos than room", () => {
+  test("a desk with more logos than room scrolls the layer, never the page", () => {
+    // Pinned on the right as well: left to shrink-to-fit, Firefox sizes a column-flowing grid
+    // as one long row and the whole page scrolls sideways even with room to spare.
+    const desktop = LAYER[0] as string;
+    const inset = /inset:\s*([^;]+);/.exec(desktop)?.[1] ?? "";
+    expect(inset.split(/\s+(?![^(]*\))/)[1]).not.toBe("auto");
+    // The lane is always kept: a classic bar that came and went would take a row with it, and
+    // the same window would lay out two ways depending on which way it was resized.
+    expect(desktop).toMatch(/overflow:\s*scroll hidden/);
+    // It takes presses so its scrollbar can, and stands under the windows so it covers only
+    // ground; the slots pass presses on and the logos take them.
+    expect(desktop).not.toMatch(/pointer-events:\s*none/);
+    expect(Number(/z-index:\s*(\d+)/.exec(desktop)?.[1])).toBeLessThan(
+      Number(/z-index:\s*(\d+)/.exec(bodies(DESK, ".desk__windows")[0] as string)?.[1]),
+    );
+    expect(bodies(DESK, ".logo-slot")[0] as string).toMatch(/pointer-events:\s*none/);
+    expect(bodies(DESK, ".logo")[0] as string).toMatch(/pointer-events:\s*auto/);
+  });
+
+  test("a name stops at two lines, as the contract measures it", () => {
+    // A third line ran into the tile below, and on the bottom row under the layer's clip.
+    expect(read("design/logo.html")).toContain("Two lines, centred, then an ellipsis.");
+    const label = bodies(rules("design/styles/components/logo-contract.css"), ".logo-label")[0];
+    expect(label).toMatch(/(^|\s)line-clamp:\s*2/);
+    expect(label).toMatch(/-webkit-line-clamp:\s*2/);
+    // A clamp only counts lines, so one long word would still run sideways into the next logo.
+    expect(label).toMatch(/overflow-wrap:\s*anywhere/);
+    // And it breaks only where it would reach the next logo: the name has the whole cell, not
+    // the button's padded inside, or a word a few pixels over it splits off its last letter.
+    expect(body(DESK, ".logo .logo-label")).toMatch(
+      /margin-inline:\s*calc\(-1 \* var\(--space-1\)\)/,
+    );
+    expect(bodies(DESK, ".logo")[0]).toMatch(/padding:\s*var\(--space-1\)/);
+    // A forced-colours mode drops a text-shadow by itself but keeps a filter.
+    expect(rules("design/styles/components/logo-contract.css")).toMatch(
+      /@media \(forced-colors: active\) \{\s*\.logo-label \{\s*filter: none;/,
+    );
+  });
+
+  test("on a phone the list scrolls inside the desk, not the page", () => {
+    const query = /@media\s*\(max-width:\s*720px\)\s*\{([\s\S]*)\}/.exec(DESK)?.[1] ?? "";
+    const phone = bodies(query, ".desk__logos")[0] as string;
+    expect(phone).toMatch(/min-height:\s*0/);
+    expect(phone).toMatch(/overflow:\s*hidden auto/);
+  });
+});
+
 describe("an empty desk needs no gate", () => {
   test("nothing on the shipped page hides itself until a capability appears", () => {
     // The rail is gone, and so is the state it hid behind: `hasCapabilities`, the
@@ -185,6 +226,6 @@ describe("an empty desk needs no gate", () => {
     expect(shell).not.toMatch(/class="toolbar"|id="capability-toolbar"/);
     // The layer that replaced it is always on the page, empty desk included: it is where
     // the first commit's sidecar lands.
-    expect(shell).toContain('<div class="desk__logos" id="capability-logos">');
+    expect(shell).toContain('<div class="desk__logos" id="capability-logos" tabindex="-1">');
   });
 });

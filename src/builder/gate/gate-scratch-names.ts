@@ -16,10 +16,22 @@ export function scratchFileName(label: string): string {
   return `${head}${"_".repeat(room)}${tail}`;
 }
 
+const FAMILY_EXTENSIONS: Readonly<Record<string, string>> = {
+  image: ".jpg",
+  video: ".mp4",
+  audio: ".mp3",
+};
+
+/** `name` ending as a file of `family` does, so a template that reads the name reads it right. */
+export function scratchNameFor(name: string, family: string): string {
+  const extension = FAMILY_EXTENSIONS[family] ?? ".jpg";
+  return name.endsWith(".jpg") ? `${name.slice(0, -".jpg".length)}${extension}` : name;
+}
+
 /**
  * The name of every file a behavioral token stands for (PLAN decision 39). A test cannot know the
  * key a run mints, so a row compares a file by its family and this name.
  */
 export function tokenFileName(family: string): string {
-  return scratchFileName(`a synthetic ${family}`);
+  return scratchNameFor(scratchFileName(`a synthetic ${family}`), family);
 }

@@ -79,15 +79,32 @@
  * the prompt notice because it is also read directly from the wallpaper. The hard-shadow
  * rule governs the shadow an *object* casts onto the desk, where a soft edge
  * would fake depth the flat-band model does not have. A glyph casts nothing.
+ *
+ * Two lines, then an ellipsis: a longer name would run into the tile below it. The lines
+ * past the clamp still paint, so the name is clipped below, and the halo is the treatment's
+ * filter form, which paints after the clip rather than being cut by it.
  */
 .logo-label {
+  display: -webkit-box;
+  overflow: visible clip;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   max-width: 6rem;
+  overflow-wrap: anywhere;
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.25;
   text-align: center;
   color: var(--surface);
-  text-shadow: var(--shadow-desk-label);
+  filter: var(--filter-desk-label);
+}
+
+/* A forced-colours mode drops a text-shadow by itself but keeps a filter. */
+@media (forced-colors: active) {
+  .logo-label {
+    filter: none;
+  }
 }
 
 /* ── A logo, assembled ────────────────────────────────────────────────── */

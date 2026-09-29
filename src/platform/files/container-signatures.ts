@@ -1,6 +1,7 @@
 // The byte tests admission's table reads a file's container by (Module 7 PLAN decision 3): the
-// ISO-BMFF `ftyp` box, a QuickTime movie's first atom, and an EBML header's DocType. Containers are
-// checked and codecs are not. A leaf: it imports nothing.
+// ISO-BMFF `ftyp` box, a QuickTime movie's first atom, and an EBML header's DocType; and whether a
+// WebM or an Ogg holds a picture. Containers are checked and codecs are not: an Ogg's first codec
+// only names its family. A leaf: it imports nothing.
 
 export function bytesAt(head: Uint8Array, offset: number, expected: readonly number[]): boolean {
   return expected.every((byte, index) => head[offset + index] === byte);
@@ -21,8 +22,8 @@ export function majorBrandIn(head: Uint8Array, brands: readonly string[]): boole
 
 /**
  * The still-image brands of HEIF, AVIF, JPEG XL, their kin and Canon's raw photo. Many an `.m4a`
- * carries `isom` or `mp42`, as a video does, so a video row takes any other brand and leaves the family to the
- * extension.
+ * carries `isom` or `mp42`, as a video does, so a video row takes any other brand and leaves the
+ * family to the extension.
  */
 const STILL_IMAGE_BRANDS = [
   ...["heic", "heix", "heim", "heis", "hevc", "hevx", "hevm", "hevs", "avci", "avcs"],
@@ -128,4 +129,103 @@ export function webmDocument(head: Uint8Array): boolean {
     at += size.value;
   }
   return false;
+}
+
+/** An EBML element at `at`: its ID, the size its body claims, and where that body starts. */
+function element(head: Uint8Array, at: number) {
+  const id = vint(head, at, true);
+  const size = id && vint(head, at + id.width, false);
+  if (!id || !size) return undefined;
+  return { id: id.value, size: size.value, body: at + id.width + size.width };
+}
+
+const SEGMENT_ID = 0x18538067;
+const TRACKS_ID = 0x1654ae6b;
+const TRACK_ENTRY_ID = 0xae;
+const TRACK_TYPE_ID = 0x83;
+const CLUSTER_ID = 0x1f43b675;
+const VIDEO_TRACK = 1;
+const AUDIO_TRACK = 2;
+
+/** Each element in `bytes` from `from` on, one after the other, until one can't be read. */
+function* elements(bytes: Uint8Array, from = 0) {
+  for (let at = from, next = element(bytes, at); next; next = element(bytes, at)) {
+    yield next;
+    at = next.body + next.size;
+  }
+}
+
+/** An EBML unsigned integer of one to eight bytes, big-endian; undefined for any other width. */
+function unsigned(bytes: Uint8Array): number | undefined {
+  if (bytes.byteLength === 0 || bytes.byteLength > 8) return undefined;
+  return bytes.reduce((value, byte) => value * 256 + byte, 0);
+}
+
+/** A TrackEntry's type, when its body says one whole. */
+function trackType(entry: Uint8Array): number | undefined {
+  const child = [...elements(entry)].find((candidate) => candidate.id === TRACK_TYPE_ID);
+  if (!child || child.body + child.size > entry.byteLength) return undefined;
+  return unsigned(entry.subarray(child.body, child.body + child.size));
+}
+
+/** The type of each track whose entry lies whole in a Tracks element's body, in order. */
+function trackTypes(tracks: Uint8Array): number[] {
+  return [...elements(tracks)]
+    .filter((entry) => entry.id === TRACK_ENTRY_ID && entry.body + entry.size <= tracks.byteLength)
+    .map((entry) => trackType(tracks.subarray(entry.body, entry.body + entry.size)))
+    .filter((type) => type !== undefined);
+}
+
+/** Where a WebM's Segment body starts, after its EBML header. */
+function segmentBody(head: Uint8Array): number | undefined {
+  const header = bytesAt(head, 0, EBML_MAGIC) ? vint(head, EBML_MAGIC.length, false) : undefined;
+  const segment = header && element(head, EBML_MAGIC.length + header.width + header.value);
+  return segment?.id === SEGMENT_ID ? segment.body : undefined;
+}
+
+/**
+ * Whether a WebM holds a picture or only sound, read from its Tracks, which a writer puts before
+ * the first Cluster. A picture's entry says so wherever the Tracks end; only sound, only once
+ * they end inside `head`.
+ */
+export function webmFamily(head: Uint8Array): "video" | "audio" | undefined {
+  const body = segmentBody(head);
+  if (body === undefined) return undefined;
+  const tracks = [...elements(head, body)].find(
+    (child) => child.id === TRACKS_ID || child.id === CLUSTER_ID,
+  );
+  if (tracks?.id !== TRACKS_ID) return undefined;
+  const types = trackTypes(head.subarray(tracks.body, tracks.body + tracks.size));
+  if (types.includes(VIDEO_TRACK)) return "video";
+  const whole = tracks.body + tracks.size <= head.byteLength;
+  return whole && types.includes(AUDIO_TRACK) ? "audio" : undefined;
+}
+
+/** The codec an Ogg page's first packet names, when the page opens a stream. */
+function streamCodec(head: Uint8Array, page: number): "video" | "audio" | undefined {
+  const packet = page + 27 + (head[page + 26] ?? 0);
+  const marked = (marker: number, name: string) =>
+    head[packet] === marker && asciiAt(head, packet + 1, name);
+  if (marked(0x80, "theora")) return "video";
+  const sound = [marked(0x01, "vorbis"), marked(0x7f, "FLAC")];
+  if (asciiAt(head, packet, "OpusHead") || asciiAt(head, packet, "Speex   ")) return "audio";
+  return sound.includes(true) ? "audio" : undefined;
+}
+
+const OGG_STREAM_OPENS = 0x02;
+
+/**
+ * Whether an Ogg holds a picture or only sound, read from the codec each stream's first page
+ * names. Every stream opens before any carries data, so the opening pages come first.
+ */
+export function oggFamily(head: Uint8Array): "video" | "audio" | undefined {
+  const codecs: ("video" | "audio" | undefined)[] = [];
+  let page = 0;
+  while (asciiAt(head, page, "OggS") && ((head[page + 5] ?? 0) & OGG_STREAM_OPENS) !== 0) {
+    codecs.push(streamCodec(head, page));
+    const segments = head.subarray(page + 27, page + 27 + (head[page + 26] ?? 0));
+    page += 27 + segments.byteLength + segments.reduce((total, lace) => total + lace, 0);
+  }
+  if (codecs.includes("video")) return "video";
+  return codecs.includes("audio") ? "audio" : undefined;
 }

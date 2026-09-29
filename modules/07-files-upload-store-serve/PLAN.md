@@ -86,14 +86,27 @@ in ADR-0009, and in the architecture and design documents.
    - The signature is read from the first 64 KB, and a mismatch aborts the upload there.
      An MP3 skips its ID3v2 tag, whose length sits in its ten-byte header, and looks for a
      frame sync in the 64 KB after it, because embedded cover art makes that tag larger
-     than 64 KB.
+     than 64 KB. The sync is looked for where the sound starts, past every tag and any zero
+     padding, and the next frame must follow where the first one's length says: two such
+     frames further on are found in machine code and fonts. A rip cut mid-frame may start
+     up to 2 KB on, if four frames then run. At most four tags, claiming at most 16 MB
+     between them, may come first, and what they claim arrives before the window after
+     them can refuse the file. An ADTS `.aac` is read the same way, and a FLAC, WAV or Ogg
+     is recognized behind a tag too. *(7.2/03)*
    - An `ftyp` box confirms ISO-BMFF and the extension names the family, as with WebM and
      Ogg, because many `.m4a` files carry the same `isom` or `mp42` brand as a video. A
      HEIC or HEIF major brand is refused whatever the extension, and AVIF is admitted by
      its `avif` or `avis` brand. A `.mov` may carry no `ftyp` and is recognized by its
      first atom.
    - WebM and Ogg hold audio or video alike; the extension names the family and the
-     container confirms it.
+     container confirms it. A browser names a picked file's type from its extension alone,
+     so a `.webm` is declared a video even when it holds only sound. A field that takes one
+     of the two names the family, failing that the declared type does. The WebM's Tracks,
+     or the codecs an Ogg's streams open with, then say which the file holds, and it is
+     recorded as that family when the field takes it and refused when it doesn't. Only a
+     `.webm` or `.ogg` name lets the bytes change the family. A WebM whose Tracks end past
+     the first 64 KB and name no picture before then keeps the family it was given.
+     *(7.2/03)*
    - DOCX is a zip whose `[Content_Types].xml` declares the WordprocessingML main document.
      The central directory sits at the end of the file and the entry is deflated, so this
      check runs after the write and inflates under a size cap. DOCM, DOTX and XLSX fail it.
@@ -310,7 +323,9 @@ in ADR-0009, and in the architecture and design documents.
     file control previews video and audio with play, pause and the time, and nothing more;
     the full player, which seeks, belongs to a render view of the record, a surface the
     record does not have yet (settled while 7.1/02 drew the control, 2026-09-23). A document
-    opens or downloads from the file control.
+    opens or downloads from the file control. A sound has no picture, so its card says in words
+    that it holds one and draws no player and no frame, as `design/controls.html` draws it;
+    design lint refuses a card that draws a sound *(7.2/03)*.
 
 ### Lifecycle
 

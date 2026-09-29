@@ -123,9 +123,9 @@
     <script type="module" src="/static/file-field.js"></script>
 
     <!--
-      The record's render view. A held video's Open takes the window to its full player
-      (`design/scripts/file-player.js`) under a way back that names the record; the form is only
-      hidden, so its edits and uploads are there when Back returns to it.
+      The record's render view. A held video's or sound's Open takes the window to its full
+      player (`design/scripts/file-player.js`) under a way back that names the record; the form is
+      only hidden, so its edits and uploads are there when Back returns to it.
     -->
     <script type="module" src="/static/file-render-view.js"></script>
 
@@ -265,7 +265,7 @@
              a user may make (PLAN decision 4). The server rehydrates them from the
              registry at the placeholder below (src/web/fragments.ts); a commit stands
              one more on the ground out of band. -->
-        <div class="desk__logos" id="capability-logos">
+        <div class="desk__logos" id="capability-logos" tabindex="-1">
           <!-- Capability logos render here. -->
 
           <!-- The developer tile (design D13). It stands with the apps because it

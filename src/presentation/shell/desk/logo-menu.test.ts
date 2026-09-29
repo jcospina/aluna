@@ -482,13 +482,22 @@ describe("what happens to an open panel when its logo is re-rendered", () => {
     scene.root.fire("scroll", scene.layer, {});
     expect(scene.notes.menu.hasAttribute("hidden")).toBe(true);
 
-    // The editor is holding typed text, so it is followed rather than taken away.
-    const editor = editing();
-    editor.notes.logoLabel.box = { ...editor.notes.logoLabel.box, left: 200, top: 240 };
+    // The editor is holding typed text, so it is followed rather than taken away. It follows the
+    // logo: the label it stands in for is hidden, and a hidden label measures as the corner.
+    const editor = desk();
+    const { logo, logoLabel } = editor.notes;
+    logoLabel.box = { ...logoLabel.box, left: logo.box.left + 5, top: logo.box.bottom };
+    editor.root.fire("contextmenu", logo, { clientX: 10, clientY: 10 });
+    editor.root.fire("click", editor.notes.rename);
+    logoLabel.box = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 };
+    logo.box = { ...logo.box, left: 200, top: 240 };
     editor.root.fire("scroll", editor.layer, {});
 
     expect(editor.notes.form.hasAttribute("hidden")).toBe(false);
-    expect(editor.notes.form.style.getPropertyValue("left")).toBe("200px");
+    expect(editor.notes.form.style.getPropertyValue("left")).toBe("205px");
+    // The logo layer scrolls, and a logo scrolled out of it would leave the editor clamped over
+    // other logos: the one being renamed is kept in view instead.
+    expect(editor.notes.logo.revealedWith).toEqual({ block: "nearest", inline: "nearest" });
 
     closeRenameEditor({ restoreFocus: false });
   });

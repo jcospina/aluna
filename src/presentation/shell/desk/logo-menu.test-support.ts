@@ -100,6 +100,13 @@ export class Node {
     return this.box;
   }
 
+  /** How this was last asked to scroll itself into view, if it was. */
+  revealedWith: unknown = undefined;
+
+  scrollIntoView(options: unknown): void {
+    this.revealedWith = options;
+  }
+
   dispatchEvent(event: { type: string }): void {
     this.root?.dispatched.push(event.type);
   }

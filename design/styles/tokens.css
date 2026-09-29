@@ -142,6 +142,15 @@
     0 1px 3px color-mix(in srgb, var(--ink) 85%, transparent),
     0 2px 7px color-mix(in srgb, var(--ink) 70%, transparent);
 
+  /*
+   * The same halo as a filter, which the capability name wears: it paints after the name's
+   * two-line clip, where a text-shadow is cut by it. Chained passes compound, so these grades
+   * are lighter than the ones above; they were matched to them pixel for pixel.
+   */
+  --filter-desk-label: drop-shadow(0 1px 1px var(--ink))
+    drop-shadow(0 1px 2px color-mix(in srgb, var(--ink) 40%, transparent))
+    drop-shadow(0 2px 4px color-mix(in srgb, var(--ink) 15%, transparent));
+
   /* ── Typography ─────────────────────────────────────────────────────── */
   /*
    * Fraunces for display and window titles; Outfit for everything a capability

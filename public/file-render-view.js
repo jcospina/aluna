@@ -2,9 +2,10 @@
 
 /**
  * The record's render view (`design/controls.html`, Files, "Inside the open record"; C18). A held
- * video's Open takes the window to the file's full player, `design/scripts/file-player.js`, under a
- * way back that names the record. The record is not left: its form is only hidden, so its edits
- * and its uploads are as they were when Back brings it back, and Back lands on the Open pressed.
+ * video's or sound's Open takes the window to its full player, `design/scripts/file-player.js`,
+ * under a way back that names the record. The record is not left: its form is only hidden, so its
+ * edits and its uploads are as they were when Back brings it back, and Back lands on the Open
+ * pressed.
  */
 
 import { FILE_FIELD_OPEN } from "../design/scripts/file-field.js";

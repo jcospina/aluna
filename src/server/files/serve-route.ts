@@ -8,7 +8,7 @@
 //
 // A cors-mode request for anything but a player is refused: every fetch and XHR htmx makes is one,
 // and htmx swaps any 2xx, so a Handler's `hx-get` would put a polyglot's markup in the page
-// unjudged. A browser's own page for a video opened in a tab asks for it in cors mode, as a video.
+// unjudged. A browser's own page for a video or a sound opened in a tab asks in cors mode, as one.
 // The answer varies on the mode and the destination, or the copy an `<img>` or a player cached
 // would answer htmx instead. A client sending no `Sec-Fetch-Mode` is served, as the writing-route
 // guard treats it.
@@ -71,9 +71,9 @@ function readableByScript(c: Context): boolean {
 export const INERT_IMAGE_POLICY = "default-src 'none'; sandbox";
 
 /**
- * A player's: nothing but load itself. A browser opens a video in a tab as a page of its own
- * making, whose player fetches the file again in cors mode. `media-src` lets it, and the sandbox
- * keeps the page's own origin so the fetch is same-origin. It still runs no script.
+ * A player's: nothing but load itself. A browser opens a video or a sound in a tab as a page of its
+ * own making, whose player fetches the file again in cors mode. `media-src` lets it, and the
+ * sandbox keeps the page's own origin so the fetch is same-origin. It still runs no script.
  */
 export const INERT_PLAYER_POLICY =
   "default-src 'none'; media-src 'self'; sandbox allow-same-origin";
@@ -81,6 +81,7 @@ export const INERT_PLAYER_POLICY =
 const POLICY_BY_KIND: ReadonlyMap<string, string> = new Map([
   ["image", INERT_IMAGE_POLICY],
   ["video", INERT_PLAYER_POLICY],
+  ["audio", INERT_PLAYER_POLICY],
 ]);
 
 function absent(c: Context): Response {

@@ -172,7 +172,7 @@ describe("an admitted type", () => {
       ["image", "image/heic"],
       ["image", "image/jpeg\r\nx-injected: 1"],
       ["video", "image/jpeg"],
-      ["audio", "audio/mp4"],
+      ["audio", "audio/x-m4a"],
     ]) {
       expect(isAdmittedType(kind ?? "", mime ?? "")).toBe(false);
     }
@@ -200,8 +200,11 @@ describe("a video's extension", () => {
   });
 
   test("off the list refuses the file, and a family the field doesn't take is refused", () => {
-    for (const name of ["a.mkv", "a.avi", "a.wmv", "a.flv", "a.3gp", "a.m4a", "a.mp3", "a.qt"]) {
+    for (const name of ["a.mkv", "a.avi", "a.wmv", "a.flv", "a.3gp", "a.qt"]) {
       expect(refusalOf(() => admitClaims(name, "", VIDEOS))).toBe("extension");
+    }
+    for (const name of ["a.m4a", "a.mp3"]) {
+      expect(refusalOf(() => admitClaims(name, "", VIDEOS))).toBe("not_accepted");
     }
     expect(refusalOf(() => admitClaims("a.mp4", "", IMAGES))).toBe("not_accepted");
     expect(refusalOf(() => admitClaims("a.jpg", "", VIDEOS))).toBe("not_accepted");
@@ -232,25 +235,26 @@ describe("a video's extension", () => {
     }
   });
 
-  test("of a WebM or an Ogg, a declared family decides, and a bare Ogg type names none", () => {
+  test("of a WebM or an Ogg takes either family's type as its container's, and a bare Ogg none", () => {
     for (const name of ["a.ogg", "a.ogv", "A.OGG"]) {
       for (const declared of ["application/ogg", "application/x-ogg"]) {
         expect(admitClaims(name, declared, VIDEOS)).toBe("video");
       }
     }
-    // Only a sound's or a picture's type names a family; `.ogv` is a video by its name alone.
-    for (const [name, declared] of [
-      ["a.webm", "image/webm"],
-      ["a.ogv", "audio/ogg"],
-    ] as const) {
-      expect(refusalOf(() => admitClaims(name, declared, VIDEOS))).toBe("declared_type");
-    }
+    // A browser names a picked file's type by its extension, so the bytes, not the type, decide.
     for (const [name, declared] of [
       ["a.webm", "audio/webm"],
       ["a.ogg", "audio/ogg"],
       ["a.ogg", "audio/ogg; codecs=opus"],
     ] as const) {
-      expect(refusalOf(() => admitClaims(name, declared, VIDEOS))).toBe("not_accepted");
+      expect(admitClaims(name, declared, VIDEOS)).toBe("video");
+    }
+    for (const [name, declared] of [
+      ["a.webm", "image/webm"],
+      ["a.webm", "video/ogg"],
+      ["a.ogv", "audio/ogg"],
+    ] as const) {
+      expect(refusalOf(() => admitClaims(name, declared, VIDEOS))).toBe("declared_type");
     }
     expect(refusalOf(() => admitClaims("a.webm", "video/webm", IMAGES))).toBe("not_accepted");
   });

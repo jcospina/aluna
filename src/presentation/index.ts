@@ -62,6 +62,7 @@ export {
   renderRecordView,
   renderRecordViewTemplate,
 } from "./records/record-view.ts";
+export { decodeAttributeValue } from "./safety/attribute-urls.ts";
 export { enforceItemMarkup, neutralizeItemMarkup } from "./safety/enforcer.ts";
 export { enforceHandlerFragment, type SafeFragment } from "./safety/fragment-safety.ts";
 export { describeStyleViolation, sanitizeStyle } from "./safety/style-discipline.ts";

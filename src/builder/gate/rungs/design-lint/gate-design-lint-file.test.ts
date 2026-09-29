@@ -5,7 +5,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { enforceItemMarkup } from "../../../../presentation/index.ts";
-import { photoSpec } from "../../../../registry/fields/file.test-support.ts";
+import { PHOTO_FIELD, photoSpec } from "../../../../registry/fields/file.test-support.ts";
 import type { CapabilitySpec } from "../../../../registry/index.ts";
 import { validSpec } from "../../../../registry/spec/spec.test-support.ts";
 import { FEW_SHOT_DESIGN_EXAMPLES } from "../../../units/generation/few-shot-gallery.ts";
@@ -145,7 +145,78 @@ describe("a card whose file field takes photos and videos", () => {
   });
 });
 
-describe.each(["photo_grid_tile", "walk_media_feed"])("the %s exemplar", (id) => {
+describe("a card whose file field takes sounds", () => {
+  const takes = (...accepts: ("image" | "audio")[]) => {
+    const spec = showingThePhoto();
+    const fields = spec.schema.fields.map((field) =>
+      field.name === "photo" ? { ...field, accepts } : field,
+    );
+    return { ...spec, schema: { fields } };
+  };
+  const inWords = 'file ? "<span>Audio</span>" : "<span>No recording yet</span>"';
+  const drawing = (drawn: string) => renderer(`file ? ${drawn} : "<span>None</span>"`);
+
+  test("passes when it says in words that the record holds a sound", () => {
+    expect(findDesignViolation(takes("audio"), renderer(inWords))).toBeUndefined();
+  });
+
+  test("fails when it draws the sound in a player, a source or a picture", () => {
+    for (const drawn of [
+      '`<audio src="${escapeHtml(file.url)}"></audio>`',
+      '`<audio><source src="${escapeHtml(file.url)}"></audio>`',
+      '`<img src="${escapeHtml(file.url)}" alt="">`',
+      '`<video src="${escapeHtml(file.url)}" muted playsinline></video>`',
+      '`<audio src="${escapeHtml(file.url).replaceAll("/", "&#47;")}"></audio>`',
+      '`<audio src="${escapeHtml(file.url).replace("5", "%35").toUpperCase()}"></audio>`',
+      '`<audio src="${escapeHtml(file.url).replace("5", "%35")}?x=%"></audio>`',
+      '`<audio src="${escapeHtml(file.url).replace("5", "5&#9;")}"></audio>`',
+      '`<audio src="${escapeHtml(file.url).replaceAll("/", "\\\\")}"></audio>`',
+      '`<audio src="${escapeHtml(file.url).replace("/files/", "/files/./")}"></audio>`',
+      '`<img srcset="/x.png 1x, ${escapeHtml(file.url)} 2x" alt="">`',
+      'file.name.endsWith(".mp3") ? `<audio src="${escapeHtml(file.url)}"></audio>` : "<span>Audio</span>"',
+    ]) {
+      expect(findDesignViolation(takes("audio"), drawing(drawn))).toBeDefined();
+    }
+  });
+
+  test("fails when it frames a sound, which has no picture", () => {
+    const framed = '`<span class="media-frame media-frame--wide"><span>Audio</span></span>`';
+    expect(findDesignViolation(takes("audio"), drawing(framed))).toBeDefined();
+    const byKind = renderer(
+      `!file ? "<span>None</span>" : (file as { kind?: string }).kind === "audio" ? ${framed} : \`<img src="\${escapeHtml(file.url)}" alt="">\``,
+    );
+    expect(findDesignViolation(takes("image", "audio"), byKind)).toBeDefined();
+    const photoFramed = renderer(
+      `!file ? "<span>None</span>" : (file as { kind?: string }).kind === "audio" ? "<span>Audio</span>" : \`<span class="media-frame"><img src="\${escapeHtml(file.url)}" alt=""></span>\``,
+    );
+    expect(findDesignViolation(takes("image", "audio"), photoFramed)).toBeUndefined();
+  });
+
+  test("fails when it draws the sound, beside a file field of another family it doesn't show", () => {
+    const spec = takes("audio");
+    const cover = { ...PHOTO_FIELD, name: "cover", label: "Cover", accepts: ["image" as const] };
+    const both = { ...spec, schema: { fields: [cover, ...spec.schema.fields] } };
+    expect(findDesignViolation(both, renderer(inWords))).toBeUndefined();
+    const player = '`<audio src="${escapeHtml(file.url)}"></audio>`';
+    expect(findDesignViolation(both, drawing(player))).toBeDefined();
+  });
+
+  test("is reviewed down its sound branch, not only the photo's", () => {
+    const photoOrSound = renderer(
+      `!file ? "<span>None</span>" : \`<img src="\${escapeHtml(file.url)}" alt="">\``,
+    );
+    expect(findDesignViolation(takes("image", "audio"), photoOrSound)).toContain(
+      "for a synthetic audio record",
+    );
+  });
+});
+
+describe.each([
+  "photo_grid_tile",
+  "walk_media_feed",
+  "voice_memo_feed",
+  "voice_memo_tile",
+])("the %s exemplar", (id) => {
   const example = FEW_SHOT_DESIGN_EXAMPLES.find((candidate) => candidate.id === id);
   if (!example) throw new Error(`Expected the ${id} exemplar.`);
 

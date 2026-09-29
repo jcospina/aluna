@@ -10,6 +10,7 @@ import {
   type AdmittedType,
   admitClaims,
   FileAdmissionRefusal,
+  familiesTheBytesMayName,
   SignatureCheck,
 } from "../../platform/files/admission.ts";
 import { capFileName, decodeFileName } from "../../platform/files/file-name.ts";
@@ -98,12 +99,13 @@ function notAdmitted(c: Context, field: UploadField, error: FileAdmissionRefusal
 function admitBeforeReading(
   c: Context,
   field: UploadField,
-): { name: string; kind: FileFamily } | Response {
+): { name: string; kind: FileFamily; families: readonly FileFamily[] } | Response {
   const decoded = decodeFileName(c.req.header(FILE_NAME_HEADER) ?? "");
   if (decoded === undefined) return c.body(null, 400, NO_STORE);
   try {
     const kind = admitClaims(decoded, c.req.header("content-type"), field.accepts);
-    return { name: capFileName(decoded), kind };
+    const families = familiesTheBytesMayName(decoded, kind, field.accepts);
+    return { name: capFileName(decoded), kind, families };
   } catch (error) {
     if (error instanceof FileAdmissionRefusal) return notAdmitted(c, field, error);
     throw error;
@@ -156,10 +158,10 @@ async function* admittedChunks(
 async function stageUnderReadToken(
   c: Context,
   deps: FileUploadDeps,
-  kind: FileFamily,
+  claims: { kind: FileFamily; families: readonly FileFamily[] },
   tokens: ReadTokenSet,
 ): Promise<{ staged: StagedObject; admitted: AdmittedType }> {
-  const check = new SignatureCheck(kind);
+  const check = new SignatureCheck(claims.kind, claims.families);
   const signal = AbortSignal.any([c.req.raw.signal, tokens.signal]);
   let read = false;
   const release = () => {
@@ -258,7 +260,7 @@ async function upload(c: Context, deps: FileUploadDeps): Promise<Response> {
 
   let staged: StagedObject | undefined;
   try {
-    const stage = await stageUnderReadToken(c, deps, claims.kind, tokens);
+    const stage = await stageUnderReadToken(c, deps, claims, tokens);
     staged = stage.staged;
     const { capabilityId, incarnationId } = target.incarnation;
     const file: AdmittedFile = {

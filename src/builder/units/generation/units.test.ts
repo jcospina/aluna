@@ -887,7 +887,7 @@ describe("unit generation with bounded fix loop — item-renderer prompt", () =>
         ),
       ).not.toEqual([]);
     }
-    for (const example of FEW_SHOT_DESIGN_EXAMPLES.filter(({ onlyForFiles }) => !onlyForFiles)) {
+    for (const example of FEW_SHOT_DESIGN_EXAMPLES.filter(({ onlyFor }) => !onlyFor)) {
       expect(feedPrompt).toContain(example.title);
       expect(feedPrompt).toContain(example.rendererSource);
     }
