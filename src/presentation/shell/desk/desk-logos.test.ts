@@ -3,10 +3,12 @@ import { describe, expect, test } from "bun:test";
 import {
   BUILD_NARRATION_REGION_ID,
   buildIdFromEvent,
+  DESK_LOGO_LAYER_ID,
   PROVISIONAL_LOGO_ATTRIBUTE,
   removeProvisionalLogo,
   revealBuildNarration,
   startDeskLogos,
+  startLogoLayerScroll,
 } from "#shell/desk-logos.js";
 import { WINDOW_CONTENT_ID } from "#shell/desk-window.js";
 import { BUILD_JOB_ID_ATTRIBUTE } from "#shell/shell-dom.js";
@@ -66,6 +68,16 @@ class Node {
     this.focused = true;
   }
 
+  readonly listeners = new Map<string, Listener[]>();
+
+  addEventListener(type: string, listener: Listener): void {
+    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
+  }
+
+  dispatch(type: string, event: LogoEvent): void {
+    for (const listener of this.listeners.get(type) ?? []) listener(event);
+  }
+
   closest(selector: string): Node | null {
     for (let node: Node | null = this; node; node = node.parent) {
       if (node.matches(selector)) return node;
@@ -94,8 +106,6 @@ type LogoEvent = { target?: unknown; detail?: { type?: string } };
 type Listener = (event: LogoEvent) => void;
 
 class FakeDocument extends Node {
-  readonly listeners = new Map<string, Listener[]>();
-
   querySelectorAll(selector: string): Node[] {
     return [...this.descendants()].filter((node) => node.matches(selector));
   }
@@ -103,14 +113,6 @@ class FakeDocument extends Node {
   getElementById(id: string): Node | null {
     for (const node of this.descendants()) if (node.getAttribute("id") === id) return node;
     return null;
-  }
-
-  addEventListener(type: string, listener: Listener): void {
-    this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
-  }
-
-  dispatch(type: string, event: LogoEvent): void {
-    for (const listener of this.listeners.get(type) ?? []) listener(event);
   }
 }
 
@@ -299,14 +301,149 @@ describe("the module ships with the shell", () => {
     expect(moduleSources(await elementsOf(readSource("public/index.html")))).toContain(
       "/static/desk-logos.js",
     );
-    const { root, tile, subscriber } = deskWithBuild("build-1");
+    const { root, tile, subscriber, layer } = deskWithBuild("build-1");
     await startedOn("desk-logos.js", root);
     root.dispatch("click", { target: tile });
     expect(subscriber.focused).toBe(true);
+    expect([...layer.listeners.keys()]).toEqual(expect.arrayContaining(["focusin", "wheel"]));
   });
 
   test("the narration region the tile falls back to is the window's own", () => {
     // Both halves can import the one id, so they do: the window holds the narration now.
     expect(BUILD_NARRATION_REGION_ID).toBe(WINDOW_CONTENT_ID);
+  });
+});
+
+/** A logo layer as the scroll rules read it: its extents, its scroll and what it is told. */
+function layerOf(size: { scrollWidth: number; scrollHeight: number }) {
+  const listeners = new Map<string, (event: unknown) => void>();
+  const layer = {
+    scrollLeft: 0,
+    clientWidth: 400,
+    clientHeight: 300,
+    ...size,
+    addEventListener: (type: string, listener: (event: unknown) => void) =>
+      listeners.set(type, listener),
+  };
+  let observed: ((records: { addedNodes: unknown[] }[]) => void) | undefined;
+  class Observer {
+    constructor(callback: (records: { addedNodes: unknown[] }[]) => void) {
+      observed = callback;
+    }
+    observe(): void {}
+  }
+  startLogoLayerScroll(layer, Observer);
+  const wheel = (event: {
+    deltaY: number;
+    deltaX?: number;
+    deltaMode?: number;
+    ctrlKey?: boolean;
+  }) => {
+    let prevented = false;
+    listeners.get("wheel")?.({
+      deltaX: 0,
+      deltaMode: 0,
+      ...event,
+      preventDefault: () => {
+        prevented = true;
+      },
+    });
+    return prevented;
+  };
+  const press = (event: { target: unknown; offsetX: number; offsetY: number }) => {
+    let prevented = false;
+    listeners.get("mousedown")?.({
+      ...event,
+      preventDefault: () => {
+        prevented = true;
+      },
+    });
+    return prevented;
+  };
+  return {
+    layer,
+    wheel,
+    press,
+    focus: (target: unknown) => listeners.get("focusin")?.({ target }),
+    added: (...addedNodes: unknown[]) => observed?.([{ addedNodes }]),
+  };
+}
+
+function revealable({ keyboard = true } = {}) {
+  const node = { revealedWith: undefined as unknown };
+  return Object.assign(node, {
+    scrollIntoView: (options: unknown) => {
+      node.revealedWith = options;
+    },
+    matches: (selector: string) => selector === ":focus-visible" && keyboard,
+  });
+}
+
+describe("a desk with more logos than room", () => {
+  test("a plain wheel scrolls the layer sideways, the one way it runs", () => {
+    const { layer, wheel } = layerOf({ scrollWidth: 900, scrollHeight: 300 });
+    expect(wheel({ deltaY: 40 })).toBe(true);
+    expect(layer.scrollLeft).toBe(40);
+    // A wheel counting lines, as Firefox's does for a mouse, still moves it a line's worth.
+    wheel({ deltaY: 3, deltaMode: 1 });
+    expect(layer.scrollLeft).toBeGreaterThan(40 + 3);
+  });
+
+  test("a wheel is left alone where it already means something", () => {
+    const sideways = layerOf({ scrollWidth: 900, scrollHeight: 300 });
+    expect(sideways.wheel({ deltaY: 40, deltaX: 10 })).toBe(false);
+    expect(sideways.wheel({ deltaY: 40, ctrlKey: true })).toBe(false);
+    // Nothing to scroll, or a phone's list that runs down: the wheel is the browser's.
+    expect(layerOf({ scrollWidth: 400, scrollHeight: 300 }).wheel({ deltaY: 40 })).toBe(false);
+    expect(layerOf({ scrollWidth: 400, scrollHeight: 900 }).wheel({ deltaY: 40 })).toBe(false);
+  });
+
+  test("a logo the keyboard reaches is brought wholly into view", () => {
+    const { focus } = layerOf({ scrollWidth: 900, scrollHeight: 300 });
+    const logo = revealable();
+    focus(logo);
+    expect(logo.revealedWith).toEqual({ block: "nearest", inline: "nearest" });
+  });
+
+  test("a logo a pointer presses stays under the press", () => {
+    // Revealed mid-press, a half-hidden logo slid away and the click landed on the ground.
+    const { focus } = layerOf({ scrollWidth: 900, scrollHeight: 300 });
+    const logo = revealable({ keyboard: false });
+    focus(logo);
+    expect(logo.revealedWith).toBeUndefined();
+  });
+
+  test("a press on the ground leaves the keyboard with nobody, as it was before the layer scrolled", () => {
+    const { layer, focus } = layerOf({ scrollWidth: 900, scrollHeight: 300 });
+    let blurred = false;
+    Object.assign(layer, {
+      blur: () => {
+        blurred = true;
+      },
+    });
+    focus(layer);
+    expect(blurred).toBe(true);
+  });
+
+  test("a tile a swap stands on the ground is brought into view, past the text beside it", () => {
+    const { added } = layerOf({ scrollWidth: 900, scrollHeight: 300 });
+    const tile = revealable();
+    added(tile, { nodeType: 3 });
+    expect(tile.revealedWith).toEqual({ block: "nearest", inline: "nearest" });
+  });
+
+  test("a press on the scrollbar leaves the keyboard on the logo it was on", () => {
+    const { layer, press } = layerOf({ scrollWidth: 900, scrollHeight: 300 });
+    // Below the client box is the bar; above it is ground, which takes the press as any would.
+    expect(press({ target: layer, offsetX: 10, offsetY: layer.clientHeight + 2 })).toBe(true);
+    expect(press({ target: layer, offsetX: layer.clientWidth + 2, offsetY: 10 })).toBe(true);
+    expect(press({ target: layer, offsetX: 10, offsetY: layer.clientHeight - 2 })).toBe(false);
+    expect(press({ target: revealable(), offsetX: 10, offsetY: layer.clientHeight + 2 })).toBe(
+      false,
+    );
+  });
+
+  test("the layer is found by the name the server gives it", () => {
+    expect(DESK_LOGO_LAYER_ID).toBe(DESK_LOGO_LAYER_ELEMENT_ID);
   });
 });

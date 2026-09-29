@@ -10,7 +10,7 @@ import {
   PHOTO_FIELD,
   photoSpec,
 } from "../../../registry/fields/file.test-support.ts";
-import type { CapabilitySpec, FileFamily } from "../../../registry/index.ts";
+import { type CapabilitySpec, FILE_FAMILIES, type FileFamily } from "../../../registry/index.ts";
 import { notesSpec } from "../../../registry/spec/spec.test-support.ts";
 import { projectFileLedgerRow } from "../../../runtime/data/index.ts";
 import { handlerContractDeclarations } from "../../generated-code-check.ts";
@@ -18,6 +18,7 @@ import { checkGeneratedUnit } from "../safety/unit-checks.ts";
 import { FEW_SHOT_DESIGN_EXAMPLES } from "./few-shot-gallery.ts";
 import {
   buildUnitPrompt,
+  ITEM_AUDIO_RULE,
   ITEM_FAMILIES_RULE,
   ITEM_FILE_FIELD_RULE,
   ITEM_PHOTO_RULE,
@@ -199,7 +200,13 @@ describe("the item renderer's prompt", () => {
     const spec = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, accepts }]);
     return { ...spec, ui_intent: { ...spec.ui_intent, item: { ...spec.ui_intent.item, shows } } };
   };
-  const RULES = [ITEM_FILE_FIELD_RULE, ITEM_PHOTO_RULE, ITEM_VIDEO_RULE, ITEM_FAMILIES_RULE];
+  const RULES = [
+    ITEM_FILE_FIELD_RULE,
+    ITEM_PHOTO_RULE,
+    ITEM_VIDEO_RULE,
+    ITEM_AUDIO_RULE,
+    ITEM_FAMILIES_RULE,
+  ];
   const rulesIn = (prompt: string) => RULES.filter((rule) => prompt.includes(rule));
 
   test("says what a shown file field arrives as, and how to draw each family it takes", () => {
@@ -207,8 +214,12 @@ describe("the item renderer's prompt", () => {
     expect(rulesIn(photos)).toEqual([ITEM_FILE_FIELD_RULE, ITEM_PHOTO_RULE]);
     const videos = buildUnitPrompt(showing(["caption", "photo"], ["video"]), item);
     expect(rulesIn(videos)).toEqual([ITEM_FILE_FIELD_RULE, ITEM_VIDEO_RULE]);
+    const sounds = buildUnitPrompt(showing(["caption", "photo"], ["audio"]), item);
+    expect(rulesIn(sounds)).toEqual([ITEM_FILE_FIELD_RULE, ITEM_AUDIO_RULE]);
     const either = buildUnitPrompt(showing(["photo"], ["image", "video"]), item);
-    expect(rulesIn(either)).toEqual(RULES);
+    expect(rulesIn(either)).toEqual(RULES.filter((rule) => rule !== ITEM_AUDIO_RULE));
+    const every = buildUnitPrompt(showing(["photo"], ["image", "video", "audio"]), item);
+    expect(rulesIn(every)).toEqual(RULES);
   });
 
   test("tells a card that shows a video it never plays one, and reads without a first frame", () => {
@@ -217,19 +228,39 @@ describe("the item renderer's prompt", () => {
     }
   });
 
-  test("shows the exemplars that draw a file only to a card that shows one", () => {
-    const files = FEW_SHOT_DESIGN_EXAMPLES.filter(({ onlyForFiles }) => onlyForFiles);
+  test("shows the exemplars that draw a file only to a card that shows a family they draw", () => {
+    const files = FEW_SHOT_DESIGN_EXAMPLES.filter(({ onlyFor }) => onlyFor);
     expect(files).not.toEqual([]);
     for (const example of files) {
-      expect(buildUnitPrompt(showing(["photo"], ["video"]), item)).toContain(
-        example.rendererSource,
-      );
+      for (const family of FILE_FAMILIES) {
+        const prompt = buildUnitPrompt(showing(["photo"], [family]), item);
+        const drawn = example.onlyFor?.includes(family) ?? false;
+        expect(prompt.includes(example.rendererSource)).toBe(drawn);
+      }
       expect(buildUnitPrompt(showing(["caption"]), item)).not.toContain(example.rendererSource);
     }
   });
 
+  test("keeps the photo tile from a card that can only hold sounds, which gets a tile of its own", () => {
+    const tile = FEW_SHOT_DESIGN_EXAMPLES.find(({ notForOnly }) => notForOnly === "audio");
+    if (!tile) throw new Error("Expected an exemplar kept from sound-only cards.");
+    const sounds = buildUnitPrompt(showing(["photo"], ["audio"]), item);
+    expect(sounds).not.toContain(tile.rendererSource);
+    expect(buildUnitPrompt(showing(["photo"], ["image", "audio"]), item)).toContain(
+      tile.rendererSource,
+    );
+    const grids = FEW_SHOT_DESIGN_EXAMPLES.filter(
+      ({ layout, onlyFor }) => layout === "grid" && onlyFor?.includes("audio"),
+    );
+    expect(grids.every(({ rendererSource }) => sounds.includes(rendererSource))).toBe(true);
+    expect(grids).not.toEqual([]);
+  });
+
   test("says nothing of files to a card that shows none", () => {
-    expect(rulesIn(buildUnitPrompt(showing(["caption"], ["image", "video"]), item))).toEqual([]);
+    for (const family of FILE_FAMILIES) {
+      expect(rulesIn(buildUnitPrompt(showing(["caption"], [family]), item))).toEqual([]);
+    }
+    expect(rulesIn(buildUnitPrompt(showing(["caption"], [...FILE_FAMILIES]), item))).toEqual([]);
     expect(rulesIn(buildUnitPrompt(notesSpec(), item))).toEqual([]);
   });
 });

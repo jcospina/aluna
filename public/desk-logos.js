@@ -126,4 +126,85 @@ export function startDeskLogos(root) {
   );
 }
 
-if (typeof document !== "undefined") startDeskLogos(document);
+/** The layer the logos stand on; pinned against the server's own name for it. */
+export const DESK_LOGO_LAYER_ID = "capability-logos";
+
+/** One line of a wheel that counts in lines, as Firefox's does for a mouse. */
+const WHEEL_LINE_PX = 16;
+
+/**
+ * @typedef {{ target?: unknown, deltaX: number, deltaY: number, deltaMode: number,
+ *   ctrlKey?: boolean, preventDefault(): void }} LayerWheel
+ * @typedef {{ target?: unknown, offsetX: number, offsetY: number, preventDefault(): void }} LayerPress
+ * @typedef {{ scrollIntoView?: (options: ScrollIntoViewOptions) => void,
+ *   matches?: (selector: string) => boolean }} Revealable
+ * @typedef {{
+ *   scrollLeft: number, scrollWidth: number, clientWidth: number,
+ *   scrollHeight: number, clientHeight: number, blur?: () => void,
+ *   addEventListener(type: string, listener: (event: any) => void, options?: object): void,
+ * }} LogoLayer
+ * @typedef {new (callback: (records: { addedNodes: Iterable<unknown> }[]) => void) => {
+ *   observe(target: unknown, options: { childList: boolean }): void }} ObserverClass
+ */
+
+/** @param {unknown} node */
+function reveal(node) {
+  /** @type {Revealable} */ (node)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+}
+
+/** The last element among what a swap added: whitespace comes in beside it as text. */
+function lastRevealable(/** @type {Iterable<unknown>} */ nodes) {
+  return [...nodes]
+    .filter((node) => typeof (/** @type {Revealable} */ (node)?.scrollIntoView) === "function")
+    .at(-1);
+}
+
+/**
+ * The layer scrolls when the desk holds more logos than room (desk.css), so what the person is
+ * working with is kept inside it: a logo the keyboard reaches, and a tile a build or evolution has
+ * just stood on the ground. A plain wheel turns it sideways, the only way it runs on a desktop.
+ * @param {LogoLayer | null} layer
+ * @param {ObserverClass | undefined} Observer
+ */
+export function startLogoLayerScroll(layer, Observer) {
+  if (layer === null) return;
+  layer.addEventListener("focusin", (/** @type {LogoEvent} */ event) => {
+    // A press on the ground or the bar is not a claim on the keyboard: the shell reads focus on
+    // `body` as nobody's. And only the keyboard is revealed to, since a reveal under a pointer
+    // moves the logo out from under the click it is in the middle of.
+    if (event.target === layer) layer.blur?.();
+    else if (/** @type {Revealable} */ (event.target)?.matches?.(":focus-visible")) {
+      reveal(event.target);
+    }
+  });
+  // A press on the bar itself is not a press on the desk: it leaves the keyboard where it was.
+  layer.addEventListener("mousedown", (/** @type {LayerPress} */ event) => {
+    const onBar = event.offsetX >= layer.clientWidth || event.offsetY >= layer.clientHeight;
+    if (event.target === layer && onBar) event.preventDefault();
+  });
+  if (Observer !== undefined) {
+    new Observer((records) =>
+      reveal(lastRevealable(records.flatMap((r) => [...r.addedNodes]))),
+    ).observe(layer, { childList: true });
+  }
+  layer.addEventListener(
+    "wheel",
+    (/** @type {LayerWheel} */ event) => {
+      const sideways =
+        layer.scrollWidth > layer.clientWidth && layer.scrollHeight <= layer.clientHeight;
+      if (!sideways || event.ctrlKey || event.deltaX !== 0 || event.deltaY === 0) return;
+      event.preventDefault();
+      const unit = [1, WHEEL_LINE_PX, layer.clientWidth][event.deltaMode] ?? 1;
+      layer.scrollLeft += event.deltaY * unit;
+    },
+    { passive: false },
+  );
+}
+
+if (typeof document !== "undefined") {
+  startDeskLogos(document);
+  startLogoLayerScroll(
+    /** @type {LogoLayer | null} */ (document.getElementById(DESK_LOGO_LAYER_ID)),
+    globalThis.MutationObserver,
+  );
+}

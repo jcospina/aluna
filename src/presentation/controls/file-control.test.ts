@@ -183,6 +183,20 @@ describe("the photo control's host", () => {
   });
 });
 
+describe("a sound field's control", () => {
+  test("offers a sound field every audio type and extension admission takes, .ogg among them", () => {
+    const memos = photos({
+      fields: [CAPTION_FIELD, { ...PHOTO_FIELD, accepts: ["video", "audio"] }],
+    });
+    const host = hostOf(renderCreateForm(memos));
+    expect(host.getAttribute(HOOKS.kind)).toBe("video audio");
+    const offered = host.getAttribute(HOOKS.accept)?.split(",") ?? [];
+    expect(offered).toEqual([...offeredTypes(["video", "audio"])]);
+    // A browser declares an `.ogg` a sound, so a field that takes sound offers one.
+    expect(offered).toContain(".ogg");
+  });
+});
+
 describe("a form holding a photo", () => {
   test("has a save the control can hold, its words in a label of their own", () => {
     const record = { id: "r1", caption: "Dawn", photo: null };

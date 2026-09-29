@@ -12,12 +12,15 @@ export const ADD_FILE_AGAIN_SENTENCE =
 export const NOT_ADMITTED_SENTENCES = {
   image: "That isn’t a photo I can show here. Mind picking a different one?",
   video: "That isn’t a video I can play here. Mind picking a different one?",
+  audio: "That isn’t an audio file I can play here. Mind picking a different one?",
 } as const satisfies Record<FileFamily, string>;
 
-const FAMILY_NOUNS = { image: "a photo", video: "a video" } as const satisfies Record<
-  FileFamily,
-  string
->;
+/** How a refusal names each family, as `design/controls.html` does. */
+export const FAMILY_NOUNS = {
+  image: "a photo",
+  video: "a video",
+  audio: "an audio file",
+} as const satisfies Record<FileFamily, string>;
 
 /**
  * What a field says of a file admission refused. A field that takes several families names them
@@ -30,7 +33,7 @@ export function notAdmittedSentence(accepts: readonly [FileFamily, ...FileFamily
   return `That isn’t ${nouns.join(", ")} or ${last} I can keep here. Mind picking a different one?`;
 }
 
-/** The cap as a person reads it: whole megabytes, as the drawn "500 MB" is, and never rounded up. */
+/** The cap as a person reads it: whole megabytes, as the drawn "500 MB" is, never rounded up. */
 function sizeInWords(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${Math.floor(bytes / (1024 * 1024))} MB`;
   if (bytes >= 1024) return `${Math.floor(bytes / 1024)} KB`;

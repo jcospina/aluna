@@ -203,6 +203,18 @@ describe("the contract over file tokens", () => {
     }
   });
 
+  test("admits audio where the field takes it, and refuses it where it doesn't", () => {
+    const sounds = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, accepts: ["image", "audio"] }]);
+    for (const value of ["audio", "image", null]) {
+      expect(() =>
+        assertActionSuiteContract(sounds, "create", createSuite(withInput(value))),
+      ).not.toThrow();
+    }
+    expect(() =>
+      assertActionSuiteContract(sounds, "create", createSuite(withInput("video"))),
+    ).toThrow();
+  });
+
   test("refuses a file name, an address, or a family the field does not accept", () => {
     for (const value of ["IMG_4821.JPG", "/files/x", "video", ""]) {
       expect(() =>
@@ -402,6 +414,20 @@ describe("the harness", () => {
       const row = requireFileLedgerRow(database, String(form.values.photo));
       expect(row).toMatchObject({ state: "pending", kind: "video", name: tokenFileName("video") });
       expect(isAdmittedType("video", row.mime)).toBe(true);
+    });
+  });
+
+  test("posts an audio token as a pending scratch sound, of the type admission records", () => {
+    const sounds = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, accepts: ["audio"] }]);
+    withScratch(sounds, (database) => {
+      const input = inputValuesToHandlerInput(sounds, [
+        { field: "caption", value: "A thought" },
+        { field: "photo", value: "audio" },
+      ]);
+      const form = scratchFormInput(sounds, input, database);
+      const row = requireFileLedgerRow(database, String(form.values.photo));
+      expect(row).toMatchObject({ state: "pending", kind: "audio", name: tokenFileName("audio") });
+      expect(isAdmittedType("audio", row.mime)).toBe(true);
     });
   });
 

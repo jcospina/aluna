@@ -28,6 +28,7 @@ import {
 } from "../../runtime/data/index.ts";
 import type { CapabilityInput, CapabilitySaveInput } from "../../runtime/router/index.ts";
 import { withFileProjections } from "../../runtime/router/save-input.ts";
+import { scratchNameFor } from "./gate-scratch-names.ts";
 
 /** The incarnation every scratch reference is minted for: a scratch catalog has no real one. */
 export const SCRATCH_INCARNATION_ID = "gate-scratch";
@@ -35,10 +36,14 @@ export const SCRATCH_INCARNATION_ID = "gate-scratch";
 const SCRATCH_SIZE = 48_213;
 
 /**
- * The key of every probe projection. Design lint compares probe records, so a key minted per probe
- * would move a composition that ignores the field under test.
+ * The key of a field's probe projection, the same in every probe and apart from every other
+ * field's. Design lint compares probe records, so a key minted per probe would move a composition
+ * that ignores the field under test, and a key fields share hides which file a card draws.
  */
-const PROBE_KEY = "5c7a7c1e-9a4b-4c1d-8e2f-000000000006";
+function probeKey(spec: CapabilitySpec, field: SpecField): string {
+  const index = spec.schema.fields.findIndex((candidate) => candidate.name === field.name);
+  return `5c7a7c1e-9a4b-4c1d-8e2f-${String(index + 6).padStart(12, "0")}`;
+}
 
 /** The type a scratch file of `kind` is recorded as: the first admission verifies for it. */
 export function scratchFileType(kind: FileFamily): string {
@@ -65,7 +70,7 @@ function scratchPendingFile(
     kind,
     mime: scratchFileType(kind),
     size: SCRATCH_SIZE,
-    name,
+    name: scratchNameFor(name, kind),
   };
 }
 
@@ -84,7 +89,9 @@ export function mintScratchFile(
   return file;
 }
 
-/** The column value of a file `recordId` holds, owned in the ledger as a committed save leaves it. */
+/**
+ * The column value of a file `recordId` holds, owned in the ledger as a committed save leaves it.
+ */
 export function scratchStoredFile(
   database: Database,
   spec: CapabilitySpec,
@@ -102,7 +109,7 @@ export function scratchFileProjection(
   name: string,
   family?: FileFamily,
 ): CapabilityFileProjection {
-  return projectFileLedgerRow(scratchPendingFile(spec, field, name, PROBE_KEY, family));
+  return projectFileLedgerRow(scratchPendingFile(spec, field, name, probeKey(spec, field), family));
 }
 
 export interface ScratchSubmission {

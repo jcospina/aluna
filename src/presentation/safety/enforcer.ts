@@ -108,8 +108,8 @@ function impliedEndTags(): ImpliedEndTags {
 /**
  * A served file's image loads lazily and decodes off the main thread, and a player reads only its
  * metadata, whatever its template said; neutralizing already took its `autoplay`. A pass of its
- * own over neutralized markup, so a second enforcement sees the same structure. An `<img>` names the file itself, or
- * through a `<source>` of the `<picture>` it sits in.
+ * own over neutralized markup, so a second enforcement sees the same structure. An `<img>` names
+ * the file itself, or through a `<source>` of the `<picture>` it sits in.
  */
 function completeMedia(markup: string): string {
   const frames: MediaFrame[] = [];

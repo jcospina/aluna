@@ -22,7 +22,7 @@ export const NOTICE_SLOT =
 // indent. Neither the window layer nor the record holds an anchor; nothing else is composed in.
 export const SHELL_FIXTURE = [
   '<div class="shell" x-data="shell">',
-  '  <div class="desk__logos" id="capability-logos">',
+  '  <div class="desk__logos" id="capability-logos" tabindex="-1">',
   LOGO_PLACEHOLDER,
   "  </div>",
   '  <div class="desk__windows"></div>',

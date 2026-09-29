@@ -96,6 +96,7 @@ export function labelNotice(value) {
  *   style?: { setProperty(name: string, value: string): void },
  *   getBoundingClientRect?: () => { left: number, top: number, right: number,
  *     bottom: number, width: number, height: number },
+ *   scrollIntoView?: (options: { block: "nearest", inline: "nearest" }) => void,
  *   contains?: (node: unknown) => boolean,
  *   textContent?: string,
  *   value?: string,
@@ -187,6 +188,12 @@ let editorHome = null;
  */
 /** @type {{ x: number, y: number } | null} */
 let editorAnchor = null;
+/**
+ * Where that label sat from its logo's corner. The label is hidden while the editor stands in
+ * for it and measures nothing, so the editor follows the logo, which stays on the desk.
+ * @type {{ x: number, y: number } | null}
+ */
+let labelOffset = null;
 /** @type {MenuNode | null} */
 let menuLayer = null;
 /** @type {MenuRoot | null} */
@@ -217,6 +224,7 @@ export function resetLogoMenu() {
   liftedEditor = null;
   editorHome = null;
   editorAnchor = null;
+  labelOffset = null;
   menuLayer = null;
   deskRoot = null;
   renamingCapabilityId = "";
@@ -374,6 +382,11 @@ export function openRenameEditor(slot) {
   const label = within(slot, LOGO_LABEL_SELECTOR);
   // Measured before the label is hidden, because where the label is is the whole answer.
   const at = label?.getBoundingClientRect?.();
+  const logoAt = logoOf(slot)?.getBoundingClientRect?.();
+  labelOffset =
+    at === undefined || logoAt === undefined
+      ? null
+      : { x: at.left - logoAt.left, y: at.top - logoAt.top };
   editingSlot = slot;
   slot.setAttribute(RENAMING_ATTRIBUTE, "");
   // The tile is not a way into the capability while its own name is being typed, and not a tab
@@ -419,6 +432,7 @@ function returnEditor() {
   liftedEditor = null;
   editorHome = null;
   editorAnchor = null;
+  labelOffset = null;
   if (form === null || form === undefined) return;
   form.setAttribute("hidden", "");
   if (home !== null) home.append?.(form);
@@ -610,12 +624,19 @@ function onTheGroundMoving() {
   followTheLabel();
 }
 
-/** Put the open editor back over the label it is standing in for, wherever that now is. */
+/**
+ * Put the open editor back over the label it is standing in for, wherever that now is. The logo
+ * layer scrolls, and a logo scrolled out of it would leave the editor clamped over others.
+ */
 function followTheLabel() {
   const slot = editingSlot;
   if (slot === null) return;
-  const at = within(slot, LOGO_LABEL_SELECTOR)?.getBoundingClientRect?.();
-  if (at !== undefined) editorAnchor = { x: at.left, y: at.top };
+  const logo = logoOf(slot);
+  logo?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+  const at = logo?.getBoundingClientRect?.();
+  if (at !== undefined && labelOffset !== null) {
+    editorAnchor = { x: at.left + labelOffset.x, y: at.top + labelOffset.y };
+  }
   placeFloating(liftedEditor ?? within(slot, RENAME_FORM_SELECTOR), editorAnchor);
 }
 

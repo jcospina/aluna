@@ -234,7 +234,9 @@ test("keeps prompt feedback legible with the shared desk-label treatment", () =>
   expect(tokens).toMatch(
     /--shadow-desk-label:\s*0 1px 1px color-mix\(in srgb, var\(--ink\) 85%, transparent\),\s*0 1px 3px color-mix\(in srgb, var\(--ink\) 85%, transparent\),\s*0 2px 7px color-mix\(in srgb, var\(--ink\) 70%, transparent\);/,
   );
-  expect(logo).toMatch(/\.logo-label[\s\S]*?text-shadow:\s*var\(--shadow-desk-label\)/);
+  // The name wears the same halo as a filter, which paints after its two-line clip.
+  expect(logo).toMatch(/\.logo-label[\s\S]*?filter:\s*var\(--filter-desk-label\)/);
+  expect(logo).not.toMatch(/\.logo-label \{[^}]*text-shadow/);
   expect(prompt).toMatch(
     /\.prompt__notice[\s\S]*?font-weight:\s*600[\s\S]*?color:\s*var\(--surface\)[\s\S]*?text-shadow:\s*var\(--shadow-desk-label\)/,
   );

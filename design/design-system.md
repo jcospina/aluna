@@ -94,7 +94,9 @@ and the object-shadow tokens are bare `<x> <y> <alpha>` numbers rather than CSS
 shadows, so `box-shadow: var(--shadow-window)` produces an invalid value that does
 nothing and says nothing. `--shadow-desk-label` is the named exception: a complete
 three-pass `text-shadow` treatment for type read directly from the wallpaper, never
-an inline-style or generated-markup option.
+an inline-style or generated-markup option. A capability's name wears the same halo
+as `--filter-desk-label`, because it is clipped at two lines and a filter paints after
+the clip where a `text-shadow` is cut by it.
 
 Outside those three axes and these four properties, inline `style` is free:
 arrangement, alignment, aspect ratio, width and the rest. Two rules follow the

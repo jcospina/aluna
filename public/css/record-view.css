@@ -122,12 +122,19 @@
 
 /* The record's render view (`file-render-view.js`) stands in the surface's place while a file
    plays: the bar and the form are put out of sight, not taken away, so their edits and uploads
-   are there when Back returns. The view itself fills the column, as the form did. */
+   are there when Back returns. The view itself fills the column, as the form did.
+
+   It is a scroller whose content runs flush to its edges, so Back's focus ring and the drawn
+   line of Download would be clipped there: the gutter the records list keeps
+   (collection.css, `.capability-records`) gives them room, and the margin hands it back. */
 [data-file-viewing] > :not([data-file-render-view]) {
   display: none;
 }
 [data-file-render-view] {
   flex: 1 1 auto;
+  margin: calc(-1 * var(--space-2));
+  padding: var(--space-2);
+  overflow-x: hidden;
 }
 
 /* In a short window the picture gives up height, still whole, before the controls and the

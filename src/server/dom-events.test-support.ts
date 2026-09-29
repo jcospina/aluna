@@ -5,7 +5,12 @@
 /** What `addEventListener` takes as its third argument, as far as the shipped scripts use it. */
 export type ListenerOptions =
   | boolean
-  | { readonly capture?: boolean; readonly once?: boolean; readonly passive?: boolean }
+  | {
+      readonly capture?: boolean;
+      readonly once?: boolean;
+      readonly passive?: boolean;
+      readonly signal?: AbortSignal;
+    }
   | undefined;
 
 /** Any listener at all: each double hands its listeners the event shape it builds. */
@@ -19,7 +24,7 @@ interface Registration {
   removed: boolean;
 }
 
-const UNDERSTOOD_OPTIONS = new Set(["capture", "once", "passive"]);
+const UNDERSTOOD_OPTIONS = new Set(["capture", "once", "passive", "signal"]);
 
 function optionsOf(options: ListenerOptions): { capture: boolean; once: boolean } {
   if (options === undefined || typeof options === "boolean") {
@@ -35,10 +40,14 @@ function optionsOf(options: ListenerOptions): { capture: boolean; once: boolean 
 export class Listeners {
   private readonly held: Registration[] = [];
 
+  /** A `signal` already aborted adds nothing, and one that aborts later removes the listener. */
   add(type: string, run: Listener, options?: ListenerOptions): void {
     const { capture, once } = optionsOf(options);
-    if (this.find(type, run, capture) >= 0) return;
-    this.held.push({ type, run, capture, once, removed: false });
+    const signal = typeof options === "object" ? options.signal : undefined;
+    if (signal?.aborted || this.find(type, run, capture) >= 0) return;
+    const registration = { type, run, capture, once, removed: false };
+    this.held.push(registration);
+    signal?.addEventListener("abort", () => this.drop(registration), { once: true });
   }
 
   /** Matched on the capture flag too: a listener added captured is removed only captured. */
@@ -47,6 +56,12 @@ export class Listeners {
     if (at < 0) return;
     const [gone] = this.held.splice(at, 1);
     if (gone) gone.removed = true;
+  }
+
+  private drop(registration: Registration): void {
+    const at = this.held.indexOf(registration);
+    if (at >= 0) this.held.splice(at, 1);
+    registration.removed = true;
   }
 
   /** How many are bound for `type`, in either phase. */
