@@ -10,7 +10,7 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
+import { PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { createReadGateCoordinator } from "../../../runtime/concurrency/read-gates.ts";
 import type { CapabilityContext, CapabilityHandler } from "../../../runtime/router/contract.ts";
@@ -225,7 +225,7 @@ describe("the address a deleted capability leaves behind", () => {
       `<div id="${PROMPT_NOTICE_ID}" class="prompt__notice" aria-live="polite">${NOT_FOUND_NOTICE}</div>`,
     );
     // The desk without the capability that is gone. What the window does with this page is the
-    // client's answer (`src/presentation/shell/window/desk-window-address.test.ts`).
+    // client's answer (`src/presentation/shell/window/address/desk-window-address.test.ts`).
     expect(page).not.toContain("capability-logo-notes");
     expect(reloaded.status).toBe(404);
   });

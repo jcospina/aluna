@@ -6,7 +6,7 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ZodType } from "zod";
-import { PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
+import { PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import {
   createScratchDbEnv,

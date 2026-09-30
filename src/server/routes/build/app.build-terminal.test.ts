@@ -3,13 +3,14 @@
 // view standing. `app.build-ending.test.ts` holds the runs that end with something to tell you.
 
 import { describe, expect, test } from "bun:test";
+import { RELEASE_REGION_EVENT } from "#shell/core/region-scope.js";
+import { ACTIVE_CAPABILITY_ATTRIBUTE } from "#shell/core/shell-dom.js";
 import {
   NAME_THE_WINDOW_EVENT,
   PUT_WINDOW_AWAY_EVENT,
   WINDOW_TOOK_CAPABILITY_EVENT,
-} from "#shell/desk-window.js";
-import { RELEASE_REGION_EVENT } from "#shell/region-scope.js";
-import { ACTIVE_CAPABILITY_ATTRIBUTE } from "#shell/shell-dom.js";
+} from "#shell/desk/window/desk-window.js";
+import { renderPromptNotice } from "../../http/index.ts";
 import {
   closeStream,
   desk,
@@ -19,8 +20,7 @@ import {
   narrateEnding,
   streamRestoration,
   Text,
-} from "../../app.shell-double.test-support.ts";
-import { renderPromptNotice } from "../../http/index.ts";
+} from "../../shell-glue/app.shell-double.test-support.ts";
 
 type Scene = ReturnType<typeof desk>;
 

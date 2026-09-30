@@ -6,7 +6,7 @@
 // handing back what it was given.
 
 import { FILE_URL_PREFIX, fileUrl } from "../../../platform/files/file-url.ts";
-import { isFileKey, type PendingFile } from "../../../platform/files/ledger.ts";
+import { isFileKey, type PendingFile } from "../../../platform/files/store/ledger.ts";
 import { FILE_FAMILIES, type FileFamily } from "../../../registry/fields/file.ts";
 
 export { FILE_URL_PREFIX } from "../../../platform/files/file-url.ts";

@@ -20,7 +20,7 @@ function variantsIn(css: string): string[] {
   );
 }
 
-const MANIFEST = readSource("design/styles/components/form-controls.css");
+const MANIFEST = readSource("design/styles/components/controls/form-controls.css");
 const SHELL = readSource("public/css/components.css");
 const HANDBOOK = readSource("design/design-system.md");
 
@@ -118,7 +118,7 @@ describe("every button the product renders", () => {
     // the gallery is the rule being broken by the page that states it.
     const sources = [
       ...under("src", "**/*.{ts,js,html}"),
-      ...under("public", "*.{js,html}"),
+      ...under("public", "**/*.{js,html}"),
       ...under("design", "*.html"),
     ].filter(
       (path) =>

@@ -19,8 +19,12 @@ import {
   type EventNode,
   type ListenerOptions,
   Listeners,
-} from "../../../server/dom-events.test-support.ts";
-import { parseInto, type TreeBuilder, VOID_TAGS } from "../../../server/html-parse.test-support.ts";
+} from "../../../server/dom-double/dom-events.test-support.ts";
+import {
+  parseInto,
+  type TreeBuilder,
+  VOID_TAGS,
+} from "../../../server/dom-double/html-parse.test-support.ts";
 
 /** The desk every measurement is taken against, so no test restates a width. */
 export const DESK = { width: 1440, height: 900 };
@@ -163,7 +167,7 @@ export class El implements EventNode {
 
   /**
    * The browser's own `Node.contains`, itself included. Read by the release a run's story goes
-   * through on its way off the page (`public/region-scope.js`), which walks what the desk has
+   * through on its way off the page (`public/core/region-scope.js`), which walks what the desk has
    * anchored; a node without it answers that walk with a `TypeError`.
    */
   contains(other: El | null | undefined): boolean {

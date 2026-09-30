@@ -14,14 +14,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* No row height, no padding and no gap. `design/styles/components/form-controls.css`
+  /* No row height, no padding and no gap. `design/styles/components/controls/form-controls.css`
      owns the control row and the three sizes that ride on it — `.btn--sm`, the base, and
      `.btn--lg` — and this sheet loads after the manifest, so restating any of them here
      did not merely duplicate them: it silently defeated the size modifiers, and a
      `.btn--sm` on the desk came out at the full row height with a squeezed padding.
      The same argument the type size below is left out for. */
   font-family: var(--font-body);
-  /* No size. A button is set in small caps and `design/styles/components/controls.css`
+  /* No size. A button is set in small caps and `design/styles/components/controls/controls.css`
      already says so — restating a size here only overrode it, because this sheet loads
      after the manifest. Nothing under `public/css/` states a type size the design layer
      owns. */
@@ -48,7 +48,7 @@
 .btn:active:not(:disabled) {
   translate: var(--travel-press) var(--travel-press);
 }
-/* No disabled rule. `design/styles/components/form-controls.css` prints the whole object
+/* No disabled rule. `design/styles/components/controls/form-controls.css` prints the whole object
    at 42% with `cursor: not-allowed`, and greying only the text and refilling the
    background — which is what stood here — made a disabled outline button opaque and made
    its label a second ink, the two things the design names as the wrong answer. It matters

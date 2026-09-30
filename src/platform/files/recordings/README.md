@@ -14,4 +14,4 @@ recorded on 2026-09-29 by a page that asked for one type at a time.
 Safari is missing: its recorder writes nothing without a person's click to start its audio.
 Safari 26 reports `audio/mp4; codecs=mp4a.40.2` when asked for no type, and its MP4 is a
 fragmented one under the `iso5` brand, which `SAMPLE_HEADS.iso5` in
-`../sample-files.test-support.ts` stands in for until a recording from Safari replaces it.
+`../admission/sample-files.test-support.ts` stands in for until a recording from Safari replaces it.

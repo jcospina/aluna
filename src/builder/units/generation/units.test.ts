@@ -20,7 +20,7 @@ import type {
   TokenUsage,
 } from "../../../platform/provider/index.ts";
 import { addedLines, linesNaming } from "../../../platform/provider/prompt-lines.test-support.ts";
-import { ALLOWED_CLASSES } from "../../../presentation/safety/vocabulary.ts";
+import { ALLOWED_CLASSES } from "../../../presentation/safety/enforcer/vocabulary.ts";
 import {
   PALETTE_COLOR_TOKENS,
   SPACING_TOKENS,
@@ -45,7 +45,10 @@ import {
   UnitGenerationError,
 } from "../../index.ts";
 import { checkGeneratedUnit } from "../safety/unit-checks.ts";
-import { buildItemRendererDesignInjection, FEW_SHOT_DESIGN_EXAMPLES } from "./few-shot-gallery.ts";
+import {
+  buildItemRendererDesignInjection,
+  FEW_SHOT_DESIGN_EXAMPLES,
+} from "./few-shot/few-shot-gallery.ts";
 import { DELETE_HANDLER, ITEM_RENDERER, READ_HANDLER } from "./unit-fixtures.test-support.ts";
 import type { UnitDescriptor } from "./units.ts";
 

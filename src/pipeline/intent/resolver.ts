@@ -13,7 +13,7 @@ import {
   canonicalCapabilityLabel,
   readActiveRegistryCatalog,
 } from "../../registry/index.ts";
-import { renderPromptNotice } from "../../server/http/fragments.ts";
+import { renderPromptNotice } from "../../server/http/fragments/fragments.ts";
 import { type IntentClassification, intentClassificationSchema } from "./schema.ts";
 
 /**

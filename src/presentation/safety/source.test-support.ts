@@ -28,9 +28,9 @@ export const rules = (path: string): string => readSource(path).replace(/\/\*[\s
 
 /** Every file of one kind under a directory, as repo-relative paths. */
 export const under = (directory: string, pattern: string): string[] =>
-  [...new Bun.Glob(pattern).scanSync({ cwd: join(ROOT, directory) })].map((name: string) =>
-    join(directory, name),
-  );
+  [...new Bun.Glob(pattern).scanSync({ cwd: join(ROOT, directory) })]
+    .filter((name: string) => !name.startsWith("vendor/"))
+    .map((name: string) => join(directory, name));
 
 /**
  * Every body a selector has, in source order. Flat: nesting is not used in these sheets. The
@@ -55,7 +55,8 @@ export const ruleBody = (css: string, selector: string): string =>
  * waiting for the next file to fall through it.
  */
 export const shellScripts = (): ReadonlyArray<readonly [string, string]> =>
-  [...new Bun.Glob("*.js").scanSync({ cwd: join(ROOT, "public") })]
+  [...new Bun.Glob("**/*.js").scanSync({ cwd: join(ROOT, "public") })]
+    .filter((name: string) => !name.startsWith("vendor/"))
     .sort()
     .map((name: string) => [name, codeOf(join("public", name))] as const);
 

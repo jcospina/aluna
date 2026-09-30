@@ -1,0 +1,239 @@
+// @ts-check
+
+import { registerRegionRelease, releaseRegionContent } from "../core/region-scope.js";
+import { DEFAULT_SEARCH_DEBOUNCE_MS } from "../core/shell-dom.js";
+import { applyCollectionCount, splitCollectionCount } from "./collection-count.js";
+import { RECORDS_REFRESH_START_EVENT } from "./records-refresh.js";
+import {
+  createRecordsRegionRequestCoordinator,
+  recordsRegionRequestCoordinator,
+} from "./records-region-requests.js";
+import { applyRecordsRegionState, searchUrlWithQuery } from "./records-region-status.js";
+
+/** @typedef {(input: string, init?: RequestInit) => Promise<Response>} SearchRequest */
+/** @typedef {import("./records-region-status.js").RecordsRegionState} SearchState */
+
+export { DEFAULT_SEARCH_DEBOUNCE_MS } from "../core/shell-dom.js";
+
+/**
+ * Create the request/state core for one capability search field. The browser adapter below does
+ * the DOM work, so debounce, canonical-read restoration and route isolation run without a DOM.
+ *
+ * @param {{
+ *   readUrl: string,
+ *   searchUrl: string,
+ *   render: (html: string) => void,
+ *   state: (state: SearchState) => void,
+ *   count?: (sentence: string | undefined) => void,
+ *   queryChanged?: (rawQuery: string) => void,
+ *   cancelExternalRead?: () => void,
+ *   claimRequest?: () => import("./records-region-requests.js").RecordsRegionRequestClaim,
+ *   request?: SearchRequest,
+ *   delayMs?: number,
+ *   schedule?: (callback: () => void, delayMs: number) => ReturnType<typeof setTimeout>,
+ *   cancelSchedule?: (timer: ReturnType<typeof setTimeout>) => void,
+ * }} options
+ */
+export function createDebouncedCapabilitySearch(options) {
+  const request = options.request ?? fetch;
+  const delayMs = options.delayMs ?? DEFAULT_SEARCH_DEBOUNCE_MS;
+  const schedule = options.schedule ?? setTimeout;
+  const cancelSchedule = options.cancelSchedule ?? clearTimeout;
+  const localCoordinator = createRecordsRegionRequestCoordinator();
+  const claimRequest = options.claimRequest ?? localCoordinator.claim;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timer;
+  /** @type {import("./records-region-requests.js").RecordsRegionRequestClaim | undefined} */
+  let activeRequest;
+  let generation = 0;
+
+  function cancelPendingWork() {
+    if (timer !== undefined) cancelSchedule(timer);
+    timer = undefined;
+    activeRequest?.abort();
+    activeRequest = undefined;
+    options.cancelExternalRead?.();
+    generation += 1;
+  }
+
+  /** @param {string} rawQuery */
+  function requestTarget(rawQuery) {
+    const query = rawQuery.trim();
+    return {
+      query,
+      url: query === "" ? options.readUrl : searchUrlWithQuery(options.searchUrl, query),
+    };
+  }
+
+  /** @param {import("./records-region-requests.js").RecordsRegionRequestClaim} claim @param {number} ownGeneration */
+  function requestIsObsolete(claim, ownGeneration) {
+    return !claim.isCurrent() || ownGeneration !== generation;
+  }
+
+  /** @param {string} query @param {string} html @returns {SearchState} */
+  function completedState(query, html) {
+    if (query === "") return "idle";
+    return html.trim() === "" ? "no-matches" : "results";
+  }
+
+  /** @param {string} url @param {AbortSignal} signal */
+  async function requestHtml(url, signal) {
+    const response = await request(url, {
+      headers: { "HX-Request": "true" },
+      signal,
+    });
+    if (!response.ok) throw new Error(`Search refresh failed with status ${response.status}`);
+    return response.text();
+  }
+
+  /** @param {string} html @param {string} query @param {import("./records-region-requests.js").RecordsRegionRequestClaim} claim @param {number} ownGeneration */
+  function acceptResponse(html, query, claim, ownGeneration) {
+    if (requestIsObsolete(claim, ownGeneration)) return;
+    // A search answers with both numbers, matched and total, so the label never presents a
+    // filtered number as the whole truth; the canonical read brings the plain count back.
+    const { sentence, records } = splitCollectionCount(html);
+    options.render(records);
+    options.count?.(sentence);
+    options.state(completedState(query, records));
+  }
+
+  /** @param {unknown} error @param {import("./records-region-requests.js").RecordsRegionRequestClaim} claim @param {number} ownGeneration */
+  function handleRequestError(error, claim, ownGeneration) {
+    if (requestIsObsolete(claim, ownGeneration)) return;
+    options.state("error");
+    throw error;
+  }
+
+  /** @param {string} rawQuery */
+  async function execute(rawQuery) {
+    timer = undefined;
+    const { query, url } = requestTarget(rawQuery);
+    const ownGeneration = generation;
+    const claim = claimRequest();
+    activeRequest = claim;
+
+    try {
+      acceptResponse(await requestHtml(url, claim.signal), query, claim, ownGeneration);
+    } catch (error) {
+      handleRequestError(error, claim, ownGeneration);
+    } finally {
+      claim.release();
+      if (activeRequest === claim) activeRequest = undefined;
+    }
+  }
+
+  /** Debounce typing, aborting and invalidating any older in-flight response. @param {string} rawQuery */
+  function update(rawQuery) {
+    cancelPendingWork();
+    options.queryChanged?.(rawQuery);
+    options.state("loading");
+    timer = schedule(() => {
+      void execute(rawQuery).catch(() => undefined);
+    }, delayMs);
+  }
+
+  /** Submit immediately (Enter) or restore canonical read immediately (Clear). @param {string} rawQuery */
+  async function searchNow(rawQuery) {
+    cancelPendingWork();
+    options.queryChanged?.(rawQuery);
+    options.state("loading");
+    await execute(rawQuery);
+  }
+
+  return { dispose: cancelPendingWork, searchNow, update };
+}
+
+/** @type {WeakMap<HTMLFormElement, ReturnType<typeof createDebouncedCapabilitySearch>>} */
+const controllers = new WeakMap();
+
+/** @param {HTMLFormElement} form */
+function controllerFor(form) {
+  const existing = controllers.get(form);
+  if (existing) return existing;
+  const region = document.getElementById(form.dataset.recordsRegionId ?? "");
+  const readUrl = form.dataset.readUrl;
+  const searchUrl = form.dataset.searchUrl;
+  if (!(region instanceof HTMLElement) || !readUrl || !searchUrl) return null;
+  const clear = form.querySelector("[data-capability-search-clear]");
+  const delayMs = Number(form.dataset.searchDebounceMs) || DEFAULT_SEARCH_DEBOUNCE_MS;
+  const htmx = /** @type {Window & { htmx?: { process(node: Element): void } }} */ (window).htmx;
+  const controller = createDebouncedCapabilitySearch({
+    readUrl,
+    searchUrl,
+    delayMs,
+    claimRequest: recordsRegionRequestCoordinator(region).claim,
+    render: (html) => {
+      region.innerHTML = html;
+      // `process` cannot re-arm the View's `hx-trigger="load"`: htmx arms `load` only where
+      // `firstInitCompleted` is unset, the one key `deInitNode` keeps, and a test pins that.
+      htmx?.process(region);
+    },
+    count: (sentence) => applyCollectionCount(region, sentence),
+    state: (state) => applyRecordsRegionState(form, region, state, "search"),
+    queryChanged: (rawQuery) => {
+      if (clear instanceof HTMLButtonElement) clear.hidden = rawQuery.length === 0;
+    },
+    cancelExternalRead: () => {
+      // The data-free View starts one read into this region when it lands; once a person
+      // searches, that read leaves the way every other piece of a region's work leaves.
+      releaseRegionContent(region);
+    },
+  });
+  controllers.set(form, controller);
+  // The debounce timer and the in-flight request outlive the swap that takes the form away,
+  // and dropping the entry means a re-rendered form gets a fresh controller, not a disposed one.
+  registerRegionRelease(form, "search controller", () => {
+    controllers.delete(form);
+    controller.dispose();
+  });
+  return controller;
+}
+
+function installSearchChrome() {
+  document.addEventListener("input", (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || !input.matches("[data-capability-search-input]")) {
+      return;
+    }
+    const form = input.closest("[data-capability-search]");
+    if (form instanceof HTMLFormElement) controllerFor(form)?.update(input.value);
+  });
+
+  document.addEventListener("submit", (event) => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement) || !form.matches("[data-capability-search]")) return;
+    event.preventDefault();
+    const input = form.querySelector("[data-capability-search-input]");
+    if (input instanceof HTMLInputElement) {
+      void controllerFor(form)
+        ?.searchNow(input.value)
+        .catch(() => undefined);
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const clear = target.closest("[data-capability-search-clear]");
+    if (!(clear instanceof HTMLButtonElement)) return;
+    const form = clear.closest("[data-capability-search]");
+    const input = form?.querySelector("[data-capability-search-input]");
+    if (!(form instanceof HTMLFormElement) || !(input instanceof HTMLInputElement)) return;
+    input.value = "";
+    void controllerFor(form)
+      ?.searchNow("")
+      .then(() => input.focus())
+      .catch(() => input.focus());
+  });
+
+  document.addEventListener(RECORDS_REFRESH_START_EVENT, (event) => {
+    const region = event.target;
+    if (!(region instanceof HTMLElement)) return;
+    const form = region
+      .closest(".capability-collection")
+      ?.querySelector("[data-capability-search]");
+    if (form instanceof HTMLFormElement) controllers.get(form)?.dispose();
+  });
+}
+
+if (typeof document !== "undefined") installSearchChrome();

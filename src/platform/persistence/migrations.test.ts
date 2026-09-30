@@ -18,7 +18,7 @@ import {
 import { insertCapability, REGISTRY_TABLE } from "../../registry/store/store.ts";
 import { notesRow } from "../../runtime/router/dispatch/router.test-support.ts";
 import { waitForLog } from "../async.test-support.ts";
-import { FILE_LEDGER_TABLE } from "../files/ledger.ts";
+import { FILE_LEDGER_TABLE } from "../files/store/ledger.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,
@@ -28,7 +28,7 @@ import {
 import { GENERATION_METRICS_TABLE } from "../metrics/store.ts";
 import { openDatabase, type PlatformDatabase } from "./db.ts";
 import { MIGRATIONS, MIGRATIONS_TABLE, runMigrations } from "./migrations.ts";
-import { withDefaultRoots } from "./test-roots.test-support.ts";
+import { withDefaultRoots } from "./test-preload/test-roots.test-support.ts";
 
 const BASELINE_ID = "0001_platform_migrations_ledger";
 

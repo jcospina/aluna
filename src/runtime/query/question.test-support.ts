@@ -20,32 +20,44 @@ import { type CapabilitySpec, readActiveRegistryCatalog } from "../../registry/i
 import { validSpec } from "../../registry/spec/spec.test-support.ts";
 import { insertCapability } from "../../registry/store/store.ts";
 import { applyCapabilityTableDdl } from "../data/index.ts";
-import { createQueryWorker, type QueryShadow, type QueryWorkerValue } from "./query-worker.ts";
 import {
   QUESTION_ANSWER_PROMPT_PREFIX,
   type QuestionAnswerWritten,
   questionAnswerSchema,
-} from "./question-answer.ts";
-import { QUESTION_STEP_BUDGET, type QuestionLoopResult, runQuestionLoop } from "./question-loop.ts";
-import { QUESTION_NO_HOME_PROMPT_PREFIX } from "./question-no-home.ts";
-import type { QuestionStep } from "./question-step.ts";
-import { NO_PLAN } from "./question-step.ts";
+} from "./endings/question-answer.ts";
+import { QUESTION_NO_HOME_PROMPT_PREFIX } from "./endings/question-no-home.ts";
+import {
+  QUESTION_STEP_BUDGET,
+  type QuestionLoopResult,
+  runQuestionLoop,
+} from "./loop/question-loop.ts";
+import { gatesFor, readerCounts, type ScratchPlatforms } from "./scope/read-scope.test-support.ts";
+import { capabilityQuerySpec } from "./scope/whole-catalog-query-scope.ts";
+import {
+  type WholeCatalogReadScope,
+  withWholeCatalogReadScope,
+} from "./scope/whole-catalog-read-scope.ts";
+import type { QuestionStep } from "./step/question-step.ts";
+import { NO_PLAN } from "./step/question-step.ts";
 import {
   QUESTION_STEP_FALLBACK_LABEL,
   type QuestionDecision,
   type QuestionStepLabel,
   type QuestionToolCall,
   READ_ONLY_QUERY_TOOL,
-} from "./question-tool.ts";
-import type { QuestionTurnInput } from "./question-turn.ts";
-import { type QuestionTurnDeps, runQuestionTurn, UNREADABLE_DECISION } from "./question-turn.ts";
-import { buildQuestionTurnPrompt } from "./question-turn-prompt.ts";
-import { gatesFor, readerCounts, type ScratchPlatforms } from "./read-scope.test-support.ts";
-import { capabilityQuerySpec } from "./whole-catalog-query-scope.ts";
+} from "./step/question-tool.ts";
+import type { QuestionTurnInput } from "./turn/question-turn.ts";
 import {
-  type WholeCatalogReadScope,
-  withWholeCatalogReadScope,
-} from "./whole-catalog-read-scope.ts";
+  type QuestionTurnDeps,
+  runQuestionTurn,
+  UNREADABLE_DECISION,
+} from "./turn/question-turn.ts";
+import { buildQuestionTurnPrompt } from "./turn/question-turn-prompt.ts";
+import {
+  createQueryWorker,
+  type QueryShadow,
+  type QueryWorkerValue,
+} from "./worker/query-worker.ts";
 
 /** The label is here rather than in the spec below because a suite about what Aluna calls a
  * collection reads it, and a second copy would let the two drift. */

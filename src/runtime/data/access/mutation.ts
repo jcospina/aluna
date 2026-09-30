@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { enqueueDisplacedFile, enqueueRecordFiles } from "../../../platform/files/ledger.ts";
+import { enqueueDisplacedFile, enqueueRecordFiles } from "../../../platform/files/store/ledger.ts";
 import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import {
   activeFileFields,

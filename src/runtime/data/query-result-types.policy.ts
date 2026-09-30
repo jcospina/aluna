@@ -7,12 +7,16 @@ import { dirname, join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dir, "../../..");
 const SHELL_ALIAS = "#shell/";
+const DESIGN_ALIAS = "#design/";
 
 /** The file an import names, or `undefined` for a package, which holds no repo module. */
 function importedFile(from: string, specifier: string): string | undefined {
   if (specifier.startsWith(".")) return resolve(dirname(from), specifier);
   if (specifier.startsWith(SHELL_ALIAS)) {
     return join(ROOT, "public", specifier.slice(SHELL_ALIAS.length));
+  }
+  if (specifier.startsWith(DESIGN_ALIAS)) {
+    return join(ROOT, "design/scripts", specifier.slice(DESIGN_ALIAS.length));
   }
   return undefined;
 }

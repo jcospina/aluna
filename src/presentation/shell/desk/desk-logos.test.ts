@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-
+import { BUILD_JOB_ID_ATTRIBUTE } from "#shell/core/shell-dom.js";
 import {
   BUILD_NARRATION_REGION_ID,
   buildIdFromEvent,
@@ -9,17 +9,16 @@ import {
   revealBuildNarration,
   startDeskLogos,
   startLogoLayerScroll,
-} from "#shell/desk-logos.js";
-import { WINDOW_CONTENT_ID } from "#shell/desk-window.js";
-import { BUILD_JOB_ID_ATTRIBUTE } from "#shell/shell-dom.js";
+} from "#shell/desk/logos/desk-logos.js";
+import { WINDOW_CONTENT_ID } from "#shell/desk/window/desk-window.js";
 import {
   DESK_LOGO_LAYER_ELEMENT_ID,
   renderBuildSubscriber,
   renderProvisionalLogo,
-} from "../../../server/http/fragments.ts";
+} from "../../../server/http/fragments/fragments.ts";
 import { elementsOf, moduleSources } from "../../../server/http/served-page.test-support.ts";
-import { El as ParsedEl, parseHtml } from "../../controls/choice-picker.test-support.ts";
-import { startedOn } from "../../controls/started-module.test-support.ts";
+import { El as ParsedEl, parseHtml } from "../../controls/double/choice-picker.test-support.ts";
+import { startedOn } from "../../controls/double/started-module.test-support.ts";
 import { readSource } from "../../safety/source.test-support.ts";
 
 /**
@@ -299,10 +298,10 @@ describe("pressing the tile brings the in-flight story back", () => {
 describe("the module ships with the shell", () => {
   test("the shipped page loads it, and it starts itself on the document it finds", async () => {
     expect(moduleSources(await elementsOf(readSource("public/index.html")))).toContain(
-      "/static/desk-logos.js",
+      "/static/desk/logos/desk-logos.js",
     );
     const { root, tile, subscriber, layer } = deskWithBuild("build-1");
-    await startedOn("desk-logos.js", root);
+    await startedOn("desk/logos/desk-logos.js", root);
     root.dispatch("click", { target: tile });
     expect(subscriber.focused).toBe(true);
     expect([...layer.listeners.keys()]).toEqual(expect.arrayContaining(["focusin", "wheel"]));

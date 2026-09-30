@@ -7,8 +7,8 @@
  */
 
 import { CAPABILITIES } from "../data/capabilities.js";
-import { reseedInk } from "../ink.js";
-import { renderCollection, renderRecordForm } from "../patterns.js";
+import { renderCollection, renderRecordForm } from "../desk/patterns.js";
+import { reseedInk } from "../ink/ink.js";
 
 /** @param {HTMLElement} root */
 export function mountLineBench(root) {

@@ -23,7 +23,7 @@ const ROOT = resolve(import.meta.dir, "../../..");
  * Every stylesheet the product loads: `AUDITED_SHEETS`, kept complete by `contrast-audit.policy.ts`,
  * plus the two manifests it excludes for declaring no colour — a rule in one would still move.
  */
-const MOTION_SHEETS = [...AUDITED_SHEETS, "design/styles/index.css", "public/app.css"];
+const MOTION_SHEETS = [...AUDITED_SHEETS, "design/styles/index.css", "public/css/app.css"];
 
 const surface = (): Sheet[] => MOTION_SHEETS.map((name) => ({ name, css: styleSource(name) }));
 

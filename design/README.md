@@ -69,47 +69,45 @@ design/
   design-system.md        the names and rules, read before building any UI
   assets/fonts/           Fraunces and Outfit, variable woff2, both OFL
   assets/logos/           the four specimens logo.html stands on
+  assets/media/           the sample files the file controls are shown holding
   assets/wallpaper/       the desk background, 2560×1440 webp
   styles/
     index.css             imports the rest; order matters
     tokens.css            colours, line weight, shadows, type scale, spacing
     base.css              reset, @font-face, base type styles
     layout.css            menubar, page column, grids
-    components/
-      window.css          window frame and title bar
-      controls.css        the button base, search, chips, segmented, range
-      form-controls.css   the full control set
-      collection.css      the collection, and the record view it swaps to
-      desk.css            desk, logos, prompt bar, mobile layout
-      doc.css             styles for these pages only, not the product
-      list-field.css      the repeatable rows a string[] field is typed into
-      logo-contract.css   the logo tile and label, as the contract defines them
-      ink.css             must load last; wires up the drawn borders
+    doc.css               styles for these pages only, not the product
     layout-kit.css        the classes generated capability markup speaks;
                           loads after the components, before ink.css
+    components/
+      window.css          window frame and title bar
+      collection.css      the collection, and the record view it swaps to
+      desk.css            desk, logos, prompt bar, mobile layout
+      logo-contract.css   the logo tile and label, as the contract defines them
+      ink.css             must load last; wires up the drawn borders
+      controls/
+        controls.css      the button base, search, chips, segmented, range
+        form-controls.css the full control set
+        list-field.css    the repeatable rows a string[] field is typed into
+        file-field.css    the file field, its list and its player
+        file-recorder.css the voice recorder a sound field's row becomes
   scripts/
-    main.js               sets up index.html
-    controls-main.js      sets up controls.html
-    logo-main.js          sets up logo.html
-    listbox.js            the custom dropdown, replacing <select>
-    spec.js               the settled numbers, and the three hands
-    drawn-line.js         generates a hand-drawn path for any box
-    ink.js                finds elements needing a drawn border, mounts them
-    window-frame.js       generates the window path: frame plus title rule
-    window.js             the window component
-    window-gestures.js    drag, resize and maximise, and the pointer that owns one
-    desk.js               the window manager: one window, plus the panel
-    desk-geometry.js      where a window is allowed to be, and the phone breakpoint
-    desk-logo.js          one logo tile: the artwork, the corner, the label
-    devpanel.js           the developer panel's eight readouts
-    list-rows.js          the repeatable rows a string[] field is typed into
-    patterns.js           the collection and the record form it swaps to
-    prompt-bar.js         the floating prompt bar
-    wallpaper.js          the desk background
-    lib/random.js         seeded random numbers and value noise
-    lib/geometry.js       path sampling, displacement, splines
+    pages/                one bootstrap per page: main.js, controls-main.js, logo-main.js
+    ink/                  the drawn line: spec.js (the settled numbers, and the three
+                          hands), drawn-line.js (a hand-drawn path for any box) and
+                          ink.js (finds elements needing a drawn border, mounts them)
+    window/               window.js, the window component; window-frame.js, its path;
+                          window-gestures.js and window-press.js, drag, resize, maximise
+                          and the pointer that owns one
+    desk/                 desk.js, the window manager, with desk-geometry.js, desk-logo.js,
+                          devpanel.js, patterns.js, prompt-bar.js and wallpaper.js
+    controls/             listbox.js, the custom dropdown replacing <select>, and
+                          list-rows.js, the repeatable rows a string[] field is typed into
+    files/                the file field, its list, its player and the voice recorder
+    sections/             the interactive demos embedded in the pages, and the benches
+                          that stand in for the upload route and the microphone
+    lib/                  seeded random numbers, path geometry, WebM finishing
     data/capabilities.js  fake capabilities for the desk
-    sections/             the interactive demos embedded in the pages
 ```
 
 ## How capability logos get made

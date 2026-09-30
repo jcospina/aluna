@@ -7,8 +7,8 @@ import {
   type FileLedgerSeed,
   requireFileLedgerRow,
   seedFileLedgerRow,
-} from "../../../platform/files/ledger.test-support.ts";
-import { FILE_LEDGER_TABLE, mintFileKey } from "../../../platform/files/ledger.ts";
+} from "../../../platform/files/store/ledger.test-support.ts";
+import { FILE_LEDGER_TABLE, mintFileKey } from "../../../platform/files/store/ledger.ts";
 import {
   createScratchDbEnv,
   type ScratchDbEnv,

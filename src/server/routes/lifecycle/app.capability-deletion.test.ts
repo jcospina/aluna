@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ACTIVE_CAPABILITY_ATTRIBUTE, PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
+import { ACTIVE_CAPABILITY_ATTRIBUTE, PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
 import { createBuildJobQueue } from "../../../pipeline/jobs/build-jobs.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { UNKNOWN_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";

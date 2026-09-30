@@ -27,7 +27,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "3.01 — C12's pairing, surviving where the threshold was low enough to let it. " +
       "Ink is what every label on leaf takes, and it is 4.54.",
     sites: [
-      "design/styles/components/form-controls.css § .choice__input:checked + .choice__mark [color]",
+      "design/styles/components/controls/form-controls.css § .choice__input:checked + .choice__mark [color]",
     ],
   },
   {
@@ -41,9 +41,9 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "shipped one and the list row both stand on `--surface`.",
     alsoCovers: [surface],
     sites: [
-      "design/styles/components/controls.css § .search__glyph [color]",
-      "design/styles/components/list-field.css § .field-list__grip [color]",
-      "design/styles/components/file-field.css § .file__glyph [color]",
+      "design/styles/components/controls/controls.css § .search__glyph [color]",
+      "design/styles/components/controls/list-field.css § .field-list__grip [color]",
+      "design/styles/components/controls/file-field.css § .file__glyph [color]",
       "public/css/collection.css § .capability-search__icon [color]",
     ],
   },
@@ -82,7 +82,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       { mix: ["sun", "surface"], toward: 0.13, space: "oklab" },
     ],
     sites: [
-      'design/styles/components/form-controls.css § .btn:hover:not(:disabled, [aria-disabled="true"]) [background]',
+      'design/styles/components/controls/form-controls.css § .btn:hover:not(:disabled, [aria-disabled="true"]) [background]',
     ],
   },
   {
@@ -95,7 +95,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "away from the label. Signal is the tighter of the two and stands for shade.",
     alsoCovers: [{ mix: ["shade", "ink"], toward: 0.13, space: "oklab" }],
     sites: [
-      'design/styles/components/form-controls.css § .btn:hover:not(:disabled, [aria-disabled="true"]) [background]',
+      'design/styles/components/controls/form-controls.css § .btn:hover:not(:disabled, [aria-disabled="true"]) [background]',
     ],
   },
   {
@@ -108,9 +108,9 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "empty file well is a button with the same well, so it steps the same way, and the " +
       "glyph in it wakes to ink.",
     sites: [
-      'design/styles/components/form-controls.css § .btn--outline:hover:not(:disabled, [aria-disabled="true"]) [background]',
-      "design/styles/components/file-field.css § .file:not(.is-invalid) .file__pick:hover [background]",
-      "design/styles/components/file-field.css § .file__pick:hover .file__glyph [color]",
+      'design/styles/components/controls/form-controls.css § .btn--outline:hover:not(:disabled, [aria-disabled="true"]) [background]',
+      "design/styles/components/controls/file-field.css § .file:not(.is-invalid) .file__pick:hover [background]",
+      "design/styles/components/controls/file-field.css § .file__pick:hover .file__glyph [color]",
     ],
   },
   {
@@ -134,11 +134,11 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "stylesheet and painted on the enclosing shell wherever a control has one.",
     sites: [
       "design/styles/base.css § :focus-visible [outline]",
-      "design/styles/components/controls.css § .search:has(.search__input:focus) [outline]",
-      "design/styles/components/controls.css § .segmented button:focus-visible [outline]",
-      "design/styles/components/form-controls.css § .choice__input:focus-visible + .choice__mark [outline]",
-      'design/styles/components/form-controls.css § .field__control:has(:is(input:not([type="checkbox"], [type="radio"]), textarea):focus), .field__control:focus-visible, .field__control:has(select:focus-visible) [outline]',
-      "design/styles/components/file-field.css § .file-player__seek:has(.file-player__range:focus-visible) [outline]",
+      "design/styles/components/controls/controls.css § .search:has(.search__input:focus) [outline]",
+      "design/styles/components/controls/controls.css § .segmented button:focus-visible [outline]",
+      "design/styles/components/controls/form-controls.css § .choice__input:focus-visible + .choice__mark [outline]",
+      'design/styles/components/controls/form-controls.css § .field__control:has(:is(input:not([type="checkbox"], [type="radio"]), textarea):focus), .field__control:focus-visible, .field__control:has(select:focus-visible) [outline]',
+      "design/styles/components/controls/file-field.css § .file-player__seek:has(.file-player__range:focus-visible) [outline]",
       "public/css/collection.css § .capability-search__clear:focus-visible [outline]",
       "public/css/collection.css § .capability-search__control:has(.capability-search__input:focus) [outline]",
     ],
@@ -169,7 +169,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "1.97; a title-bar lamp's is at no offset because the panes it stands on are " +
       "2.64 to 2.94. Both are §1.4.11 met by the bounding colour, technique G195.",
     sites: [
-      "design/styles/components/controls.css § .segmented button:focus-visible [outline]",
+      "design/styles/components/controls/controls.css § .segmented button:focus-visible [outline]",
       "design/styles/components/window.css § .lamp:focus-visible [outline]",
     ],
   },
@@ -183,9 +183,9 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "`--ink-3` a disabled control's own type falls back to are that exception, and " +
       "so is the busy prompt rail, whose field is disabled while a build runs.",
     sites: [
-      "design/styles/components/form-controls.css § .field__control:has(:disabled), .btn:disabled, .choice:has(:disabled) [opacity]",
-      'design/styles/components/form-controls.css § .listbox__option[aria-disabled="true"] [color]',
-      "design/styles/components/list-field.css § .field-list__grip:disabled [opacity]",
+      "design/styles/components/controls/form-controls.css § .field__control:has(:disabled), .btn:disabled, .choice:has(:disabled) [opacity]",
+      'design/styles/components/controls/form-controls.css § .listbox__option[aria-disabled="true"] [color]',
+      "design/styles/components/controls/list-field.css § .field-list__grip:disabled [opacity]",
       "public/css/deletion.css § .capability-deletion__actions form.htmx-request .btn--danger:disabled [background]",
       "public/css/deletion.css § .capability-deletion__actions form.htmx-request .btn--danger:disabled [color]",
       "public/css/deletion.css § .capability-deletion__actions:has(form.htmx-request) .capability-deletion__keep [opacity]",
@@ -203,10 +203,10 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     threshold: "non-text",
     note: "Control glyphs the stylesheet draws itself.",
     sites: [
-      "design/styles/components/controls.css § .field__chevron [color]",
-      "design/styles/components/form-controls.css § .choice__mark [color]",
-      "design/styles/components/form-controls.css § .listbox__chevron [color]",
-      "design/styles/components/file-field.css § .file__line [border-top-color]",
+      "design/styles/components/controls/controls.css § .field__chevron [color]",
+      "design/styles/components/controls/form-controls.css § .choice__mark [color]",
+      "design/styles/components/controls/form-controls.css § .listbox__chevron [color]",
+      "design/styles/components/controls/file-field.css § .file__line [border-top-color]",
     ],
   },
   {
@@ -218,7 +218,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "User-agent artwork: the stylesheet dims it and never gives it a colour, so the " +
       "dimming is the whole of what there is to measure. Chrome draws it in near-ink.",
     sites: [
-      "design/styles/components/form-controls.css § .field__input::-webkit-calendar-picker-indicator [opacity]",
+      "design/styles/components/controls/form-controls.css § .field__input::-webkit-calendar-picker-indicator [opacity]",
     ],
   },
   {
@@ -240,7 +240,9 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     background: { token: "pane-5" },
     threshold: "non-text",
     note: "The well turns pale sky where a file would land, and its glyph wakes to ink.",
-    sites: ["design/styles/components/file-field.css § .file.is-dragover .file__glyph [color]"],
+    sites: [
+      "design/styles/components/controls/file-field.css § .file.is-dragover .file__glyph [color]",
+    ],
   },
   {
     what: "a sound's play toggle, at rest and pressed",
@@ -251,7 +253,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "A fill rather than an edge inside the well, so it is read against the band it takes " +
       "under the pointer and while the sound plays, the darker of its two grounds.",
     alsoCovers: [surface2],
-    sites: ["design/styles/components/file-field.css § .file__toggle [color]"],
+    sites: ["design/styles/components/controls/file-field.css § .file__toggle [color]"],
   },
   {
     what: "the focus ring on a sound's play toggle",
@@ -261,7 +263,9 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     note:
       "It hugs the toggle at no offset, so it stays inside the well and is read against " +
       "the well's own fill rather than the window's.",
-    sites: ["design/styles/components/file-field.css § .file__toggle:focus-visible [outline]"],
+    sites: [
+      "design/styles/components/controls/file-field.css § .file__toggle:focus-visible [outline]",
+    ],
   },
   {
     what: "a file field's glyph over the upload's band, or in an alert well",
@@ -274,7 +278,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "band is the tighter of the two.",
     alsoCovers: [{ token: "well-alert" }],
     sites: [
-      'design/styles/components/file-field.css § .file__well[role="progressbar"] .file__glyph, .file.is-invalid .file__glyph [color]',
+      'design/styles/components/controls/file-field.css § .file__well[role="progressbar"] .file__glyph, .file.is-invalid .file__glyph [color]',
     ],
   },
   {
@@ -286,8 +290,8 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "A player stands in the record's render view on the window's own fill, so its line and " +
       "its square are read against paper rather than a well.",
     sites: [
-      "design/styles/components/file-field.css § .file-player__played [border-top-color]",
-      "design/styles/components/file-field.css § .file-player__thumb [border-color]",
+      "design/styles/components/controls/file-field.css § .file-player__played [border-top-color]",
+      "design/styles/components/controls/file-field.css § .file-player__thumb [border-color]",
     ],
   },
   {
@@ -298,7 +302,9 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     note:
       "Unlike the upload's track, this line is a control: it is what a pointer seeks along, " +
       "so it owes §1.4.11 even at the start, before the ink line behind the square has grown.",
-    sites: ["design/styles/components/file-field.css § .file-player__rail [border-top-color]"],
+    sites: [
+      "design/styles/components/controls/file-field.css § .file-player__rail [border-top-color]",
+    ],
   },
   {
     what: "the line around a refused player's stand-in",
@@ -309,7 +315,9 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "The region the player would have filled, drawn as that region, with the sentence and " +
       "the download link inside it on the well's fill.",
     alsoCovers: [surface],
-    sites: ["design/styles/components/file-field.css § .file-player__refused [border-color]"],
+    sites: [
+      "design/styles/components/controls/file-field.css § .file-player__refused [border-color]",
+    ],
   },
   {
     what: "the voice recorder's soundwave",
@@ -319,7 +327,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     note:
       "The live wave drawn in a sound field's well while it records. It says the microphone " +
       "hears something; the running time beside it and the live region say the same in words.",
-    sites: ["design/styles/components/file-recorder.css § .recorder__wave [color]"],
+    sites: ["design/styles/components/controls/file-recorder.css § .recorder__wave [color]"],
   },
   {
     what: "the track under an upload's progress line",
@@ -329,7 +337,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     note:
       "The form's hairline, and it carries no text: the ink line that grows along it and " +
       "the percentage above it are what say how far the upload has come.",
-    sites: ["design/styles/components/file-field.css § .file__track [border-top-color]"],
+    sites: ["design/styles/components/controls/file-field.css § .file__track [border-top-color]"],
   },
   {
     what: "the label on a save held by an upload",
@@ -341,7 +349,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "back toward paper rather than faded, as the prompt's busy submit is, and the " +
       "sentence stays legible.",
     sites: [
-      'design/styles/components/file-field.css § .btn--primary[aria-disabled="true"] [color]',
+      'design/styles/components/controls/file-field.css § .btn--primary[aria-disabled="true"] [color]',
     ],
   },
   {
@@ -351,7 +359,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     threshold: "non-text",
     note: "Both are marks rather than type, so 3:1 is the threshold that applies.",
     sites: [
-      'design/styles/components/controls.css § .control input[type="range"] [accent-color]',
+      'design/styles/components/controls/controls.css § .control input[type="range"] [accent-color]',
       "public/css/collection.css § .capability-search__loading [border-top-color]",
     ],
   },

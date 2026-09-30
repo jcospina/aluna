@@ -10,7 +10,7 @@
 // route that actually spends the tokens never had one.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { BUILD_JOB_ID_ATTRIBUTE } from "#shell/shell-dom.js";
+import { BUILD_JOB_ID_ATTRIBUTE } from "#shell/core/shell-dom.js";
 import { createBuildJobQueue } from "../../../pipeline/jobs/build-jobs.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { GenerateResult, Provider } from "../../../platform/provider/index.ts";

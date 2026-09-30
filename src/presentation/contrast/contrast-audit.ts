@@ -57,14 +57,14 @@ export const AUDITED_SHEETS: readonly string[] = [
   "design/styles/layout.css",
   "design/styles/layout-kit.css",
   "design/styles/components/collection.css",
-  "design/styles/components/controls.css",
+  "design/styles/components/controls/controls.css",
   "design/styles/components/desk.css",
-  "design/styles/components/doc.css",
-  "design/styles/components/file-field.css",
-  "design/styles/components/file-recorder.css",
-  "design/styles/components/form-controls.css",
+  "design/styles/doc.css",
+  "design/styles/components/controls/file-field.css",
+  "design/styles/components/controls/file-recorder.css",
+  "design/styles/components/controls/form-controls.css",
   "design/styles/components/ink.css",
-  "design/styles/components/list-field.css",
+  "design/styles/components/controls/list-field.css",
   "design/styles/components/logo-contract.css",
   "design/styles/components/window.css",
   "public/css/base.css",
@@ -78,8 +78,8 @@ export const AUDITED_SHEETS: readonly string[] = [
   "public/css/shell.css",
   // The gallery's exemplars paint through inline `style` attributes and are fed verbatim into
   // the item-renderer prompt as approved examples, so a failure here is one the platform teaches.
-  "src/builder/units/generation/few-shot-gallery.ts",
-  "src/builder/units/generation/few-shot-media.ts",
+  "src/builder/units/generation/few-shot/few-shot-gallery.ts",
+  "src/builder/units/generation/few-shot/few-shot-media.ts",
 ];
 
 /**

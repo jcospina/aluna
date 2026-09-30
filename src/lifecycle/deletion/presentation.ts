@@ -1,5 +1,5 @@
-import { capabilityDeletionUrl } from "#shell/routes.js";
-import { WINDOW_CONTENT_ID } from "#shell/shell-dom.js";
+import { capabilityDeletionUrl } from "#shell/core/routes.js";
+import { WINDOW_CONTENT_ID } from "#shell/core/shell-dom.js";
 import type { CapabilityRow } from "../../registry/index.ts";
 import { canonicalCapabilityLabel, SQL_NAME_PATTERN } from "../../registry/index.ts";
 import { escapeHtml } from "../../server/http/html.ts";
@@ -56,7 +56,7 @@ function renderBackAction(restoration: CapabilityDeletionRestorationEvidence): s
 
 /**
  * The mark on every way out of a deletion — **Keep it**, **Continue**, the commit. Each press
- * destroys its control, so `public/capability-deletion.js` hands the keyboard back to the desk.
+ * destroys its control, so `public/desk/logos/capability-deletion.js` hands the keyboard back to the desk.
  */
 export const DELETION_EXIT_ATTRIBUTE = "data-capability-deletion-exit";
 
@@ -249,7 +249,7 @@ export function renderCapabilityDeletionAlreadyGone(
 export type CapabilityDeletionAbsence = "never-asked" | "after-confirm";
 
 /**
- * The query flag the client's recovery marks its preflight with (`public/capability-deletion.js`),
+ * The query flag the client's recovery marks its preflight with (`public/desk/logos/capability-deletion.js`),
  * so the answer can tell the two absences apart. A platform test pins the two copies together.
  */
 export const DELETION_RECHECK_PARAM = "after_confirm";

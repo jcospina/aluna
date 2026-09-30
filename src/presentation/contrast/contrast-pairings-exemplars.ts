@@ -23,13 +23,13 @@ export const EXEMPLAR_PAIRINGS: readonly Pairing[] = [
       "own swap does.",
     alsoCovers: [{ token: "sun" }, { token: "sky" }],
     sites: [
-      "src/builder/units/generation/few-shot-gallery.ts § span.text-bold.truncate[style] [color]",
-      "src/builder/units/generation/few-shot-gallery.ts § span.text-bold[style] [color]",
-      "src/builder/units/generation/few-shot-gallery.ts § span.text-xs.text-bold[style] [color]",
-      "src/builder/units/generation/few-shot-media.ts § span.text-bold.truncate[style] [color]",
-      "src/builder/units/generation/few-shot-media.ts § span.text-bold[style] [color]",
-      "src/builder/units/generation/few-shot-media.ts § span.text-xs.text-bold[style] [color]",
-      "src/builder/units/generation/few-shot-media.ts § time.text-bold[style] [color]",
+      "src/builder/units/generation/few-shot/few-shot-gallery.ts § span.text-bold.truncate[style] [color]",
+      "src/builder/units/generation/few-shot/few-shot-gallery.ts § span.text-bold[style] [color]",
+      "src/builder/units/generation/few-shot/few-shot-gallery.ts § span.text-xs.text-bold[style] [color]",
+      "src/builder/units/generation/few-shot/few-shot-media.ts § span.text-bold.truncate[style] [color]",
+      "src/builder/units/generation/few-shot/few-shot-media.ts § span.text-bold[style] [color]",
+      "src/builder/units/generation/few-shot/few-shot-media.ts § span.text-xs.text-bold[style] [color]",
+      "src/builder/units/generation/few-shot/few-shot-media.ts § time.text-bold[style] [color]",
     ],
   },
   {
@@ -39,7 +39,7 @@ export const EXEMPLAR_PAIRINGS: readonly Pairing[] = [
     threshold: "text",
     note: "The C12 swap, in the exemplars: a light label is what shade can carry.",
     sites: [
-      "src/builder/units/generation/few-shot-gallery.ts § span.text-sm.text-bold[style] [color]",
+      "src/builder/units/generation/few-shot/few-shot-gallery.ts § span.text-sm.text-bold[style] [color]",
     ],
   },
 ];

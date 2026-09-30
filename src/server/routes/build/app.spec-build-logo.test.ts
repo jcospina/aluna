@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, setDefaultTimeout, test } from
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 
-import { reconcileCapabilityArtifacts } from "../../../builder/artifacts/publication/artifact-reconciliation.ts";
+import { reconcileCapabilityArtifacts } from "../../../builder/artifacts/publication/reconciliation/artifact-reconciliation.ts";
 import { LogoGenerationError, type LogoGenerationProvider } from "../../../lifecycle/logo/index.ts";
 import type { GenerationMetrics } from "../../../platform/metrics/index.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";

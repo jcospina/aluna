@@ -37,12 +37,12 @@ describe("every open is a fresh read", () => {
 /** The scripts that read a capability's records, and so are where a poll would live. */
 const READERS = new Set([
   "app.js",
-  "desk-window.js",
-  "record-mutations.js",
-  "record-view.js",
-  "records-refresh.js",
-  "records-region-requests.js",
-  "search-chrome.js",
+  "desk/window/desk-window.js",
+  "records/record-mutations.js",
+  "records/record-view.js",
+  "records/records-refresh.js",
+  "records/records-region-requests.js",
+  "records/search-chrome.js",
 ]);
 
 describe("no invalidation bus, version stamp or refresh control exists anywhere", () => {

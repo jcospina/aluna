@@ -92,8 +92,8 @@ function paintsOnAnyFocus(selector: string): boolean {
  */
 const TEXT_INPUT_SHELLS: readonly { shell: string; suppresses: string }[] = [
   {
-    shell: "design/styles/components/controls.css § .search:has(.search__input:focus)",
-    suppresses: "design/styles/components/controls.css § .search__input:focus",
+    shell: "design/styles/components/controls/controls.css § .search:has(.search__input:focus)",
+    suppresses: "design/styles/components/controls/controls.css § .search__input:focus",
   },
   {
     shell: "design/styles/components/desk.css § .prompt-bar:has(.prompt-bar__input:focus)",
@@ -101,9 +101,9 @@ const TEXT_INPUT_SHELLS: readonly { shell: string; suppresses: string }[] = [
   },
   {
     shell:
-      'design/styles/components/form-controls.css § .field__control:has(:is(input:not([type="checkbox"], [type="radio"]), textarea):focus)',
+      'design/styles/components/controls/form-controls.css § .field__control:has(:is(input:not([type="checkbox"], [type="radio"]), textarea):focus)',
     suppresses:
-      "design/styles/components/form-controls.css § .field__control :is(input, textarea, select):focus",
+      "design/styles/components/controls/form-controls.css § .field__control :is(input, textarea, select):focus",
   },
   {
     shell:

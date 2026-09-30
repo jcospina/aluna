@@ -12,7 +12,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } fr
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { ZodType } from "zod";
-import { ACTIVE_CAPABILITY_ATTRIBUTE } from "#shell/shell-dom.js";
+import { ACTIVE_CAPABILITY_ATTRIBUTE } from "#shell/core/shell-dom.js";
 import {
   candidateFrom,
   journalCapabilityRow,

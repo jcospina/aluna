@@ -3,7 +3,7 @@ import {
   createDebouncedCapabilitySearch,
   DEFAULT_SEARCH_DEBOUNCE_MS,
   type SearchState,
-} from "#shell/search-chrome.js";
+} from "#shell/records/search-chrome.js";
 import { until } from "../../../platform/async.test-support.ts";
 
 interface ScheduledWork {

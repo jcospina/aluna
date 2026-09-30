@@ -22,7 +22,7 @@ import { renderableFromRow } from "../../presentation/index.ts";
 import {
   type CollectionLayout,
   renderCollection,
-} from "../../presentation/records/list-container.ts";
+} from "../../presentation/records/collection/list-container.ts";
 import {
   type CapabilityRow,
   isRegistryInitialized,
@@ -33,7 +33,7 @@ import {
   renderCapabilityCommitSwap,
   renderCapabilitySurface,
   renderRehydratedShell,
-} from "./fragments.ts";
+} from "./fragments/fragments.ts";
 import { escapeHtml } from "./html.ts";
 
 // Matched by id rather than as an exact tag copy: an added attribute in index.html used to make

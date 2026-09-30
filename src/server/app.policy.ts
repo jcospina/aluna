@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { WINDOW_CONTENT_ID } from "#shell/shell-dom.js";
+import { WINDOW_CONTENT_ID } from "#shell/core/shell-dom.js";
 import { codeOf, readSource, under } from "../presentation/safety/source.test-support.ts";
 
 // The shell's files as they ship: the names, routes and rules retired from the page, the glue and
@@ -35,11 +35,11 @@ describe("GET / (shell) — browser glue", () => {
     // The address is the desk's to write: the glue reports what happened and never pushes.
     expect(js).not.toContain("history.pushState");
     expect(js).not.toContain("dataset.previewTarget");
-    // The repeated-value rows are a module of their own now (public/list-field.js), so
+    // The repeated-value rows are a module of their own now (public/controls/list-field.js), so
     // the glue neither owns them nor knows they exist.
     expect(js).not.toContain("collapseListFieldRows");
     expect(js).not.toContain("data-list-field");
-    // Recovering a severed capability deletion is its own module (`public/capability-deletion.js`)
+    // Recovering a severed capability deletion is its own module (`public/desk/logos/capability-deletion.js`)
     // and took its half of `htmx:configRequest` with it; the glue captures only a prompt's.
     expect(js).not.toContain("focusCapabilityDeletion");
     expect(js).not.toContain("[data-capability-deletion-focus]");
@@ -72,7 +72,7 @@ test("keeps a pending stream dormant until foreground narration begins", () => {
 });
 
 test("the deletion's retired neutral marker is styled nowhere", () => {
-  // Recovering a severed deletion is `public/capability-deletion.js`'s, run in
+  // Recovering a severed deletion is `public/desk/logos/capability-deletion.js`'s, run in
   // `app.shell-glue.test.ts`; the stylesheet keeps no hook for the marker it replaced.
   expect(readSource("public/css/demo.css")).not.toContain("data-capability-deletion-neutral");
 });
@@ -83,7 +83,7 @@ test("the vendored SSE extension is the htmx SSE extension", () => {
 });
 
 test("the server names the window's content region through the one constant", () => {
-  // `public/shell-dom.js` owns the id; a copy spelled out in a renderer drifts the day it moves.
+  // `public/core/shell-dom.js` owns the id; a copy spelled out in a renderer drifts the day it moves.
   const copies = under("src", "**/*.ts")
     .filter((path) => !/\.(?:test|policy)\.ts$|\.test-support\.ts$/.test(path))
     .filter((path) => codeOf(path).includes(WINDOW_CONTENT_ID));

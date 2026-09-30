@@ -1,7 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 
-import { createFileLedgerSchema } from "../../../platform/files/ledger.ts";
+import { createFileLedgerSchema } from "../../../platform/files/store/ledger.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,

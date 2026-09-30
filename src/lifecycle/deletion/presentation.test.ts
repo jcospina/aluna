@@ -1,8 +1,7 @@
 import { describe, expect, test } from "bun:test";
-
-import { capabilityDeletionPreflightUrl } from "#shell/capability-deletion.js";
-import { ACTIVE_CAPABILITY_ATTRIBUTE, PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
-import { El, parseHtml } from "../../presentation/controls/choice-picker.test-support.ts";
+import { ACTIVE_CAPABILITY_ATTRIBUTE, PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
+import { capabilityDeletionPreflightUrl } from "#shell/desk/logos/capability-deletion.js";
+import { El, parseHtml } from "../../presentation/controls/double/choice-picker.test-support.ts";
 import type { CapabilityRow } from "../../registry/index.ts";
 import { boomRow, notesRow } from "../../runtime/router/dispatch/router.test-support.ts";
 import { capabilityLogoElementId } from "../../server/http/index.ts";

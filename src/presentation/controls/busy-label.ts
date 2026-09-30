@@ -1,7 +1,7 @@
-import { BUSY_LABEL_ATTRIBUTE } from "#shell/shell-dom.js";
+import { BUSY_LABEL_ATTRIBUTE } from "#shell/core/shell-dom.js";
 import { escapeHtml } from "../../server/http/html.ts";
 
-export { BUSY_LABEL_ATTRIBUTE } from "#shell/shell-dom.js";
+export { BUSY_LABEL_ATTRIBUTE } from "#shell/core/shell-dom.js";
 
 /** The attribute, ready to interpolate into a control's markup. */
 export function busyLabelAttribute(label: string): string {

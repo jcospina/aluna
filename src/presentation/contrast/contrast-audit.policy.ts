@@ -89,8 +89,8 @@ function importedSheets(): string[] {
   return [
     "design/styles/index.css",
     ...manifest("design/styles/index.css", "design/styles"),
-    "public/app.css",
-    ...manifest("public/app.css", "public"),
+    "public/css/app.css",
+    ...manifest("public/css/app.css", "public/css"),
   ];
 }
 
@@ -112,10 +112,10 @@ function embeddedSheets(directory: string): string[] {
   });
 }
 
-/** Every `.css` file sitting beside the ones the manifests name. */
+/** Every `.css` file under the two trees the manifests pull from, in any sub-folder. */
 function sheetsOnDisk(): string[] {
-  return ["design/styles", "design/styles/components", "public/css"].flatMap((directory) =>
-    readdirSync(join(ROOT, directory))
+  return ["design/styles", "public/css"].flatMap((directory) =>
+    readdirSync(join(ROOT, directory), { recursive: true, encoding: "utf8" })
       .filter((name) => name.endsWith(".css") && name !== "index.css")
       .map((name) => `${directory}/${name}`),
   );
@@ -158,10 +158,10 @@ describe("the contrast audit", () => {
     // The list is written out because it is also documentation, but nothing may be missing from
     // it: an imported sheet, a file beside one of those, or a page carrying its own `<style>`.
     const audited = new Set(AUDITED_SHEETS);
-    const manifests = new Set(["design/styles/index.css", "public/app.css"]);
+    const manifests = new Set(["design/styles/index.css", "public/css/app.css"]);
     const required = [
       ...importedSheets().filter((sheet) => !manifests.has(sheet)),
-      ...sheetsOnDisk(),
+      ...sheetsOnDisk().filter((sheet) => !manifests.has(sheet)),
       // `public` holds no page with a `<style>` block today; it is scanned because the next
       // one added there has to be audited on arrival.
       ...["public", "src/builder/units"].flatMap(embeddedSheets),
@@ -291,7 +291,7 @@ describe("the audit's reach", () => {
   test("the fills a script paints are the ones the inventory measures against", () => {
     // `window-frame.js` paints the window surface and its five title-bar panes as SVG `fill`
     // attributes, so eighteen rows measure against a background no audited sheet declares.
-    const painted = readFileSync(join(ROOT, "design/scripts/window-frame.js"), "utf8");
+    const painted = readFileSync(join(ROOT, "design/scripts/window/window-frame.js"), "utf8");
     const named = [...painted.matchAll(/var\(--([a-z0-9-]+)\)/g)].map(
       ([, token]) => token as string,
     );

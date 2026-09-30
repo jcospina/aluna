@@ -1,7 +1,10 @@
-import { isCapabilityNameLabel } from "#shell/capability-name.js";
+import { isCapabilityNameLabel } from "#shell/desk/logos/capability-name.js";
 
 // The rename editor reads a name with this same function, so the two answers cannot drift apart.
-export { isCapabilityNameLabel, MAX_CAPABILITY_LABEL_CHARS } from "#shell/capability-name.js";
+export {
+  isCapabilityNameLabel,
+  MAX_CAPABILITY_LABEL_CHARS,
+} from "#shell/desk/logos/capability-name.js";
 
 /**
  * The one expression of `display_label_override ?? label`, so no display path can disagree. The

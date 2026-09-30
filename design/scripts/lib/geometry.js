@@ -7,7 +7,7 @@
  * fits a spline through them; nothing in this file varies a stroke width.
  */
 
-import { SPEC } from "../spec.js";
+import { SPEC } from "../ink/spec.js";
 import { lineNoise, ringNoiseAt } from "./random.js";
 
 /**
@@ -187,7 +187,7 @@ export function roundedRectPoints(w, h, radius, step = SPEC.step) {
  * because the phases still sum to one turn.
  *
  * @param {NormalPoint[]} pts
- * @param {import("../spec.js").Hand} hand
+ * @param {import("../ink/spec.js").Hand} hand
  * @param {number} seed
  * @returns {NormalPoint[]}
  */
@@ -245,7 +245,7 @@ function runSpans(pts) {
  *
  * @param {number} length
  * @param {number} wavelength
- * @param {import("../spec.js").CycleBounds} bounds
+ * @param {import("../ink/spec.js").CycleBounds} bounds
  * @returns {number}
  */
 function cyclesFor(length, wavelength, [fewest, most]) {

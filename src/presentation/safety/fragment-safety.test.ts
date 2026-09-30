@@ -9,7 +9,7 @@ import { fuzzMarkup, leftoverOpeners } from "./markup-fuzz.test-support.ts";
 describe("a Handler's fragment cannot swap outside the region it was aimed at", () => {
   test("an out-of-band swap is removed, however it is cased or prefixed", () => {
     // Out-of-band is how the platform writes the desk from a response
-    // (`src/server/http/fragments.ts`); a Handler emitting one reaches past its own swap target.
+    // (`src/server/http/fragments/fragments.ts`); a Handler emitting one reaches past its own swap target.
     for (const attribute of [
       `hx-swap-oob="innerHTML:#tasks-count"`,
       `HX-SWAP-OOB="outerHTML"`,

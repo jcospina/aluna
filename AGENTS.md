@@ -69,3 +69,4 @@ subagent may run at settings higher than the main session.
 
 - There are hooks configured to run linter and formatter after every file edit. Never try to bypass them by adding exceptions to the rules stated there. 
 - Do not pollute the codebase with comments. Comments are useful to explain not obvious things or as JSDOC. Commenting every line, style or function just for the sake of commenting makes the code larger than it needs to be.
+- No folder under `src/`, `public/`, `design/` or `scripts/` holds more than 10 files, tests and policies included (`bun run lint` enforces it). When a folder is full, split it into sub-folders named for what their files do, and keep each test in its subject's folder or a sub-folder below it.

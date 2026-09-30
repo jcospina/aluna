@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test";
 
-import { disarmLogoAttempt, startLogoAttemptDisarm } from "#shell/logo-attempt.js";
+import { disarmLogoAttempt, startLogoAttemptDisarm } from "#shell/desk/logos/logo-attempt.js";
 import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import {
   DESK_LOGO_LAYER_ELEMENT_ID,
   renderCapabilityLogo,
-} from "../../../server/http/fragments.ts";
+} from "../../../server/http/fragments/fragments.ts";
 import { byId, elementsOf, moduleSources } from "../../../server/http/served-page.test-support.ts";
-import { El, parseHtml } from "../../controls/choice-picker.test-support.ts";
+import { El, parseHtml } from "../../controls/double/choice-picker.test-support.ts";
 import { readSource } from "../../safety/source.test-support.ts";
 
 // Only a fresh desk render or a newly activated tile may arm one attempt (ADR-0007). This holds
@@ -111,7 +111,7 @@ describe("a tile disarms itself when its attempt starts", () => {
 describe("the shell it runs in", () => {
   test("the shell loads it", async () => {
     expect(moduleSources(await elementsOf(readSource("public/index.html")))).toContain(
-      "/static/logo-attempt.js",
+      "/static/desk/logos/logo-attempt.js",
     );
   });
 

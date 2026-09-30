@@ -86,7 +86,7 @@
 }
 /* Three controls need more room than two. Measured against the window they stand in
    rather than the screen behind it, at the design's own 620px
-   (design/styles/components/form-controls.css, `.form__actions`). */
+   (design/styles/components/controls/form-controls.css, `.form__actions`). */
 @container window (max-width: 620px) {
   .capability-create-form__actions,
   .capability-edit-form__actions {
@@ -100,7 +100,7 @@
   flex-direction: column;
   gap: var(--space-1);
 }
-/* The label is set in caps, the way `design/styles/components/form-controls.css`
+/* The label is set in caps, the way `design/styles/components/controls/form-controls.css`
    sets it: quiet, small and above the well rather than competing with the value
    inside it.
 
@@ -117,7 +117,7 @@
 
 /*
  * The control is a shell plus a bare native element, which is what the design system says
- * it is (`design/styles/components/form-controls.css`): `.field__control` carries the
+ * it is (`design/styles/components/controls/form-controls.css`): `.field__control` carries the
  * boundary, the fill, the padding and every state, and `.field__input`, `.field__textarea`
  * and `.field__select` carry the caret and the text and nothing else. A drawn boundary is
  * two SVG layers sandwiching real content, and `<input>` is a void element, so the split
@@ -142,7 +142,7 @@
 
 /*
  * The multi-line control grows with what is typed and then scrolls. The height is
- * `public/long-text-field.js`'s to set, and the ceiling is its `data-grow-max` — one
+ * `public/fields/long-text-field.js`'s to set, and the ceiling is its `data-grow-max` — one
  * number, written by the renderer from one constant.
  *
  * There is deliberately no `max-height` here. A second ceiling in `rem` would agree with
@@ -204,7 +204,7 @@
 
 /*
  * The drawn picker's own parts — panel, scroller, rows, group headings, notes — are the
- * design system's and ship from `design/styles/components/form-controls.css`, which this
+ * design system's and ship from `design/styles/components/controls/form-controls.css`, which this
  * page already loads. So is the radio group's `.choice` vocabulary and the segmented row.
  * Two things are left here.
  *
@@ -212,7 +212,7 @@
  * it is positioned against the field; in the product it stands inside the form's own
  * scroller, which clips an absolutely positioned panel flat and leaves one row of the list
  * visible. Positioned against the viewport it is outside every ancestor's overflow, and
- * `public/choice-picker.js` measures it off the button and keeps it there while the form
+ * `public/controls/choice-picker.js` measures it off the button and keeps it there while the form
  * scrolls. Nothing about how it looks changes.
  */
 .field--choice .listbox__panel {
@@ -251,7 +251,7 @@
 }
 
 /*
- * The repeated-value list states nothing here. `design/styles/components/list-field.css`
+ * The repeated-value list states nothing here. `design/styles/components/controls/list-field.css`
  * ships it — the column, the row, the actions cluster and the square action — and this
  * sheet loads after the manifest, so restating any of it would only override the file
  * that owns it. What the product used to declare was a hand-rolled remove button with a

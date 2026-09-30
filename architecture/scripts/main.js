@@ -11,7 +11,7 @@
 const BENCHES = ["sequences", "pickers", "matrix", "gate", "lifetimes", "stores"];
 
 try {
-  const { mountWindows } = await import("../../design/scripts/window.js");
+  const { mountWindows } = await import("../../design/scripts/window/window.js");
   const { wireSectionWindows } = await import("../../design/scripts/sections/section-window.js");
   wireSectionWindows(mountWindows(document));
 } catch (error) {
@@ -31,7 +31,7 @@ for (const bench of BENCHES) {
  * build flattens the page onto the site root and rewrites this to one level.
  */
 try {
-  const { drawAlso, startInk } = await import("../../design/scripts/ink.js");
+  const { drawAlso, startInk } = await import("../../design/scripts/ink/ink.js");
   drawAlso(
     ".node, .effect, .fields__row, .rung, .lane, .seam__layer, .lifetime, .version, .hue, .aside",
   );

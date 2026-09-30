@@ -5,7 +5,7 @@ import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 
 import { fileUrl } from "../../../platform/files/file-url.ts";
-import { mintFileKey } from "../../../platform/files/ledger.ts";
+import { mintFileKey } from "../../../platform/files/store/ledger.ts";
 import {
   CAPTION_FIELD,
   PHOTO_FIELD,

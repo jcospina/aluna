@@ -1,18 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import { WINDOW_CONTENT_REGION, windowForOpening } from "#shell/desk-window.js";
 import {
   createRegionReleaseRegistry,
   registerRegionRelease,
   releaseRegionContent,
-} from "#shell/region-scope.js";
-import { capabilityActionUrl } from "#shell/routes.js";
-import { Doc, type El, parseHtml } from "../../controls/choice-picker.test-support.ts";
+} from "#shell/core/region-scope.js";
+import { capabilityActionUrl } from "#shell/core/routes.js";
+import { WINDOW_CONTENT_REGION, windowForOpening } from "#shell/desk/window/desk-window.js";
+import { Doc, type El, parseHtml } from "../../controls/double/choice-picker.test-support.ts";
 import {
   capabilityRecordsRegionId,
   type RenderableCapability,
 } from "../../fields/field-renderer.ts";
-import { renderCollection } from "../../records/list-container.ts";
-import { recordDesk } from "../../records/record-view.test-support.ts";
+import { renderCollection } from "../../records/collection/list-container.ts";
+import { recordDesk } from "../../records/record-view/record-view.test-support.ts";
 import { code } from "../../safety/source.test-support.ts";
 import { viewportDesk } from "../window/viewport-desk.test-support.ts";
 import { document as desk, Node } from "./region-scope.test-support.ts";
@@ -160,7 +160,7 @@ describe("the outgoing capability's work is released on the swap", () => {
     // The post-mutation re-read does the same, run in `records-refresh.test.ts` ("releases the
     // read that was already filling it, and still renders its own").
     const page = await recordDesk(renderCollection({ capability: SAMPLE, loadThroughRead: true }), {
-      modules: ["search-chrome.js"],
+      modules: ["records/search-chrome.js"],
     });
     try {
       const records = page.doc.getElementById(capabilityRecordsRegionId(SAMPLE.id)) as El;

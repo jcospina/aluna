@@ -16,9 +16,9 @@ import {
   materializeCapabilityActionRecord,
 } from "../../runtime/data/index.ts";
 import type { RenderableCapability } from "../fields/field-renderer.ts";
-import { enforceItemMarkup } from "../safety/enforcer.ts";
-import { type ItemRecordViewRef, renderItemWrapper } from "./list-container.ts";
-import { renderRecordViewTemplate } from "./record-view.ts";
+import { enforceItemMarkup } from "../safety/enforcer/enforcer.ts";
+import { type ItemRecordViewRef, renderItemWrapper } from "./collection/list-container.ts";
+import { renderRecordViewTemplate } from "./record-view/record-view.ts";
 
 /**
  * A record as it reaches presentation: the spec fields plus the platform-populated `id` and

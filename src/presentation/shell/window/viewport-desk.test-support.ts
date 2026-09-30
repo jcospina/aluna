@@ -1,19 +1,19 @@
 // A standing desk on a screen that can cross the breakpoint: the product's (`startDeskWindow` run
-// on it) or the design page's own (`design/scripts/desk.js`), the other consumer of the gestures.
+// on it) or the design page's own (`design/scripts/desk/desk.js`), the other consumer of the gestures.
 //
 // The desk watches the viewport once per module, so each desk imports its own instance, and the
 // media query is the page's: the module asks for `PHONE`, and a crossing is that query changing.
 
-import { DESK_GROUND_SELECTOR } from "#shell/desk-window.js";
+import { DESK_GROUND_SELECTOR } from "#shell/desk/window/desk-window.js";
 
 import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
-import { cssEscape } from "../../../server/dom-events.test-support.ts";
-import { renderCapabilityLogo } from "../../../server/http/fragments.ts";
-import { El as ParsedEl, parseHtml } from "../../controls/choice-picker.test-support.ts";
+import { cssEscape } from "../../../server/dom-double/dom-events.test-support.ts";
+import { renderCapabilityLogo } from "../../../server/http/fragments/fragments.ts";
+import { El as ParsedEl, parseHtml } from "../../controls/double/choice-picker.test-support.ts";
 import { El, type StandingDesk, standingDesk } from "./standing-desk.test-support.ts";
 
-type DeskWindowModule = typeof import("#shell/desk-window.js");
-type DevPanelModule = typeof import("#shell/desk-dev-panel.js");
+type DeskWindowModule = typeof import("#shell/desk/window/desk-window.js");
+type DevPanelModule = typeof import("#shell/desk/window/desk-dev-panel.js");
 
 let instances = 0;
 
@@ -130,8 +130,8 @@ export const deskNodes = (html: string): El[] =>
 /** A desk on a screen that is, to start with, a phone or not, started the way the page starts it. */
 export async function viewportDesk(options: ViewportOptions | boolean = {}): Promise<ViewportDesk> {
   // The shared instances first, with no desk standing, so only the fresh ones start on it.
-  await import("#shell/desk-window.js");
-  await import("#shell/desk-dev-panel.js");
+  await import("#shell/desk/window/desk-window.js");
+  await import("#shell/desk/window/desk-dev-panel.js");
   const {
     phone = false,
     pathname = "/",
@@ -201,10 +201,10 @@ export async function viewportDesk(options: ViewportOptions | boolean = {}): Pro
   instances += 1;
   // It starts itself on the document it finds, the way the page loads it.
   const module: DeskWindowModule = await import(
-    `../../../../public/desk-window.js?viewport=${instances}`
+    `../../../../public/desk/window/desk-window.js?viewport=${instances}`
   );
   const devPanel: DevPanelModule | null = panel
-    ? await import(`../../../../public/desk-dev-panel.js?viewport=${instances}`)
+    ? await import(`../../../../public/desk/window/desk-dev-panel.js?viewport=${instances}`)
     : null;
   return {
     desk,
@@ -234,13 +234,13 @@ export async function viewportDesk(options: ViewportOptions | boolean = {}): Pro
 
 /** The design page's desk, with one capability on it, on a screen that is a phone or not. */
 export async function designDesk(phone: boolean, stored: Readonly<Record<string, string>> = {}) {
-  await import("#design/desk.js");
+  await import("#design/desk/desk.js");
   const desk = standingDesk(stored);
   const screen = screenOf(phone);
   // A window arrives with an entrance animation, which is timing a double has no use for.
   Object.assign(El.prototype, { animate: () => ({}) });
   instances += 1;
-  const { Desk } = await import(`../../../../design/scripts/desk.js?viewport=${instances}`);
+  const { Desk } = await import(`../../../../design/scripts/desk/desk.js?viewport=${instances}`);
   const root = new El("div");
   desk.root.append(root);
   const design = new Desk(root, [{ id: "notes", label: "Notes", noun: "note", records: [] }]);

@@ -3,11 +3,11 @@ import { codeOf as code } from "../../safety/source.test-support.ts";
 
 // The stack's rules over the source that keeps them; `desk-stack.test.ts` runs the stack itself.
 
-const WINDOW = code("public/desk-window.js");
-const PANEL = code("public/desk-dev-panel.js");
-const ANSWER = code("public/desk-answer-window.js");
-const STACK = code("public/desk-stack.js");
-const DESIGN_DESK = code("design/scripts/desk.js");
+const WINDOW = code("public/desk/window/desk-window.js");
+const PANEL = code("public/desk/window/desk-dev-panel.js");
+const ANSWER = code("public/desk/window/desk-answer-window.js");
+const STACK = code("public/desk/window/desk-stack.js");
+const DESIGN_DESK = code("design/scripts/desk/desk.js");
 
 describe("a slot is which window this is, not a number that climbs", () => {
   test("the levels are a fixed list read by position, and nothing counts up", () => {
@@ -38,8 +38,10 @@ describe("every desk that stands a window keeps the same rule", () => {
   test("the design page's desk refuses the press from the same module the product does", () => {
     // One implementation, the way the gestures are one: a second copy drifts the moment one of
     // them is corrected.
-    expect(DESIGN_DESK).toContain('import { refusePress } from "./window-press.js";');
-    expect(STACK).toContain('import { refusePress } from "../design/scripts/window-press.js";');
+    expect(DESIGN_DESK).toContain('import { refusePress } from "../window/window-press.js";');
+    expect(STACK).toContain(
+      'import { refusePress } from "../../../design/scripts/window/window-press.js";',
+    );
     for (const source of [DESIGN_DESK, STACK]) {
       expect(source).not.toMatch(/(?:function|const|let)\s+refusePress\b/);
     }

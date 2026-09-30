@@ -39,7 +39,7 @@ export {
   renderProvisionalLogoName,
   renderRefusedPrompt,
   renderRehydratedShell,
-} from "./fragments.ts";
+} from "./fragments/fragments.ts";
 export {
   hasMeaningfulPromptContent,
   readPrompt,

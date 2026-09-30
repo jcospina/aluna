@@ -8,12 +8,12 @@ import {
   ARTIFACTS_ROOT_ENV_VAR,
   DEFAULT_ARTIFACTS_ROOT,
 } from "../src/builder/artifacts/artifacts-root.ts";
-import { mintFileKey } from "../src/platform/files/ledger.ts";
+import { mintFileKey } from "../src/platform/files/store/ledger.ts";
 import {
   OBJECT_STORE_ROOT,
   OBJECT_STORE_ROOT_ENV_VAR,
   STAGING_DIRECTORY,
-} from "../src/platform/files/object-store-root.ts";
+} from "../src/platform/files/store/object-store-root.ts";
 import { DB_PATH, DB_PATH_ENV_VAR } from "../src/platform/persistence/db-path.ts";
 import { resetRuntime } from "./reset-runtime.ts";
 

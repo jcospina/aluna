@@ -10,8 +10,8 @@
 // Presentation only: live values arrive at render time as arguments. Every interpolated field
 // name and record value is escaped, and the form is platform chrome, so the enforcer never runs.
 
-import { capabilityActionUrl } from "#shell/routes.js";
-import { CREATE_CANCELLED_EVENT } from "#shell/shell-dom.js";
+import { capabilityActionUrl } from "#shell/core/routes.js";
+import { CREATE_CANCELLED_EVENT } from "#shell/core/shell-dom.js";
 import { assertNever } from "../../platform/errors.ts";
 import {
   activeSpecFields,
@@ -35,8 +35,8 @@ import {
 } from "../../runtime/router/wire/wire-protocol.ts";
 import { escapeHtml } from "../../server/http/html.ts";
 import { ADDING_LABEL, SAVING_RECORD_LABEL } from "../controls/busy-label.ts";
-import { renderChoiceField } from "../controls/choice-control.ts";
-import { renderFileField } from "../controls/file-control.ts";
+import { renderChoiceField } from "../controls/choice/choice-control.ts";
+import { renderFileField } from "../controls/file/file-control.ts";
 import { submitButton } from "../controls/submit-button.ts";
 import {
   controlShell,
@@ -45,7 +45,7 @@ import {
   growAttributes,
   lengthAttributes,
   REQUIRED_FIELD_SENTENCE,
-} from "./field-chrome.ts";
+} from "./chrome/field-chrome.ts";
 
 /**
  * The slice of a capability the field renderer needs: `id`, `label` and `schema.fields`. Both
@@ -579,7 +579,7 @@ function renderRepeatableListField(
     `<div class="field field--list field--list-repeatable" data-list-input-mode="repeatable"` +
     ` data-list-field data-list-field-label="${label}" data-list-input-id="${inputId}"` +
     // A required list wants one nonblank row, not a filled one in every row, so no single control
-    // carries the native constraint: the submit handler enforces it (`public/field-errors.js`).
+    // carries the native constraint: the submit handler enforces it (`public/fields/field-errors.js`).
     `${field.required ? " data-list-required" : ""}>` +
     presenceMarker +
     `<label class="field__label caps" for="${inputId}-1">${label}${chrome.labelSuffix}</label>` +

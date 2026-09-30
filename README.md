@@ -96,7 +96,7 @@ Bun loads `.env` automatically. The checked-in [.env.example](.env.example) docu
 | `bun run test` | Runs the test suite, sharded across processes. Accepts paths and `--shards`, `--seed`, `--rerun-each`, `--junit`. See [Testing](#testing). |
 | `bun run test:serial` | Runs the whole suite in one process (`bun test`). Slower; useful when debugging. |
 | `bun run typecheck` | Checks server and browser TypeScript. |
-| `bun run lint` | Runs Biome checks. |
+| `bun run lint` | Runs Biome, the comment budget and reference checks, the folder-size check (at most 10 files per folder) and every `*.policy.ts`. |
 | `bun run format` | Formats supported files with Biome. |
 | `bun run build` | Builds the Bun server into `dist/`. |
 | `bun run start` | Starts the built server. Run `bun run build` first. |

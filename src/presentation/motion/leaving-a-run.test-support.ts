@@ -4,7 +4,7 @@ import {
   QUESTION_IN_THE_WINDOW_SELECTOR,
   RUN_ID_ATTRIBUTE,
   RUN_IN_THE_WINDOW_SELECTOR,
-} from "#shell/leaving-a-run.js";
+} from "#shell/desk/leaving-a-run.js";
 
 // The desk a leaving question is asked on, written as plain objects: the two suites that ask
 // about leaving a run need the same window, and a second copy is a second thing to keep true.

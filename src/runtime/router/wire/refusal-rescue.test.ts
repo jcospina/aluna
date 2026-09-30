@@ -4,15 +4,19 @@
 
 import { beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { type Context, Hono } from "hono";
-import { CAPABILITY_LOGO_SELECTOR } from "#shell/desk-window.js";
+import { CAPABILITY_LOGO_SELECTOR } from "#shell/desk/window/desk-window.js";
 import { renderCapabilityRenameRefusal } from "../../../lifecycle/rename/presentation.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { BEHAVIORAL_ERROR_MARKERS, PLATFORM_OWNED_ERROR_CODES } from "../../../registry/index.ts";
 import { notesSpec } from "../../../registry/spec/spec.test-support.ts";
-import { answerArrives, desk, El } from "../../../server/app.shell-double.test-support.ts";
 import { unescapeHtml } from "../../../server/http/html.ts";
 import { PROMPT_REFUSAL_ATTRIBUTE } from "../../../server/http/index.ts";
 import { createTestApp } from "../../../server/isolated-app.test-support.ts";
+import {
+  answerArrives,
+  desk,
+  El,
+} from "../../../server/shell-glue/app.shell-double.test-support.ts";
 import {
   ChoiceDisabledError,
   InvalidChoiceError,

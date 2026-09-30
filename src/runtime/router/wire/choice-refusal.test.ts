@@ -4,8 +4,12 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { ChoiceOption } from "../../../registry/index.ts";
-import { answerArrives, desk, El } from "../../../server/app.shell-double.test-support.ts";
 import { createTestApp } from "../../../server/isolated-app.test-support.ts";
+import {
+  answerArrives,
+  desk,
+  El,
+} from "../../../server/shell-glue/app.shell-double.test-support.ts";
 import { applyCapabilityTableDdl } from "../../data/index.ts";
 import {
   createCapabilityDataTool,

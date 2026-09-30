@@ -8,7 +8,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
+import { PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
 import { REJECT_DEFLECTION } from "../../../pipeline/build/admission/deflection.ts";
 import type { RecordMetrics } from "../../../pipeline/index.ts";
 import type { IntentClassification } from "../../../pipeline/intent/index.ts";
@@ -46,7 +46,7 @@ import {
   renderBuildEnding,
 } from "../../http/index.ts";
 import { createTestApp } from "../../isolated-app.test-support.ts";
-import { makeQuestionProvider } from "./staged-question.test-support.ts";
+import { makeQuestionProvider } from "./question/staged-question.test-support.ts";
 
 let dir: string;
 let conns: PlatformDatabase;

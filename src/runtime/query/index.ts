@@ -13,14 +13,14 @@
 // door. A name that leaves here is one somebody outside could call; there is nothing out there
 // that should be weighing a payload or admitting a statement.
 
-export { createQueryWorker, type QueryShadow, type QueryWorker } from "./query-worker.ts";
-export { QUESTION_ANSWER_PROMPT_PREFIX } from "./question-answer.ts";
+export { QUESTION_ANSWER_PROMPT_PREFIX } from "./endings/question-answer.ts";
+export { QUESTION_NO_HOME_PROMPT_PREFIX } from "./endings/question-no-home.ts";
 export {
   QUESTION_STEP_BUDGET,
   type QuestionLoopResult,
   questionStepsTaken,
   runQuestionLoop,
-} from "./question-loop.ts";
+} from "./loop/question-loop.ts";
 export {
   QUESTION_BUDGET_SPENT_SENTENCE,
   QUESTION_COULD_NOT_FINISH,
@@ -29,16 +29,16 @@ export {
   questionNoHomeSentence,
   questionResultSentence,
   questionStepNarration,
-} from "./question-narration.ts";
-export { QUESTION_NO_HOME_PROMPT_PREFIX } from "./question-no-home.ts";
-export type { QuestionStep } from "./question-step.ts";
-export { type QuestionDecision, READ_ONLY_QUERY_TOOL } from "./question-tool.ts";
-export {
-  QUESTION_OPEN_WINDOW_HEADING,
-  QUESTION_TURN_PROMPT_PREFIX,
-} from "./question-turn-prompt.ts";
+} from "./loop/question-narration.ts";
 export {
   WholeCatalogReadCancelledError,
   type WholeCatalogReadScopeDeps,
   withWholeCatalogReadScope,
-} from "./whole-catalog-read-scope.ts";
+} from "./scope/whole-catalog-read-scope.ts";
+export type { QuestionStep } from "./step/question-step.ts";
+export { type QuestionDecision, READ_ONLY_QUERY_TOOL } from "./step/question-tool.ts";
+export {
+  QUESTION_OPEN_WINDOW_HEADING,
+  QUESTION_TURN_PROMPT_PREFIX,
+} from "./turn/question-turn-prompt.ts";
+export { createQueryWorker, type QueryShadow, type QueryWorker } from "./worker/query-worker.ts";

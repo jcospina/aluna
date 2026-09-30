@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { type Context, Hono } from "hono";
 import { findTargetHandler } from "hono/utils/handler";
-import { CAPABILITY_PATH_PREFIX } from "#shell/routes.js";
+import { CAPABILITY_PATH_PREFIX } from "#shell/core/routes.js";
 import type { LogoGenerationProvider } from "../lifecycle/logo/index.ts";
 import { createBuildJobQueue } from "../pipeline/jobs/build-jobs.ts";
 import type { Provider } from "../platform/provider/index.ts";

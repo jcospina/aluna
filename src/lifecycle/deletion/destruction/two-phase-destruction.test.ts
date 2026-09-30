@@ -14,9 +14,9 @@ import {
   ReadGateClosingError,
 } from "../../../runtime/concurrency/read-gates.ts";
 import { applyCapabilityTableDdl } from "../../../runtime/data/schema/ddl.ts";
-import { createQueryWorker } from "../../../runtime/query/query-worker.ts";
-import { startRunawayQuery } from "../../../runtime/query/runaway-query.test-support.ts";
-import { withWholeCatalogReadScope } from "../../../runtime/query/whole-catalog-read-scope.ts";
+import { startRunawayQuery } from "../../../runtime/query/scope/runaway-query.test-support.ts";
+import { withWholeCatalogReadScope } from "../../../runtime/query/scope/whole-catalog-read-scope.ts";
+import { createQueryWorker } from "../../../runtime/query/worker/query-worker.ts";
 import {
   install,
   notesRow,

@@ -13,7 +13,7 @@
 import type { Database } from "bun:sqlite";
 import { LOGO_BIRTH_STATUS, LOGO_STATUSES } from "../../registry/logo.ts";
 import { REGISTRY_TABLE } from "../../registry/store/store.ts";
-import { createFileLedgerSchema } from "../files/ledger.ts";
+import { createFileLedgerSchema } from "../files/store/ledger.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,

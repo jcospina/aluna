@@ -47,7 +47,7 @@ can catch. Measured on Bun 1.3.12 against `data/omni-crud.db`: a read-only conne
 opens inside a Worker; a `CREATE TABLE` through it still fails with *attempt to write a
 readonly database*; the main thread ticked 39 times against an expected 40 during two
 seconds of a runaway recursive query. `terminate()` does not stop that query: a later
-measurement, recorded in `src/runtime/query/query-worker.ts`, found the thread still burning
+measurement, recorded in `src/runtime/query/worker/query-worker.ts`, found the thread still burning
 2.98s of CPU in the 3s after `terminate()` returned. What closing the worker ends at once is
 the wait, because every pending read rejects.
 
