@@ -71,6 +71,14 @@ function expectInert(response: Response, mime: string): void {
 }
 
 describe("/files/:key", () => {
+  test("refuses a load that would run the file as code, whatever its kind", async () => {
+    const key = await uploaded();
+    for (const dest of ["script", "style", "sharedworker", "audioworklet", "manifest", "xslt"]) {
+      const headers = { "sec-fetch-mode": "no-cors", "sec-fetch-dest": dest };
+      expectAbsent(await files.app().request(fileUrl(key), { headers }));
+    }
+  });
+
   test("serves a pending key with its verified type, inert and cached for a year", async () => {
     const bytes = sampleFile("png", 70_000);
     const key = await uploaded(bytes, "tide pool.jpg");

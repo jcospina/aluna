@@ -13,6 +13,7 @@ export const NOT_ADMITTED_SENTENCES = {
   image: "That isn’t a photo I can show here. Mind picking a different one?",
   video: "That isn’t a video I can play here. Mind picking a different one?",
   audio: "That isn’t an audio file I can play here. Mind picking a different one?",
+  document: "That isn’t a document I can keep here. Mind picking a different one?",
 } as const satisfies Record<FileFamily, string>;
 
 /** How a refusal names each family, as `design/controls.html` does. */
@@ -20,6 +21,7 @@ export const FAMILY_NOUNS = {
   image: "a photo",
   video: "a video",
   audio: "an audio file",
+  document: "a document",
 } as const satisfies Record<FileFamily, string>;
 
 /**

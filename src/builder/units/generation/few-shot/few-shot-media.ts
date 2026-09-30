@@ -16,7 +16,7 @@ const PREVIEW_WALK_PHOTO_KEY = "5e2b8f1c-7a3d-4c9e-b6f0-2d8a4e1c7b36";
 const PREVIEW_MEMO_KEY = "c4e8a1f3-6b2d-4f9a-8d7e-1a5c3b9e2f60";
 
 export const PHOTO_GRID_TILE: FewShotDesignExample = {
-  notForOnly: "audio",
+  notForOnly: ["audio", "document"],
   id: "photo_grid_tile",
   title: "Media-forward grid tile",
   layout: "grid",

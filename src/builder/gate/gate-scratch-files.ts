@@ -4,7 +4,6 @@
 // code with their own tests, as routing is.
 
 import type { Database } from "bun:sqlite";
-import { admittedTypes } from "../../platform/files/admission/admission.ts";
 import {
   insertPendingFile,
   mintFileKey,
@@ -28,7 +27,9 @@ import {
 } from "../../runtime/data/index.ts";
 import type { CapabilityInput, CapabilitySaveInput } from "../../runtime/router/index.ts";
 import { withFileProjections } from "../../runtime/router/save-input.ts";
-import { scratchNameFor } from "./gate-scratch-names.ts";
+import { scratchFileType, scratchNameFor } from "./gate-scratch-names.ts";
+
+export { scratchFileType };
 
 /** The incarnation every scratch reference is minted for: a scratch catalog has no real one. */
 export const SCRATCH_INCARNATION_ID = "gate-scratch";
@@ -45,32 +46,27 @@ function probeKey(spec: CapabilitySpec, field: SpecField): string {
   return `5c7a7c1e-9a4b-4c1d-8e2f-${String(index + 6).padStart(12, "0")}`;
 }
 
-/** The type a scratch file of `kind` is recorded as: the first admission verifies for it. */
-export function scratchFileType(kind: FileFamily): string {
-  const mime = admittedTypes(kind)[0];
-  if (mime === undefined) throw new Error(`Admission records no type for the "${kind}" family.`);
-  return mime;
-}
-
-/** A file admitted to `field`, of its first family unless one is named. */
+/** A file admitted to `field`, of its first family and that family's first type unless named. */
 function scratchPendingFile(
   spec: CapabilitySpec,
   field: SpecField,
   name: string,
   key: string,
   family?: FileFamily,
+  type?: string,
 ): PendingFile {
   const kind = family ?? field.accepts?.[0];
   if (kind === undefined) throw new Error(`File field "${field.name}" accepts no family.`);
+  const mime = type ?? scratchFileType(kind);
   return {
     key,
     capability_id: spec.id,
     incarnation_id: SCRATCH_INCARNATION_ID,
     field: field.name,
     kind,
-    mime: scratchFileType(kind),
+    mime,
     size: SCRATCH_SIZE,
-    name: scratchNameFor(name, kind),
+    name: scratchNameFor(name, mime),
   };
 }
 
@@ -108,8 +104,10 @@ export function scratchFileProjection(
   field: SpecField,
   name: string,
   family?: FileFamily,
+  type?: string,
 ): CapabilityFileProjection {
-  return projectFileLedgerRow(scratchPendingFile(spec, field, name, probeKey(spec, field), family));
+  const key = probeKey(spec, field);
+  return projectFileLedgerRow(scratchPendingFile(spec, field, name, key, family, type));
 }
 
 export interface ScratchSubmission {

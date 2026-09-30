@@ -5,13 +5,15 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { zodSchema } from "ai";
 
-import { isAdmittedType } from "../../../../platform/files/admission/admission.ts";
+import { admitClaims, isAdmittedType } from "../../../../platform/files/admission/admission.ts";
+import { MAX_NAME_BYTES } from "../../../../platform/files/file-name.ts";
 import { requireFileLedgerRow } from "../../../../platform/files/store/ledger.test-support.ts";
 import {
   CAPTION_FIELD,
   PHOTO_FIELD,
   photoSpec,
 } from "../../../../registry/fields/file.test-support.ts";
+import { FILE_FAMILIES } from "../../../../registry/index.ts";
 import {
   deriveCapabilityTableDdl,
   FILE_CLEAR_VALUE,
@@ -29,7 +31,7 @@ import {
   withScratch,
 } from "../../gate.test-support.ts";
 import type { CapabilityGateInput } from "../../gate.ts";
-import { tokenFileName } from "../../gate-scratch-names.ts";
+import { scratchFileType, tokenFileName } from "../../gate-scratch-names.ts";
 import { actionFixtureVocabulary } from "./freeze/behavioral-test-inputs.ts";
 import { rowMatches } from "./gate-behavioral-shared.ts";
 import {
@@ -212,6 +214,23 @@ describe("the contract over file tokens", () => {
     }
     expect(() =>
       assertActionSuiteContract(sounds, "create", createSuite(withInput("video"))),
+    ).toThrow();
+  });
+
+  test("admits a document where the field takes it, and refuses it where it doesn't", () => {
+    const manuals = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, accepts: ["document"] }]);
+    for (const value of ["document", null]) {
+      expect(() =>
+        assertActionSuiteContract(manuals, "create", createSuite(withInput(value))),
+      ).not.toThrow();
+    }
+    for (const value of ["image", "audio"]) {
+      expect(() =>
+        assertActionSuiteContract(manuals, "create", createSuite(withInput(value))),
+      ).toThrow();
+    }
+    expect(() =>
+      assertActionSuiteContract(photoSpec(), "create", createSuite(withInput("document"))),
     ).toThrow();
   });
 
@@ -403,32 +422,28 @@ describe("the harness", () => {
     });
   });
 
-  test("posts a video token as a pending scratch video, of the type admission records", () => {
-    const videos = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, accepts: ["video"] }]);
-    withScratch(videos, (database) => {
-      const input = inputValuesToHandlerInput(videos, [
-        { field: "caption", value: "A day" },
-        { field: "photo", value: "video" },
-      ]);
-      const form = scratchFormInput(videos, input, database);
-      const row = requireFileLedgerRow(database, String(form.values.photo));
-      expect(row).toMatchObject({ state: "pending", kind: "video", name: tokenFileName("video") });
-      expect(isAdmittedType("video", row.mime)).toBe(true);
-    });
+  test("posts a video, audio or document token as a pending scratch file of that family", () => {
+    for (const family of ["video", "audio", "document"] as const) {
+      const spec = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, accepts: [family] }]);
+      withScratch(spec, (database) => {
+        const input = inputValuesToHandlerInput(spec, [
+          { field: "caption", value: "A day" },
+          { field: "photo", value: family },
+        ]);
+        const form = scratchFormInput(spec, input, database);
+        const row = requireFileLedgerRow(database, String(form.values.photo));
+        expect(row).toMatchObject({ state: "pending", kind: family, name: tokenFileName(family) });
+        expect(isAdmittedType(family, row.mime)).toBe(true);
+      });
+    }
   });
 
-  test("posts an audio token as a pending scratch sound, of the type admission records", () => {
-    const sounds = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, accepts: ["audio"] }]);
-    withScratch(sounds, (database) => {
-      const input = inputValuesToHandlerInput(sounds, [
-        { field: "caption", value: "A thought" },
-        { field: "photo", value: "audio" },
-      ]);
-      const form = scratchFormInput(sounds, input, database);
-      const row = requireFileLedgerRow(database, String(form.values.photo));
-      expect(row).toMatchObject({ state: "pending", kind: "audio", name: tokenFileName("audio") });
-      expect(isAdmittedType("audio", row.mime)).toBe(true);
-    });
+  test("names every family's token as admission would admit a file of its recorded type", () => {
+    for (const family of FILE_FAMILIES) {
+      const name = tokenFileName(family);
+      expect(admitClaims(name, scratchFileType(family), [family])).toBe(family);
+      expect(Buffer.byteLength(name, "utf8")).toBeLessThanOrEqual(MAX_NAME_BYTES);
+    }
   });
 
   test("posts none as an empty field, and a create's missing file field as one too", () => {

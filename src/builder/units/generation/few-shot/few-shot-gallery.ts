@@ -21,6 +21,7 @@ import type {
   UiCollectionLayout,
   UiFormIntent,
 } from "../../../../registry/index.ts";
+import { MANUAL_FEED, MANUAL_TILE } from "./few-shot-documents.ts";
 import {
   PHOTO_GRID_TILE,
   VOICE_MEMO_FEED,
@@ -50,11 +51,11 @@ export interface FewShotDesignExample {
   /**
    * Shown only to a card that shows a file of one of these families, so a card isn't taught to
    * draw a kind it never holds. The photo tile has none: every grid card needs a grid
-   * composition, and only a card holding just sounds is kept from it, by `notForOnly`.
+   * composition, and only a card holding just sounds or documents is kept from it, by `notForOnly`.
    */
   readonly onlyFor?: readonly FileFamily[];
-  /** Kept from a card whose shown files can only be of this family, which it would draw wrong. */
-  readonly notForOnly?: FileFamily;
+  /** Kept from a card whose shown files can only be of these families, which it would draw wrong. */
+  readonly notForOnly?: readonly FileFamily[];
 }
 
 export interface FewShotPreviewSample {
@@ -155,6 +156,8 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
   WALK_MEDIA_FEED,
   VOICE_MEMO_FEED,
   VOICE_MEMO_TILE,
+  MANUAL_FEED,
+  MANUAL_TILE,
   {
     id: "saved_link_metadata_feed",
     title: "Compact metadata row",
@@ -247,11 +250,10 @@ export function buildItemRendererDesignInjection(
   layout: UiCollectionLayout,
   shown: readonly FileFamily[] = [],
 ): string {
-  const only = shown.length === 1 ? shown[0] : undefined;
   const examples = FEW_SHOT_DESIGN_EXAMPLES.filter(
-    (example) =>
-      (!example.onlyFor || example.onlyFor.some((family) => shown.includes(family))) &&
-      (only === undefined || example.notForOnly !== only),
+    ({ onlyFor, notForOnly }) =>
+      (!onlyFor || onlyFor.some((family) => shown.includes(family))) &&
+      !(notForOnly && shown.length > 0 && shown.every((family) => notForOnly.includes(family))),
   );
   return [
     "Injected design contract and few-shot gallery:",

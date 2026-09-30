@@ -10,6 +10,7 @@
 // own words, and they close its one residual: a named CSS colour in a mixed shorthand.
 
 import { errorMessage } from "../../../../platform/errors.ts";
+import { admittedTypes } from "../../../../platform/files/admission/admission.ts";
 import {
   isProviderAbortError,
   type Provider,
@@ -31,6 +32,7 @@ import {
 import {
   type CapabilitySpec,
   choiceFieldOptions,
+  type FileFamily,
   isFileFieldType,
   type SpecField,
 } from "../../../../registry/index.ts";
@@ -48,7 +50,7 @@ import type { CapabilityGateInput, DesignLintAttempt, DesignLintGateResult } fro
 import { loadItemRenderer } from "../../gate-internal.ts";
 import { scratchFileProjection } from "../../gate-scratch-files.ts";
 import { scratchFileName } from "../../gate-scratch-names.ts";
-import { drawsMediaFrame, fileKindViolation } from "./gate-file-kinds.ts";
+import { drawsEmptyMediaFrame, fileKindViolation, fileNoun } from "./gate-file-kinds.ts";
 import { observableItemRecordContent } from "./gate-item-content.ts";
 import { findInlineStyleViolation } from "./inline-style-scan.ts";
 
@@ -235,11 +237,11 @@ export function findDesignViolation(
   }
 
   const framed = rendered.find(
-    ({ probe, inner }) => showsOnlySounds(spec, probe.record) && drawsMediaFrame(inner),
+    ({ probe, inner }) => drawsEmptyMediaFrame(inner) && !missesAPicture(spec, probe.record),
   );
   if (framed) {
     return offContractMessage(
-      `for a ${framed.probe.label} record it draws a media-frame, though the card shows only a sound, which has no picture. Say in words that the record holds a sound, and draw no frame.`,
+      `for a ${framed.probe.label} record it draws a media-frame with no picture in it, though no photo or video it shows is missing. ${pictureless(spec, framed.probe.record)}`,
       framed.probe,
     );
   }
@@ -358,24 +360,25 @@ function buildProbeRecords(spec: CapabilitySpec): readonly DesignProbe[] {
 
 /**
  * A record for each further family a shown file field takes, holding a file of it, so a renderer
- * that draws by `kind` is reviewed down every branch rather than the first family's alone.
+ * that draws by `kind` is reviewed down every branch rather than the first family's alone. A card
+ * names a document's type in words, so each further type admission records a document as has one.
  */
 function familyProbes(spec: CapabilitySpec): readonly DesignProbe[] {
   const baseline = recordWith(spec, (field) => syntheticValue(spec, field));
-  return spec.schema.fields
-    .filter(
-      (field) => isFileFieldType(field.type) && spec.ui_intent.item.shows.includes(field.name),
-    )
-    .flatMap((field) =>
-      (field.accepts ?? []).slice(1).map((family) => ({
-        label: `synthetic ${family}`,
-        kind: "family" as const,
-        record: {
-          ...baseline,
-          [field.name]: scratchFileProjection(spec, field, scratchFileName("synthetic"), family),
-        },
-      })),
-    );
+  const probe = (field: SpecField, family: FileFamily, type?: string): DesignProbe => ({
+    label: type ? `synthetic ${family} (${type})` : `synthetic ${family}`,
+    kind: "family",
+    record: {
+      ...baseline,
+      [field.name]: scratchFileProjection(spec, field, scratchFileName("synthetic"), family, type),
+    },
+  });
+  return shownFileFields(spec).flatMap((field) => {
+    const accepts = field.accepts ?? [];
+    const families = accepts.slice(1).map((family) => probe(field, family));
+    const types = accepts.includes("document") ? admittedTypes("document").slice(1) : [];
+    return [...families, ...types.map((type) => probe(field, "document", type))];
+  });
 }
 
 /**
@@ -523,18 +526,30 @@ function contrastViolation(
   return undefined;
 }
 
-/**
- * Whether the card shows only sounds for `record`: every file field it shows takes sounds alone, or
- * holds one there.
- */
-function showsOnlySounds(spec: CapabilitySpec, record: PresentableRecord): boolean {
-  const shown = spec.schema.fields.filter(
+function shownFileFields(spec: CapabilitySpec): SpecField[] {
+  return spec.schema.fields.filter(
     (field) => isFileFieldType(field.type) && spec.ui_intent.item.shows.includes(field.name),
   );
-  const sound = (field: SpecField) =>
-    field.accepts?.join() === "audio" ||
-    (record[field.name] as { kind?: unknown } | null)?.kind === "audio";
-  return shown.length > 0 && shown.every(sound);
+}
+
+/** Whether a shown field that may hold a photo or a video holds none: a frame may stand empty. */
+function missesAPicture(spec: CapabilitySpec, record: PresentableRecord): boolean {
+  return shownFileFields(spec).some(
+    (field) =>
+      field.accepts?.some((family) => family === "image" || family === "video") &&
+      record[field.name] == null,
+  );
+}
+
+/** What to say of an empty frame: the kinds `record` shows that have no picture, if any. */
+function pictureless(spec: CapabilitySpec, record: PresentableRecord): string {
+  const kinds = shownFileFields(spec)
+    .map((field) => (record[field.name] as { kind?: unknown } | null)?.kind)
+    .filter((kind): kind is string => kind === "audio" || kind === "document");
+  const nouns = [...new Set(kinds)].map(fileNoun).join(" or ");
+  if (nouns === "")
+    return "Frame only a photo or a video, and leave a frame empty only for one the record is missing.";
+  return `${nouns[0]?.toUpperCase()}${nouns.slice(1)} has no picture: say in words what the record holds, and draw no frame.`;
 }
 
 function isFileField(spec: CapabilitySpec, name: string): boolean {

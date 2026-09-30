@@ -95,6 +95,7 @@ export const SAMPLE_HEADS = {
   opus: [...ascii("OggS"), 0, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, ...ascii("OpusHead")],
   wav: [...ascii("RIFF"), 0x24, 0x08, 0, 0, ...ascii("WAVEfmt "), 0x10, 0, 0, 0],
   flac: [...ascii("fLaC"), 0, 0, 0, 0x22],
+  pdf: ascii("%PDF-1.7\n%\u00e2\u00e3\u00cf\u00d3\n1 0 obj"),
   heicMovie: ftyp("heic", "mif1heicmp42"),
   avio: ftyp("avio", "avioavifmif1"),
   jpegInHeif: ftyp("jpeg", "mif1jpeg"),
