@@ -378,6 +378,7 @@ function buildItemRendererPrompt(spec: CapabilitySpec): string {
     "Declared item fields (the renderer receives exactly these names/types/labels):",
     itemFieldList(spec),
     "- A choice field's record value is one of its option `value` strings. Present the matching option `label`, never the raw stored value; fall back to the stored value only if no option matches.",
+    ...(showsEmptiableField(spec) ? [ITEM_OPTIONAL_FIELD_RULE] : []),
     ...itemFileFieldRules(spec),
     "",
     "Item generation context JSON:",
@@ -385,8 +386,23 @@ function buildItemRendererPrompt(spec: CapabilitySpec): string {
   ].join("\n");
 }
 
+/** How a card treats an optional field a record leaves empty: an `if`, never the text "null". */
+export const ITEM_OPTIONAL_FIELD_RULE =
+  '- A field marked optional, other than a file field, is `null` when the record leaves it empty, and an optional list may be empty. Check each one before you draw it, and when it holds nothing leave out both the value and its label, so the card never shows "null" or a label with nothing after it. Test for `null` itself, never for falsiness: `0` is a number worth showing.';
+
+function showsEmptiableField(spec: CapabilitySpec): boolean {
+  return presentationFieldDescriptors(spec, spec.ui_intent.item.shows).some(
+    (field) =>
+      isOptional(spec, field.name) && field.type !== "boolean" && !isFileFieldType(field.type),
+  );
+}
+
+function isOptional(spec: CapabilitySpec, name: string): boolean {
+  return spec.schema.fields.some((field) => field.name === name && !field.required);
+}
+
 /** What the item renderer is told about any file field its card shows. */
-export const ITEM_FILE_FIELD_RULE = `- A file field's record value is \`${FILE_PROJECTION_SHAPE}\`, or \`null\` when the record holds no file. Draw a photo or a video from \`url\` inside a \`media-frame\`, and for one draw the empty frame with a short note when the value is \`null\`. Never build a file address yourself. \`name\` is the file's name as uploaded, often something like IMG_4821.JPG, and describes nothing.`;
+export const ITEM_FILE_FIELD_RULE = `- A file field's record value is \`${FILE_PROJECTION_SHAPE}\`, or \`null\` when the record holds no file. Draw a photo or a video from \`url\` inside a \`media-frame\`, and for a field that may hold one draw the empty frame with a short note when the value is \`null\`. Never build a file address yourself. \`name\` is the file's name as uploaded, often something like IMG_4821.JPG, and describes nothing.`;
 
 /** How a card draws a photo. */
 export const ITEM_PHOTO_RULE = `- A photo is an \`<img>\`. The card is announced by its own text, so when it also shows the field that describes the picture, such as a title, give the picture \`alt=""\` and a screen reader reads that text once.`;
@@ -397,8 +413,11 @@ export const ITEM_VIDEO_RULE = `- A video is a \`<video muted playsinline>\` wit
 /** How a card shows a sound (Module 7 PLAN decision 29): in words, since a card holds no player. */
 export const ITEM_AUDIO_RULE = `- An audio file is a sound, and a card never draws it: a card is a button, which can hold no player, and the open record plays it. Draw no \`<audio>\` and no \`media-frame\` for it. Say in words that the record holds a sound, such as "Audio", and say so with a short note, such as "No recording yet", when the value is \`null\`.`;
 
+/** How a card shows a document (Module 7 PLAN decision 29): in words, as it shows a sound. */
+export const ITEM_DOCUMENT_RULE = `- A document, such as a PDF, is never drawn on a card: a card is a button, which can hold no link, and the open record opens or downloads it. Draw no \`<a>\`, \`<img>\`, \`<embed>\` or \`media-frame\` for it. Say in words what the record holds: "PDF" when its \`mime\` is "application/pdf" and "Document" for any other, or a short note, such as "No manual yet", when the value is \`null\`.`;
+
 /** How a card draws a field that takes more than one family. */
-export const ITEM_FAMILIES_RULE = `- A file field that takes several families holds one file at a time. Draw it by its \`kind\`: "image" is a photo, "video" is a video and "audio" is a sound.`;
+export const ITEM_FAMILIES_RULE = `- A file field that takes several families holds one file at a time. Draw it by its \`kind\`: "image" is a photo, "video" is a video, "audio" is a sound and "document" is a document.`;
 
 function shownFileFields(spec: CapabilitySpec) {
   return spec.schema.fields.filter(
@@ -421,6 +440,7 @@ function itemFileFieldRules(spec: CapabilitySpec): readonly string[] {
     ...(takes("image") ? [ITEM_PHOTO_RULE] : []),
     ...(takes("video") ? [ITEM_VIDEO_RULE] : []),
     ...(takes("audio") ? [ITEM_AUDIO_RULE] : []),
+    ...(takes("document") ? [ITEM_DOCUMENT_RULE] : []),
     ...(shown.some((field) => (field.accepts?.length ?? 0) > 1) ? [ITEM_FAMILIES_RULE] : []),
   ];
 }
@@ -444,7 +464,8 @@ function itemFieldList(spec: CapabilitySpec): string {
         "values" in field && field.values !== undefined
           ? `, options ${JSON.stringify(field.values)}`
           : "";
-      return `- ${field.name}: ${field.type}, label ${JSON.stringify(field.label)}${options}`;
+      const optional = isOptional(spec, field.name) ? " (optional)" : "";
+      return `- ${field.name}: ${field.type}${optional}, label ${JSON.stringify(field.label)}${options}`;
     })
     .join("\n");
 }

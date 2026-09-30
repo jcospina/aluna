@@ -246,7 +246,19 @@ export const BY_EXTENSION = {
 export const extensionOf = (name) => (name.includes(".") ? (name.split(".").pop() ?? "") : "");
 
 /**
- * The kind a held file is: as admission settled it, or as its verified type says; then the
+ * @param {string} type a verified type
+ * @returns {Kind | undefined}
+ */
+function typedKind(type) {
+  const lower = type.toLowerCase();
+  const media = /^(image|video|audio)\//.exec(lower)?.[1];
+  if (media) return /** @type {Kind} */ (media);
+  return /^(application|text)\//.test(lower) ? "document" : undefined;
+}
+
+/**
+ * The kind a held file is: as admission settled it, or as its verified type says, a document's
+ * `application/` or `text/` among them; then the
  * field's one family, when it takes one; then, for a WebM or an Ogg, the one of video and
  * sound the field takes; and last, what its name says.
  *
@@ -255,8 +267,7 @@ export const extensionOf = (name) => (name.includes(".") ? (name.split(".").pop(
  * @returns {Kind}
  */
 export function kindOf(file, kinds) {
-  const typed = /^(image|video|audio)\//i.exec(file.type ?? "")?.[1]?.toLowerCase();
-  const settled = file.kind ?? /** @type {Kind | undefined} */ (typed);
+  const settled = file.kind ?? typedKind(file.type ?? "");
   if (settled) return settled;
   const [only] = kinds;
   if (only && kinds.length === 1) return only;

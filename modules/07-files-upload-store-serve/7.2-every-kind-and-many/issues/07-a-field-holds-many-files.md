@@ -69,6 +69,9 @@ draws it beside the list and its tests drive it with the recorder's stand-in mic
       flight, and aborts a removed in-flight entry
 - [ ] A list whose `accepts` holds `audio` offers Record beside its add well, and a
       recording it keeps is added as an entry
+- [ ] The list's held entries carry the reference's verified `mime` where
+      `design/scripts/files/file-list.js` `heldFrom` reads `type`, so a PDF in a list
+      opens in a tab with `rel="noopener"` rather than downloading, with a test
 - [ ] The Gate's scratch ledger covers a several-file list and an evolution-added `NULL`
       column; behavioral inputs take arrays of family tokens, and the digest covers them
 - [ ] `bun run test`, `bun run typecheck`, `bun run lint` clean

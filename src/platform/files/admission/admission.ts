@@ -6,6 +6,7 @@
 //
 // The video extensions admitted: mp4, m4v, mov, webm, ogv and ogg.
 // The audio extensions admitted: mp3, m4a, aac, wav, ogg, oga, opus, webm and flac.
+// The document extensions admitted: pdf, whose `%PDF-` header must open the file.
 
 import type { FileFamily } from "../../../registry/fields/file.ts";
 import { adtsFrame, type FrameReader, FrameScan, mpegAudioFrame } from "./audio-frames.ts";
@@ -190,6 +191,13 @@ const SIGNATURES: readonly SignatureRow[] = [
     headBytes: 4,
     matches: (head) => asciiAt(head, 0, "fLaC"),
   },
+  {
+    kind: "document",
+    mime: "application/pdf",
+    extensions: ["pdf"],
+    headBytes: 5,
+    matches: (head) => asciiAt(head, 0, "%PDF-"),
+  },
 ];
 
 /** Every type admission records a file of `kind` as, in table order: what its picker offers. */
@@ -207,6 +215,11 @@ export function offeredTypes(families: readonly string[]): readonly string[] {
     (row.offers ?? row.extensions).map((extension) => `.${extension}`),
   );
   return [...new Set([...rows.map((row) => row.mime), ...extensions])];
+}
+
+/** The extension a file admission records as `mime` is usually named with: its row's first. */
+export function usualExtension(mime: string): string | undefined {
+  return SIGNATURES.find((row) => row.mime === mime)?.extensions[0];
 }
 
 /** Whether admission could have recorded a file of `kind` as `mime`. */
@@ -237,6 +250,7 @@ const TYPE_ALIASES: ReadonlyMap<string, string> = new Map([
   ]),
   ...aliasesOf("audio/wav", ["audio/x-wav", "audio/wave", "audio/vnd.wave"]),
   ["audio/x-flac", "audio/flac"],
+  ...aliasesOf("application/pdf", ["application/x-pdf", "application/acrobat", "text/pdf"]),
 ]);
 
 /** The extensions whose container holds sound or picture alike, and the family each usually is. */

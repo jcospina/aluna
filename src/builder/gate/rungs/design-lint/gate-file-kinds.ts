@@ -1,9 +1,10 @@
-// Whether a card draws each file it holds as the kind of file it is (Module 7 PLAN decisions 28
-// and 29): a video in a player, a photo in a picture, and a sound in words alone. The enforcer
+// Whether a card draws each file it holds as the kind of file it is (Module 7 PLAN decisions
+// 28 and 29): a video in a player, a photo in a picture, and a sound or a document in words. The enforcer
 // keeps every one of those elements, so a renderer that draws a video with `<img>` passes it, and
 // every such card is a broken picture.
 
 import { decodeAttributeValue } from "../../../../presentation/index.ts";
+import type { FileFamily } from "../../../../registry/index.ts";
 
 /** What an element draws a file it names as: a picture, or the player it is or sits in. */
 type Drawn = "image" | "video" | "audio";
@@ -95,7 +96,7 @@ export function fileKindViolation(
 
 function misdrawnSentence(kind: string, drawn: Drawn, tag: string): string {
   const rule =
-    'Draw a file by its `kind`: "image" in an <img>, "video" in a <video>, and "audio" in words alone.';
+    'Draw a file by its `kind`: "image" in an <img>, "video" in a <video>, and "audio" and "document" in words alone.';
   if (kind === "audio") {
     return `it draws a sound with <${tag}>, and a card holds no player. ${rule}`;
   }
@@ -108,20 +109,40 @@ const NOUNS: Readonly<Record<string, string>> = {
   image: "a photo",
   video: "a video",
   audio: "a sound",
-};
+  document: "a document",
+} satisfies Record<FileFamily, string>;
 
-/** Whether `markup` draws a media frame, which a card showing only sounds has nothing for. */
-export function drawsMediaFrame(markup: string): boolean {
-  let framed = false;
+/** How the Gate names a file of `kind` to the model. */
+export function fileNoun(kind: string): string {
+  return NOUNS[kind] ?? kind;
+}
+
+const PICTURES: ReadonlySet<string> = new Set(["img", "picture", "video"]);
+
+/** Whether `markup` draws a media frame with no picture or video in it. */
+export function drawsEmptyMediaFrame(markup: string): boolean {
+  const open: { filled: boolean }[] = [];
+  let empty = false;
   new HTMLRewriter()
-    .on("[class]", {
+    .on("*", {
       element(element) {
+        const tag = element.tagName.toLowerCase();
+        if (PICTURES.has(tag)) for (const frame of open) frame.filled = true;
         const classes = (element.getAttribute("class") ?? "").split(/\s+/);
-        framed ||= classes.some(
-          (name) => name === "media-frame" || name.startsWith("media-frame--"),
-        );
+        if (!classes.some((name) => name === "media-frame" || name.startsWith("media-frame--")))
+          return;
+        if (!element.canHaveContent) {
+          empty ||= !PICTURES.has(tag);
+          return;
+        }
+        const frame = { filled: false };
+        open.push(frame);
+        element.onEndTag(() => {
+          open.splice(open.indexOf(frame), 1);
+          empty ||= !frame.filled;
+        });
       },
     })
     .transform(markup);
-  return framed;
+  return empty || open.some((frame) => !frame.filled);
 }

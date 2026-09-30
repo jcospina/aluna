@@ -43,7 +43,9 @@ about those records.
 - [ ] Evolving to add a `file` and a `file[]` field keeps every existing record, which
       reads `null` and `[]` respectively
 - [ ] Widening `accepts` on a field that is on the card regenerates the item renderer;
-      widening one that is not on the card does not
+      widening one that is not on the card does not. The test widens `["image"]` to
+      `["image", "document"]`, since today that evolution keeps a card that draws a PDF
+      as a broken `<img>` (found in 7.2/05's review)
 - [ ] Hiding a file field leaves its keys `owned` and their bytes in place
 - [ ] A save holding a pending key for a just-hidden field is refused with a platform
       sentence

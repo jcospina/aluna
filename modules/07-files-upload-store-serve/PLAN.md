@@ -107,6 +107,9 @@ in ADR-0009, and in the architecture and design documents.
      `.webm` or `.ogg` name lets the bytes change the family. A WebM whose Tracks end past
      the first 64 KB and name no picture before then keeps the family it was given.
      *(7.2/03)*
+   - A PDF is admitted by `%PDF-` as its first five bytes, under `.pdf` only. The header
+     must open the file: a reader tolerates up to 1 KB before it, and a PDF that leans on
+     that is refused, since what sits there could be anything. *(7.2/05)*
    - DOCX is a zip whose `[Content_Types].xml` declares the WordprocessingML main document.
      The central directory sits at the end of the file and the entry is deflated, so this
      check runs after the write and inflates under a size cap. DOCM, DOTX and XLSX fail it.
@@ -307,10 +310,17 @@ in ADR-0009, and in the architecture and design documents.
     in a tab as a page of its own making whose player fetches the file again, in cors mode
     as a video, and a plain sandbox gives that page an opaque origin that refuses the fetch.
     The page still runs no script, and the route lets a cors-mode request through only for a
-    player's destination. *(7.2/02)* A PDF carries a policy of its own, because the
-    app-wide `object-src 'none'` is reported to blank Chrome's PDF viewer. 7.2 proves, through the app's full header middleware, that a
-    PDF opens in Chrome, Safari and Firefox and that video and audio play when opened in a
-    tab of their own. A link that opens a file carries `rel="noopener"`.
+    player's destination. *(7.2/02)* A PDF carries
+    `default-src 'none'; sandbox allow-downloads allow-modals`: the viewer's page runs at an
+    opaque origin, never ours, and its save and print still work. Chrome 154, Firefox 157 and
+    Safari 26 draw a PDF under it, and under the app-wide `object-src 'none'` too, so the
+    blanking once reported for that is not what current viewers do. A PDF's own JavaScript
+    still runs inside the viewer, which is the viewer's to confine. The route refuses any
+    load that would run a file as code (a script, a style, a worker, a manifest), and a
+    player's cors-mode load only a sound or a video answers. A test reads the headers after
+    the app's full middleware has run. *(7.2/05)* 7.2 proves that a PDF opens in Chrome,
+    Safari and Firefox and that video and audio play when opened in a tab of their own. A
+    link that opens a file carries `rel="noopener"`.
 28. **No derivatives.** No thumbnails, no video posters. The platform HTML filter puts
     `loading="lazy"` and `decoding="async"` on a file's image and `preload="metadata"` on
     a player, and strips `autoplay`, so no generated template can forget them. Without a

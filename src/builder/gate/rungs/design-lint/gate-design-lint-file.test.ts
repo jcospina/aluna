@@ -3,7 +3,8 @@
 // often forgets (PLAN decision 38).
 // biome-ignore-all lint/suspicious/noTemplateCurlyInString: renderer source is string data.
 
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
+import * as admission from "../../../../platform/files/admission/admission.ts";
 import { enforceItemMarkup } from "../../../../presentation/index.ts";
 import { PHOTO_FIELD, photoSpec } from "../../../../registry/fields/file.test-support.ts";
 import type { CapabilitySpec } from "../../../../registry/index.ts";
@@ -185,7 +186,9 @@ describe("a card whose file field takes sounds", () => {
     const byKind = renderer(
       `!file ? "<span>None</span>" : (file as { kind?: string }).kind === "audio" ? ${framed} : \`<img src="\${escapeHtml(file.url)}" alt="">\``,
     );
-    expect(findDesignViolation(takes("image", "audio"), byKind)).toBeDefined();
+    expect(findDesignViolation(takes("image", "audio"), byKind)).toContain(
+      "A sound has no picture",
+    );
     const photoFramed = renderer(
       `!file ? "<span>None</span>" : (file as { kind?: string }).kind === "audio" ? "<span>Audio</span>" : \`<span class="media-frame"><img src="\${escapeHtml(file.url)}" alt=""></span>\``,
     );
@@ -211,11 +214,97 @@ describe("a card whose file field takes sounds", () => {
   });
 });
 
+describe("a card whose file field takes documents", () => {
+  const takes = (...accepts: ("image" | "document")[]) => {
+    const spec = showingThePhoto();
+    const fields = spec.schema.fields.map((field) =>
+      field.name === "photo" ? { ...field, accepts } : field,
+    );
+    return { ...spec, schema: { fields } };
+  };
+  const inWords = 'file ? "<span>PDF</span>" : "<span>No manual yet</span>"';
+  const drawing = (drawn: string) => renderer(`file ? ${drawn} : "<span>None</span>"`);
+
+  test("passes when it says in words that the record holds a document", () => {
+    expect(findDesignViolation(takes("document"), renderer(inWords))).toBeUndefined();
+  });
+
+  test("fails when it draws the document as a picture or in a player", () => {
+    for (const drawn of [
+      '`<img src="${escapeHtml(file.url)}" alt="">`',
+      '`<video src="${escapeHtml(file.url)}" muted playsinline></video>`',
+      '`<img srcset="/x.png 1x, ${escapeHtml(file.url)} 2x" alt="">`',
+    ]) {
+      expect(findDesignViolation(takes("document"), drawing(drawn))).toContain("a document");
+    }
+  });
+
+  test("fails when it frames a document, which has no picture", () => {
+    const framed = '`<span class="media-frame"><span>PDF</span></span>`';
+    expect(findDesignViolation(takes("document"), drawing(framed))).toContain("media-frame");
+    const byKind = renderer(
+      `!file ? "<span>None</span>" : (file as { kind?: string }).kind === "document" ? ${framed} : \`<img src="\${escapeHtml(file.url)}" alt="">\``,
+    );
+    expect(findDesignViolation(takes("image", "document"), byKind)).toContain(
+      "A document has no picture",
+    );
+  });
+
+  test("fails a frame round a document's words beside a photo field it also shows", () => {
+    const spec = takes("document");
+    const cover = { ...PHOTO_FIELD, name: "cover", label: "Cover", accepts: ["image" as const] };
+    const shows = [...spec.ui_intent.item.shows, "cover"];
+    const both = {
+      ...spec,
+      schema: { fields: [cover, ...spec.schema.fields] },
+      ui_intent: { ...spec.ui_intent, item: { ...spec.ui_intent.item, shows } },
+    };
+    const withCover = (manual: string) =>
+      renderer(manual).replace(
+        "return `",
+        'const art = record.cover ? `<span class="media-frame"><img src="${escapeHtml((record.cover as { url: string }).url)}" alt=""></span>` : `<span class="media-frame"><span>No cover</span></span>`;\n  return `${art}',
+      );
+    expect(findDesignViolation(both, withCover(inWords))).toBeUndefined();
+    const framed = '`<span class="media-frame"><span>PDF</span></span>`';
+    expect(
+      findDesignViolation(both, withCover(`file ? ${framed} : "<span>None</span>"`)),
+    ).toContain("A document has no picture");
+  });
+
+  test("is reviewed down every type a document may be recorded as, not only a PDF's", () => {
+    const real = admission.admittedTypes;
+    const types = spyOn(admission, "admittedTypes").mockImplementation((kind) =>
+      kind === "document" ? [...real(kind), "text/plain"] : real(kind),
+    );
+    try {
+      const byType = renderer(
+        'file && (file as { mime?: string }).mime === "text/plain" ? `<img src="${escapeHtml(file.url)}" alt="">` : "<span>PDF</span>"',
+      );
+      expect(findDesignViolation(takes("document"), byType)).toContain(
+        "for a synthetic document (text/plain) record",
+      );
+    } finally {
+      types.mockRestore();
+    }
+  });
+
+  test("is reviewed down its document branch, not only the photo's", () => {
+    const photoOrDocument = renderer(
+      `!file ? "<span>None</span>" : \`<img src="\${escapeHtml(file.url)}" alt="">\``,
+    );
+    expect(findDesignViolation(takes("image", "document"), photoOrDocument)).toContain(
+      "for a synthetic document record",
+    );
+  });
+});
+
 describe.each([
   "photo_grid_tile",
   "walk_media_feed",
   "voice_memo_feed",
   "voice_memo_tile",
+  "appliance_manual_feed",
+  "appliance_manual_tile",
 ])("the %s exemplar", (id) => {
   const example = FEW_SHOT_DESIGN_EXAMPLES.find((candidate) => candidate.id === id);
   if (!example) throw new Error(`Expected the ${id} exemplar.`);

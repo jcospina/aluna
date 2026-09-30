@@ -19,6 +19,7 @@ import { FEW_SHOT_DESIGN_EXAMPLES } from "../few-shot/few-shot-gallery.ts";
 import {
   buildUnitPrompt,
   ITEM_AUDIO_RULE,
+  ITEM_DOCUMENT_RULE,
   ITEM_FAMILIES_RULE,
   ITEM_FILE_FIELD_RULE,
   ITEM_PHOTO_RULE,
@@ -205,6 +206,7 @@ describe("the item renderer's prompt", () => {
     ITEM_PHOTO_RULE,
     ITEM_VIDEO_RULE,
     ITEM_AUDIO_RULE,
+    ITEM_DOCUMENT_RULE,
     ITEM_FAMILIES_RULE,
   ];
   const rulesIn = (prompt: string) => RULES.filter((rule) => prompt.includes(rule));
@@ -216,9 +218,12 @@ describe("the item renderer's prompt", () => {
     expect(rulesIn(videos)).toEqual([ITEM_FILE_FIELD_RULE, ITEM_VIDEO_RULE]);
     const sounds = buildUnitPrompt(showing(["caption", "photo"], ["audio"]), item);
     expect(rulesIn(sounds)).toEqual([ITEM_FILE_FIELD_RULE, ITEM_AUDIO_RULE]);
+    const documents = buildUnitPrompt(showing(["caption", "photo"], ["document"]), item);
+    expect(rulesIn(documents)).toEqual([ITEM_FILE_FIELD_RULE, ITEM_DOCUMENT_RULE]);
     const either = buildUnitPrompt(showing(["photo"], ["image", "video"]), item);
-    expect(rulesIn(either)).toEqual(RULES.filter((rule) => rule !== ITEM_AUDIO_RULE));
-    const every = buildUnitPrompt(showing(["photo"], ["image", "video", "audio"]), item);
+    const pictures = [ITEM_FILE_FIELD_RULE, ITEM_PHOTO_RULE, ITEM_VIDEO_RULE, ITEM_FAMILIES_RULE];
+    expect(rulesIn(either)).toEqual(pictures);
+    const every = buildUnitPrompt(showing(["photo"], [...FILE_FAMILIES]), item);
     expect(rulesIn(every)).toEqual(RULES);
   });
 
@@ -241,19 +246,33 @@ describe("the item renderer's prompt", () => {
     }
   });
 
-  test("keeps the photo tile from a card that can only hold sounds, which gets a tile of its own", () => {
-    const tile = FEW_SHOT_DESIGN_EXAMPLES.find(({ notForOnly }) => notForOnly === "audio");
-    if (!tile) throw new Error("Expected an exemplar kept from sound-only cards.");
-    const sounds = buildUnitPrompt(showing(["photo"], ["audio"]), item);
-    expect(sounds).not.toContain(tile.rendererSource);
-    expect(buildUnitPrompt(showing(["photo"], ["image", "audio"]), item)).toContain(
-      tile.rendererSource,
-    );
-    const grids = FEW_SHOT_DESIGN_EXAMPLES.filter(
-      ({ layout, onlyFor }) => layout === "grid" && onlyFor?.includes("audio"),
-    );
-    expect(grids.every(({ rendererSource }) => sounds.includes(rendererSource))).toBe(true);
-    expect(grids).not.toEqual([]);
+  test("keeps the photo tile from a card that holds no picture, which gets a tile of its own", () => {
+    const tile = FEW_SHOT_DESIGN_EXAMPLES.find(({ notForOnly }) => notForOnly);
+    if (!tile) throw new Error("Expected an exemplar kept from pictureless cards.");
+    for (const pictureless of [["audio"], ["document"], ["audio", "document"]] as const) {
+      const prompt = buildUnitPrompt(showing(["photo"], [...pictureless]), item);
+      expect(prompt, pictureless.join()).not.toContain(tile.rendererSource);
+      for (const family of pictureless) {
+        const grids = FEW_SHOT_DESIGN_EXAMPLES.filter(
+          ({ layout, onlyFor }) => layout === "grid" && onlyFor?.includes(family),
+        );
+        expect(grids, family).not.toEqual([]);
+        expect(grids.every(({ rendererSource }) => prompt.includes(rendererSource))).toBe(true);
+      }
+    }
+    for (const mixed of [
+      ["image", "audio"],
+      ["image", "document"],
+    ] as const) {
+      const prompt = buildUnitPrompt(showing(["photo"], [...mixed]), item);
+      expect(prompt).toContain(tile.rendererSource);
+    }
+  });
+
+  test("tells a card that shows a document it never links to one, and says it in words", () => {
+    for (const words of ["<a>", "<embed>", "media-frame"]) {
+      expect(ITEM_DOCUMENT_RULE).toContain(words);
+    }
   });
 
   test("says nothing of files to a card that shows none", () => {

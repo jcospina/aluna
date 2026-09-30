@@ -52,6 +52,10 @@ every document extension.
 - [ ] Documents other than PDF download as attachments under their original name, and
       `Presupuesto año.docx` arrives under that name
 - [ ] The issue lists every admitted extension of every family
+- [ ] Each new document type gets its own design-lint probe for free (7.2/05's
+      `familyProbes` probes every type admission records a document as); a test proves a
+      card that labels a Word file "PDF" or draws it is caught, and PDF stays the first
+      document row so scratch documents keep a PDF's type and `.pdf` name
 - [ ] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo

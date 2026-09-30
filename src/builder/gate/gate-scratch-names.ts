@@ -1,7 +1,8 @@
-// The names the Gate's scratch files carry (Module 7 PLAN decision 38). Its one import is a leaf,
-// so the behavioral rung's row comparison can name a token's file without pulling the runtime into
-// its import graph.
+// The names and types the Gate's scratch files carry (Module 7 PLAN decision 38). It imports only
+// admission's table and the name cap, so the behavioral rung's row comparison can name a token's
+// file without pulling the runtime into its import graph.
 
+import { admittedTypes, usualExtension } from "../../platform/files/admission/admission.ts";
 import { MAX_NAME_BYTES } from "../../platform/files/file-name.ts";
 
 /**
@@ -16,16 +17,24 @@ export function scratchFileName(label: string): string {
   return `${head}${"_".repeat(room)}${tail}`;
 }
 
-const FAMILY_EXTENSIONS: Readonly<Record<string, string>> = {
-  image: ".jpg",
-  video: ".mp4",
-  audio: ".mp3",
-};
+/** The type a scratch file of `family` is recorded as: the first admission verifies for it. */
+export function scratchFileType(family: string): string {
+  const mime = admittedTypes(family)[0];
+  if (mime === undefined) throw new Error(`Admission records no type for the "${family}" family.`);
+  return mime;
+}
 
-/** `name` ending as a file of `family` does, so a template that reads the name reads it right. */
-export function scratchNameFor(name: string, family: string): string {
-  const extension = FAMILY_EXTENSIONS[family] ?? ".jpg";
-  return name.endsWith(".jpg") ? `${name.slice(0, -".jpg".length)}${extension}` : name;
+/**
+ * `name` ending as a file admission records as `mime` is named, so a template that reads the name
+ * reads it right. The padding gives way to a longer extension, keeping the name within the cap.
+ */
+export function scratchNameFor(name: string, mime: string): string {
+  const extension = usualExtension(mime);
+  if (!extension || !name.endsWith(".jpg")) return name;
+  const base = name.slice(0, -".jpg".length);
+  const excess = Math.max(0, extension.length - "jpg".length);
+  const kept = base.endsWith("_".repeat(excess)) ? base.slice(0, base.length - excess) : base;
+  return `${kept}.${extension}`;
 }
 
 /**
@@ -33,5 +42,5 @@ export function scratchNameFor(name: string, family: string): string {
  * key a run mints, so a row compares a file by its family and this name.
  */
 export function tokenFileName(family: string): string {
-  return scratchNameFor(scratchFileName(`a synthetic ${family}`), family);
+  return scratchNameFor(scratchFileName(`a synthetic ${family}`), scratchFileType(family));
 }

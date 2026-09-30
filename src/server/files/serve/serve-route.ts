@@ -6,9 +6,10 @@
 // so a 206 carries its length and a read that fails answers as absent. A HEAD ignores Range, as
 // RFC 9110 has it. `nosniff` is the app's, on every answer (`app.ts`).
 //
-// A cors-mode request for anything but a player is refused: every fetch and XHR htmx makes is one,
-// and htmx swaps any 2xx, so a Handler's `hx-get` would put a polyglot's markup in the page
-// unjudged. A browser's own page for a video or a sound opened in a tab asks in cors mode, as one.
+// A load that would run a file as code is refused, whatever `nosniff` would make of it, and so
+// is a cors-mode request for anything but a sound's or a video's player: every fetch and XHR htmx
+// makes is one, and htmx swaps any 2xx, so a Handler's `hx-get` would put a polyglot's markup in
+// the page unjudged. A browser's own page for a video or a sound opened in a tab asks as a player.
 // The answer varies on the mode and the destination, or the copy an `<img>` or a player cached
 // would answer htmx instead. A client sending no `Sec-Fetch-Mode` is served, as the writing-route
 // guard treats it.
@@ -65,10 +66,23 @@ const VARY = "sec-fetch-mode, sec-fetch-dest";
 /** What a player asks for, whatever its mode; a script's fetch asks for `empty`. */
 const PLAYER_DESTINATIONS: ReadonlySet<string> = new Set(["video", "audio"]);
 
-/** Whether a page's own script could read this answer, and so must not be given one. */
-function readableByScript(c: Context): boolean {
+const PLAYER_KINDS: ReadonlySet<string> = new Set(["video", "audio"]);
+
+/** Loads that would run or apply a file as code, which only `nosniff` would otherwise stop. */
+const CODE_DESTINATIONS: ReadonlySet<string> = new Set([
+  ...["script", "style", "worker", "sharedworker", "serviceworker", "audioworklet"],
+  ...["paintworklet", "manifest", "json", "xslt"],
+]);
+
+/**
+ * Whether a page's own script could read this answer, or a page run it, and so must not be given
+ * one. Only a sound or a video answers a player's cors-mode load.
+ */
+function refused(c: Context, row: FileLedgerRow): boolean {
+  const destination = c.req.header("sec-fetch-dest") ?? "";
+  if (CODE_DESTINATIONS.has(destination)) return true;
   if (!READABLE_FETCH_MODES.has(c.req.header("sec-fetch-mode") ?? "")) return false;
-  return !PLAYER_DESTINATIONS.has(c.req.header("sec-fetch-dest") ?? "");
+  return !PLAYER_DESTINATIONS.has(destination) || !PLAYER_KINDS.has(row.kind);
 }
 
 /** What an image's bytes may do opened as a document: nothing, as the logo route's may not. */
@@ -82,11 +96,20 @@ export const INERT_IMAGE_POLICY = "default-src 'none'; sandbox";
 export const INERT_PLAYER_POLICY =
   "default-src 'none'; media-src 'self'; sandbox allow-same-origin";
 
+/**
+ * A PDF's (PLAN decision 27): the sandbox keeps the viewer's page off our origin, as an image's is,
+ * and lets its save and print through. Chrome 154, Firefox 157 and Safari 26 draw under it.
+ */
+export const PDF_POLICY = "default-src 'none'; sandbox allow-downloads allow-modals";
+
 const POLICY_BY_KIND: ReadonlyMap<string, string> = new Map([
   ["image", INERT_IMAGE_POLICY],
   ["video", INERT_PLAYER_POLICY],
   ["audio", INERT_PLAYER_POLICY],
 ]);
+
+/** A document is served by its verified type, since each opens or downloads as its type does. */
+const POLICY_BY_TYPE: ReadonlyMap<string, string> = new Map([["application/pdf", PDF_POLICY]]);
 
 function absent(c: Context): Response {
   return c.body(null, 404, NO_STORE);
@@ -96,7 +119,7 @@ function absent(c: Context): Response {
 function servedPolicy(row: FileLedgerRow | null): string | undefined {
   if (!row || !SERVED_STATES.has(row.state) || !isAdmittedType(row.kind, row.mime))
     return undefined;
-  return POLICY_BY_KIND.get(row.kind);
+  return POLICY_BY_KIND.get(row.kind) ?? POLICY_BY_TYPE.get(row.mime);
 }
 
 async function openUnderReadToken(
@@ -165,11 +188,10 @@ async function answerSpan(
 }
 
 async function serveFile(c: Context, deps: FileServeDeps): Promise<Response> {
-  if (readableByScript(c)) return absent(c);
   const key = c.req.param("key") ?? "";
   const row = isFileKey(key) ? readFileLedgerRow(deps.databases.readonly, key) : null;
   const policy = servedPolicy(row);
-  if (!row || !policy) return absent(c);
+  if (!row || !policy || refused(c, row)) return absent(c);
   const etag = strongEtag(row.key);
   const headers = {
     "content-type": row.mime,

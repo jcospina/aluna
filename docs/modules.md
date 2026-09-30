@@ -63,7 +63,7 @@ parallel rebuild.
 | 6 | **Reads Set Free — Ad-hoc Data Queries** | Ask questions across your data; Aluna answers out loud; nothing is built | Bounded read-only query loop in a worker · spoken answers · a third window for answers · record counts | M4's physically read-only query seam |
 | 7 | **Files — Upload, Store & Serve** | Create capabilities that hold files; upload, view, and delete them | S3-shaped object store · file ledger · `file` / `file[]` field types · upload ahead of the save · serve (read) · lifecycle | M1–M6 |
 | 8 | **Composition — Linked Capabilities** | Link a record to a record in another capability — a book to its author, a stock count to a book — and build a large feature by chaining small capabilities | Link field type · record picker · link-aware Builder and query loop · what deletion does to a link | M1–M7 |
-| 9 | **File Content Understanding** | Ask what your own documents say, not just how many you have | Text extraction · chunking · embeddings · retrieval as a second read tool · derived-vector lifecycle | M6's query loop · M7's files |
+| 9 | **File Content Understanding** | Ask what your own documents and voice notes say, not just how many you have | Opt-in audio transcription (ElevenLabs) · text extraction · chunking · embeddings · retrieval as a second read tool · derived-vector lifecycle | M6's query loop · M7's files |
 | 10 | **Implicit Loop — Behavior → Proposal → Build** | The app notices a pattern in how you work and offers to build for you | Event tracker · event log · server-side gate · async resolution · proposals | M1–M9 |
 | 11 | **Experiment Harness — Metrics, Latency & Tuning** | Read the PoC's conclusions; tune the implicit gate against real data | Metrics querying · outcome/overlap analysis · experimenter surface · gate tuning | M1–M10 |
 
@@ -859,10 +859,10 @@ stated rule.
 
 ## Module 9 — File Content Understanding
 
-**Goal:** Aluna can answer questions about what is *inside* the documents a
-capability holds, not only about the rows. M6 answers with SQL over the catalog;
-this module adds the second read tool — retrieval over extracted document text —
-and lets the loop use either or both.
+**Goal:** Aluna can answer questions about what is *inside* the documents and
+recordings a capability holds, not only about the rows. M6 answers with SQL over
+the catalog; this module adds the second read tool — retrieval over extracted
+document text — and lets the loop use either or both.
 
 **Why ninth:** it is the first thing that needs files to exist, and nothing else
 needs it. It is also the first time the *contents* of a person's private documents
@@ -871,17 +871,27 @@ Module 7.
 
 ### Epics
 
-Not yet designed. The shape to grill, in dependency order: text extraction per
-kind (Markdown and plain text free, DOCX a zip of XML, PDF a real parser, scanned
-PDFs unanswerable without OCR, legacy `.doc` possibly unsupported); chunking;
-the embedding provider and model, and what is sent off the machine; the vector
-store (an extension versus plain cosine similarity at personal scale); the second
-read tool and how the loop chooses; and the derived-vector lifecycle, which the
-file ledger already knows how to own.
+- **Voice notes become text.** A checkbox on the audio control, off by
+  default, asks Aluna to transcribe that file. A transcript of a song is worth
+  nothing, and a transcript of a voice note is worth a lot, so the person
+  chooses per file. A ticked file goes to ElevenLabs' speech-to-text as a whole
+  recording rather than live, and the returned text becomes that file's
+  extracted text, searched like any document's. Audio leaves the machine only
+  when its box is ticked. Where the transcript lives and whether the save waits
+  for it are this epic's to settle.
+
+The rest is not yet designed. The shape to grill, in dependency order: text
+extraction per kind (audio, Markdown and plain text free, DOCX a zip
+of XML, PDF a real parser, scanned PDFs unanswerable without OCR, legacy `.doc`
+possibly unsupported); chunking; the embedding provider and model, and what is
+sent off the machine; the vector store (an extension versus plain cosine
+similarity at personal scale); the second read tool and how the loop chooses;
+and the derived-vector lifecycle, which the file ledger already knows how to own.
 
 ### Exit criteria
-A person can ask what one of their own documents says and get a grounded spoken
-answer, and every vector dies with the file, record or capability it came from.
+A person can ask what one of their own documents or voice notes says and get a
+grounded spoken answer, and every transcript and vector dies with the file,
+record or capability it came from.
 
 ## Module 10 — Implicit Loop: Behavior → Proposal → Build
 
@@ -1022,7 +1032,7 @@ M8 Composition
    │  (link field · record picker · link-aware Builder and query loop)
    ▼
 M9 File content understanding
-   │  (extraction · chunking · embeddings · retrieval as a second read tool)
+   │  (transcription · extraction · chunking · embeddings · retrieval as a second read tool)
    ▼
 M10 Implicit loop   ── reuses the M2–M4 Builder as extended through M8
     │  (event tracker · event log · gate · async resolution · proposals)
