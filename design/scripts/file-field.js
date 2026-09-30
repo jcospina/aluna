@@ -42,6 +42,10 @@ import {
   wirePreview,
 } from "./file-parts.js";
 
+import { forget, heldBack, keepUnsent, record, resend, settle } from "./file-recording.js";
+import { browserRecorderEnv, canRecord } from "./recorder-env.js";
+import { recordAgainSquare, recordButton, unsentRow } from "./recorder-parts.js";
+
 export { FileRefusal } from "./file-parts.js";
 
 /**
@@ -56,8 +60,15 @@ export { FileRefusal } from "./file-parts.js";
  *             live: HTMLElement, input: HTMLInputElement, kind: Kind, kinds: Kind[],
  *             guide: string,
  *             transfer: Transfer, saved: Held | null, current: Held | null,
- *             upload: InFlight | null, refusal: string | null,
- *             seeds: Map<string, number>, wired?: AbortController }} Field
+ *             upload: InFlight | null, refusal: string | null, notice?: string | null,
+ *             quiet?: boolean, unsent?: Picked | null, unholdUnsent?: () => void,
+ *             settleUntil?: number,
+ *             seeds: Map<string, number>, wired?: AbortController,
+ *             env: RecorderEnv, recorder: import("./file-recorder.js").Recorder | null,
+ *             hold?: Hold, focus?: string }} Field
+ * @typedef {import("./recorder-env.js").RecorderEnv} RecorderEnv
+ * @typedef {(host: HTMLElement, label: string, release: () => void) => () => void} Hold
+ * @typedef {{ recorder?: RecorderEnv, hold?: Hold }} FieldOptions
  */
 
 /**
@@ -178,6 +189,13 @@ const filledFrame = (
   ${barButton(f, "clear", "Clear", `Clear ${esc(held.name)}`, "data-file-clear")}
 </div>`;
 
+/**
+ * Every field that takes a sound records one too, where the browser can (7.2/04).
+ *
+ * @param {Field} f
+ */
+const records = (f) => f.kinds.includes("audio") && canRecord(f.env);
+
 /** @param {Field} f */
 const emptyRow = (f) => `<div class="file__row">
   <button class="field__control file__well file__pick file__drop"${pickAttrs(f)}${seed(f, "well")}>
@@ -185,6 +203,7 @@ const emptyRow = (f) => `<div class="file__row">
     <span class="file__cta" id="${f.host.id}-cta">${chooseOf(f.kinds)}</span>
     <span class="file__meta file__hint">${HINT}</span>
   </button>
+  ${records(f) ? recordButton(f) : ""}
 </div>`;
 
 /**
@@ -219,6 +238,7 @@ function filledRow(f, held) {
     <span class="file__actions">
       ${goesTo(f, held, kind, "data-file-open", "go")}
       ${square(f, "replace", `Replace ${name}`, glyph(14, G.replace), `data-file-pick ${FILE_FIELD_HOOKS.focus}`)}
+      ${records(f) ? recordAgainSquare(f, held.name) : ""}
       ${square(f, "clear", `Clear ${name}`, glyph(14, G.clear), "data-file-clear")}
     </span>
   </div>`;
@@ -226,6 +246,8 @@ function filledRow(f, held) {
 
 /** @param {Field} f */
 function bodyOf(f) {
+  if (f.recorder) return f.recorder.markup();
+  if (f.unsent && !f.upload) return unsentRow(f, f.unsent.name);
   const frame = shapeOf(f.kinds) === "frame";
   if (f.upload) return frame ? uploadingFrame(f, f.upload) : uploadingRow(f, f.upload);
   if (f.current) return frame ? filledFrame(f, f.current) : filledRow(f, f.current);
@@ -323,18 +345,21 @@ function render(f) {
   harvestSeeds(f);
   f.body.innerHTML = bodyOf(f);
   f.host.classList.toggle("is-refused", f.refusal !== null);
-  f.host.classList.toggle("is-invalid", f.refusal !== null && !f.current && !f.upload);
+  f.host.classList.toggle("is-invalid", f.refusal !== null && !f.quiet && !f.current && !f.upload);
   if (f.guidance) {
-    f.guidance.textContent = f.refusal ?? f.guide;
-    f.guidance.hidden = (f.refusal ?? f.guide) === "";
+    f.guidance.textContent = f.refusal ?? f.notice ?? f.guide;
+    f.guidance.hidden = f.guidance.textContent === "";
     f.guidance.classList.toggle("field__guidance--error", f.refusal !== null);
   }
   f.wired?.abort();
   f.wired = new AbortController();
   const heard = (/** @type {string} */ text) => say(f, text);
-  if (f.current) wirePreview(f.body, f.current, kindOf(f.current, f.kinds), heard, f.wired.signal);
+  if (f.current && !f.recorder)
+    wirePreview(f.body, f.current, kindOf(f.current, f.kinds), heard, f.wired.signal);
+  f.recorder?.wire(f.body, f.wired.signal);
   holdSave(scopeOf(f.host));
-  const next = f.body.querySelector(hooked(FILE_FIELD_HOOKS.focus));
+  const next = f.body.querySelector(f.focus ?? hooked(FILE_FIELD_HOOKS.focus));
+  f.focus = undefined;
   if (hadFocus && next instanceof HTMLElement) next.focus({ focusVisible: true });
   f.host.dispatchEvent(
     new CustomEvent(FILE_FIELD_CHANGE, {
@@ -383,6 +408,8 @@ function refused(f, u, error) {
   // An upload the page stopped, as it does when the field leaves it, is a Stop, not a failure.
   const stopped = error instanceof DOMException && error.name === "AbortError";
   f.refusal = stopped ? null : error instanceof FileRefusal ? error.sentence : FAILED;
+  f.quiet = false;
+  if (error instanceof FileRefusal && f.unsent === u.picked) keepUnsent(f, null);
   render(f);
   if (f.refusal) say(f, f.refusal);
 }
@@ -395,6 +422,17 @@ function refused(f, u, error) {
  * @param {Picked} picked
  */
 function take(f, picked) {
+  const wait = heldBack(f, picked);
+  if (wait) {
+    f.notice = wait;
+    if (f.guidance) Object.assign(f.guidance, { textContent: wait, hidden: false });
+    return say(f, wait);
+  }
+  f.recorder?.dispose();
+  if (picked !== f.unsent) {
+    keepUnsent(f, null);
+    f.notice = null;
+  }
   abandon(f);
   f.refusal = null;
   /** @type {InFlight} */
@@ -422,6 +460,7 @@ function take(f, picked) {
       if (f.upload !== u) return;
       f.upload = null;
       f.current = held;
+      if (f.unsent === picked) keepUnsent(f, null);
       render(f);
       say(f, `${held.name} is in.`);
     },
@@ -438,6 +477,8 @@ const fromFile = (file) => ({ name: file.name, type: file.type, size: file.size,
 function stop(f) {
   const name = f.upload?.picked.name ?? "";
   abandon(f);
+  if (f.unsent) settle(f);
+  else f.notice = null;
   render(f);
   say(f, `I stopped uploading ${name}.`);
 }
@@ -448,13 +489,26 @@ function clear(f) {
   const kept = f.current !== null && f.current === f.saved;
   f.current = null;
   f.refusal = null;
+  f.notice = null;
   render(f);
   say(f, `I cleared ${name}.${kept ? " Saving makes that final." : ""}`);
 }
 
+/** What recording draws and takes with (`file-recording.js`). */
+const FIELD_API = {
+  render,
+  take,
+  say,
+  cap: (/** @type {Field} */ f) =>
+    Number(f.host.getAttribute(FILE_FIELD_HOOKS.cap)) || Number.POSITIVE_INFINITY,
+};
+
 /** @type {Array<[string, (f: Field) => void]>} */
 const ACTIONS = [
   ["[data-file-pick]", (f) => f.input.click()],
+  ["[data-file-record]", (f) => record(f, FIELD_API)],
+  ["[data-file-resend]", (f) => resend(f, FIELD_API)],
+  ["[data-file-forget]", (f) => forget(f, FIELD_API)],
   ["[data-file-stop]", stop],
   ["[data-file-clear]", clear],
   [
@@ -547,8 +601,9 @@ function live(host) {
  *
  * @param {HTMLElement} host
  * @param {Transfer} transfer
+ * @param {FieldOptions} options
  */
-function mountOne(host, transfer) {
+function mountOne(host, transfer, options) {
   const body = host.querySelector(hooked(FILE_FIELD_HOOKS.body));
   const kinds = kindsIn(host.getAttribute(FILE_FIELD_HOOKS.kind) ?? "image");
   const [kind] = kinds;
@@ -578,17 +633,26 @@ function mountOne(host, transfer) {
     upload: null,
     refusal: null,
     seeds: new Map(),
+    env: options.recorder ?? browserRecorderEnv(),
+    recorder: null,
+    hold: options.hold,
   };
   FIELDS.set(host, f);
   registerFileControl(host, {
-    uploading: () => (f.upload ? [nounFor(f.kinds)] : []),
+    uploading: () => {
+      if (f.upload) return [nounFor(f.kinds)];
+      if (f.unsent) return ["unsent recording"];
+      return f.recorder?.holds() ? ["recording"] : [];
+    },
     settle: (how) => settleOne(f, how),
   });
   host.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : null;
     const hit = ACTIONS.find(([selector]) => target?.closest(selector));
-    hit?.[1](f);
+    if (hit && f.env.now() >= (f.settleUntil ?? 0)) hit[1](f);
   });
+  // A held Enter presses once: its repeats would press whatever the first press put there.
+  host.addEventListener("keydown", (event) => event.repeat && event.preventDefault(), true);
   input.addEventListener("change", () => {
     const file = input.files?.[0];
     if (file) take(f, fromFile(file));
@@ -656,14 +720,17 @@ export function mountPage() {
 }
 
 /**
- * Mount every `[data-file-field]` under `root`, each streaming its picks through `transfer`.
+ * Mount every `[data-file-field]` under `root`, each streaming its picks through `transfer`. A
+ * page that owns what its regions hold passes `hold`, so a recorder's microphone goes off with
+ * the form it is in; `recorder` stands in for the browser's media.
  *
  * @param {ParentNode} root
  * @param {Transfer} transfer
+ * @param {FieldOptions} [options]
  */
-export function mountFileFields(root, transfer) {
+export function mountFileFields(root, transfer, options = {}) {
   for (const host of root.querySelectorAll(hooked(FILE_FIELD_HOOKS.field))) {
-    if (host instanceof HTMLElement) mountOne(host, transfer);
+    if (host instanceof HTMLElement) mountOne(host, transfer, options);
   }
   mountPage();
 }
@@ -702,6 +769,9 @@ export function settleFileFields(scope, how) {
  * @param {"keep" | "revert"} how
  */
 function settleOne(f, how) {
+  f.recorder?.dispose();
+  keepUnsent(f, null);
+  f.notice = null;
   if (how === "revert") {
     abandon(f);
     f.current = f.saved;

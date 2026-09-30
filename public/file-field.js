@@ -245,7 +245,7 @@ function mountArrivals(nodes, transfer) {
     } catch (error) {
       refusals.push(error);
     }
-    mountFileFields(host.parentElement, transfer);
+    mountFileFields(host.parentElement, transfer, { hold: registerRegionRelease });
   }
   if (refusals.length > 0) throw refusals[0];
 }

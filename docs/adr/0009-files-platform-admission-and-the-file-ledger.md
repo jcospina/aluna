@@ -94,7 +94,9 @@ no record, when someone picks a file and never saves. Two paths discharge it and
 neither is a timer. Leaving a record whose form holds an upload asks first, on
 every in-desk exit, through the inline question that already guards a running
 build, and a confirmed leave deletes the held files; a form with nothing uploaded
-still dies silently, and there is no `beforeunload` dialog. Anything a crash, a
+still dies silently, and there is no `beforeunload` dialog for an upload (a voice
+recording not yet uploaded, which exists only in the tab, is the one thing the page asks the
+browser to guard before unloading; PLAN decision 29a). Anything a crash, a
 kill or a closed tab left behind is swept at the next desk load, since a reload
 destroys an open form, so every `pending` key standing at that moment is treated
 as an orphan. A second tab's open form loses its upload to that sweep, and its

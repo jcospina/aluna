@@ -326,6 +326,18 @@ in ADR-0009, and in the architecture and design documents.
     opens or downloads from the file control. A sound has no picture, so its card says in words
     that it holds one and draws no player and no frame, as `design/controls.html` draws it;
     design lint refuses a card that draws a sound *(7.2/03)*.
+29a. **A field that takes a sound records one, and the page finishes the recording.** Record
+    stands beside the empty well as its peer and turns the field into a recorder in place;
+    what the recorder keeps is handed to the upload path as a pick, so admission and
+    ownership see a file like any other. A recording whose upload fails or is stopped stays on
+    the field, unsent, with Upload again and Throw away, since it exists nowhere else. The
+    recorder asks for WebM first and MP4 only where
+    a browser records nothing else: a recorder's WebM has no length and no index, so the page
+    rewrites it with both before it leaves (`design/scripts/lib/webm.js`). A finished recording
+    from Chrome or Firefox shows its time and seeks in both, where Chrome's MP4 recording reads
+    as a fiftieth of a second long in Firefox; Safari's is the sign-off gate's to confirm. No
+    media tool runs on the server *(7.2/04, the owner's open question on duration taken
+    2026-09-29)*.
 
 ### Lifecycle
 
@@ -354,9 +366,12 @@ in ADR-0009, and in the architecture and design documents.
       counts as success, and no byte is unlinked before that write commits, so a leave
       confirmed while a save is in flight can never leave a saved record without its
       file. A form with nothing uploaded still dies silently, as Module 5 decided. There is
-      no `beforeunload` dialog: iOS Safari ignores it, the request sent after one is
-      unreliable, and a killed tab, a dead battery or a restarted server sends nothing at
-      all.
+      no `beforeunload` dialog for an upload: iOS Safari ignores it, the request sent after
+      one is unreliable, and a killed tab, a dead battery or a restarted server sends nothing
+      at all. A recording made in the field is the one exception: it exists
+      nowhere but the tab until its upload lands, so while one is being made, uploaded or kept
+      unsent the page asks the browser's own question before it unloads, and asks nothing once
+      it lands or is thrown away *(7.2/04)*.
     - *The desk-load sweep.* A reload destroys an open form, so every `pending` key
       standing when the desk loads is taken as an orphan and enqueued for cleanup. The
       sweep is queued on the coordinator when the load request arrives, and the render
@@ -476,7 +491,8 @@ download, with the PDF and the standalone players proven in Chrome, Safari and F
 the video card on iOS Safari; the platform control playing,
 seeking, opening and downloading, and falling back to a download link for a codec the
 browser refuses; the picker's `accept` attribute from the declared families; item-renderer
-guidance and a few-shot example for each kind.
+guidance and a few-shot example for each kind; and, at the owner's request, a voice note
+recorded in any field that takes a sound (7.2/04, decision 29a).
 
 Done when a Notes capability holds a PDF that opens in the browser, a DOCX that downloads
 under its own accented name, and a video that plays and seeks.

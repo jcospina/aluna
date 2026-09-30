@@ -81,6 +81,8 @@ export const SAMPLE_HEADS = {
   mif1Avif: ftyp("mif1", "avifmiaf"),
   isom: ftyp("isom", "isomiso2avc1mp41"),
   mp42: ftyp("mp42", "mp42isom"),
+  /** Safari's recorder: a fragmented MP4 whose major brand is `iso5`. */
+  iso5: ftyp("iso5", "isomiso5hlsf"),
   m4v: ftyp("M4V ", "M4V M4A mp42isom"),
   m4a: ftyp("M4A ", "M4A mp42isom"),
   quickTime: ftyp("qt  ", "qt  "),

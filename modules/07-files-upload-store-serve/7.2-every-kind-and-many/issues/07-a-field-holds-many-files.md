@@ -47,6 +47,12 @@ mutation interface refuses a save that would leave a required `file` empty
 but both handle one key or none. A required `file[]` must refuse `[]` the same way, and the
 browser's own check (`holdsNothing` in `public/field-errors.js`) must count an empty list.
 
+**A list that takes a sound records too.** 7.2/04 gave every single file field that takes
+audio a Record beside its well (`design/scripts/file-recorder.js`). A list's add well gets
+the same peer, and a recording it keeps is added as one more entry; `design/controls.html`
+draws it beside the list and its tests drive it with the recorder's stand-in microphone
+(`src/presentation/controls/file-recorder.test-support.ts`).
+
 ## Acceptance criteria
 
 - [ ] `file[]` is in `FILE_FIELD_TYPES`, is not searchable, and every `isListFieldType`
@@ -61,6 +67,8 @@ browser's own check (`holdsNothing` in `public/field-errors.js`) must count an e
       entry
 - [ ] The control uploads each entry on its own request, holds the save while any is in
       flight, and aborts a removed in-flight entry
+- [ ] A list whose `accepts` holds `audio` offers Record beside its add well, and a
+      recording it keeps is added as an entry
 - [ ] The Gate's scratch ledger covers a several-file list and an evolution-added `NULL`
       column; behavioral inputs take arrays of family tokens, and the digest covers them
 - [ ] `bun run test`, `bun run typecheck`, `bun run lint` clean

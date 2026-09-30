@@ -16,7 +16,7 @@ the same palette and the same line.
 
 The system is settled on two pages you can open in a browser: `design/index.html`
 for the desk and decisions D1–D14, `design/controls.html` for the control set and
-C1–C20. Language and product voice live in [CONTEXT.md](../CONTEXT.md).
+C1–C21. Language and product voice live in [CONTEXT.md](../CONTEXT.md).
 
 ## Colour
 
@@ -336,6 +336,18 @@ with its kind and length in words, because some browsers draw no first frame.
 A field is a frame only when every family it takes fills one, a photo and a video; a field
 that takes a sound or a document is a row, because a frame can't show a document and a row
 can show a photo, small. The held file's own kind decides how it previews.
+
+A field that takes a sound records one too, where the browser can. `.file__record`, a primary
+button with the microphone and its word, stands beside the empty well, and a held sound's row
+gains a microphone square beside Replace; a narrow row wraps either under the well. Pressing
+Record records in the field's own row, `.file__recorder`, at the well's height: the microphone,
+the running time and a live `.recorder__wave`, a stroke per moment as tall as it was loud, with
+Stop and Cancel as squares where Record was. Stop uploads the recording as a picked file and
+the row becomes the filled row any sound makes; one whose upload fails or is stopped stays,
+not uploaded, with squares to upload it again or throw it away. Cancel, a danger square while
+recording, throws a recording away. A microphone that is
+refused leaves the field empty with the reason and the fix in the guidance line. The wave lies
+still where travel is off, since the time and the live region say the same thing in words.
 
 A field that holds many files is a column of `.file__row`s in `.field-list__values`, one
 per file in the order they were picked, with an add well at its foot. It has no grip:

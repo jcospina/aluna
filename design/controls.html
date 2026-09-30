@@ -1553,6 +1553,368 @@
           </div>
         </div>
 
+        <h3 class="kicker" style="margin-top: 30px">Recording a voice note</h3>
+        <p class="sm">
+          Every field that takes a sound records one too, where the browser can. Record stands
+          beside the well as its peer, with its word showing, and pressing it starts recording in
+          the field's own row: the first time, that is also what makes the browser ask for the
+          microphone. The well then holds the time and a live soundwave, and Record gives way to two
+          squares, Stop and Cancel. A browser that can't record, on a page that isn't secure or
+          without a recorder, draws no Record at all.
+        </p>
+        <p class="sm">
+          Stop uploads the recording at once, and the row becomes the filled row any sound makes, to
+          play, record over or clear. Cancel throws it away. A microphone the browser refuses, or
+          one that isn't there, leaves the field empty with the reason and the fix under it, and a
+          recording that stops by itself is kept, with the reason said under the field. A recording
+          whose upload fails or is stopped stays in the row, not uploaded, with a square to upload
+          it again and one to throw it away, since it exists nowhere else yet.
+        </p>
+        <div
+          class="forms"
+          style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr))"
+        >
+          <div>
+            <div class="field file" id="file-voice" data-file-field data-kind="audio">
+              <span class="field__label caps" id="file-voice-label">Voice note</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="file-voice-guidance"
+                >Record uses your own microphone.</span
+              >
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="file-voice-held"
+              data-file-field
+              data-kind="audio"
+              data-holds-name="Voice note 2026-09-29 14.05.23.webm"
+              data-holds-size="96411"
+              data-holds-src="./assets/media/voice-note.webm"
+            >
+              <span class="field__label caps" id="file-voice-held-label">After a recording</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="file-voice-held-guidance"
+                >The microphone square records a new one in its place.</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <h3 class="kicker" style="margin-top: 22px">The recorder, state by state</h3>
+        <p class="sm">
+          Each field below records from a stand-in microphone and is walked to the state it names by
+          the clicks a person would make. They stay live, so any of them carries on from where it
+          stands.
+        </p>
+        <div
+          class="forms"
+          style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr))"
+        >
+          <div>
+            <div
+              class="field file"
+              id="rec-asking"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="asking"
+            >
+              <span class="field__label caps" id="rec-asking-label">While the browser asks</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-asking-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-recording"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="recording"
+            >
+              <span class="field__label caps" id="rec-recording-label">Recording</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-recording-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-narrow"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="narrow"
+              style="max-width: 20rem"
+            >
+              <span class="field__label caps" id="rec-narrow-label"
+                >Recording in a narrow field</span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-narrow-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-finishing"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="finishing"
+            >
+              <span class="field__label caps" id="rec-finishing-label"
+                >Finishing the recording</span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-finishing-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-stopped"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="stopped"
+            >
+              <span class="field__label caps" id="rec-stopped-label">After Stop</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-stopped-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-capped"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="capped"
+              data-file-cap="110000"
+            >
+              <span class="field__label caps" id="rec-capped-label"
+                >Stopped at the field’s size</span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-capped-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-lost-late"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="lost-late"
+            >
+              <span class="field__label caps" id="rec-lost-late-label"
+                >The microphone goes away mid-recording</span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-lost-late-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-on-its-own"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="on-its-own"
+            >
+              <span class="field__label caps" id="rec-on-its-own-label"
+                >The recording stops on its own</span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-on-its-own-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-dropped"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="dropped"
+            >
+              <span class="field__label caps" id="rec-dropped-label"
+                >A file dropped while recording</span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-dropped-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-unsent"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="unsent"
+            >
+              <span class="field__label caps" id="rec-unsent-label">The upload fails</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-unsent-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-over-held"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="over-held"
+              data-holds-name="Voice note 2026-09-29 14.05.23.webm"
+              data-holds-size="96411"
+              data-holds-src="./assets/media/voice-note.webm"
+            >
+              <span class="field__label caps" id="rec-over-held-label"
+                >Recording over a held sound</span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-over-held-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-cancel-held"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="cancel-held"
+              data-holds-name="Voice note 2026-09-29 14.05.23.webm"
+              data-holds-size="96411"
+              data-holds-src="./assets/media/voice-note.webm"
+            >
+              <span class="field__label caps" id="rec-cancel-held-label"
+                >Cancel, back to the held sound</span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-cancel-held-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-denied"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="denied"
+            >
+              <span class="field__label caps" id="rec-denied-label"
+                >The browser blocks the microphone</span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-denied-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-denied-held"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="denied-held"
+              data-holds-name="Voice note 2026-09-29 14.05.23.webm"
+              data-holds-size="96411"
+              data-holds-src="./assets/media/voice-note.webm"
+            >
+              <span class="field__label caps" id="rec-denied-held-label"
+                >Blocked, with a sound held</span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-denied-held-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-no-device"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="no-device"
+            >
+              <span class="field__label caps" id="rec-no-device-label">No microphone</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-no-device-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-device-busy"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="device-busy"
+            >
+              <span class="field__label caps" id="rec-device-busy-label"
+                >Another app holds the microphone</span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-device-busy-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-lost-early"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="lost-early"
+            >
+              <span class="field__label caps" id="rec-lost-early-label"
+                >The microphone goes away at once</span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-lost-early-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-failed"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="failed"
+            >
+              <span class="field__label caps" id="rec-failed-label"
+                >The microphone won’t start</span
+              >
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-failed-guidance"></span>
+            </div>
+          </div>
+          <div>
+            <div
+              class="field file"
+              id="rec-empty"
+              data-file-field
+              data-kind="audio"
+              data-recorder-bench="empty"
+            >
+              <span class="field__label caps" id="rec-empty-label">Nothing was heard</span>
+              <div data-file-body></div>
+              <span class="field__guidance" id="rec-empty-guidance"></span>
+            </div>
+          </div>
+        </div>
+        <p class="sm" style="margin-top: 22px">
+          A blocked microphone is unblocked in each browser's own settings, so the steps under the
+          field depend on the browser it is in. The field above shows yours; these are all of them.
+        </p>
+        <div class="spec">
+          <div class="spec__scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Browser</th>
+                  <th scope="col">What the field says to do</th>
+                </tr>
+              </thead>
+              <tbody data-recorder-unblock></tbody>
+            </table>
+          </div>
+        </div>
+
         <h3 class="kicker" style="margin-top: 30px">Inside the open record</h3>
         <p class="sm">
           A card is a button, and a button can't hold a player or a link, so a card shows a file and
@@ -2247,6 +2609,18 @@
                   <td class="sm">
                     A field that takes several families, under <a href="#files">Files</a>
                   </td>
+                </tr>
+                <tr>
+                  <td>C21</td>
+                  <td>
+                    <strong>A field that takes a sound records one beside choosing a file.</strong>
+                    Record is the well's peer and records in the field's own row, with Stop and
+                    Cancel as squares; Stop uploads at once. A recording is a WebM the page finishes
+                    with its length and an index, so it shows its time and seeks in Chrome and
+                    Firefox, and MP4 is for a browser that records nothing else. Safari is confirmed
+                    at sign-off
+                  </td>
+                  <td class="sm">Recording a voice note, under <a href="#files">Files</a></td>
                 </tr>
               </tbody>
             </table>

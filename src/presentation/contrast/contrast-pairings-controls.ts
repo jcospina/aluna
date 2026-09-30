@@ -312,6 +312,16 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     sites: ["design/styles/components/file-field.css § .file-player__refused [border-color]"],
   },
   {
+    what: "the voice recorder's soundwave",
+    foreground: ink,
+    background: surface2,
+    threshold: "non-text",
+    note:
+      "The live wave drawn in a sound field's well while it records. It says the microphone " +
+      "hears something; the running time beside it and the live region say the same in words.",
+    sites: ["design/styles/components/file-recorder.css § .recorder__wave [color]"],
+  },
+  {
     what: "the track under an upload's progress line",
     foreground: { token: "ink", alpha: 0.13, over: surface2 },
     background: surface2,

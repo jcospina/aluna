@@ -18,6 +18,7 @@ import { mountFileBench } from "./file-bench.js";
 import { mountAllInk, reseedInk, startInk } from "./ink.js";
 import { mountListRows, wireListRows } from "./list-rows.js";
 import { mountListboxes } from "./listbox.js";
+import { mountRecorderBench } from "./recorder-bench.js";
 import { wireSectionWindows } from "./sections/section-window.js";
 import { mountWindows } from "./window.js";
 
@@ -168,6 +169,7 @@ function boot() {
   mountCounters(document);
   mountBenches(document.body);
   mountEcho(document.body);
+  mountRecorderBench(document.body);
   mountFileBench(document.body);
 
   /*
