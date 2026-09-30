@@ -6,7 +6,7 @@
    Replaced piece by piece as real capabilities land.
 
    The shell's own content area is gone: everything below now renders inside the
-   one window, which the client creates and destroys (/static/desk-window.js).
+   one window, which the client creates and destroys (/static/desk/window/desk-window.js).
    There is nothing left to hide until content arrives, because a window that has
    nothing in it does not exist.
    ========================================================================== */
@@ -15,7 +15,7 @@
   display: none;
 }
 /* A window a prompt stood up before anything was known, waiting out of sight for the
-   first thing worth showing (`PENDING_WINDOW_CLASS`, /static/desk-window.js). A prompt
+   first thing worth showing (`PENDING_WINDOW_CLASS`, /static/desk/window/desk-window.js). A prompt
    that never becomes a build never reveals it, so an answer that belongs on the prompt
    bar does not also flash an empty frame across the desk. `visibility` rather than
    `display`, so the frame is measured and drawn at its real size while it waits. */

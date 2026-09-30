@@ -22,7 +22,7 @@ to ask — a person who can read the number never has to ask Aluna for it.
 Handler, the same item renderer and the same generated tests serve a capability
 that was built before this issue, and no spec, registry or `ui_intent` field is
 added for it. The count belongs to the platform's collection chrome
-(`src/presentation/records/list-container.ts`), beside the search chrome and the
+(`src/presentation/records/collection/list-container.ts`), beside the search chrome and the
 records region, not to anything a model wrote.
 
 **It is a `count` against the read connection**, so it is free — the same
@@ -73,12 +73,12 @@ state still reads as one statement, not two.
 
 **The count rides the read, and nothing else.** `read` and `search` answers now carry a
 sidecar at the head of the body — an HTML comment the shell takes off before the records
-land (`src/presentation/records/collection-count.ts`,
+land (`src/presentation/records/region/collection-count.ts`,
 `src/runtime/router/wire/collection-count.ts`). One round trip carries both, so there is
 nothing to poll and no second number to keep in step. All three transports that write the
 records region strip it through the same split: htmx for the View's own one-shot load
-(`public/collection-count.js`), the post-create refresh (`public/records-refresh.js`) and
-the search controller (`public/search-chrome.js`).
+(`public/records/collection-count.js`), the post-create refresh (`public/records/records-refresh.js`) and
+the search controller (`public/records/search-chrome.js`).
 
 **A comment, not an element.** A sidecar that ever reached the DOM unstripped must not
 take the platform empty state away, and browsers do not count comments when matching

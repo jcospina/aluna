@@ -5,19 +5,23 @@
 // on its real markup, by `logo-menu.test.ts` ("the rename that is on its way").
 
 import { describe, expect, test } from "bun:test";
-import { setPending } from "#shell/record-mutations.js";
-import { BUSY_LABEL_ATTRIBUTE } from "#shell/shell-dom.js";
+import { BUSY_LABEL_ATTRIBUTE } from "#shell/core/shell-dom.js";
+import { setPending } from "#shell/records/record-mutations.js";
 import { renderCreateForm } from "../fields/field-renderer.ts";
-import { CAPABILITY, RECORD, TEMPLATE_ID } from "../records/record-view.test-support.ts";
-import { renderRecordView } from "../records/record-view.ts";
+import {
+  CAPABILITY,
+  RECORD,
+  TEMPLATE_ID,
+} from "../records/record-view/record-view.test-support.ts";
+import { renderRecordView } from "../records/record-view/record-view.ts";
 import {
   ADDING_LABEL,
   busyLabelAttribute,
   DELETING_RECORD_LABEL,
   SAVING_RECORD_LABEL,
 } from "./busy-label.ts";
-import { installDomGlobals } from "./choice-picker.fixture.test-support.ts";
-import { Doc, type El, parseHtml } from "./choice-picker.test-support.ts";
+import { installDomGlobals } from "./double/choice-picker.fixture.test-support.ts";
+import { Doc, type El, parseHtml } from "./double/choice-picker.test-support.ts";
 
 installDomGlobals();
 

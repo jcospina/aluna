@@ -11,8 +11,8 @@
 // one is where the two surfaces are held to one another.
 
 import { describe, expect, test } from "bun:test";
-import { refusePress } from "#design/window-press.js";
-import { dismissAnswerWindow, openAnswerWindow } from "#shell/desk-answer-window.js";
+import { refusePress } from "#design/window/window-press.js";
+import { dismissAnswerWindow, openAnswerWindow } from "#shell/desk/window/desk-answer-window.js";
 import {
   BACK_Z,
   BEHIND_Z,
@@ -22,7 +22,7 @@ import {
   raise,
   raiseFromPress,
   standingCount,
-} from "#shell/desk-stack.js";
+} from "#shell/desk/window/desk-stack.js";
 import { stackMember } from "./desk-window.test-support.ts";
 import type { El as DeskEl } from "./standing-desk.test-support.ts";
 import { designDesk, deskNodes, viewportDesk } from "./viewport-desk.test-support.ts";
@@ -313,7 +313,7 @@ describe("every desk that stands a window keeps the same rule", () => {
   });
 
   test("the design page's desk refuses the same press", async () => {
-    // One implementation, the way the gestures are one: `design/scripts/desk.js` is the other
+    // One implementation, the way the gestures are one: `design/scripts/desk/desk.js` is the other
     // surface that stands windows, and a second copy drifts the moment one of them is corrected.
     const design = await designDesk(false);
     try {

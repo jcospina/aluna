@@ -1032,3 +1032,46 @@ M11 Experiment harness   ── reads metrics (M2–M10) + event log (M10)
 ```
 
 Linear and progressive: each module runs, is testable, and stands on its own. Capabilities are presentable at M3, fully evolvable at M4, and get the surface they were designed for at M5; the explicit loop is whole at M7; linked capabilities (M8), document understanding (M9) and implicit (M10) are layers on top of it; the experiment surface (M11) reads what everything before it produced.
+
+## Before Aluna is served over a network
+
+Aluna runs on the machine of the person using it. Two costs in how the shell's
+code reaches the browser stay invisible there and become real once the shell is
+served from another machine. Neither fix needs TypeScript or a bundler. Both came
+out of a look on 2026-09-30 at moving the browser code to TypeScript, which was
+declined.
+
+### The import chain is seven modules deep
+
+`public/index.html` loads 21 module scripts, and they import 34 more, 55 in all. A
+browser learns what a module imports only once that module arrives, so it fetches
+them in rounds, one round per level of the chain, and the deepest chain has seven
+levels. On localhost a round costs almost nothing. Over a connection with a 100 ms
+round trip, seven rounds add 0.7 s before the last module lands. The V8 team's
+guidance for shipping modules unbundled is fewer than 100 modules and a maximum
+depth under five ([JavaScript modules](https://v8.dev/features/modules)). The
+shell meets the first limit and misses the second.
+
+A `<link rel="modulepreload">` for every module lets the browser request all 55 in
+the first round. The list has to name every module: browsers may follow a
+preloaded module's own imports but are not required to, and MDN gives naming each
+one as the only way to reach all of them
+([modulepreload](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Attributes/rel/modulepreload)).
+A hand-written list goes stale as modules are added, so the server should build it
+from the import graph when it starts.
+
+### Every load downloads the shell again
+
+The `/static/*`, `/design/*` and `/architecture/*` routes in `src/server/app.ts`
+send each file with a content type and a length and nothing more: no
+`Cache-Control`, no `ETag`, no `Last-Modified`. The browser has nothing to check
+its copy against, so every load downloads every module again. V8 keeps its
+compiled copy of a script only when the server answers `304 Not Modified`, and a
+full `200` throws it away
+([Code caching for JavaScript developers](https://v8.dev/blog/code-caching-for-devs)),
+so the shell also compiles from scratch on every load.
+
+The server can read each file once at startup, hash its contents and send the hash
+as an `ETag`. The browser then sends the hash back on the next load, and an
+unchanged file comes back as a `304` with no body. In development the hash has to
+be recomputed when a file changes, or a reload would keep serving the old copy.

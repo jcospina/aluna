@@ -3,14 +3,8 @@
 // Split out when the one file grew past what a file should hold.
 
 import { afterEach, describe, expect, test } from "bun:test";
-
-import { DESK_HISTORY_STATE } from "#shell/desk-address.js";
-import {
-  CAPABILITY_LOGO_SELECTOR,
-  capabilityAddress,
-  DESK_ADDRESS,
-  THINKING_WINDOW_TITLE,
-} from "#shell/desk-window.js";
+import { CONTENT_REGION_SELECTOR } from "#shell/core/region-scope.js";
+import { DESK_HISTORY_STATE } from "#shell/desk/desk-address.js";
 
 import {
   askBeforeLeaving,
@@ -19,8 +13,13 @@ import {
   goAheadAndLeave,
   leavingIsBeingAsked,
   PROMPT_FIELD_ID,
-} from "#shell/leaving-a-run.js";
-import { CONTENT_REGION_SELECTOR } from "#shell/region-scope.js";
+} from "#shell/desk/leaving-a-run.js";
+import {
+  CAPABILITY_LOGO_SELECTOR,
+  capabilityAddress,
+  DESK_ADDRESS,
+  THINKING_WINDOW_TITLE,
+} from "#shell/desk/window/desk-window.js";
 import {
   LEAVING_A_RUN_BACK_OUT,
   LEAVING_A_RUN_GO_AHEAD,
@@ -31,9 +30,9 @@ import {
   renderBuildSubscriber,
   renderCapabilitySurface,
   renderProvisionalLogo,
-} from "../../server/http/fragments.ts";
+} from "../../server/http/fragments/fragments.ts";
 import { byId, elementsOf } from "../../server/http/served-page.test-support.ts";
-import { El, parseHtml } from "../controls/choice-picker.test-support.ts";
+import { El, parseHtml } from "../controls/double/choice-picker.test-support.ts";
 import { readSource as read } from "../safety/source.test-support.ts";
 import { type El as DeskEl, pressLamp } from "../shell/window/standing-desk.test-support.ts";
 import { deskNodes, serverLogo, viewportDesk } from "../shell/window/viewport-desk.test-support.ts";

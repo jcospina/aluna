@@ -182,7 +182,7 @@ Two reviewers, one on the mechanism and one on spec conformance.
 14. *"The read gate is reopened before any of them is said" was wrong for two of the
     five*: `busy` and `stale` never close a gate. Corrected in both documents.
 15. *A read-gate assertion could pass vacuously* — `every` over an empty snapshot.
-16. *`public/desk-doorway.js` had no tests at all.* It has eight.
+16. *`public/desk/desk-doorway.js` had no tests at all.* It has eight.
 17. *The zero-AI sweep did not cover the route a dismissal presses.* It does now.
 18. *`expect(notice.ownText).toBe("")` could not fail*: the bar writes its sentence as a
     child element, so `ownText` is empty either way. Every new assertion was then checked
@@ -218,7 +218,7 @@ Two reviewers, one on the mechanism and one on spec conformance.
 
 ## What this left for someone else
 
-`public/capability-deletion.js`'s recovery relays the server's "That's already gone, so I
+`public/desk/logos/capability-deletion.js`'s recovery relays the server's "That's already gone, so I
 didn't delete anything." after an interrupted **confirm** that actually went through —
 the opposite of what happened. That sentence is 5.9/01's, written for a doorway press on
 a capability that vanished, and correcting it is filed separately rather than folded in

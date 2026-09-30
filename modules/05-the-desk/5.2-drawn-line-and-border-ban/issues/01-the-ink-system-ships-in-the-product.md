@@ -59,13 +59,13 @@ their character.
 
 ## What landed
 
-The ink system ships as it stands, the way `design/styles/` does: `public/ink.js`
-imports `design/scripts/ink.js`, names the temporary shell's own chrome through a
+The ink system ships as it stands, the way `design/styles/` does: `public/core/ink.js`
+imports `design/scripts/ink/ink.js`, names the temporary shell's own chrome through a
 new `drawAlso()` and starts the system. The names of a shell the Desk deletes stay
 in the file that owns its markup rather than entering the design system's selector.
 
 The seam survives the port. `design/styles/index.css` still ends with `ink.css`;
-`public/app.css` — the bridge that loads after it and declares borders of its own —
+`public/css/app.css` — the bridge that loads after it and declares borders of its own —
 now ends with it too, so `.is-ink` still takes the border over from everything above.
 
 Drawn now: the prompt rail, the shell's toggles, every `.btn`, the content region,
@@ -147,7 +147,7 @@ allowed to reach past `--control-h`.
 
 Same reason — not this issue's subject, but the surface it ships on. The shipped
 submit was a bespoke `.prompt__submit` carrying its own fill, border, press and
-metrics, and it rendered as an outline button. `design/scripts/prompt-bar.js` draws
+metrics, and it rendered as an outline button. `design/scripts/desk/prompt-bar.js` draws
 it as an ordinary `.btn.btn--warm`, and it is one now: the fill, the height, the
 press and the boundary all come from the button, and what is left on
 `.prompt__submit` is only what the rail asks — it does not stretch, and it holds one

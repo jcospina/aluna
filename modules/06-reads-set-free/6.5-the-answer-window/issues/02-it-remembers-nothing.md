@@ -76,14 +76,14 @@ The load-bearing test compares the desk before the question with the desk after 
 dismissed, node by node and attribute by attribute. That is what "no route back, by any surface"
 means, and it catches a reopen control put anywhere, not only a logo in the logo layer.
 
-`src/server/routes/prompt/app.question-writes-nothing.test.ts` asks a real question through
+`src/server/routes/prompt/question/app.question-writes-nothing.test.ts` asks a real question through
 `POST /prompt` and reads the database back. One row is written, the resolver's own measurement,
 the same row a refusal writes. It is read three ways: through its strict schema, so an added field
 is caught however it was encoded; field by field, so every string in it is one the model did not
 choose; and by hunting the sentence across every cell in every table, in each form a leak takes.
 
 One criterion reads narrower than the code, and the code is right. `dismissWindow` in
-`public/desk-window.js` is the *capability* window's ending: it puts that window away and forgets
+`public/desk/window/desk-window.js` is the *capability* window's ending: it puts that window away and forgets
 its record. Calling it for an answer would close the wrong window. The answer window keeps its own
 `dismissAnswerWindow`, and what the criterion is about — that this is a dismissal and never a
 put-away — is now proved by behaviour: pressing the answer's clay lamp leaves the other two

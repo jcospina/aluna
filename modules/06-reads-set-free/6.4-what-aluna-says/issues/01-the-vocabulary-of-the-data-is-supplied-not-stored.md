@@ -78,7 +78,7 @@ arriving early, without a surface.
 
 **2026-09-04 — the catalog's *shape* already reaches the model; the *values* are still
 yours.** 6.3/01's turn cannot write SQL without table and column names, so
-`buildQuestionTurnPrompt` in `src/runtime/query/question-turn.ts` already supplies every
+`buildQuestionTurnPrompt` in `src/runtime/query/turn/question-turn.ts` already supplies every
 collection's table, its `id` and `created_at`, and its active fields with their types. It
 stops exactly there: it does not emit a `choice` field's declared options, and there is no
 bounded distinct read. This issue's first acceptance criterion is therefore half-met on
@@ -95,7 +95,7 @@ budget that the later aggregate steps need, which is an argument for asking for
 ## What landed
 
 **A `choice` field says what it holds, in the catalog block, before the first read.**
-`formatCollection` in `src/runtime/query/question-turn.ts` gained one line per choice field —
+`formatCollection` in `src/runtime/query/turn/question-turn.ts` gained one line per choice field —
 `one of: food (Food); cheese; vegetables (Greens)` — read off the spec the registry already
 stored, so no statement runs to produce it. An option labelled as it is stored is spelled once.
 A disabled option is listed like any other: it can no longer be arrived at, but a row written
@@ -110,7 +110,7 @@ distinct set is not small comes back refused with `QUESTION_STEP_RESULT_TOO_LARG
 over-size step, and the model narrows.
 
 **Decision 19's decline is the other half of the work, and it is pinned by absence.**
-`src/runtime/query/question-vocabulary.test.ts` sweeps the desk before and after a whole
+`src/runtime/query/turn/question-vocabulary.test.ts` sweeps the desk before and after a whole
 vocabulary loop — objects, row counts, content digests, files beside it — proves no module the
 router, the data ports or the mutation coordinator holds imports a provider, and holds the
 derived-artifact inventory to the item renderer and one Handler per Action. No embedding, no
@@ -127,7 +127,7 @@ Every one fixed; the adversarial and standards rounds ran before the live test.
 - **A capability label admitted a literal newline**, and `\s+` swallowed it in the word count, so
   a two-line name passed every other rule and reached this issue's catalog block as a second
   `table:` line under one collection. Pre-existing, and this is the block that made it matter.
-  Refused now in `public/capability-name.js`, where the editor and the registry read one rule, and
+  Refused now in `public/desk/logos/capability-name.js`, where the editor and the registry read one rule, and
   pinned in the name corpus.
 - **A choice option's value or label admitted U+2028 and U+2029.** `\p{Cc}` covers C0 and C1 and
   neither separator is in them, and most tokenizers break a line on one — so an option could forge

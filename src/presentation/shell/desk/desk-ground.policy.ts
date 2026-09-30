@@ -24,9 +24,8 @@ describe("the desk ground", () => {
   test("the page is a wallpaper and a prompt bar — no header row, no wordmark", () => {
     const surfaces = [
       ...under("public", "*.html"),
-      ...under("public/css", "*.css"),
-      "public/app.css",
-      "src/server/http/fragments.ts",
+      ...under("public/css", "**/*.css"),
+      "src/server/http/fragments/fragments.ts",
     ];
     for (const page of surfaces) {
       const source = read(page).replace(/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\//g, "");
@@ -96,11 +95,10 @@ describe("the clearance is one number", () => {
   // Every shipped stylesheet and script that could hold a second copy of it.
   const SHIPPED = [
     ...under("design/styles", "**/*.css"),
-    ...under("public/css", "*.css"),
+    ...under("public/css", "**/*.css"),
     ...under("design/scripts", "**/*.js"),
-    ...under("public", "*.js"),
-    ...under("src/server/http", "*.ts"),
-    "public/app.css",
+    ...under("public", "**/*.js"),
+    ...under("src/server/http", "**/*.ts"),
     "public/index.html",
   ];
 
@@ -127,7 +125,7 @@ describe("the clearance is one number", () => {
     expect(rules("public/css/prompt.css")).toContain("var(--prompt-clearance)");
     // The frame the three windows share is where the token is read back, and the window module
     // reaches the floor through it rather than restating the number beside it.
-    expect(read("public/desk-window-frame.js")).toContain("PROMPT_CLEARANCE");
+    expect(read("public/desk/window/desk-window-frame.js")).toContain("PROMPT_CLEARANCE");
     expect(read("public/css/shell.css")).not.toContain(".content::after");
   });
 
@@ -136,7 +134,7 @@ describe("the clearance is one number", () => {
   test("the strip is deep enough to hold the bar it reserves", () => {
     const rem = (name: string): number => {
       const match = new RegExp(`--${name}:\\s*([\\d.]+)rem`).exec(
-        `${read(TOKENS)}\n${read("design/styles/components/form-controls.css")}`,
+        `${read(TOKENS)}\n${read("design/styles/components/controls/form-controls.css")}`,
       );
       expect(match?.[1], `no --${name}`).toBeDefined();
       return Number.parseFloat(match?.[1] as string);
@@ -146,7 +144,7 @@ describe("the clearance is one number", () => {
   });
 
   test("the desk's geometry script reads the token at load, literal only as fallback", () => {
-    const geometry = read("design/scripts/desk-geometry.js");
+    const geometry = read("design/scripts/desk/desk-geometry.js");
 
     expect(geometry).toMatch(
       /PROMPT_CLEARANCE\s*=\s*readLength\(\s*root,\s*"--prompt-clearance",\s*[A-Z_]+\.clearance,?\s*\)/,

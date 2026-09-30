@@ -1,6 +1,6 @@
 import { FRAGMENT_REMOVED_ELEMENTS } from "./fragment-safety.ts";
-import { escapeMarkupOpeners, isStyleElement } from "./stray-openers.ts";
-import { closeTrailingTag } from "./trailing-tag.ts";
+import { escapeMarkupOpeners, isStyleElement } from "./markup/stray-openers.ts";
+import { closeTrailingTag } from "./markup/trailing-tag.ts";
 
 // A seeded, deterministic fuzz for both sanitizers. Its alphabet is the parser-differential
 // pieces: a removable node beside a lone `<`, comment and CDATA openers, raw-text elements after

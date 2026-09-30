@@ -144,7 +144,7 @@ enforcer, then a pass that sets `loading="lazy"` and `decoding="async"` on an `<
 `srcset` names a `/files/` address, or that sits in a `<picture>` whose `<source>` does. It sets
 only a value that differs, so a second enforcement changes nothing. Design lint diffs a renderer
 against `neutralizeItemMarkup`, so an attribute the platform supplies is never a violation. URL
-attribute checks moved to `presentation/safety/attribute-urls.ts`, which reads a value as a browser
+attribute checks moved to `presentation/safety/markup/attribute-urls.ts`, which reads a value as a browser
 does (character references, backslashes, `srcset` lists), and the first-wins collapse of a repeated
 attribute moved to `repeated-attributes.ts`, shared with the Handler scrub (details under the
 findings).
@@ -204,7 +204,7 @@ fix reverted, checked by reverting it.
   missing-record case, and the test prompt says to leave file fields out of one.
 - Backslash addresses (`\\host`, `/\host`, `&#92;&#92;host`) passed the enforcer's same-origin check,
   stopped only by the page's CSP (MEDIUM, older than this issue). URL attributes are read with `\` as
-  `/`, in `presentation/safety/attribute-urls.ts`, where the URL checks now live.
+  `/`, in `presentation/safety/markup/attribute-urls.ts`, where the URL checks now live.
 - The Handler scrub judged a repeated attribute copy by copy, so `<a href="/ok" href="javascript:…">`
   lost the safe first copy and kept the live one (MEDIUM, older than this issue, CSP-contained). The
   enforcer's first-wins collapse is shared as `collapseRepeatedAttributes` and both use it.
@@ -266,7 +266,7 @@ and mutants it had to catch) confirmed it, and found one more, older than this i
   passes a `<![CDATA[…]]>` section through as text, while a browser reads a bogus comment that ends at
   the first `>`, so markup hidden after it went live (HIGH, older than this issue). The page's CSP
   allows `unsafe-eval` for Alpine, so a hidden `x-init` would have run. Both the enforcer and the
-  Handler scrub now escape every CDATA opener before parsing (`presentation/safety/cdata.ts`), so both
+  Handler scrub now escape every CDATA opener before parsing (`presentation/safety/markup/cdata.ts`), so both
   parsers read text. A `<source>` in a `<video>` inside a `<picture>` no longer counts toward the
   picture either: players get frames of their own.
 

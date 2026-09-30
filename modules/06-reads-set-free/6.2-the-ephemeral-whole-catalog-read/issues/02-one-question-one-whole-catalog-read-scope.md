@@ -67,7 +67,7 @@ by any of it*, and it is cheaper to run here than to check by eye at the end.
 
 ## What landed
 
-- `src/runtime/query/whole-catalog-read-scope.ts` — `withWholeCatalogReadScope(deps, body)`.
+- `src/runtime/query/scope/whole-catalog-read-scope.ts` — `withWholeCatalogReadScope(deps, body)`.
   One `readActiveCatalog` call captures the immutable active registry view, every row in it
   becomes a `CapabilityIncarnation`, and that same set is passed as both the catalog and the
   requested set to the existing `ReadGateCoordinator.withTokens` — so the complete set is
@@ -84,11 +84,11 @@ by any of it*, and it is cheaper to run here than to check by eye at the end.
   ends a microtask later, in `withTokens`' own `finally`), and an ownership re-check after
   the worker answers refuses rows whose incarnation began closing while they were being
   read.
-- `src/runtime/query/store-sweep.test-support.ts` — the platform store sweep, lifted out of
+- `src/runtime/query/worker/store-sweep.test-support.ts` — the platform store sweep, lifted out of
   6.2/01's test file and now shared by both query suites, plus a per-table contents digest
   and `sweepPlatformArtifacts()` for a baseline taken before any scope has opened.
-- `src/runtime/query/whole-catalog-read-scope.test.ts` — 18 tests.
-  `src/runtime/query/query-worker.test.ts` consumes the extracted sweep; `src/runtime/data/index.ts`
+- `src/runtime/query/scope/whole-catalog-read-scope.test.ts` — 18 tests.
+  `src/runtime/query/worker/query-worker.test.ts` consumes the extracted sweep; `src/runtime/data/index.ts`
   re-exports `assertReadOwnership`, which this scope is the first consumer of outside
   `runtime/data`.
 - No registry, artifact or generated code changed, and nothing new is reachable from

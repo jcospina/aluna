@@ -109,7 +109,7 @@ the change of habit is recorded, not just implied.
   `public/css/demo.css`. `.intro` and `.intro__output` stay — `#spec-build-output`
   still uses them for the build stream — and the two comments calling that
   surface the "intro stream" (`demo.css` header, the `@import` label in
-  `public/app.css`) now say "build stream".
+  `public/css/app.css`) now say "build stream".
 - **Change of habit, recorded:** the real streamed + schema-validated provider
   round-trip is now exercised only by typing a prompt into the prompt bar on the
   running app. No test calls the real API, so that manual build is the single
@@ -164,7 +164,7 @@ raised and all five are fixed above:
    import from `./html.ts` directly. Unused re-exports are a blind spot for both
    `noUnusedLocals` and biome, so nothing would have caught it. Removed.
 3. SSE `cache-control: no-cache` lost its only assertion — re-pointed (above).
-4. `public/app.css`'s `@import` label still said "intro stream" — fixed.
+4. `public/css/app.css`'s `@import` label still said "intro stream" — fixed.
 5. `makeFakeProvider`'s doc comment still read as greeting machinery — fixed.
 
 ## Verification

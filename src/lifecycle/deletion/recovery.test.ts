@@ -1,10 +1,15 @@
 // A capability deletion whose reply never arrived, recovered by the real
-// `public/capability-deletion.js` on the confirmation the server renders: it asks again on a
+// `public/desk/logos/capability-deletion.js` on the confirmation the server renders: it asks again on a
 // schedule, and says what the server answers — in the window while it still owns it, on the prompt
 // bar once it does not. Timers run at once here, and each delay asked for is kept.
 
 import { describe, expect, test } from "bun:test";
-
+import {
+  RELEASE_REGION_EVENT,
+  regionScopeReport,
+  releaseRegionContent,
+} from "#shell/core/region-scope.js";
+import { WINDOW_CONTENT_ID } from "#shell/core/shell-dom.js";
 import {
   CAPABILITY_DELETION_RECHECK_DELAYS_MS,
   capabilityDeletionPreflightUrl,
@@ -16,19 +21,17 @@ import {
   recoverSeveredCapabilityDeletion,
   rescueCapabilityDeletionEnding,
   startCapabilityDeletionRecovery,
-} from "#shell/capability-deletion.js";
-import { WINDOW_CONTENT_REGION } from "#shell/desk-window.js";
-import { PROMPT_BAR_MESSAGE_EVENT } from "#shell/prompt-bar.js";
+} from "#shell/desk/logos/capability-deletion.js";
+import { PROMPT_BAR_MESSAGE_EVENT } from "#shell/desk/prompt-bar.js";
+import { WINDOW_CONTENT_REGION } from "#shell/desk/window/desk-window.js";
 import {
-  RELEASE_REGION_EVENT,
-  regionScopeReport,
-  releaseRegionContent,
-} from "#shell/region-scope.js";
-import { WINDOW_CONTENT_ID } from "#shell/shell-dom.js";
-import { Doc, El, parseHtml } from "../../presentation/controls/choice-picker.test-support.ts";
-import { startedOn } from "../../presentation/controls/started-module.test-support.ts";
+  Doc,
+  El,
+  parseHtml,
+} from "../../presentation/controls/double/choice-picker.test-support.ts";
+import { startedOn } from "../../presentation/controls/double/started-module.test-support.ts";
 import { notesRow } from "../../runtime/router/dispatch/router.test-support.ts";
-import { renderPromptNotice } from "../../server/http/fragments.ts";
+import { renderPromptNotice } from "../../server/http/fragments/fragments.ts";
 import {
   DELETION_ENDING_ATTRIBUTE,
   DELETION_EXIT_ATTRIBUTE,
@@ -379,7 +382,7 @@ describe("the recovery's listeners, on the document it starts on", () => {
     const desk = confirmationDesk();
     await recover(desk, [], {
       start: async () => {
-        await startedOn("capability-deletion.js", desk.doc);
+        await startedOn("desk/logos/capability-deletion.js", desk.doc);
         desk.doc.fire("htmx:sendError", desk.confirm, { detail: { elt: desk.confirm } });
       },
     });

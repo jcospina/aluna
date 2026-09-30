@@ -81,7 +81,7 @@ reach 6.2/03's one `scope.cancel()`.
   a question, out of the person's reach entirely.
 - **`data-question-run`** marks the run the desk finds a running question by, written by the glue
   and read by `leaving-a-run.js`'s `QUESTION_IN_THE_WINDOW_SELECTOR`.
-- **`cancelQuestionIn` and `detachQuestionIn`** (`public/leaving-a-run.js`) split what a build's
+- **`cancelQuestionIn` and `detachQuestionIn`** (`public/desk/leaving-a-run.js`) split what a build's
   ending does at once. Both cancels — a desk action's and a question's — go through one
   `cancelRun`, so there is still one place outside a run's control row that stops one. Asking
   again cancels *and* takes the story down, in the capture phase, so the shell's own one-run guard
@@ -97,7 +97,7 @@ reach 6.2/03's one `scope.cancel()`.
   this through a route can stage, so the compiler is what notices a caller quietly dropping it.
 - **Cancelling is not written down as a fault either.** The three logs a cancel can reach stay
   quiet, and a stream the person took with them is told nothing.
-- `public/app.js` and `public/desk-window.js` were both at the 500-line ceiling, so two unrelated
+- `public/app.js` and `public/desk/window/desk-window.js` were both at the 500-line ceiling, so two unrelated
   statements were compressed to buy room: htmx's two security defaults became one `Object.assign`,
   and `windowLayer`'s throw became one line. Neither changed behaviour.
 

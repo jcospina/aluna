@@ -243,7 +243,7 @@ are **deliberately left alone**: closed module plans are history.
     window — each opened from its own place, none replacing another, and still no window
     manager. **A capability stays open while it is asked about**, which is the whole
     reason this is a window rather than something anchored to the prompt bar. It reuses
-    what `public/desk-window.js` already exports (`openWindow`, `dismissWindow`,
+    what `public/desk/window/desk-window.js` already exports (`openWindow`, `dismissWindow`,
     `nameWindow`) rather than introducing a new surface primitive.
 
     **It has no logo on the desk, and it is dismissed rather than put away.** A capability

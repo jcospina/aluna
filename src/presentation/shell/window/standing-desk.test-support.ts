@@ -11,14 +11,14 @@
 //
 // Not a test file, so bun never runs it.
 
-import { PROMPT_FORM_ID } from "#shell/desk-window.js";
-import { PROMPT_FIELD_ID } from "#shell/shell-dom.js";
+import { PROMPT_FIELD_ID } from "#shell/core/shell-dom.js";
+import { PROMPT_FORM_ID } from "#shell/desk/window/desk-window.js";
 import {
   type DispatchedEvent,
   dispatchAlong,
   type ListenerOptions,
   Listeners,
-} from "../../../server/dom-events.test-support.ts";
+} from "../../../server/dom-double/dom-events.test-support.ts";
 import { El } from "./desk-dom.test-support.ts";
 
 export { DESK, deskTrace, El, everythingSaid } from "./desk-dom.test-support.ts";

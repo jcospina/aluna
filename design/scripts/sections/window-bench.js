@@ -10,10 +10,10 @@
  */
 
 import { CAPABILITIES } from "../data/capabilities.js";
-import { renderCollection } from "../patterns.js";
-import { SPEC } from "../spec.js";
-import { wallpaperUrl } from "../wallpaper.js";
-import { AlunaWindow } from "../window.js";
+import { renderCollection } from "../desk/patterns.js";
+import { wallpaperUrl } from "../desk/wallpaper.js";
+import { SPEC } from "../ink/spec.js";
+import { AlunaWindow } from "../window/window.js";
 
 /**
  * @param {HTMLElement} root

@@ -62,7 +62,7 @@ result undoes that. The scrub stayed, and a layer in front of it was added so th
 there to disguise. ADR-0008, ADR-0009, Module 6 PLAN decision 7, Module 7 PLAN decision 37 and
 `docs/architecture.md` carry dated amendments.
 
-**Layer 1: the worker's views** (written in `src/runtime/query/question-views.ts`, run by
+**Layer 1: the worker's views** (written in `src/runtime/query/scope/question-views.ts`, run by
 `query-worker-thread.ts`). The question
 worker's `main` is now an empty in-memory database. The one documented file is attached
 `mode=ro` as `question_desk`, a schema the table bound's connection does not have, so no read
@@ -85,7 +85,7 @@ into a literal. A view that names a column the table lacks fails the open, loudl
   empty ledger costs nothing. Text columns are cast back to `TEXT`, since a `CASE` has no
   affinity and a number bound against it would match nothing.
 
-**Layer 2: the scrub of what comes back** (`src/runtime/query/question-file-scrub.ts`). The turn
+**Layer 2: the scrub of what comes back** (`src/runtime/query/step/question-file-scrub.ts`). The turn
 scrubs a step's rows once, against the whole ledger, before it weighs and records them, so the
 rows every prompt renders are already scrubbed and what is weighed is what is sent. It replaces
 any value that is or contains
@@ -164,7 +164,7 @@ added to the view's allow-list.
 
 - `bun run typecheck` and `bun run lint` clean (comment budget and references included).
 - `bun run test`: 3595 passed, 0 failed.
-- `src/runtime/query/question-file-scrub.test.ts` captures the exact turn and answer prompts over
+- `src/runtime/query/step/question-file-scrub.test.ts` captures the exact turn and answer prompts over
   a real Photos desk and proves no key, hyphenless, fullwidth or hex spelling of one, and no
   address, in either; `query-worker.test.ts` pins the views, including chunk boundaries and a
   long note read in time that follows its length.

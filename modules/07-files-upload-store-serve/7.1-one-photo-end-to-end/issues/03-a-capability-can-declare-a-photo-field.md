@@ -101,7 +101,7 @@ A Handler cannot declare a `file` query-result column. That list lives in
 `runtime/data/query-result-types.ts`, a leaf that imports no module that opens the database.
 The length check never measures a file field.
 
-**The form.** `src/presentation/controls/file-control.ts` is the stand-in both renderer
+**The form.** `src/presentation/controls/file/file-control.ts` is the stand-in both renderer
 switches call. It draws the label, the optional marker and the declared hint on the shared
 field chrome. It emits no control and no presence marker, and it carries
 `data-file-stand-in` rather than the drawn control's mount hook. The wire lets a create omit
@@ -228,12 +228,12 @@ New suites:
 - `registry/fields/file.test.ts`
 - `runtime/data/schema/file-column.test.ts`
 - `runtime/data/query-result-types.test.ts`
-- `presentation/controls/file-control.test.ts`
+- `presentation/controls/file/file-control.test.ts`
 - `runtime/router/wire/file-stand-in.test.ts`
-- `builder/evolution/diff/file-evolution.test.ts`
+- `builder/evolution/diff/field-evolution/file-evolution.test.ts`
 - `builder/spec/spec-gen.file.test.ts`
 - `builder/evolution/candidate/candidate-spec-gen.file.test.ts`
-- `builder/units/generation/file-prompt.test.ts`
+- `builder/units/generation/field-prompts/file-prompt.test.ts`
 - `builder/gate/rungs/smoke/gate.smoke-file.test.ts`
 - `builder/gate/rungs/design-lint/gate-design-lint-file.test.ts`
 

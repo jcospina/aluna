@@ -26,7 +26,7 @@ import {
 } from "../../../registry/index.ts";
 import { deriveCapabilityTableDdl } from "../../../runtime/data/index.ts";
 import { FILE_PROJECTION_SHAPE } from "../../generated-code-check.ts";
-import { buildItemRendererDesignInjection } from "./few-shot-gallery.ts";
+import { buildItemRendererDesignInjection } from "./few-shot/few-shot-gallery.ts";
 import type { HandlerUnitName, UnitDescriptor, UnitGenerationFailure } from "./units.ts";
 
 /**

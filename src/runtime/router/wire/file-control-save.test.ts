@@ -1,17 +1,17 @@
 // A save through the photo control, driven by what the rendered forms actually submit, with the
-// photo's value set the way `public/file-field.js` sets it from what the field holds. A create
+// photo's value set the way `public/controls/file-field.js` sets it from what the field holds. A create
 // claims the photo it took, an edit that never touches the field keeps what it holds, a
 // replacement gives the old file up, and the clear the server drew empties the field.
 
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
-import { FILE_FIELD_HOOKS } from "#design/file-field.js";
-import { postedValue } from "#shell/file-field.js";
-import { FILE_FIELD_ATTRIBUTES } from "#shell/shell-dom.js";
+import { FILE_FIELD_HOOKS } from "#design/files/file-field.js";
+import { postedValue } from "#shell/controls/file-field.js";
+import { FILE_FIELD_ATTRIBUTES } from "#shell/core/shell-dom.js";
+import { sampleFile } from "../../../platform/files/admission/sample-files.test-support.ts";
 import { fileUrl } from "../../../platform/files/file-url.ts";
-import { mintFileKey } from "../../../platform/files/ledger.ts";
-import { sampleFile } from "../../../platform/files/sample-files.test-support.ts";
+import { mintFileKey } from "../../../platform/files/store/ledger.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { renderCreateForm, renderEditForm } from "../../../presentation/fields/field-renderer.ts";
 import { submittedInputs } from "../../../presentation/fields/form-submission.test-support.ts";
@@ -41,7 +41,7 @@ import {
 } from "../../data/index.ts";
 import { FileFieldWriteError } from "../../data/internal.ts";
 import { normalizeSpecFieldValues, normalizeStoredRow } from "../../data/tool.ts";
-import { usePhotosRouter } from "../dispatch/router.file.test-support.ts";
+import { usePhotosRouter } from "../dispatch/files/router.file.test-support.ts";
 import {
   createCapabilityDataTool,
   install,

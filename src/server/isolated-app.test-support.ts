@@ -8,7 +8,7 @@ import { afterAll } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createLocalObjectStore } from "../platform/files/object-store.ts";
+import { createLocalObjectStore } from "../platform/files/store/object-store.ts";
 import { openDatabase, type PlatformDatabase } from "../platform/persistence/db.ts";
 import { runMigrations } from "../platform/persistence/migrations.ts";
 import { type AppDeps, createApp } from "./app.ts";

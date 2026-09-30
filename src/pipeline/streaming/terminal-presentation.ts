@@ -1,6 +1,6 @@
 import { errorDetail } from "../../platform/errors.ts";
 import { CapabilityIdActiveError, CapabilityIdReservedError } from "../../registry/index.ts";
-import { renderBuildEnding } from "../../server/http/fragments.ts";
+import { renderBuildEnding } from "../../server/http/fragments/fragments.ts";
 import type { Send } from "../../server/sse/index.ts";
 import { buildDemoErrorPreview } from "./previews.ts";
 

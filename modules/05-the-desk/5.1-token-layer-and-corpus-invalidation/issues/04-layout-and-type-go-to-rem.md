@@ -59,7 +59,7 @@ moved with them. `public/css/` needed three: the detail modal's width and the
 two 20px icon boxes. Nothing else there states a length of its own.
 
 **What stayed.** The line and every weight of it, the deviation and the rest of
-`scripts/spec.js`, the focus ring, the hard shadow offsets, the press and lift
+`design/scripts/ink/spec.js`, the focus ring, the hard shadow offsets, the press and lift
 displacements, the hatch on a pending tile, the gutters a drawn line overhangs
 into, the 1px visually-hidden clip, and the two breakpoints. The logo tile's
 corner was already a percentage and needed nothing.

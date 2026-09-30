@@ -68,7 +68,7 @@ surface, and it says explicitly: no button appears.
 ## What landed
 
 **A fourth ending, and the model may ask for it.** `QUESTION_DECISIONS` grew `no_home` beside
-`read` and `answer` (`src/runtime/query/question-tool.ts`), so a turn can say this desk holds
+`read` and `answer` (`src/runtime/query/step/question-tool.ts`), so a turn can say this desk holds
 nowhere for what was asked about. It carries no statement and spends no read, and the loop ends on
 the platform's own sentence: *"You don't have anywhere for hiking trips yet — you can ask me to
 make one."* Then she stops. Nothing renders a button, a link or a control of any kind, and

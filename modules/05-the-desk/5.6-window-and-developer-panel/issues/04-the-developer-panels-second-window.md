@@ -102,7 +102,7 @@ nobody bothered to draw.
 
 ### The tile is a small window now
 
-`public/ink.js` carried a note saying the panel's readouts "stay ruled until
+`public/core/ink.js` carried a note saying the panel's readouts "stay ruled until
 5.6/04 gives that panel a window of its own", because they were hidden by
 `:empty` and a drawn element can never be `:empty` — the two ink layers are
 children. In its own window every block stands whether a payload has arrived or
@@ -151,14 +151,14 @@ ships it as static markup, so it exists twice and has already drifted once.
 
 ### One window implementation, two records, and a pair for a stack
 
-- `public/desk-dev-panel.js` is the second window. Same frame, same two lamps and
+- `public/desk/window/desk-dev-panel.js` is the second window. Same frame, same two lamps and
   same three gestures as the capability window — a window is a window — with
   `window--dev` for the one difference that is real: what is inside it is a payload
   rather than a sentence.
-- `public/desk-stack.js` is stacking, and it is deliberately a **pair rather than a
+- `public/desk/window/desk-stack.js` is stacking, and it is deliberately a **pair rather than a
   counter**: `--win-z` is one of two literals and `is-focused` follows it. A stack
   that could grow is a window manager, and a test pins that nothing in it counts up.
-- `design/scripts/devpanel.js` is the eight blocks, the tokenizer and the byte
+- `design/scripts/desk/devpanel.js` is the eight blocks, the tokenizer and the byte
   count, **shared** by the handbook's desk and the product's window. The panel is
   the surface a developer checks the product against; the two must not drift.
 - `loadPresentation` / `savePresentation` take the key, so reading and writing the

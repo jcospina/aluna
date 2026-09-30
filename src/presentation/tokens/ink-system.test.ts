@@ -1,14 +1,14 @@
 import { afterAll, describe, expect, test } from "bun:test";
 
 import { seedFrom } from "#design/lib/random.js";
-import { recordInkSeed } from "../records/ink-seed.ts";
-import { ITEM_TRIGGER_CLASS } from "../records/list-container.ts";
+import { recordInkSeed } from "../records/collection/ink-seed.ts";
+import { ITEM_TRIGGER_CLASS } from "../records/collection/list-container.ts";
 import { installFakeDom } from "./ink.test-support.ts";
 
 // The globals have to exist before the ink system is evaluated — it builds its two
 // observers at module scope — so the import is deferred rather than hoisted.
 const dom = installFakeDom();
-const { drawAlso, mountAllInk, mountInk, unmountInk } = await import("#design/ink.js");
+const { drawAlso, mountAllInk, mountInk, unmountInk } = await import("#design/ink/ink.js");
 
 // The fakes are process-wide while they are installed, and the shell's own browser
 // modules install themselves the moment a `document` exists. Hand them back.

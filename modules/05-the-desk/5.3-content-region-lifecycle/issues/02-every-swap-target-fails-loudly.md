@@ -72,7 +72,7 @@ each paired with what a shell missing it looks like, so the tests and the previe
 force the same four cases instead of keeping copies that would drift from what the
 assembly matches.
 
-**The client half is a guard, not a protocol change.** `public/swap-target.js`
+**The client half is a guard, not a protocol change.** `public/core/swap-target.js`
 registers on `htmx:sseOpen`. Each `commit` and `fragment` that arrives must
 resolve where it lands, for *every* listener the connection registered — the
 connection element itself when it carries `sse-swap`, and every descendant that

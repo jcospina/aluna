@@ -11,7 +11,7 @@ import { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
 import ts from "typescript";
 import { errorMessage } from "../../platform/errors.ts";
-import { createFileLedgerSchema } from "../../platform/files/ledger.ts";
+import { createFileLedgerSchema } from "../../platform/files/store/ledger.ts";
 import { sqlIdentifier } from "../../platform/persistence/sql-identifier.ts";
 import {
   createPresentationAdapter,

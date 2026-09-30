@@ -6,8 +6,8 @@ import { waitForLog } from "./platform/async.test-support.ts";
 import {
   OBJECT_STORE_ROOT_ENV_VAR,
   STAGING_DIRECTORY,
-} from "./platform/files/object-store-root.ts";
-import { withDefaultRoots } from "./platform/persistence/test-roots.test-support.ts";
+} from "./platform/files/store/object-store-root.ts";
+import { withDefaultRoots } from "./platform/persistence/test-preload/test-roots.test-support.ts";
 
 let dir: string;
 

@@ -3,7 +3,7 @@
  * The production bundle, and the one file that cannot be inside it.
  *
  * `bun build` emits `new Worker(new URL("./query-worker-thread.ts", import.meta.url).href)`
- * from `src/runtime/query/query-worker.ts` exactly as written, so the bundled entry point
+ * from `src/runtime/query/worker/query-worker.ts` exactly as written, so the bundled entry point
  * looks for the query worker's thread beside itself rather than in `src/`. 6.2/01 recorded
  * that seam; the question path the prompt bar reaches (6.5/03) runs every statement in that
  * worker, so the thread is copied here.
@@ -26,6 +26,7 @@ export const WORKER_THREAD_SOURCE = join(
   "src",
   "runtime",
   "query",
+  "worker",
   "query-worker-thread.ts",
 );
 

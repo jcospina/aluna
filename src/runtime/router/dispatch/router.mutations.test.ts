@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { splitCollectionCount } from "#shell/collection-count.js";
+import { splitCollectionCount } from "#shell/records/collection-count.js";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { CapabilityRow } from "../../../registry/index.ts";
 import { FULL_CAPABILITY_TOOLS } from "../../../registry/index.ts";

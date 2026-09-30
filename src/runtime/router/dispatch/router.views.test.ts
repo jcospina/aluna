@@ -6,12 +6,12 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { splitCollectionCount } from "#shell/collection-count.js";
 import {
   ACTIVE_CAPABILITY_ATTRIBUTE,
   PROMPT_NOTICE_ID,
   WINDOW_CONTENT_ID,
-} from "#shell/shell-dom.js";
+} from "#shell/core/shell-dom.js";
+import { splitCollectionCount } from "#shell/records/collection-count.js";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { FULL_CAPABILITY_TOOLS, insertCapability } from "../../../registry/index.ts";
 import { NOT_FOUND_NOTICE } from "../../../server/http/index.ts";
@@ -319,7 +319,7 @@ describe("deterministic capability router — view scaffolding", () => {
     expect(body).toContain("data-capability-search");
     expect(body).toContain('data-search-url="/capability/notes/search"');
     expect(body).not.toContain("<!doctype html>");
-    expect(body).not.toContain("/static/app.css");
+    expect(body).not.toContain("/static/css/app.css");
   });
 
   test("a complete five-Action View renders search chrome wired only to committed routes", async () => {
@@ -390,7 +390,7 @@ describe("deterministic capability router — view scaffolding", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
     expect(body).toContain("<!doctype html>");
-    expect(body).toContain('href="/static/app.css"');
+    expect(body).toContain('href="/static/css/app.css"');
     expect(body).toContain('src="/static/vendor/htmx.min.js"');
     expect(body).toContain('class="shell"');
     expect(body).not.toContain("has-capabilities");
@@ -400,7 +400,7 @@ describe("deterministic capability router — view scaffolding", () => {
     expect(body).toContain("data-capability-logo");
     expect(body).toContain('hx-get="/capability/notes"');
     expect(body).toContain('class="desk__windows"');
-    expect(body).toContain('src="/static/desk-window.js"');
+    expect(body).toContain('src="/static/desk/window/desk-window.js"');
     expect(body).not.toContain(`id="${WINDOW_CONTENT_ID}"`);
     expect(body).not.toContain("capability-surface");
     expect(body).not.toContain(ACTIVE_CAPABILITY_ATTRIBUTE);

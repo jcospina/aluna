@@ -7,7 +7,7 @@
 // submit/activate/reject seam lives in `app.evolution.test.ts`.
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
-import { DEV_STAGES } from "#design/devpanel.js";
+import { DEV_STAGES } from "#design/desk/devpanel.js";
 import {
   candidateFrom,
   journalCapabilityRow,

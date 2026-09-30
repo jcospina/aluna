@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { describeStyleViolation } from "../safety/style-discipline.ts";
+import { describeStyleViolation } from "../safety/enforcer/style-discipline.ts";
 import {
   isTokenFrom,
   PALETTE_COLOR_TOKENS,

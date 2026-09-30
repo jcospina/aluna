@@ -13,7 +13,7 @@ unnatural"*. The two fields are gone; the answer is one generated sentence and t
 restatement. Everything below describes what was built, not what runs — the schema, the join,
 the order check and the acceptance criteria are all superseded. ADR-0008's amendment of the
 same date carries the decision and what it costs; the answer lives in
-`src/runtime/query/question-answer.ts` and is proved in `question-answer-material.test.ts`.
+`src/runtime/query/endings/question-answer.ts` and is proved in `question-answer-material.test.ts`.
 
 Type: HITL — the answer is authored product voice and it is the sentence the whole
 module exists to produce. Implementation is fully specified and agent-ready; a
@@ -74,7 +74,7 @@ for the answer.
 **The order is a code check, not a request.** `questionAnswerSchema` went from one
 `answer` string to two fields — `looked_at` and `found` — and
 `questionAnswerSentence` joins them in that order and no other
-(`src/runtime/query/question-answer.ts`). There is no field for a finding on its
+(`src/runtime/query/endings/question-answer.ts`). There is no field for a finding on its
 own, so an answer with no restatement does not parse. A finding that is itself a
 list is introduced with a colon and a line break rather than spliced onto the
 clause above it, which is how decision 3's bullets and decision 16's comma both
@@ -84,7 +84,7 @@ that did not stop itself is stopped.
 **The restatement is written from what the statement actually reached for.**
 `assertScopedQuery` now hands back the capability tables its `EXPLAIN` names
 (`src/runtime/data/access/query-runtime.ts`), `assertWholeCatalogQuery` maps those
-to capabilities (`src/runtime/query/whole-catalog-query-scope.ts`), and a
+to capabilities (`src/runtime/query/scope/whole-catalog-query-scope.ts`), and a
 `QuestionStep` carries them as `collections` — the *canonical* label,
 `display_label_override ?? label`, so a renamed capability is named the way the
 person renamed it. The answer's prompt renders them inside the step's fence as

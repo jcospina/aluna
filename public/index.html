@@ -30,7 +30,7 @@
     <link rel="stylesheet" href="/design/styles/index.css">
     <!-- app.css ends by re-asserting the ink seam, so the drawn line still takes
          over from the CSS border every sheet above it declares. -->
-    <link rel="stylesheet" href="/static/app.css">
+    <link rel="stylesheet" href="/static/css/app.css">
 
     <!--
       Scripts, all vendored/static and deferred (run in document order after the
@@ -57,14 +57,14 @@
       region and for the region going away. Loaded here as the shell's statement that the
       system is on; the modules below import it for their own registrations.
     -->
-    <script type="module" src="/static/region-scope.js"></script>
+    <script type="module" src="/static/core/region-scope.js"></script>
 
     <!--
       The other half of the same promise. The release scope stops a swap from arriving at
       a region that has gone; this raises on the residual case rather than letting htmx's
       SSE extension drop a `commit` or a `fragment` in silence (ADR-0002 / M5 plan 16).
     -->
-    <script type="module" src="/static/swap-target.js"></script>
+    <script type="module" src="/static/core/swap-target.js"></script>
 
     <!--
       What a capability shows, inside the one window. Four dumb presentation-glue files
@@ -84,17 +84,17 @@
       All four no-op on a page with no capability content, so they are safe to load on
       every shell (cold-start included).
     -->
-    <script type="module" src="/static/collection-count.js"></script>
-    <script type="module" src="/static/record-view.js"></script>
-    <script type="module" src="/static/record-mutations.js"></script>
-    <script type="module" src="/static/search-chrome.js"></script>
+    <script type="module" src="/static/records/collection-count.js"></script>
+    <script type="module" src="/static/records/record-view.js"></script>
+    <script type="module" src="/static/records/record-mutations.js"></script>
+    <script type="module" src="/static/records/search-chrome.js"></script>
 
     <!--
       Repeated-value controls — the rows a list field is typed into. Delegated on the
       document, so it works in every create/edit form htmx swaps in after page load, and
       it no-ops on a page that has none.
     -->
-    <script type="module" src="/static/list-field.js"></script>
+    <script type="module" src="/static/controls/list-field.js"></script>
 
     <!--
       The drawn choice controls — the picker's panel, keyboard and typeahead, and the
@@ -102,7 +102,7 @@
       they stand in arrive long after page load. The radio group needs nothing here: native
       radio inputs already are the control.
     -->
-    <script type="module" src="/static/choice-picker.js"></script>
+    <script type="module" src="/static/controls/choice-picker.js"></script>
 
     <!--
       The multi-line control and the character counter. A long-text field grows with what
@@ -112,22 +112,22 @@
       is the server's: `maxlength` stops the typing and platform mutation validation
       refuses anything longer however it arrived. Mounted on arrival, like the picker.
     -->
-    <script type="module" src="/static/long-text-field.js"></script>
+    <script type="module" src="/static/fields/long-text-field.js"></script>
 
     <!--
-      The file control. `design/scripts/file-field.js` draws it; this sends each pick to the
+      The file control. `design/scripts/files/file-field.js` draws it; this sends each pick to the
       upload route the moment it is made, keeps the value the form posts in step with what the
       field holds, and refuses a submission while a file is still travelling. Loaded before the
       rule below, so a form waiting on a file is not told a required photo is missing.
     -->
-    <script type="module" src="/static/file-field.js"></script>
+    <script type="module" src="/static/controls/file-field.js"></script>
 
     <!--
       The record's render view. A held video's or sound's Open takes the window to its full
-      player (`design/scripts/file-player.js`) under a way back that names the record; the form is
+      player (`design/scripts/files/file-player.js`) under a way back that names the record; the form is
       only hidden, so its edits and uploads are there when Back returns to it.
     -->
-    <script type="module" src="/static/file-render-view.js"></script>
+    <script type="module" src="/static/records/file-render-view.js"></script>
 
     <!--
       Where a validation error is said, and what stops a submission before it is sent. A
@@ -138,7 +138,7 @@
       which no browser validates — gets that refusal back here rather than a round trip
       later.
     -->
-    <script type="module" src="/static/field-errors.js"></script>
+    <script type="module" src="/static/fields/field-errors.js"></script>
 
     <!--
       A capability deletion whose reply never arrived. A destructive action must never
@@ -146,7 +146,7 @@
       its answer. It also tells the server what a deletion displaces, so **Keep it** has
       somewhere to go back to.
     -->
-    <script type="module" src="/static/capability-deletion.js"></script>
+    <script type="module" src="/static/desk/logos/capability-deletion.js"></script>
 
     <!--
       The tile an admitted build stands on the desk. The server sends it as an
@@ -154,7 +154,7 @@
       the press and takes the tile down at the build's terminal, whatever that
       terminal was (PLAN decision 3). A module, like the two rules above it.
     -->
-    <script type="module" src="/static/desk-logos.js"></script>
+    <script type="module" src="/static/desk/logos/desk-logos.js"></script>
 
     <!--
       The prompt bar's one live slot: everything the desk turns down before a build
@@ -163,7 +163,7 @@
       the rules above it — nothing calls into it, and the shell glue and the deletion
       module both say what happened and let it place the sentence.
     -->
-    <script type="module" src="/static/prompt-bar.js"></script>
+    <script type="module" src="/static/desk/prompt-bar.js"></script>
 
     <!--
       The one-attempt rule's client half. A faceless tile arms a single load-triggered
@@ -173,7 +173,7 @@
       htmx's history cache is not one of those: nothing carries `hx-push-url`, and the
       desk answers Back by re-rendering the address rather than restoring a snapshot.
     -->
-    <script type="module" src="/static/logo-attempt.js"></script>
+    <script type="module" src="/static/desk/logos/logo-attempt.js"></script>
 
     <!--
       The short menu that opens on a logo, and the one inline rename form it opens
@@ -182,11 +182,11 @@
       hidden with each logo, so nothing here builds markup and no round trip stands
       between a right-click and the menu. A module, like the rules above it.
     -->
-    <script type="module" src="/static/logo-menu.js"></script>
+    <script type="module" src="/static/desk/logos/logo-menu.js"></script>
 
     <!--
-      The one window. `design/scripts/window.js` is the window itself, the way
-      `design/scripts/ink.js` is the drawn line; this is the product's half of that
+      The one window. `design/scripts/window/window.js` is the window itself, the way
+      `design/scripts/ink/ink.js` is the drawn line; this is the product's half of that
       seam — it owns when the one window exists, what is in it, and what the two lamps
       do. It creates the content region every existing swap addresses, which is why
       the shell no longer carries one.
@@ -195,7 +195,7 @@
       address and its history, and what leaving a running build or evolution costs — the
       question every navigation stands behind since PLAN decision 17.
     -->
-    <script type="module" src="/static/desk-window.js"></script>
+    <script type="module" src="/static/desk/window/desk-window.js"></script>
 
     <!--
       The second window (design D13). It shares the frame, the two lamps and the
@@ -206,7 +206,7 @@
       second and last presentation record the browser holds, and carries no controls
       of its own: eight readouts and the frame's own two lamps.
     -->
-    <script type="module" src="/static/desk-dev-panel.js"></script>
+    <script type="module" src="/static/desk/window/desk-dev-panel.js"></script>
 
     <!--
       The third window, and the second exception (ADR-0008). It shares the frame, the
@@ -216,16 +216,16 @@
       no box, no tile, no logo, and a clay lamp that dismisses rather than puts away,
       because closing it destroys the answer and there is nothing to come back to.
     -->
-    <script type="module" src="/static/desk-answer-window.js"></script>
+    <script type="module" src="/static/desk/window/desk-answer-window.js"></script>
 
     <!--
       The drawn line. The ink system ships from design/scripts/ the way the token
-      layer ships from design/styles/, and /static/ink.js is only the product's half
+      layer ships from design/styles/, and /static/core/ink.js is only the product's half
       of the seam: it names the temporary shell's own chrome and starts the system.
       A module script, so it runs after the document — server-injected fragments
       included — has been parsed; everything that arrives later arrives drawn.
     -->
-    <script type="module" src="/static/ink.js"></script>
+    <script type="module" src="/static/core/ink.js"></script>
   </head>
 
   <!--
@@ -235,7 +235,7 @@
     open record and a half-typed edit somewhere they outlive the tab. Nothing below
     capability identity may leave the DOM (design D14; M5 plan 6), and the snapshot is
     never read back either: the desk answers Back by re-rendering the address
-    (`public/desk-window.js`), not by restoring a copy of the page.
+    (`public/desk/window/desk-window.js`), not by restoring a copy of the page.
   -->
   <body hx-history="false">
     <!--
@@ -246,7 +246,7 @@
       class the markup renders the correct state, so there's no flash before Alpine.
       The developer panel's own shown/put-away state left with the rail: it is the
       second window now, and a window's state belongs to the window
-      (public/desk-dev-panel.js).
+      (public/desk/window/desk-dev-panel.js).
 
       Nothing gates an empty desk. A fresh user gets a wallpaper and a prompt bar,
       and it reads correctly with nothing withheld until a first capability arrives
@@ -308,7 +308,7 @@
 
         <!-- The window layer. The desk's ground for the one window, and empty in the
              page: the window itself is created and destroyed by the client
-             (/static/desk-window.js), which is why page assembly has no anchor here
+             (/static/desk/window/desk-window.js), which is why page assembly has no anchor here
              and the shell no longer ships a content area at all. Whatever a
              capability shows — its collection, and the narration of a build — happens
              inside that window (PLAN decision 1; design D1, D2). -->
@@ -320,13 +320,13 @@
              the window layer, which is correct for logos and wrong for a menu. So
              the open menu is lifted here for as long as it is open and put back on
              its logo when it closes. Empty in the page: it holds nothing until
-             someone asks for a menu (public/logo-menu.js). -->
+             someone asks for a menu (public/desk/logos/logo-menu.js). -->
         <div class="desk__menus" id="capability-menus"></div>
 
         <!-- The developer panel's one seeded stage. Lifecycle metrics and committed
              versions are known before any stream opens — they are what the platform
              already did — so the server writes them here and the panel picks them up
-             when it starts (src/web/cached-view.ts, public/desk-dev-panel.js). It used
+             when it starts (src/web/cached-view.ts, public/desk/window/desk-dev-panel.js). It used
              to be written straight into a <pre> in the panel's rail; the panel is a
              window that may not be standing now, so the page carries the payload and
              the panel files it under the stage named here. Empty when there is nothing
@@ -337,7 +337,7 @@
              than to a capability (design D5). It floats over the ground clear of
              all four edges and is never full width; the strip it floats in is
              --prompt-clearance, and no window may be dragged, resized or
-             maximised into it (design/scripts/desk-geometry.js), so a records list
+             maximised into it (design/scripts/desk/desk-geometry.js), so a records list
              stops at the bar rather than under it.
 
              HTMX posts to /prompt; the returned subscriber fragment opens the

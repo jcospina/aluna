@@ -11,7 +11,7 @@
 // and never leaked to the UI (CONTEXT.md, ARCH §9.7).
 
 import type { Context, Hono } from "hono";
-import { CAPABILITY_PATH_PREFIX } from "#shell/routes.js";
+import { CAPABILITY_PATH_PREFIX } from "#shell/core/routes.js";
 import { db, dbReadonly, type PlatformDatabase } from "../../../platform/persistence/db.ts";
 import {
   type ActiveCatalogReader,

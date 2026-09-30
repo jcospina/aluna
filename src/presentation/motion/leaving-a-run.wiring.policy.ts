@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { DESK_GROUND_SELECTOR } from "#shell/desk-window.js";
-import { RUN_LEAVING_ATTRIBUTE } from "../../server/http/fragments.ts";
+import { DESK_GROUND_SELECTOR } from "#shell/desk/window/desk-window.js";
+import { RUN_LEAVING_ATTRIBUTE } from "../../server/http/fragments/fragments.ts";
 import { codeOf as code, readSource as read } from "../safety/source.test-support.ts";
 
 // The sheets and modules behind leaving a live build or evolution (PLAN decision 17, amending
 // design D3). `leaving-a-run.wiring.test.ts` runs the question; this holds what it is drawn with.
 
-const MODULE = code("public/leaving-a-run.js");
+const MODULE = code("public/desk/leaving-a-run.js");
 
 describe("the question is drawn over the run's window", () => {
   test("it is read over the window it is about, and no further", () => {
@@ -39,7 +39,7 @@ describe("the question is drawn over the run's window", () => {
   test("the box it is read in is drawn, like every other box in the window", () => {
     // It declares its border and the ink system takes it over, and hands its shadow over too: a
     // true rectangle of shadow beside a drawn edge is the one part that would show.
-    expect(code("public/ink.js")).toContain('".build-stream__leaving-panel"');
+    expect(code("public/core/ink.js")).toContain('".build-stream__leaving-panel"');
     const css = read("public/css/demo.css");
     expect(css).toMatch(
       /\.build-stream__leaving-panel \{[\s\S]*?--ink-shadow: var\(--shadow-window\);/,

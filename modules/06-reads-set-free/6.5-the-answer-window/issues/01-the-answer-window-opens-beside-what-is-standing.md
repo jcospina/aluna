@@ -16,7 +16,7 @@ Module 6 — Reads Set Free · Epic 6.5 — The answer window
 A third window. It opens for a question, and it displaces nothing.
 
 **It is a new caller of machinery that already exists** (decision 21).
-`public/desk-window.js` already exports `openWindow`, `dismissWindow` and `nameWindow`,
+`public/desk/window/desk-window.js` already exports `openWindow`, `dismissWindow` and `nameWindow`,
 and the developer panel is already a second window standing beside the capability
 window. This issue adds the third on that precedent — not a new surface
 primitive, not a window manager, and not a fourth.
@@ -91,7 +91,7 @@ the prompt bar.
 
 ## What landed
 
-`public/desk-answer-window.js`, a sibling of `public/desk-dev-panel.js` on the precedent
+`public/desk/window/desk-answer-window.js`, a sibling of `public/desk/window/desk-dev-panel.js` on the precedent
 D13 set: its own `mounted`, its own default box, and the frame, lamps and gestures every
 window shares. It keeps no store, no key and no record, and it takes no `onEnd` on its
 gesture host, because there is nowhere for a finished drag to be written.
@@ -153,7 +153,7 @@ pre-existing and the informational included.
   a CSS regex that required its rule to be first in its block, `entry.win.destroy()` never
   asserted, and order-dependent start-up tests.
 
-Two notes for whoever picks up 6.5/03. `public/app.js` and `public/desk-window.js` are
+Two notes for whoever picks up 6.5/03. `public/app.js` and `public/desk/window/desk-window.js` are
 both at the linter's 500-line ceiling, so a line added to either has to be bought back.
 And the resolver classified *"delete everything"* as an evolution of the capability that
 was open rather than as a `reject`, which is worth knowing before that sentence is used as

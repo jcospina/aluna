@@ -54,7 +54,7 @@ fresh read shows it without any refresh control being involved.
 **The swap already worked; what was missing was the proof and the deletions.**
 Pressing a second capability's logo has always reused the standing window —
 `openWindow` mounted at most one. That rule is now `windowForOpening` in
-`public/desk-window.js`: a standing window is retitled and handed back, and
+`public/desk/window/desk-window.js`: a standing window is retitled and handed back, and
 nothing in the opening path reaches the box, the maximised flag or the seed the
 frame's hand was rolled from. It takes `mount` as a thunk so the rule runs in Bun
 against a window whose geometry and hand **throw if written**, the way

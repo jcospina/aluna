@@ -86,7 +86,7 @@
   cursor: default;
   color: var(--ink-3);
 }
-/* An ordinary `.btn.btn--warm`, as `design/scripts/prompt-bar.js` draws it — the
+/* An ordinary `.btn.btn--warm`, as `design/scripts/desk/prompt-bar.js` draws it — the
    fill, the height, the press and the boundary all come from the button. What is
    left here is only what the rail asks of it: it does not stretch, and it holds one
    width across "Make it" and "Making it" so the field beside it does not jump.
@@ -150,7 +150,7 @@
 
 /*
  * The refusal flash. The design's own `is-refused` state at the design's own 400ms
- * (`design/scripts/prompt-bar.js`), kept as the attention cue now that the sentence above
+ * (`design/scripts/desk/prompt-bar.js`), kept as the attention cue now that the sentence above
  * the rail carries the message — a wordless flash says something went wrong and nothing
  * about what (PLAN decision 24).
  *

@@ -8,7 +8,7 @@ import { enforceItemMarkup } from "../../../../presentation/index.ts";
 import { PHOTO_FIELD, photoSpec } from "../../../../registry/fields/file.test-support.ts";
 import type { CapabilitySpec } from "../../../../registry/index.ts";
 import { validSpec } from "../../../../registry/spec/spec.test-support.ts";
-import { FEW_SHOT_DESIGN_EXAMPLES } from "../../../units/generation/few-shot-gallery.ts";
+import { FEW_SHOT_DESIGN_EXAMPLES } from "../../../units/generation/few-shot/few-shot-gallery.ts";
 import { ESCAPE_HELPER } from "../../../units/generation/unit-fixtures.test-support.ts";
 import { loadItemRenderer } from "../../gate-internal.ts";
 import { findDesignViolation } from "./gate-design-lint.ts";

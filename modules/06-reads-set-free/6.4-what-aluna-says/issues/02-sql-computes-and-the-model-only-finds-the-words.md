@@ -64,7 +64,7 @@ same question does not appear as a page of rows being summed a turn later.
 
 The acceptance criterion *a model attempt to pull the rows and total them itself meets
 the size cap and recovers by aggregating* is satisfiable now, and there is a fixture in
-`src/runtime/query/question-payload.test.ts` that does exactly it.
+`src/runtime/query/step/question-payload.test.ts` that does exactly it.
 
 The refusal the model gets already says *let SQL do the work with count, sum, avg, min,
 max or GROUP BY*. When this issue adds its prompt rule, do not make it a third statement
@@ -74,7 +74,7 @@ of the same instruction — the refusal is the one that arrives at the moment it
 
 **The answer is a second generation, and that is the whole enforcement.** A turn's prompt carries
 the collections, the statements and the failures, and its schema can only produce a decision. The
-answer's prompt — `src/runtime/query/question-answer.ts` — carries what the steps returned, and its
+answer's prompt — `src/runtime/query/endings/question-answer.ts` — carries what the steps returned, and its
 schema can only produce words. Neither can do the other's job, so there is no path by which the
 model reports a figure from a place the loop never read. Its dependencies are a provider and the
 question's cancellation; there is no scope, no database and no tool on that seam, and a sweep proves

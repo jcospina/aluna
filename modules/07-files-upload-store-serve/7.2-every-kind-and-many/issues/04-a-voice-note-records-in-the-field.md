@@ -24,11 +24,11 @@ The scope analysis for 7.2/03 found that a recorder is a whole control, not a ro
   `public/` wires to it.
 - The app's CSP (`src/server/app.ts`, `APP_SECURITY_HEADERS`) has `media-src 'self' data:`,
   which blocks the `blob:` URL a recording plays from before it is uploaded.
-- `design/styles/components/form-controls.css` is at its 500-line ceiling
+- `design/styles/components/controls/form-controls.css` is at its 500-line ceiling
   (`layout-kit.policy.ts`), so the recorder's styles need a stylesheet of their own.
 - 7.2/03's admission rows are what admit a recording, so this issue cannot start before 03.
 
-The upload path needs no change. `uploadTransfer` in `public/file-field.js` sends any
+The upload path needs no change. `uploadTransfer` in `public/controls/file-field.js` sends any
 `Blob` with a name and a type, so a finished recording enters it as a picked file does.
 
 ## What to build
@@ -201,25 +201,25 @@ under the same instruction. Both are for the owner at sign-off:
 
 **The recorder.**
 
-- `design/scripts/file-recorder.js` holds three states, asking, recording and finishing; a
+- `design/scripts/files/file-recorder.js` holds three states, asking, recording and finishing; a
   refusal (denied, no-device, device-busy, device-lost, failed, empty) hands the field its
-  sentence, and `design/scripts/file-recording.js` wires Record, and a recording whose upload
+  sentence, and `design/scripts/files/file-recording.js` wires Record, and a recording whose upload
   failed or was stopped, into the field.
-- It is driven through `design/scripts/recorder-env.js`: the browser's media, the page's shared
+- It is driven through `design/scripts/files/recorder-env.js`: the browser's media, the page's shared
   leave question, and a watch that stops listening when the field is hidden, as the create
   form's Back does.
-- Its words and markup are in `design/scripts/recorder-parts.js`, which also covers each
+- Its words and markup are in `design/scripts/files/recorder-parts.js`, which also covers each
   platform's recovery steps, the type preference, the name ("Voice note 2026-09-29 14.05.23.webm")
   and the container read from the bytes.
-- Its styles are in `design/styles/components/file-recorder.css`.
+- Its styles are in `design/styles/components/controls/file-recorder.css`.
 
 **The field.**
 
-- `design/scripts/file-field.js` draws Record beside an empty well and the microphone square
+- `design/scripts/files/file-field.js` draws Record beside an empty well and the microphone square
   beside a held sound's Replace.
 - It holds the save while audio is held ("I’m waiting on the recording…"), refuses a drop
   mid-recording out loud, and hands a kept recording to `take()` as a pick.
-- `public/file-field.js` passes the region release, so closing the form turns the microphone
+- `public/controls/file-field.js` passes the region release, so closing the form turns the microphone
   off.
 
 **Server and supporting changes.**
@@ -230,7 +230,7 @@ under the same instruction. Both are for the owner at sign-off:
 
 - a field that records from your own microphone;
 - a field filled by a recording;
-- nineteen fields that `design/scripts/recorder-bench.js` walks into every state, on a stand-in
+- nineteen fields that `design/scripts/sections/recorder-bench.js` walks into every state, on a stand-in
   microphone whose recording is `design/assets/media/voice-note.webm`;
 - every browser's recovery steps;
 - decision C21.

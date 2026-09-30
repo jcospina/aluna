@@ -41,7 +41,7 @@ Two of the criteria below are met before this issue starts, and not by accident:
 deleting the content-target anchor left page assembly with no hole to compose a
 capability into, so `/capability/:id` had to start rendering the whole desk and the
 client had to start opening the window over the logo the address names.
-`capabilityIdFromAddress` and the load-time opener in `public/desk-window.js` are
+`capabilityIdFromAddress` and the load-time opener in `public/desk/window/desk-window.js` are
 that work. What remains here is the whole of the *history* contract — pushing on
 open, switch and put-away, `popstate` replaying without pushing again, the build
 keeping the displaced address, and activation pushing exactly once — plus the rule
@@ -81,7 +81,7 @@ opens and a put-away and confirm the window follows the address exactly once.
 **The desk owns the address; htmx owns none of it.** `hx-push-url` came off the
 capability logo and off the deletion panel's **Keep it** (where a response header
 had always won over it anyway), so no element in the repo carries one.
-`public/desk-window.js` gained an address section — `DESK_ADDRESS`,
+`public/desk/window/desk-window.js` gained an address section — `DESK_ADDRESS`,
 `capabilityAddress`, `isAnotherPlace`, `pushAddress`, `replaceAddress`,
 `addressAsks`, `capabilityInWindow` — and the browser's bar is handed to the two
 verbs the way `localStore` is handed to `savePresentation`, so the history

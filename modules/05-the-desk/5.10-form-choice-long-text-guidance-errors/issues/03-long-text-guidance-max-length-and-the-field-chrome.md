@@ -154,7 +154,7 @@ limit produce byte-identical unit prompts, pinned from the other side in
 carrying the boundary, the fill, the padding and every state, with `.field__input` /
 `.field__textarea` bare inside it. The product's own `.field__control` block is gone rather
 than renamed: every rule it restated already ships from
-`design/styles/components/form-controls.css`, which the page loads. That split is what gives
+`design/styles/components/controls/form-controls.css`, which the page loads. That split is what gives
 the design's `:focus-within`, `:has(:disabled)` and `.is-invalid` rules something to attach
 to — the disabled state the issue calls free is free exactly because the shell now exists.
 
@@ -165,7 +165,7 @@ its own length would leave exactly when it is being read.
 
 **The counter's sentence is written twice on purpose** — once by the server for the field's
 opening value, once by the client on every keystroke — and pinned against each other, and
-against `design/scripts/controls-main.js`, which is the contract this was ported from. The
+against `design/scripts/pages/controls-main.js`, which is the contract this was ported from. The
 singular fix ("1 character left", not "1 characters left") was carried back to that contract
 so the two do not drift.
 
@@ -221,7 +221,7 @@ Every finding from the two adversarial passes, INFO included.
 - Also: create-mode `datetime` never carried `step="any"` while its edit mirror hard-coded it,
   so a created record could not hold the seconds canonical storage keeps (pre-existing, and a
   one-line fix now that both go through one function); `renderInlineField`'s
-  `checked ? " checked" : required` encoded a mutual exclusion nothing stated; and `public/ink.js`
+  `checked ? " checked" : required` encoded a mutual exclusion nothing stated; and `public/core/ink.js`
   still explained `.field__control`'s absence from its list by saying it was a bare `<input>`.
 
 Each fix is mutation-checked: reverting the NUL predicate fails three tests, reverting the

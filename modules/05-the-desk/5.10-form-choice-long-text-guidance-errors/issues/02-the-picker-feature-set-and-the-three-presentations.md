@@ -101,7 +101,7 @@ groups) because every option is serialized into a generation prompt.
 
 **Three presentations.** `CHOICE_PRESENTATIONS` opens to `picker | radio | segmented`, and
 `src/presentation/choice-control.ts` is a total switch over it. The picker is
-`design/scripts/listbox.js` ported to `public/choice-picker.js`; radio is native radio inputs;
+`design/scripts/controls/listbox.js` ported to `public/controls/choice-picker.js`; radio is native radio inputs;
 segmented is the design's joined button row. `validateChoiceInputs` is where the one cross-half
 rule lives: a segmented control has nowhere to put a heading or a second line, so it admits
 neither groups nor notes and a spec declaring either is refused.
@@ -211,7 +211,7 @@ Two user-reported faults on the shipped picker, and the adversarial pass over th
 - **The placement watch answered the panel's own list.** Placement re-caps the list's height, so a
   scroll inside the list resized the box being scrolled, on every frame of the scroll. In-panel
   scrolls are skipped; every other scroll still re-places.
-- Carried back to `design/scripts/listbox.js`, which is the contract this was ported from, so the
+- Carried back to `design/scripts/controls/listbox.js`, which is the contract this was ported from, so the
   two do not drift.
 
 From the adversarial pass, all fixed: `#reveal` measured the border box where it meant the

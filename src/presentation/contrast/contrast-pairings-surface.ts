@@ -30,14 +30,14 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     note: "The default reading pair, and the strongest one on the surface.",
     sites: [
       "design/styles/components/collection.css § .detail__back:hover [color]",
-      "design/styles/components/controls.css § .btn [color]",
+      "design/styles/components/controls/controls.css § .btn [color]",
       "design/styles/components/desk.css § .build__line:last-child [color]",
       "design/styles/components/desk.css § .logo-menu__item [color]",
       "design/styles/components/desk.css § .logo-tile--dev [color]",
       "design/styles/components/desk.css § .prompt-bar__input [color]",
-      "design/styles/components/form-controls.css § .btn--outline [color]",
-      "design/styles/components/form-controls.css § .field__select option [color]",
-      "design/styles/components/list-field.css § .field-list__grip:hover:not(:disabled) [color]",
+      "design/styles/components/controls/form-controls.css § .btn--outline [color]",
+      "design/styles/components/controls/form-controls.css § .field__select option [color]",
+      "design/styles/components/controls/list-field.css § .field-list__grip:hover:not(:disabled) [color]",
       "public/css/collection.css § .capability-search__input [color]",
       "public/css/components.css § .btn [color]",
       "public/css/deletion.css § .capability-deletion h1 [color]",
@@ -54,9 +54,9 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     threshold: "text",
     note: "What you type, read against the well it is typed into.",
     sites: [
-      "design/styles/components/controls.css § .search__input [color]",
-      "design/styles/components/form-controls.css § .field__control [color]",
-      "design/styles/components/form-controls.css § .field__input, .field__textarea, .field__select [color]",
+      "design/styles/components/controls/controls.css § .search__input [color]",
+      "design/styles/components/controls/form-controls.css § .field__control [color]",
+      "design/styles/components/controls/form-controls.css § .field__input, .field__textarea, .field__select [color]",
     ],
   },
   {
@@ -117,7 +117,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     threshold: "text",
     note: "The info button.",
     sites: [
-      "design/styles/components/form-controls.css § .btn--info [color]",
+      "design/styles/components/controls/form-controls.css § .btn--info [color]",
       "public/css/components.css § .btn--info [color]",
     ],
   },
@@ -132,11 +132,11 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "tightest fill either of those reaches, so both are measured on it.",
     alsoCovers: [surface, { token: "ground-deep" }],
     sites: [
-      "design/styles/components/controls.css § .segmented button [color]",
-      "design/styles/components/form-controls.css § .listbox__option [color]",
-      "design/styles/components/controls.css § .pill--wait [color]",
-      "design/styles/components/form-controls.css § .btn--warm [color]",
-      'design/styles/components/form-controls.css § .listbox__option[aria-selected="true"] .listbox__note [color]',
+      "design/styles/components/controls/controls.css § .segmented button [color]",
+      "design/styles/components/controls/form-controls.css § .listbox__option [color]",
+      "design/styles/components/controls/controls.css § .pill--wait [color]",
+      "design/styles/components/controls/form-controls.css § .btn--warm [color]",
+      'design/styles/components/controls/form-controls.css § .listbox__option[aria-selected="true"] .listbox__note [color]',
       "design/styles/components/logo-contract.css § .prompt-block mark [color]",
       "public/css/components.css § .btn--warm [color]",
     ],
@@ -148,7 +148,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     threshold: "text",
     note: "The feature button — grow one.",
     sites: [
-      "design/styles/components/form-controls.css § .btn--feature [color]",
+      "design/styles/components/controls/form-controls.css § .btn--feature [color]",
       "public/css/components.css § .btn--feature [color]",
     ],
   },
@@ -161,8 +161,8 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "C12's pairing, and the tightest on any button. The OK pill wore a light label " +
       "here at 3.01 until this audit — the same failure the green swap removed.",
     sites: [
-      "design/styles/components/controls.css § .pill--ok [color]",
-      "design/styles/components/form-controls.css § .btn--secondary [color]",
+      "design/styles/components/controls/controls.css § .pill--ok [color]",
+      "design/styles/components/controls/form-controls.css § .btn--secondary [color]",
       "public/css/components.css § .btn--secondary [color]",
     ],
   },
@@ -194,7 +194,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     threshold: "text",
     note: "C12: shade is the primary because it is dark enough to need a light label.",
     sites: [
-      "design/styles/components/form-controls.css § .btn--primary [color]",
+      "design/styles/components/controls/form-controls.css § .btn--primary [color]",
       "public/css/components.css § .btn--primary [color]",
     ],
   },
@@ -205,7 +205,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     threshold: "text",
     note: "The other of the two fills too dark to carry ink.",
     sites: [
-      "design/styles/components/form-controls.css § .btn--danger [color]",
+      "design/styles/components/controls/form-controls.css § .btn--danger [color]",
       "public/css/components.css § .btn--danger [color]",
     ],
   },
@@ -266,14 +266,14 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     sites: [
       "design/styles/components/collection.css § .collection__count [color]",
       "design/styles/components/collection.css § .detail__back [color]",
-      "design/styles/components/controls.css § .control > .caps [color]",
+      "design/styles/components/controls/controls.css § .control > .caps [color]",
       "design/styles/components/desk.css § .build__line [color]",
       "design/styles/components/desk.css § .devpanel__stage [color]",
       "design/styles/components/desk.css § .logo-rename__error [color]",
-      "design/styles/components/doc.css § .numbers small [color]",
-      "design/styles/components/doc.css § .swatch__meta code [color]",
-      "design/styles/components/form-controls.css § .choice__hint [color]",
-      "design/styles/components/form-controls.css § .field__control:has([readonly]) .field__input [color]",
+      "design/styles/doc.css § .numbers small [color]",
+      "design/styles/doc.css § .swatch__meta code [color]",
+      "design/styles/components/controls/form-controls.css § .choice__hint [color]",
+      "design/styles/components/controls/form-controls.css § .field__control:has([readonly]) .field__input [color]",
       "design/styles/layout-kit.css § .text-muted [color]",
       "public/css/deletion.css § .capability-deletion__body [color]",
       "public/css/fields.css § .choice-set__heading [color]",
@@ -290,7 +290,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "The one place a placeholder is `--ink-2`: on `--well-alert` the faint strength " +
       "is 4.24, so an invalid field's placeholder steps up rather than the fill down.",
     sites: [
-      "design/styles/components/form-controls.css § .field.is-invalid :is(.field__input, .field__textarea)::placeholder, .field.is-invalid .listbox__value.is-placeholder [color]",
+      "design/styles/components/controls/form-controls.css § .field.is-invalid :is(.field__input, .field__textarea)::placeholder, .field.is-invalid .listbox__value.is-placeholder [color]",
     ],
   },
   {
@@ -300,7 +300,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     threshold: "text",
     sites: [
       "design/styles/components/collection.css § .record__detail [color]",
-      "design/styles/components/doc.css § .spec th [color]",
+      "design/styles/doc.css § .spec th [color]",
     ],
     note: "",
   },
@@ -321,7 +321,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "The details a file field prints beside its file are read against the band that " +
       "fills the well as the bytes arrive, the tightest of the three grounds they sit on.",
     alsoCovers: [surface2, { token: "pane-5" }],
-    sites: ["design/styles/components/file-field.css § .file__meta, .file__sub [color]"],
+    sites: ["design/styles/components/controls/file-field.css § .file__meta, .file__sub [color]"],
   },
   {
     what: "an option's note under the keyboard",
@@ -331,7 +331,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     note:
       "The active row fills rather than outlining, so the note on it is read against " +
       "the deepest band in the palette. This was 4.42 before `--ink-2` was set by the audit.",
-    sites: ["design/styles/components/form-controls.css § .listbox__note [color]"],
+    sites: ["design/styles/components/controls/form-controls.css § .listbox__note [color]"],
   },
   {
     what: "prose in a tinted note",
@@ -366,10 +366,10 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "design/styles/components/desk.css § .build__note [color]",
       "design/styles/components/desk.css § .devpanel__size [color]",
       "design/styles/components/desk.css § .prompt-bar__input::placeholder [color]",
-      "design/styles/components/doc.css § .gallery__meta [color]",
-      "design/styles/components/doc.css § .swatch__meta small [color]",
-      "design/styles/components/form-controls.css § .field__guidance [color]",
-      "design/styles/components/form-controls.css § .field__optional [color]",
+      "design/styles/doc.css § .gallery__meta [color]",
+      "design/styles/doc.css § .swatch__meta small [color]",
+      "design/styles/components/controls/form-controls.css § .field__guidance [color]",
+      "design/styles/components/controls/form-controls.css § .field__optional [color]",
       "design/styles/layout-kit.css § .text-subtle [color]",
       'public/css/collection.css § .capability-collection[data-search-state="no-matches"] .capability-search__feedback [color]',
       "public/css/collection.css § .capability-empty [color]",
@@ -387,9 +387,9 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     threshold: "text",
     note: "The darkest fill `--ink-3` is allowed on, and the value it is set by.",
     sites: [
-      "design/styles/components/controls.css § .search__input::placeholder [color]",
-      "design/styles/components/form-controls.css § .field__input::placeholder, .field__textarea::placeholder [color]",
-      "design/styles/components/form-controls.css § .listbox__value.is-placeholder [color]",
+      "design/styles/components/controls/controls.css § .search__input::placeholder [color]",
+      "design/styles/components/controls/form-controls.css § .field__input::placeholder, .field__textarea::placeholder [color]",
+      "design/styles/components/controls/form-controls.css § .listbox__value.is-placeholder [color]",
     ],
   },
   {
@@ -403,9 +403,9 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     sites: [
       "design/styles/base.css § .eyebrow [color]",
       "design/styles/base.css § .kicker [color]",
-      "design/styles/components/doc.css § .gallery__name [color]",
-      "design/styles/components/doc.css § .numbers em [color]",
-      "design/styles/components/doc.css § .specimen__meta [color]",
+      "design/styles/doc.css § .gallery__name [color]",
+      "design/styles/doc.css § .numbers em [color]",
+      "design/styles/doc.css § .specimen__meta [color]",
     ],
   },
   {
@@ -416,11 +416,11 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     note: "Destructive state: `--signal` is reserved for it and reads only on the window fill.",
     sites: [
       "design/styles/components/desk.css § .prompt-bar.is-refused .prompt-bar__input::placeholder [color]",
-      "design/styles/components/doc.css § .gallery__meta.is-short [color]",
-      "design/styles/components/doc.css § .swatch__ratio[data-under] [color]",
-      "design/styles/components/form-controls.css § .field.is-invalid .field__guidance--error, .field.is-invalid .field__guidance.is-over [color]",
-      "design/styles/components/form-controls.css § .field__guidance.is-over [color]",
-      "design/styles/components/file-field.css § .file.is-refused .field__guidance--error [color]",
+      "design/styles/doc.css § .gallery__meta.is-short [color]",
+      "design/styles/doc.css § .swatch__ratio[data-under] [color]",
+      "design/styles/components/controls/form-controls.css § .field.is-invalid .field__guidance--error, .field.is-invalid .field__guidance.is-over [color]",
+      "design/styles/components/controls/form-controls.css § .field__guidance.is-over [color]",
+      "design/styles/components/controls/file-field.css § .file.is-refused .field__guidance--error [color]",
       'public/css/components.css § .notice[data-role="error"] [color]',
       "public/css/prompt.css § .prompt.is-refused .prompt__field::placeholder [color]",
     ],

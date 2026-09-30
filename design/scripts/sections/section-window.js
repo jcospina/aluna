@@ -17,7 +17,7 @@
  * mean something slightly different.
  */
 
-/** @typedef {import("../window.js").AlunaWindow} AlunaWindow */
+/** @typedef {import("../window/window.js").AlunaWindow} AlunaWindow */
 
 const PUT_AWAY_KEY = "aluna.design.putaway.v1";
 

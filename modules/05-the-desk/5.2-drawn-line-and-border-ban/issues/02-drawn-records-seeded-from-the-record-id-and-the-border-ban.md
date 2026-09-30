@@ -69,7 +69,7 @@ and a record with the ban and no drawn boundary would be invisible.
 ### The hand comes from the record's id
 
 `src/presentation/ink-seed.ts` is the whole of it. `recordInkSeed(id)` calls the
-design system's own `seedFrom` — the FNV-1a fold `design/scripts/prompt-bar.js`
+design system's own `seedFrom` — the FNV-1a fold `design/scripts/desk/prompt-bar.js`
 already seeds with — rather than restating the algorithm server-side, so one
 function decides every hand on the surface. `renderItemWrapper` writes the result
 as `data-ink-seed` on the `<article class="capability-item">` it already emits,
@@ -87,7 +87,7 @@ instead. Nothing is copied either way; `design/scripts/` ships, the way
 
 ### The card is drawn
 
-`.capability-item` joins `SHELL_INK` in `public/ink.js`, beside the search rail
+`.capability-item` joins `SHELL_INK` in `public/core/ink.js`, beside the search rail
 and the create panel it shares a stylesheet with. It keeps its declared
 `border: var(--line) solid var(--ink)` as the room the drawn line needs, and
 `.is-ink` takes the colour off it. Default hand — fine — which is right: the card
@@ -211,7 +211,7 @@ Both found by adversarial review of the drawn-card half, and both were gaps in t
   drawn set: reverting `.capability-item` out of `SHELL_INK` left all three
   passing. `ink-seam.test.ts` did catch it, from a different file and with a
   message about a reserved line. Membership is now asserted where it reads as
-  though it is — in `drawn-record.test.ts`, against `public/ink.js` itself.
+  though it is — in `drawn-record.test.ts`, against `public/core/ink.js` itself.
 - **`ink-seam.test.ts` read only `public/`**, and the gallery preview page is the
   one other surface that renders real record wrappers: it is built from a
   TypeScript template, loads the shell bridge and the ink runtime, and carries an
@@ -415,7 +415,7 @@ staleness stops being invisible, and 5.5/01 is where it goes away.
 7. For the real speed number on your hardware, paste this in the browser console
    with the reading log open:
    ```js
-   const ink = await import("/design/scripts/ink.js");
+   const ink = await import("/design/scripts/ink/ink.js");
    const list = document.querySelector(".capability-records");
    const t = performance.now(); ink.redrawInk(list);
    console.log(list.querySelectorAll(".capability-item").length, "cards:", (performance.now() - t).toFixed(1), "ms");

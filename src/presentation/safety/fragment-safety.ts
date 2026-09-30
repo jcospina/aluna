@@ -13,16 +13,16 @@
 // by id. htmx reads every attribute under a `data-` prefix too, so each rule judges the name
 // without it. `neutralized` reports a removal, never a normalization like an escaped `<`.
 
-import { decodeAttributeValue, isDangerousUrl } from "./attribute-urls.ts";
-import { rewriteAttributes } from "./attribute-verdicts.ts";
-import { escapeCdataOpeners } from "./cdata.ts";
+import { URL_ATTRS } from "./enforcer/vocabulary.ts";
+import { decodeAttributeValue, isDangerousUrl } from "./markup/attribute-urls.ts";
+import { rewriteAttributes } from "./markup/attribute-verdicts.ts";
+import { escapeCdataOpeners } from "./markup/cdata.ts";
 import {
   escapeCommentOpeners,
   escapeValueOpeners,
   styleAwareTextOpeners,
-} from "./stray-openers.ts";
-import { closeTrailingTag } from "./trailing-tag.ts";
-import { URL_ATTRS } from "./vocabulary.ts";
+} from "./markup/stray-openers.ts";
+import { closeTrailingTag } from "./markup/trailing-tag.ts";
 
 /** Elements removed with their content. */
 export const FRAGMENT_REMOVED_ELEMENTS: ReadonlySet<string> = new Set([

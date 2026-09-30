@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import type { Context } from "hono";
-import { capabilityUrl } from "#shell/routes.js";
+import { capabilityUrl } from "#shell/core/routes.js";
 import { type CapabilityRow, getCapability } from "../../registry/index.ts";
 import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 import type { ReadGateCoordinator } from "../../runtime/concurrency/read-gates.ts";

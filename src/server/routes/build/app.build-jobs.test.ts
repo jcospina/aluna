@@ -5,7 +5,7 @@
 // in app.test-support.ts; the id-sequence and deferred helpers are local to these tests.
 
 import { describe, expect, test } from "bun:test";
-import { PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
+import { PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
 import {
   type BuildJob,
   type BuildPipeline,

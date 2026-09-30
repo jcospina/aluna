@@ -87,7 +87,7 @@ literal. Everything that stands on the strip reads it from there:
   content's inner bottom and the bar's top are the same pixel, at 100% and at 150%
   browser text size.
 
-**Say plainly which half of the readback ships.** `design/scripts/desk-geometry.js`
+**Say plainly which half of the readback ships.** `design/scripts/desk/desk-geometry.js`
 is the JavaScript half and already reads the token at load
 (`readLength("--prompt-clearance", FALLBACK.clearance)` inside `refreshGeometry()`,
 called at module top level), keeping `78` only as the fallback for a stylesheet
@@ -96,8 +96,8 @@ put in the product is the *CSS-side* readback — the reserved strip and the bar
 anchor, both `var(--prompt-clearance)` — and the invariant tests around it. The
 JavaScript half stays in `design/` because nothing on the shipped page computes
 geometry yet: there is no window until 5.6/01, and the logo grid's floor is pure
-CSS. 5.6/01 wires the module in the way `public/ink.js` wires `design/scripts/ink.js`
-(`import … from "../design/scripts/ink.js"`), and 5.6/02 is its first consumer.
+CSS. 5.6/01 wires the module in the way `public/core/ink.js` wires `design/scripts/ink/ink.js`
+(`import … from "../../design/scripts/ink/ink.js"`), and 5.6/02 is its first consumer.
 Written down here so that issue does not assume the import already exists.
 
 **The bar's width came from the design, not from the shell it replaces.** The
@@ -109,7 +109,7 @@ width and both gutters rather than quietly keeping a wider one.
 
 The two structures are not the same element, which is why this is a port and not a
 shared rule: the design draws `.prompt-bar` itself, while the shipped bar splits
-into a drawn rail (`.prompt__composer`, which is what `public/ink.js` names) and a
+into a drawn rail (`.prompt__composer`, which is what `public/core/ink.js` names) and a
 notice above it. One divergence is deliberate and marked in the stylesheet: the
 design puts the bar at `z-index: 20`, which in the shipped shell is the legacy
 drawers' own level, so the bar would stay bright over a dimmed desk. It sits at 5,
@@ -238,7 +238,7 @@ match the working tree:
   And `selector.replace(".", …)` escaped only the first dot — harmless for today's
   single-class selectors, latent for any compound one.
 
-- **The sweeps had holes.** "Declared once / never restated" skipped `public/app.css`,
+- **The sweeps had holes.** "Declared once / never restated" skipped `public/css/app.css`,
   `public/*.js` and `src/web/`; the wordmark guard read three files. Both widened —
   the rung went from 127 to 189 assertions.
 
@@ -248,7 +248,7 @@ match the working tree:
   (PLAN decision 7). Keeping the wider one would have been a design decision made
   by omission. It now carries the design's width and both gutters.
 
-- **Stale comments in the bridge manifest.** `public/app.css` still described
+- **Stale comments in the bridge manifest.** `public/css/app.css` still described
   `shell.css` as a "top bar" and `prompt.css` as the "bottom-pinned prompt composer".
 
 Accepted rather than fixed, and recorded here: the focus ring paints 6px above the

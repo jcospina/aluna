@@ -97,7 +97,7 @@ until 7.1/08, so the save is proven in the router tests against the fixture capa
 
 ## What landed
 
-**The ledger.** Migration `0016_file_ledger` creates `file_ledger` (`src/platform/files/ledger.ts`
+**The ledger.** Migration `0016_file_ledger` creates `file_ledger` (`src/platform/files/store/ledger.ts`
 names it, mints keys and reads and promotes rows). It has one row per key with `capability_id`,
 `incarnation_id`, `field`, `record_id`, `state`, `kind`, `mime`, `size`, `name`, `encoding`,
 `created_at`, `cleanup_attempts` and `cleanup_error`, and an index on `record_id` and another on
@@ -159,7 +159,7 @@ pins both sides of the edge.
 
 **The fixture.** `src/runtime/router/__fixtures__/photos/v1/` is a hand-written capability with a
 photo field, and its card draws the photo through the projection's `url`. Test support mints ledger
-rows directly (`src/platform/files/ledger.test-support.ts`), since the upload route is 7.1/07's.
+rows directly (`src/platform/files/store/ledger.test-support.ts`), since the upload route is 7.1/07's.
 
 **Handoffs.** 7.1/06's note now says where the create path landed and that the Gate's scratch pair
 has no `file_ledger` yet. Aluna's questions can read a stored key through raw SQL until 7.1/09, whose
@@ -217,11 +217,11 @@ Each fix that changes behaviour has a test that fails with the fix reverted, che
 `bun run typecheck` and `bun run lint` are clean. `bun run test` passes: 3273 tests, 0 failed. New
 suites:
 
-- `platform/files/ledger.test.ts`
+- `platform/files/store/ledger.test.ts`
 - `runtime/data/access/file-claims.test.ts`
 - `runtime/data/access/own-values.test.ts`
-- `runtime/router/dispatch/router.file-claim.test.ts`
-- `builder/units/generation/file-contract.test.ts`
+- `runtime/router/dispatch/files/router.file-claim.test.ts`
+- `builder/units/generation/field-prompts/file-contract.test.ts`
 
 These suites gained cases: `file-stand-in.test.ts`, `wire-protocol.test.ts`,
 `file-evolution.test.ts`, `refusal-rescue.test.ts`, `migrations.test.ts`, `reset-runtime.test.ts`,

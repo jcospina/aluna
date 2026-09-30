@@ -86,7 +86,7 @@ describe("the logo layer", () => {
     }
 
     // And the shipped shell restates none of them.
-    for (const sheet of ["public/app.css", ...under("public/css", "*.css")]) {
+    for (const sheet of under("public/css", "**/*.css")) {
       expect(rules(sheet), `${sheet} restates the logo contract`).not.toMatch(
         /\.logo-tile|\.logo-label|\.desk__logos/,
       );
@@ -207,10 +207,9 @@ describe("an empty desk needs no gate", () => {
     // `has-capabilities` class, and the `[data-capability-entry]` marker.
     const surfaces = [
       ...under("public", "*.html"),
-      ...under("public", "*.js"),
-      ...under("public/css", "*.css"),
-      "public/app.css",
-      "src/server/http/fragments.ts",
+      ...under("public", "**/*.js"),
+      ...under("public/css", "**/*.css"),
+      "src/server/http/fragments/fragments.ts",
     ];
     for (const page of surfaces) {
       const source = code(read(page).replace(/<!--[\s\S]*?-->/g, ""));

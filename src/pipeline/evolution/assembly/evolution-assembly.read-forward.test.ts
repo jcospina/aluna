@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
-import { sealWithoutPlural } from "../../../builder/artifacts/publication/read-forward.test-support.ts";
+import { sealWithoutPlural } from "../../../builder/artifacts/publication/reconciliation/read-forward.test-support.ts";
 import {
   generatedUnitsFor,
   makeSequenceProvider,

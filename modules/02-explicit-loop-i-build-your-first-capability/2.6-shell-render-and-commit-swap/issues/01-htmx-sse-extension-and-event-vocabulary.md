@@ -60,7 +60,7 @@ None - can start immediately
   real browser, then was deleted once the proof held and the vocabulary was
   recorded (the 1.3 pattern; ADR-0002 consequences). It was: `/demo/swap-proof/*`
   routes + `renderSwapProof*` (`src/app/app.ts`), a `.swap-proof` `<section>`
-  (`public/index.html`) + CSS block (`public/app.css`), and two wire tests. The
+  (`public/index.html`) + CSS block (`public/css/app.css`), and two wire tests. The
   `commit` event carried the targeted content fragment **and** an `hx-swap-oob`
   toolbar sidecar in one response; the live commit swap is re-exercised by the
   real flow in 2.6c.
@@ -79,7 +79,7 @@ Verification commands:
 
 ```
 bun run typecheck
-bunx biome check public/index.html public/app.css src/app/app.ts src/app/app.test.ts
+bunx biome check public/index.html public/css/app.css src/app/app.ts src/app/app.test.ts
 bun test src/app/app.test.ts      # 17 pass
 bun test                      # full suite: 123 pass
 ```

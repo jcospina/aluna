@@ -1,10 +1,10 @@
-import { PROMPT_FORM_ID } from "#shell/desk-window.js";
-import { LONG_PRESS_MS, startLogoMenu } from "#shell/logo-menu.js";
-import { PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
+import { PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
+import { LONG_PRESS_MS, startLogoMenu } from "#shell/desk/logos/logo-menu.js";
+import { PROMPT_FORM_ID } from "#shell/desk/window/desk-window.js";
 
 import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
-import { renderCapabilityLogo } from "../../../server/http/fragments.ts";
-import { El, parseHtml } from "../../controls/choice-picker.test-support.ts";
+import { renderCapabilityLogo } from "../../../server/http/fragments/fragments.ts";
+import { El, parseHtml } from "../../controls/double/choice-picker.test-support.ts";
 
 /**
  * A document small enough to run the menu's rules in Bun. Every operation is the one the browser

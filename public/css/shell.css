@@ -35,7 +35,7 @@
  * The layer the window stands on and the frame itself ship from
  * design/styles/components/desk.css and window.css, which is the one copy of those
  * numbers. What is left here is the region the window holds: the temporary shell's
- * `#spec-build-output`, created inside the window by /static/desk-window.js.
+ * `#spec-build-output`, created inside the window by /static/desk/window/desk-window.js.
  *
  * It scrolls, and the window does not. A window is a fixed box on the desk whose
  * bottom edge stops above the prompt bar; the list inside it is what runs long, so

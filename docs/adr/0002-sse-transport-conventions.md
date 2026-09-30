@@ -76,7 +76,7 @@ ordering.
   contract.
 - Deleting the 1.3 demo (`/demo/stream` in `src/app/app.ts`; `initSseDemo`/`sseData`
   in `public/app.js`; the demo trigger/output in `public/index.html`; the
-  `.sse-demo` block in `public/app.css`) removes no decision recorded here.
+  `.sse-demo` block in `public/css/app.css`) removes no decision recorded here.
 - At the Module 1 seed point, the HTMX-driven client path and the channel
   topology remained open. The Module 2 updates below close both; this historical
   paragraph does not reopen them.
@@ -157,7 +157,7 @@ gets back a lone `done` carrying `missing`. The extension's
 `sse-close="<event>"` attribute closes the source on a named event, so wiring
 `sse-close="done"` on the subscriber is the htmx analogue of the `source.close()`
 on `done` that the demo's raw-EventSource client made. `renderBuildSubscriber`
-(`src/server/http/fragments.ts`) sets it. The server's close alone never stopped a
+(`src/server/http/fragments/fragments.ts`) sets it. The server's close alone never stopped a
 reconnect: the demo's raw client closed its own source on `done`, and the htmx
 client must be told to.
 
@@ -178,7 +178,7 @@ client must be told to.
   releases in `finally`, and normal shell/toolbar registry rehydration recovers the
   activated View.
 - The proving scaffold (`/demo/swap-proof/*`, `renderSwapProof*` in `src/app/app.ts`,
-  the `.swap-proof` block in `public/app.css`, the shell `<section>`, and its
+  the `.swap-proof` block in `public/css/app.css`, the shell `<section>`, and its
   tests) was disposable and has been removed now that the wire is proven and the
   vocabulary recorded here. Its removal took no decision with it (the 1.3
   pattern). What stays in the codebase from 2.6a is durable: the vendored

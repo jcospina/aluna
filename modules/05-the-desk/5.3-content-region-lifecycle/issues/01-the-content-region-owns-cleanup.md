@@ -61,7 +61,7 @@ handler timeout.
 
 ## Implementation notes
 
-**The rule is one rule.** `public/region-scope.js` holds every content region's
+**The rule is one rule.** `public/core/region-scope.js` holds every content region's
 release scope in one registry. A release is registered against the *node that
 started the work* — its anchor — and it runs when that anchor leaves the document.
 Replacing the region's content and removing the region are the same fact seen from
@@ -187,7 +187,7 @@ swap releases.
 3. Open `http://localhost:3030/` and click a capability logo.
    - Type a word in its search rail, then click the *other* capability before the
      results land. The list swaps cleanly and nothing overwrites it a moment
-     later. In the console, `(await import("/static/region-scope.js")).regionScopeReport()`
+     later. In the console, `(await import("/static/core/region-scope.js")).regionScopeReport()`
      returns `[]` after the swap, and returns
      `[{ region: "content area", label: "search controller" }]` while a search is
      pending.

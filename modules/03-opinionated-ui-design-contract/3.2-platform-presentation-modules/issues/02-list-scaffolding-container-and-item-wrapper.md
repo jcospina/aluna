@@ -69,7 +69,7 @@ Before 3.3/01 lands, default the layout to `feed` (PLAN decision 5).
     enforcer runs on inner markup via the 3.4/01 adapter, not on the wrapper.
 - `public/css/collection.css` — the feed/grid layouts, the `:empty`-driven empty state,
   and the item-wrapper card chrome (surface/border/radius + the shared gentle press +
-  accent focus ring; tokens only). Wired into `public/app.css`; `.capability-item` added
+  accent focus ring; tokens only). Wired into `public/css/app.css`; `.capability-item` added
   to the a11y reduced-motion reset.
 - `src/presentation/list-container.test.ts` — 22 tests: the closed layout map +
   fail-closed guard + CSS parity, the container (New X, empty state, region id, seeded

@@ -3,8 +3,8 @@
 // whose fixed `/capability/:id/:action` convention knows neither.
 
 import type { Hono } from "hono";
-import { registerFileServeRoute } from "./serve-route.ts";
-import { type FileUploadDeps, registerFileUploadRoute } from "./upload-route.ts";
+import { registerFileServeRoute } from "./serve/serve-route.ts";
+import { type FileUploadDeps, registerFileUploadRoute } from "./upload/upload-route.ts";
 
 export function registerFileRoutes(app: Hono, deps: FileUploadDeps): void {
   registerFileUploadRoute(app, deps);

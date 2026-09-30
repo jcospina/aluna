@@ -12,7 +12,7 @@ import type { Context } from "hono";
 import { Hono } from "hono";
 import { serveStatic } from "hono/bun";
 import { streamSSE } from "hono/streaming";
-import { capabilityUrl } from "#shell/routes.js";
+import { capabilityUrl } from "#shell/core/routes.js";
 import { resolveArtifactsRoot } from "../builder/index.ts";
 import {
   alreadyGoneResponse,
@@ -43,7 +43,7 @@ import { type BuildJobQueue, createBuildJobQueue } from "../pipeline/jobs/build-
 import { captureRestorationDescriptor } from "../pipeline/jobs/restoration.ts";
 import { errorDetail } from "../platform/errors.ts";
 import { resolveMaxFileBytes } from "../platform/files/file-cap.ts";
-import { createLocalObjectStore, type ObjectStore } from "../platform/files/object-store.ts";
+import { createLocalObjectStore, type ObjectStore } from "../platform/files/store/object-store.ts";
 import { db, dbReadonly, type PlatformDatabase } from "../platform/persistence/db.ts";
 import { createProvider, type Provider } from "../platform/provider/index.ts";
 import { getCapability, listCapabilityDependents } from "../registry/index.ts";

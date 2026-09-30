@@ -21,14 +21,14 @@ const DESK_ACTION_REFUSAL =
   "I’m still making the last thing you asked for. Let me finish, then try that again.";
 
 /**
- * A capability's logo, restated from `public/desk-window.js` the way this file restates every
+ * A capability's logo, restated from `public/desk/window/desk-window.js` the way this file restates every
  * constant it shares with a module; a platform test pins that the two agree.
  */
 const CAPABILITY_LOGO_SELECTOR = "[data-capability-logo]";
 
 /**
  * The prompt bar's ids and its one refusal marker, restated the way this file restates every
- * constant it shares with a module. The bar itself is `public/prompt-bar.js`.
+ * constant it shares with a module. The bar itself is `public/desk/prompt-bar.js`.
  */
 const PROMPT_FIELD_ID = "spec-build-prompt";
 const PROMPT_FORM_ID = "spec-build-form";
@@ -141,7 +141,7 @@ function shell() {
   };
 }
 
-// Kept in sync with public/region-scope.js, pinned by `app.shell-glue.test.ts` hearing it at the
+// Kept in sync with public/core/region-scope.js, pinned by `app.shell-glue.test.ts` hearing it at the
 // document. Asks a region's scope to release its content's work before the content is replaced.
 const RELEASE_REGION_EVENT = "aluna:release-region";
 
@@ -152,21 +152,21 @@ function releaseRegionContent(region) {
 
 /**
  * The window's content region, and the way this script asks for the window itself to be put
- * away. Kept in sync with public/desk-window.js and pinned by a platform test.
+ * away. Kept in sync with public/desk/window/desk-window.js and pinned by a platform test.
  */
 const WINDOW_REGION_ID = "spec-build-output";
 const PUT_WINDOW_AWAY_EVENT = "aluna:put-window-away";
 
 /**
  * The two ways this script reaches the developer panel's window, kept in sync with
- * public/desk-dev-panel.js and pinned by the same test: one stage's payload, and a new build.
+ * public/desk/window/desk-dev-panel.js and pinned by the same test: one stage's payload, and a new build.
  */
 const STAGE_PAYLOAD_EVENT = "aluna:stage-payload";
 const STAGES_CLEARED_EVENT = "aluna:stages-cleared";
 
 /** One build's subscriber — the node the run's id is written on. */
 const BUILD_SUBSCRIBER_SELECTOR = "[data-build-job-id]";
-/** What a run that turned out to be a question is marked with (`public/leaving-a-run.js`). */
+/** What a run that turned out to be a question is marked with (`public/desk/leaving-a-run.js`). */
 const QUESTION_RUN_SELECTOR = "[data-question-run]";
 
 /**
@@ -221,7 +221,7 @@ let theRunRefusedWhatWasTyped = false;
 /**
  * Retire anything the prompt bar was still saying about the run that just ended, and answer
  * whether the words that produced it stay in the field. The event is kept in sync with
- * public/prompt-bar.js and pinned by a platform test.
+ * public/desk/prompt-bar.js and pinned by a platform test.
  *
  * A refusal leaves them too, wherever it landed: the try-again its sentence asks for is then one
  * edit away rather than a retype.
@@ -447,7 +447,7 @@ function openTheAnswerWindowFrom(listener, raw) {
   const subscriber = listener.closest(BUILD_SUBSCRIBER_SELECTOR);
   const output = subscriber?.closest(`#${WINDOW_REGION_ID}`);
   if (subscriber instanceof HTMLElement && output instanceof HTMLElement) {
-    // What the desk finds a running question by (`public/leaving-a-run.js`), and the one thing
+    // What the desk finds a running question by (`public/desk/leaving-a-run.js`), and the one thing
     // the two triggers of decision 10 need standing in the window to have anything to end.
     subscriber.dataset.questionRun = "true";
     subscriber.dataset.preserveActiveView = "true";
@@ -545,7 +545,7 @@ document.addEventListener("htmx:sseBeforeMessage", (event) => {
 
   event.preventDefault();
   // Handed over rather than written in place: the panel may not be standing when a stage arrives,
-  // and it keeps them (`public/desk-dev-panel.js`).
+  // and it keeps them (`public/desk/window/desk-dev-panel.js`).
   const detail = { stage, payload: message.data };
   document.dispatchEvent(new CustomEvent(STAGE_PAYLOAD_EVENT, { detail }));
 });
@@ -595,7 +595,7 @@ document.addEventListener("htmx:beforeRequest", (event) => {
     }
     // Never a question: `dropHeldRun` takes the node out without htmx's cleanup, which would
     // leave the stream open and the reading going. The answer window has already ended it
-    // (`public/desk-answer-window.js`), and if it could not, leaving it is the lesser harm.
+    // (`public/desk/window/desk-answer-window.js`), and if it could not, leaving it is the lesser harm.
     if (!standing.matches(QUESTION_RUN_SELECTOR)) dropHeldRun(standing);
   }
   // The last run's leftovers, retired where a run starts rather than at its stream open: a
@@ -614,7 +614,7 @@ document.addEventListener("htmx:beforeRequest", (event) => {
   if (!(asking instanceof Element) || asking.id === PROMPT_FORM_ID) return;
   if (asking.closest(`#${WINDOW_REGION_ID}`) !== null) return;
   // Where this would land is htmx's own answer, already resolved on this event. Borrowed rather
-  // than reimplemented, for the reason `public/swap-target.js` gives.
+  // than reimplemented, for the reason `public/core/swap-target.js` gives.
   const takingTheWindow =
     detail?.target instanceof Element && detail.target.id === WINDOW_REGION_ID;
   // Opening a capability is exempt from the refusal: it is a navigation, and owes the run a

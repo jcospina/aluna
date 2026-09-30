@@ -131,7 +131,7 @@ reached 41px past the window's content region and flashed its scrollbar for the
 frame before the resize watch drew them for real. Once per record view, because a
 drawn layer stays drawn.
 
-Fixed in `design/scripts/ink.js`, where the defect is: a layer is created out of
+Fixed in `design/scripts/ink/ink.js`, where the defect is: a layer is created out of
 flow at zero size, and `.is-ink` — which is what makes the host's own border
 transparent — is claimed on the first successful draw rather than at mount, so an
 element never sits with neither a border nor a line. This also fixes the create

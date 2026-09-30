@@ -4,13 +4,13 @@
 // code with their own tests, as routing is.
 
 import type { Database } from "bun:sqlite";
-import { admittedTypes } from "../../platform/files/admission.ts";
+import { admittedTypes } from "../../platform/files/admission/admission.ts";
 import {
   insertPendingFile,
   mintFileKey,
   type PendingFile,
   promotePendingFile,
-} from "../../platform/files/ledger.ts";
+} from "../../platform/files/store/ledger.ts";
 import {
   activeSpecFields,
   type CapabilitySpec,

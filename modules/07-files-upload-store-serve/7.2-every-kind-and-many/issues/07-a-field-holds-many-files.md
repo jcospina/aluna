@@ -45,13 +45,13 @@ a list.
 mutation interface refuses a save that would leave a required `file` empty
 (`assertRequiredFilesHeld` and `resultingFileKeys` in `src/runtime/data/access/mutation.ts`),
 but both handle one key or none. A required `file[]` must refuse `[]` the same way, and the
-browser's own check (`holdsNothing` in `public/field-errors.js`) must count an empty list.
+browser's own check (`holdsNothing` in `public/fields/field-errors.js`) must count an empty list.
 
 **A list that takes a sound records too.** 7.2/04 gave every single file field that takes
-audio a Record beside its well (`design/scripts/file-recorder.js`). A list's add well gets
+audio a Record beside its well (`design/scripts/files/file-recorder.js`). A list's add well gets
 the same peer, and a recording it keeps is added as one more entry; `design/controls.html`
 draws it beside the list and its tests drive it with the recorder's stand-in microphone
-(`src/presentation/controls/file-recorder.test-support.ts`).
+(`src/presentation/controls/recorder/file-recorder.test-support.ts`).
 
 ## Acceptance criteria
 

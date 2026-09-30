@@ -3,15 +3,14 @@
 // `no-scope-control.policy.ts` sweeps for one named after a control.
 //
 // What the open capability is allowed to reach is the classification prompt and the loop's turns
-// (`src/runtime/query/the-collection-in-the-window.test.ts`); what it may never reach is anything
+// (`src/runtime/query/turn/the-collection-in-the-window.test.ts`); what it may never reach is anything
 // a person sees outside Aluna's own sentence.
 
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-
-import { PROMPT_FORM_ID } from "#shell/desk-window.js";
-import { PROMPT_FIELD_ID, PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
+import { PROMPT_FIELD_ID, PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
+import { PROMPT_FORM_ID } from "#shell/desk/window/desk-window.js";
 import {
   ANSWER_WINDOW_ATTRIBUTE,
   ANSWER_WINDOW_OPENING,
@@ -24,7 +23,7 @@ import {
   elementsOf,
   type ServedElement,
 } from "../../../server/http/served-page.test-support.ts";
-import { El, parseHtml } from "../../controls/choice-picker.test-support.ts";
+import { El, parseHtml } from "../../controls/double/choice-picker.test-support.ts";
 
 const PUBLIC = join(import.meta.dir, "../../../../public");
 

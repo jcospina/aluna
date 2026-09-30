@@ -19,7 +19,7 @@ typed. An upload is the one exception, because losing it costs a transfer the pe
 to repeat.
 
 **It is the same question that guards a running build.** 5.8/04 built the question that
-asks before leaving a running build or evolution (`public/leaving-a-run.js`). This issue
+asks before leaving a running build or evolution (`public/desk/leaving-a-run.js`). This issue
 reuses that question as it shipped, the veil over the window with its centred panel,
 rather than drawing a second one. Its wording for a held upload is drawn in `design/`
 first, and that drawing is part of the sign-off.

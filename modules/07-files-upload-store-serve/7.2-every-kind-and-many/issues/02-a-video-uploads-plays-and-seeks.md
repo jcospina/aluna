@@ -60,7 +60,7 @@ bytes are unlinked partway through a response.
 builds the record's render view drawn in 7.2/01 (`design/controls.html`, Files, "Inside
 the open record"; C18): the control's filled video state previews it, its Open takes the
 window to the render view without leaving the record, and the full player there
-(`design/scripts/file-player.js`) plays and seeks. When the browser won't play the file,
+(`design/scripts/files/file-player.js`) plays and seeks. When the browser won't play the file,
 the download link stands where the player would be, and the form's preview drops its play
 control and says why. A WebM or Ogg file's declared `video/` or `audio/` type names its
 family; failing that, a field that takes only one of the two does, and failing both, the
@@ -83,7 +83,7 @@ enum's order, and `file.test.ts` proves that over four families.
 
 **What 7.1/07 landed for this issue.** The serve route already opens the file under its read
 token and releases the token before the body streams, and `HEAD` already answers with the
-headers and `Content-Length`. `ObjectStore.get` (`src/platform/files/object-store.ts`) opens its
+headers and `Content-Length`. `ObjectStore.get` (`src/platform/files/store/object-store.ts`) opens its
 own descriptor, and "keeps streaming an object opened before it was deleted" in
 `object-store.test.ts` proves open-then-stream against an unlink. What is left for Range:
 `OpenedObject` reads from byte 0, so `get` needs a start and a length, read from that descriptor
@@ -170,9 +170,9 @@ Waiting on the sign-off gate; everything else is done.
 - **The HTML filter.** Every `<video>` and `<audio>` gets `preload="metadata"`. `autoplay` and
   `poster` left the card vocabulary, so neutralizing strips them and design lint flags them. A
   caption track that names a served file loses its `src`.
-- **The record's render view** (`public/file-render-view.js`, C18). A held video's Open puts the
+- **The record's render view** (`public/records/file-render-view.js`, C18). A held video's Open puts the
   form out of sight (`[data-file-viewing]`), pauses its preview, and mounts
-  `design/scripts/file-player.js` under a way back that names the record: its title, drawn by the
+  `design/scripts/files/file-player.js` under a way back that names the record: its title, drawn by the
   server as `data-record-title`, or "New" and its noun on a create. Back restores the form as it
   was and returns the keyboard to the Open. A file the browser won't play shows the download link
   where the player would be. In a short window the picture gives up height, so the controls stay

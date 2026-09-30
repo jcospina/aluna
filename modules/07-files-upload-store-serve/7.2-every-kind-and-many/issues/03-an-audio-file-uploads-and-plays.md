@@ -71,7 +71,7 @@ Waiting on the sign-off gate; everything else is done.
   of their own. A behavioral `audio` token posts a pending scratch sound of a type admission
   records.
 - **The audio extensions admitted:** mp3, m4a, aac, wav, ogg, oga, opus, webm and flac, the ones
-  `design/scripts/file-parts.js` names.
+  `design/scripts/files/file-parts.js` names.
   - MP3 and ADTS AAC (`audio-frames.ts`) have no container. The scan skips every ID3v2 tag without
     holding it, then any zero padding, and there needs a frame whose next frame follows where its
     length says. A rip cut mid-frame may start up to 2 KB on, if four frames then run. At most four

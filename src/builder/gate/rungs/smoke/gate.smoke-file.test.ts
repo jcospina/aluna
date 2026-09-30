@@ -6,7 +6,7 @@ import type { Database } from "bun:sqlite";
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 
 import { MAX_NAME_BYTES } from "../../../../platform/files/file-name.ts";
-import { requireFileLedgerRow } from "../../../../platform/files/ledger.test-support.ts";
+import { requireFileLedgerRow } from "../../../../platform/files/store/ledger.test-support.ts";
 import {
   CAPTION_FIELD,
   PHOTO_FIELD,

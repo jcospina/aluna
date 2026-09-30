@@ -2,19 +2,25 @@ import { describe, expect, jest, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import fc from "fast-check";
+import { PROMPT_FIELD_ID, PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
+import {
+  PROMPT_BAR_MESSAGE_EVENT,
+  PROMPT_REFUSAL_FLASH_MS,
+  PROMPT_REFUSED_CLASS,
+} from "#shell/desk/prompt-bar.js";
 import {
   CAPABILITY_LOGO_SELECTOR,
   NAME_THE_WINDOW_EVENT,
   PROMPT_FORM_ID,
   PUT_WINDOW_AWAY_EVENT,
-} from "#shell/desk-window.js";
+} from "#shell/desk/window/desk-window.js";
 import {
-  PROMPT_BAR_MESSAGE_EVENT,
-  PROMPT_REFUSAL_FLASH_MS,
-  PROMPT_REFUSED_CLASS,
-} from "#shell/prompt-bar.js";
-import { PROMPT_FIELD_ID, PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
-
+  BLANK_PROMPT_NOTICE,
+  hasMeaningfulPromptContent,
+  PROMPT_REFUSAL_ATTRIBUTE,
+  renderPromptNotice,
+} from "../../http/index.ts";
+import { byId, elementsOf, moduleSources } from "../../http/served-page.test-support.ts";
 import {
   closeStream,
   desk,
@@ -24,14 +30,7 @@ import {
   openStream,
   streamRestoration,
   WINDOW_REGION_ID,
-} from "../../app.shell-double.test-support.ts";
-import {
-  BLANK_PROMPT_NOTICE,
-  hasMeaningfulPromptContent,
-  PROMPT_REFUSAL_ATTRIBUTE,
-  renderPromptNotice,
-} from "../../http/index.ts";
-import { byId, elementsOf, moduleSources } from "../../http/served-page.test-support.ts";
+} from "../../shell-glue/app.shell-double.test-support.ts";
 
 // The desk has two places to speak and each message goes to the one that was asked (PLAN decisions
 // 24 and 26; ARCH §6.1, §6.2). Run rather than grepped: routing proved by a string match is not.
@@ -529,7 +528,7 @@ describe("the bar the page ships, and the blank prompt both halves refuse", () =
     // The browser's bubble cannot tell an empty field from one holding three spaces, and it is
     // not the desk's voice either way.
     expect(field.attributes.has("required")).toBe(false);
-    expect(moduleSources(elements)).toContain("/static/prompt-bar.js");
+    expect(moduleSources(elements)).toContain("/static/desk/prompt-bar.js");
   });
 
   test("the bar refuses exactly the prompts the server would", () => {

@@ -23,7 +23,7 @@ Per ARCH §9.7, no internals language ever surfaces in the UI ("handler", "migra
 
 - **Layout:** collapsible left sidebar + content column with a bottom-pinned prompt bar; content area fills the remaining space.
 - **Typography:** the **Outfit** typeface, **vendored locally** (`public/fonts/`, `@font-face`, `font-display: swap`, system-stack fallback) — no build step, no CDN.
-- **Token system + base style:** subtler-neobrutalism on Paper & Ink, expressed through **semantic CSS custom-property tokens** in a single `public/app.css`. **Light theme only**, **single `:root`, no theming machinery** (no `data-schema`, no theme registry, no dark stylesheet) — but using semantic tokens, so a dark theme remains a purely additive future override for free.
+- **Token system + base style:** subtler-neobrutalism on Paper & Ink, expressed through **semantic CSS custom-property tokens** in a single `public/css/app.css`. **Light theme only**, **single `:root`, no theming machinery** (no `data-schema`, no theme registry, no dark stylesheet) — but using semantic tokens, so a dark theme remains a purely additive future override for free.
 - **Sidebar collapse — shell chrome:** desktop full-collapse to reclaim content width; mobile off-canvas drawer + backdrop. This is presentation chrome (an Alpine `open` state on the root from issue 02), **not** the product interactivity the epic defers. Persisting collapse state is optional.
 - **Aluna wordmark:** introduced this issue. Two homes for two states — content-area top at cold-start (sidebar hidden), sidebar top once the sidebar is present. Typographic in Outfit (heavier weight); no separate display face, no logo mark yet.
 - **Cold start (zero capabilities):** sidebar hidden; content area shows the **Aluna wordmark on top + a neutral centered placeholder**; the inert prompt bar carries a **friendly product-voice `placeholder`** (the one bit of voice copy that ships).
@@ -45,7 +45,7 @@ No functional onboarding/welcome flow here — that depends on the prompt actual
 
 - [x] The three regions are laid out as the shell: collapsible left sidebar (capability toolbar) + content column with the prompt bar pinned to the bottom and the content area filling the rest
 - [x] **Outfit** is vendored locally (`public/fonts/`, `@font-face`, `font-display: swap`, system fallback); no CDN, no build step
-- [x] Base style applied via **semantic CSS custom-property tokens** in a single `public/app.css` — **light theme only, single `:root`, no theming machinery**, structured (semantic tokens) so dark is a later additive override
+- [x] Base style applied via **semantic CSS custom-property tokens** in a single `public/css/app.css` — **light theme only, single `:root`, no theming machinery**, structured (semantic tokens) so dark is a later additive override
 - [x] The style reads as **subtler neobrutalism on Paper & Ink** (Paper & Ink palette; 1px softened-ink borders on structural surfaces only; two-step hard shadows `2px/4px` down-right, low-contrast; gentle 1–2px press; 10px radius)
 - [x] **Sidebar collapse/expand** works as shell chrome: desktop full-collapse for content width; mobile off-canvas drawer + backdrop (explicitly classified as chrome, not deferred product interactivity)
 - [x] **Aluna wordmark** present: content-area top at cold-start, sidebar top when the sidebar is shown; typographic in Outfit
@@ -76,12 +76,12 @@ Create three files. The repo currently has none of these; `docs/agents/domain.md
 - Cite the referenced momo Paper & Ink palette as the token source.
 
 **0.3 `design/design-system.md`** — the practical reference coding agents consult.
-- Token table (mirrors `public/app.css`; values' source of truth is the CSS).
+- Token table (mirrors `public/css/app.css`; values' source of truth is the CSS).
 - The neobrutalism dial: 1px softened-ink borders (structural surfaces only), two-step `2px/4px` down-right hard shadows (low-contrast, used sparingly), gentle 1–2px press, 10px radius.
 - **Clean, not boxed:** borders only where they earn it (the prompt field, form controls), never a frame around every region; regions separate by background tone + spacing. The prompt composer is borderless and sits directly on the page background (`--color-bg`) — unlike momo's chat, which sits on a white surface panel.
 - Component treatments + do/don'ts (adapt momo's `DESIGN.md` rules to the *quieter* dial; drop momo's 4px borders and `-8/-12/-16` shadows).
 
-### Phase 1 — Tokens & fonts (`public/app.css`, `public/fonts/`)
+### Phase 1 — Tokens & fonts (`public/css/app.css`, `public/fonts/`)
 
 **1.1 Vendor Outfit.** Commit the Outfit **variable** woff2 (wght axis; OFL-licensed) to `public/fonts/`. One `@font-face`:
 
@@ -154,9 +154,9 @@ System fallback stack: `"Outfit", system-ui, -apple-system, "Segoe UI", Roboto, 
 
 **1.3 Base/reset:** `* { box-sizing: border-box }`, `html,body{height:100%}`, `body{ margin:0; background:var(--color-bg); color:var(--color-text); font:var(--body); }`, use `100dvh` for full-height so mobile browser chrome doesn't clip the prompt bar.
 
-### Phase 2 — Layout & shell styling (`public/index.html` + `public/app.css`)
+### Phase 2 — Layout & shell styling (`public/index.html` + `public/css/app.css`)
 
-Extend issue 02's markup — do **not** restructure it. Replace the inline `<style>` block with `<link rel="stylesheet" href="/static/app.css">`; add `<script defer src="/static/app.js"></script>`; set `<title>Aluna</title>`.
+Extend issue 02's markup — do **not** restructure it. Replace the inline `<style>` block with `<link rel="stylesheet" href="/static/css/app.css">`; add `<script defer src="/static/app.js"></script>`; set `<title>Aluna</title>`.
 
 **Clean, not boxed.** Issue 02's 1px borders on every region are rough placeholder delineation — the real UI must read cleaner. Borders appear only where they *earn* their place (the prompt field, form controls), never as a frame around each region; regions separate by **background tone and spacing**. The sole structural divider kept is the sidebar's `border-right` (one functional separator between two distinct regions, like Claude/ChatGPT); the prompt section has **no** border and no surface fill.
 
@@ -235,7 +235,7 @@ Authored into `CONTEXT.md` (Phase 0.1). Guides all UI copy and every future codi
 - **Cold-start orb** (see What to build): reusable component, double-duty as M2's build indicator, rendering technique open, respects reduced motion.
 - **No branding this epic.** "omni-crud" is an engineering name (contains "CRUD") and would violate §9.7; defer a wordmark until there's a friendly user-facing product name, then home it atop the sidebar.
 
-Cross-cutting defaults (apply here and in issue 02): logos are **inline SVG** (no logo font/library); vendored libraries under `public/vendor/`, Outfit under `public/fonts/`, authored styles in `public/app.css`, authored shell JS (Alpine glue / the pet later) in `public/app.js`; everything served from `/static/…`.
+Cross-cutting defaults (apply here and in issue 02): logos are **inline SVG** (no logo font/library); vendored libraries under `public/vendor/`, Outfit under `public/fonts/`, authored styles in `public/css/app.css`, authored shell JS (Alpine glue / the pet later) in `public/app.js`; everything served from `/static/…`.
 
 **2026-06-04 — design + implementation plan (grilling session).** Revisited and extended the above. Key changes and rationale:
 
@@ -254,12 +254,12 @@ Cross-cutting defaults (apply here and in issue 02): logos are **inline SVG** (n
 Durable docs (Phase 0):
 - `CONTEXT.md` — glossary (Aluna, shell, capability, capability toolbar/sidebar, prompt bar, content area, the pet, product voice) with `_Avoid_` lists, product framing, and the full product-voice guide (persona, hard rule, do/don't table).
 - `docs/adr/0001-product-style-and-voice.md` — the decision record (subtler neobrutalism on Paper & Ink, Outfit, single `:root`/no theming, product voice, pet deferred, Aluna wordmark), citing momo's `themes.config.ts` `paper` theme as the token source and the dial it's turned down from.
-- `design/design-system.md` — token table (mirrors `public/app.css`), the neobrutalism dial vs momo, "clean not boxed", component treatments, do/don'ts.
+- `design/design-system.md` — token table (mirrors `public/css/app.css`), the neobrutalism dial vs momo, "clean not boxed", component treatments, do/don'ts.
 - `docs/pet.md` — **new**, beyond the three planned docs: the deferred pet gets a durable, findable home (concept, placement, state vocabulary, rendering constraints, reduced-motion, voice, TBD-name) so a future issue implements it cold rather than spelunking this closed issue. Linked from the CONTEXT.md glossary.
 
 Build (Phases 1–5):
 - `public/fonts/outfit-variable.woff2` — Outfit **variable** woff2 (wght 100–900, OFL), vendored from fontsource; `public/fonts/OFL.txt` ships the license alongside it. One `@font-face`, `font-display: swap`, system fallback stack.
-- `public/app.css` — semantic `--color-*`/type/space/shadow/motion tokens in one `:root` (light only, no theming machinery); the shell layout (`100dvh` flex row; surface sidebar with the one `border-right` divider; borderless prompt section on `--color-bg` with only the field treated, constrained + centered); cold-start composition; gentle 1–2px press; desktop full-collapse + mobile drawer/backdrop; `prefers-reduced-motion` reset; `:focus-visible` accent rings.
+- `public/css/app.css` — semantic `--color-*`/type/space/shadow/motion tokens in one `:root` (light only, no theming machinery); the shell layout (`100dvh` flex row; surface sidebar with the one `border-right` divider; borderless prompt section on `--color-bg` with only the field treated, constrained + centered); cold-start composition; gentle 1–2px press; desktop full-collapse + mobile drawer/backdrop; `prefers-reduced-motion` reset; `:focus-visible` accent rings.
 - `public/index.html` — extended (not restructured): `<title>Aluna</title>`, `<link>` app.css, scripts reordered to **htmx → app.js → alpine** (app.js must register the `shell` Alpine component on `alpine:init` *before* alpine's cdn build auto-starts via `queueMicrotask`). Added the Aluna wordmark (two homes), the cold-start placeholder, the sidebar toggle (inline-SVG panel logo, `aria-expanded`/`aria-controls`), the drawer backdrop, and the product-voice prompt `placeholder` "What would you like to keep track of?". Presentation state is class-driven (`has-capabilities`, `sidebar-open`) so the no-JS default renders correct cold-start (no FOUC). The literal engineering name never appears, even in source/comments.
 - `public/app.js` — the `shell` Alpine component (`open`, `hasCapabilities`, responsive `init`), authored as `// @ts-check` + JSDoc plain JS (no build).
 - `tsconfig.browser.json` + `package.json` — the existing typecheck didn't actually cover `public/*.js` (server tsconfig is `src`-only, no DOM lib). Added a browser tsconfig (DOM lib, `checkJs`, vendor excluded) and made `typecheck` run both, so app.js's types are genuinely checked with no runtime change.

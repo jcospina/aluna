@@ -2,15 +2,15 @@ import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 
-import { ALLOWED_CLASSES } from "../safety/vocabulary.ts";
+import { ALLOWED_CLASSES } from "../safety/enforcer/vocabulary.ts";
 
 // The layout kit is the class vocabulary generated capability markup speaks, shipped as a real
 // stylesheet so a screen arranges wherever High Meadow loads, with no inline style (ADR-0005 §4).
 
 const ROOT = resolve(import.meta.dir, "../../..");
 const KIT = "design/styles/layout-kit.css";
-const CONTROLS = "design/styles/components/controls.css";
-const FORM_CONTROLS = "design/styles/components/form-controls.css";
+const CONTROLS = "design/styles/components/controls/controls.css";
+const FORM_CONTROLS = "design/styles/components/controls/form-controls.css";
 
 type Rule = { selector: string; properties: string[] };
 
@@ -71,14 +71,14 @@ describe("the layout kit ships under design/styles", () => {
   test("is one file, in the manifest, with no second copy under public/", () => {
     expect(existsSync(join(ROOT, KIT))).toBe(true);
     expect(existsSync(join(ROOT, "public/css/primitives.css"))).toBe(false);
-    expect(read("public/app.css")).not.toContain("primitives.css");
+    expect(read("public/css/app.css")).not.toContain("primitives.css");
 
     // Below the components so its utilities win where they apply, above ink.css,
     // which is the seam where the drawn line takes over and has to stay last.
     const manifest = read("design/styles/index.css");
     const kitImport = manifest.indexOf('@import url("./layout-kit.css");');
     expect(kitImport).toBeGreaterThan(-1);
-    expect(kitImport).toBeGreaterThan(manifest.indexOf('url("./components/doc.css")'));
+    expect(kitImport).toBeGreaterThan(manifest.indexOf('url("./doc.css")'));
     expect(kitImport).toBeLessThan(manifest.indexOf('url("./components/ink.css")'));
   });
 
@@ -98,8 +98,8 @@ describe("the layout kit ships under design/styles", () => {
     // silently: the suite stayed green with the repeated-value list's stylesheet orphaned.
     const manifest = read("design/styles/index.css");
     for (const path of stylesheetsUnder("design/styles/components")) {
-      const name = path.slice(path.lastIndexOf("/") + 1);
-      expect(manifest, `${path} is imported by nothing`).toContain(`./components/${name}`);
+      const name = path.slice("design/styles/".length);
+      expect(manifest, `${path} is imported by nothing`).toContain(`"./${name}"`);
     }
   });
 

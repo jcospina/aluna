@@ -7,11 +7,11 @@ import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { resolveArtifactsRoot } from "../src/builder/artifacts/artifacts-root.ts";
 import { errorMessage } from "../src/platform/errors.ts";
-import { isFileKey } from "../src/platform/files/ledger.ts";
+import { isFileKey } from "../src/platform/files/store/ledger.ts";
 import {
   resolveObjectStoreRoot,
   STAGING_DIRECTORY,
-} from "../src/platform/files/object-store-root.ts";
+} from "../src/platform/files/store/object-store-root.ts";
 import { resolveDbPath } from "../src/platform/persistence/db-path.ts";
 import { sqlIdentifier } from "../src/platform/persistence/sql-identifier.ts";
 import {

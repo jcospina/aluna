@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { BUSY_LABEL_ATTRIBUTE } from "#shell/core/shell-dom.js";
 import {
   closeLogoMenu,
   closeRenameEditor,
   LONG_PRESS_MS,
   LONG_PRESS_SLOP_PX,
   labelNotice,
-} from "#shell/logo-menu.js";
-import { BUSY_LABEL_ATTRIBUTE } from "#shell/shell-dom.js";
+} from "#shell/desk/logos/logo-menu.js";
 import { isCapabilityNameLabel, MAX_CAPABILITY_LABEL_CHARS } from "../../../registry/index.ts";
 import { desk, type Node, pressAndHold, slotFor } from "./logo-menu.test-support.ts";
 

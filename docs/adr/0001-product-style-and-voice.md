@@ -50,7 +50,7 @@ declined.
 
 Aluna's base visual style is subtler neobrutalism on a Paper & Ink palette,
 typeset in Outfit (vendored locally) and expressed through semantic CSS
-custom-property tokens in a single `public/app.css` with one `:root` and no
+custom-property tokens in a single `public/css/app.css` with one `:root` and no
 theming machinery (light theme only). The product speaks in a warm, first-person
 product voice that never exposes internals (ARCH §9.7). This ADR introduces
 Aluna as the user-facing wordmark. The pet, the anthropomorphic spark of Aluna,

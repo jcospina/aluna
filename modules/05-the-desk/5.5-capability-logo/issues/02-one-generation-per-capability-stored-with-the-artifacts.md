@@ -198,7 +198,7 @@ The rest, and what each changed:
   `hx-push-url`, so opening a capability snapshots the desk under the previous URL
   and Back re-processes it, re-firing every `hx-trigger="load"` in it. An attempt
   runs for the better part of a minute, so a snapshot taken mid-attempt was armed,
-  and a few taps of Back would spend all three. `public/logo-attempt.js` disarms a
+  and a few taps of Back would spend all three. `public/desk/logos/logo-attempt.js` disarms a
   tile the moment its request starts; htmx snapshots the live DOM, so a tile that
   has fired can never be restored armed.
 - **The paid POST had no origin guard.** Any page the user visited could have

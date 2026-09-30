@@ -125,7 +125,7 @@ still rides `htmx:sseClose`, which fires for a held run exactly as before — th
 server closes the stream after `done` whether or not the window is waiting. A run
 that has ended has no in-flight story for a tile to be the way back to.
 
-**`public/list-field.js`.** The repeated-value rows left `public/app.js` as a
+**`public/controls/list-field.js`.** The repeated-value rows left `public/app.js` as a
 module of their own. Not cosmetic: `biome`'s `noExcessiveLinesPerFile` fails
 `public/app.js` at 509 counted lines against a maximum of 500, and CLAUDE.md
 forbids buying the difference with a rule exception. The rows were the one
@@ -259,16 +259,16 @@ gerund, for a window a run opened and then failed in.
 
 **Two more modules left `public/app.js`.** Adding the naming pushed it past biome's
 500-line ceiling again, and then pushed `desk-window.js` past it too. Recovering a severed
-capability deletion became `public/capability-deletion.js` and the window's record became
-`public/desk-window-store.js` — both reached only through events or as pure functions, and
+capability deletion became `public/desk/logos/capability-deletion.js` and the window's record became
+`public/desk/window/desk-window-store.js` — both reached only through events or as pure functions, and
 neither needed by anything before Alpine starts. `desk-window.js` re-exports the record's
 API so no caller had to learn it moved.
 
 ## The regression this shipped with, and what now catches it
 
 **The desk was dead on arrival and every check said it was fine.**
-`public/desk-window-store.js` was lifted out of `desk-window.js` carrying the
-`#design/desk-geometry.js` specifier its test neighbours use. Everything under
+`public/desk/window/desk-window-store.js` was lifted out of `desk-window.js` carrying the
+`#design/desk/desk-geometry.js` specifier its test neighbours use. Everything under
 `public/` is served to a browser verbatim — no bundler, no import map — so the
 browser could not resolve it, the module never loaded, `desk-window.js` died with
 it, and the desk lost every logo press and the whole address. No capability
@@ -396,7 +396,7 @@ throughout every run and was shaved the same way.
   `class="btn btn--outline build-stream__cancel"`, standing **last** in the section,
   and `POST /build/…/cancel` answers 202. The job was cancelled without its stream
   ever being opened, so no provider call was made. `/`, `/static/app.js`,
-  `/static/list-field.js`, `/static/capability-deletion.js` and `/static/css/demo.css`
+  `/static/controls/list-field.js`, `/static/desk/logos/capability-deletion.js` and `/static/css/demo.css`
   all serve the new code.
 - The vendored htmx was read directly to settle the two load-bearing assumptions:
   `swap` runs `findAndSwapOobElements` on the parsed payload *before* the

@@ -14,16 +14,16 @@ import {
   leavingIsBeingAsked,
   standDownWith,
   startLeavingGuard,
-} from "#shell/leaving-a-run.js";
-import { renderBuildSubscriber } from "../../server/http/fragments.ts";
-import { El, parseHtml } from "../controls/choice-picker.test-support.ts";
+} from "#shell/desk/leaving-a-run.js";
+import { renderBuildSubscriber } from "../../server/http/fragments/fragments.ts";
+import { El, parseHtml } from "../controls/double/choice-picker.test-support.ts";
 import {
   itemElementIdForTemplate,
   renderCollection,
   renderItemWrapper,
-} from "../records/list-container.ts";
-import { CAPABILITY, RECORD, recordDesk } from "../records/record-view.test-support.ts";
-import { renderRecordViewTemplate } from "../records/record-view.ts";
+} from "../records/collection/list-container.ts";
+import { CAPABILITY, RECORD, recordDesk } from "../records/record-view/record-view.test-support.ts";
+import { renderRecordViewTemplate } from "../records/record-view/record-view.ts";
 import { node, windowWithRun } from "./leaving-a-run.test-support.ts";
 
 // Leaving a live build or evolution warns first, and confirming ends it once (PLAN decision 17,
@@ -47,7 +47,7 @@ describe("what a run is, and where it is cancelled", () => {
 
   test("a run that has handed the window back is not one leaving can cost you either", () => {
     // A question stands in the window while its sentence is classified and then gives the frame
-    // straight back rather than filling it (`public/desk-answer-window.js`). Asking whether to
+    // straight back rather than filling it (`public/desk/window/desk-answer-window.js`). Asking whether to
     // stop making something is wrong twice over: it is making nothing, and leaving costs nothing.
     const focused: string[] = [];
     expect(buildJobIdIn(windowWithRun(focused, { givenBack: true }).el)).toBeNull();
@@ -434,7 +434,10 @@ describe("what answers the question", () => {
           renderItemWrapper("<span>note</span>", RECORD, { templateId }) +
           renderRecordViewTemplate(templateId, CAPABILITY, RECORD),
       }),
-      { capabilityId: CAPABILITY.id, modules: ["record-view.js", "record-mutations.js"] },
+      {
+        capabilityId: CAPABILITY.id,
+        modules: ["records/record-view.js", "records/record-mutations.js"],
+      },
     );
     try {
       desk.press(desk.doc.getElementById(itemElementIdForTemplate(templateId)) as El);

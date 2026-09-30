@@ -4,7 +4,7 @@ import {
   answerDoorway,
   WINDOW_DOORWAY_SELECTOR,
   whenTheRequestFails,
-} from "#shell/desk-doorway.js";
+} from "#shell/desk/desk-doorway.js";
 
 // The presses on the ground that are owed a window before htmx resolves their target. Today there
 // is one: Delete on a capability's context menu, whose confirmation fills it (PLAN decision 20).
@@ -156,7 +156,7 @@ describe("a press on desk furniture that is about to fill the window", () => {
   // htmx fires `htmx:afterRequest` after the swap, so a swap that detached the pressed control
   // left the event bubbling from a detached node and the listener on the document for good.
   test("the listener goes when the control that made the request leaves the document", async () => {
-    const { releaseRegionContent } = await import("#shell/region-scope.js");
+    const { releaseRegionContent } = await import("#shell/core/region-scope.js");
     const root = documentDouble();
     const asking = doorwayItem();
 

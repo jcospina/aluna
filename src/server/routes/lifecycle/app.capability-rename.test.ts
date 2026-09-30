@@ -28,7 +28,7 @@ import {
   setupRouterTest,
   teardownRouterTest,
 } from "../../../runtime/router/dispatch/router.test-support.ts";
-import { renderCapabilityLogo } from "../../http/fragments.ts";
+import { renderCapabilityLogo } from "../../http/fragments/fragments.ts";
 import { unescapeHtml } from "../../http/html.ts";
 import { createTestApp } from "../../isolated-app.test-support.ts";
 

@@ -10,7 +10,7 @@ import {
   isFileKey,
   promotePendingFile,
   readFileLedgerRow,
-} from "../../../platform/files/ledger.ts";
+} from "../../../platform/files/store/ledger.ts";
 import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import {
   ALUNA_RESERVED_FIELD_PREFIX,

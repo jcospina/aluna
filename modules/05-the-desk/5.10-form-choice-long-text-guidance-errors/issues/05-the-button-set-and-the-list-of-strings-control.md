@@ -95,16 +95,16 @@ tightest is still secondary at 4.54.
 **The design gap is closed in the design first.** `controls.html` grows a section drawing
 both `string[]` modes and records the decision as C16; the "no picture here" note retires and
 the file field is left standing as the one absence that is not a gap. The control's rules are
-`design/styles/components/list-field.css` — a file of its own because `form-controls.css` was
+`design/styles/components/controls/list-field.css` — a file of its own because `form-controls.css` was
 at 478 of its 500-line ceiling, and because the subject is different: that file draws one
 control and this one arranges several into a field. Nothing in it declares an edge, because
 a row's shell is a `.field__control` and its actions are `.btn`s, both of which the ink
 system already names — which is also why `.field-list__remove` left the shell's own ink list.
 
-**One control, not two copies.** `design/scripts/list-rows.js` is the mechanics and ships as
-it stands, the way `design/scripts/ink.js` does; `public/list-field.js` is the product's half
+**One control, not two copies.** `design/scripts/controls/list-rows.js` is the mechanics and ships as
+it stands, the way `design/scripts/ink/ink.js` does; `public/controls/list-field.js` is the product's half
 of the seam — the delegation and the two ways a create form finishes — importing it over the
-same `../design/` path `public/ink.js` uses. The picker was ported and now exists twice; this
+same `../design/` path `public/core/ink.js` uses. The picker was ported and now exists twice; this
 one is imported and exists once.
 
 **Order is data, so it is moved rather than relabelled.** Every row posts under the same name

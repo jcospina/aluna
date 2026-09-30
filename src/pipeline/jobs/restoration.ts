@@ -5,7 +5,10 @@ import type { Database } from "bun:sqlite";
 
 import { getCapability } from "../../registry/index.ts";
 import { renderCachedCapabilitySurface } from "../../server/http/cached-view.ts";
-import { type PromptNoticeTone, renderPromptNotice } from "../../server/http/fragments.ts";
+import {
+  type PromptNoticeTone,
+  renderPromptNotice,
+} from "../../server/http/fragments/fragments.ts";
 
 export const RESTORATION_CAPABILITY_ID_FIELD = "__aluna_restore_capability_id";
 export const RESTORATION_INCARNATION_ID_FIELD = "__aluna_restore_incarnation_id";

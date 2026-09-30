@@ -80,7 +80,7 @@ hidden, inside the run's own surface — it cannot be fetched when it is wanted,
 the swap that delivered it would be the teardown it exists to ask about. The desk only
 stops hiding it, and hides the run's own Cancel while it stands.
 
-**The one way a run ends.** `public/leaving-a-run.js` owns `endTheRun` — the run's cancel
+**The one way a run ends.** `public/desk/leaving-a-run.js` owns `endTheRun` — the run's cancel
 route, the region rule, then htmx's own cleanup, in that order — and every way out of a
 live run goes through it, `putAway`'s backstop included. Closing the stream *before* the
 navigation is what keeps a cancelled run's restoration from being painted into a window
@@ -92,7 +92,7 @@ A confirmed switch replays the press the person already made, so a guarded and a
 unguarded press are literally the same press. A confirmed traversal is taken by moving
 again, not by rendering.
 
-**History.** `public/desk-address.js` was lifted out of `desk-window.js`: the address, the
+**History.** `public/desk/desk-address.js` was lifted out of `desk-window.js`: the address, the
 two verbs, and Back/Forward — which stopped being one line the moment a traversal had to
 be *held*. Every entry the desk writes now carries its place in the run of them, so a held
 traversal is stepped back off while the question stands and taken again exactly once on a

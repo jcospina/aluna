@@ -121,10 +121,10 @@ the logo attempt, which swaps `renderCapabilityLogoFace` â€” the button alone â€
 because a picture arriving is the only swap nobody asked for and it must not take
 away a name someone is typing.
 
-**`public/logo-menu.js`** owns the three ways in and the editor. An open panel is
+**`public/desk/logos/logo-menu.js`** owns the three ways in and the editor. An open panel is
 lifted into a new `#capability-menus` layer (the logo layer sits under the windows,
 which is right for logos and wrong for a menu) and put back on its own logo on the
-way down. `public/desk-doorway.js` answers the presses on the ground that need a
+way down. `public/desk/desk-doorway.js` answers the presses on the ground that need a
 window before htmx resolves their target.
 
 ## Findings fixed

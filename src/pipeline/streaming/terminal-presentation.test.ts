@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
+import { PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
 import { createMutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 import { renderBuildEnding } from "../../server/http/index.ts";
 import {

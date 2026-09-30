@@ -19,7 +19,7 @@ import {
   buildItemRendererDesignInjection,
   FEW_SHOT_DESIGN_EXAMPLES,
   type FewShotDesignExample,
-} from "../../../units/generation/few-shot-gallery.ts";
+} from "../../../units/generation/few-shot/few-shot-gallery.ts";
 import { itemRendererReturning as renderer } from "../../../units/generation/unit-fixtures.test-support.ts";
 import { notesSpec } from "../../gate.test-support.ts";
 import { findDesignViolation } from "./gate-design-lint.ts";

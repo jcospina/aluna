@@ -117,7 +117,7 @@ nominally lands in receives nothing. `fragment` therefore no longer means "the
 restoration" on its own — the restoration is the one carrying
 `data-build-restoration`, and three existing tests were sharpened to say so.
 
-**Taking it down is the client's, in `public/desk-logos.js`.** A module of its own
+**Taking it down is the client's, in `public/desk/logos/desk-logos.js`.** A module of its own
 beside `region-scope.js` and `swap-target.js`, which is what makes it testable
 against a small fake DOM rather than only as strings in `app.js`. It does two
 things: a press brings the in-flight narration back into view, and every ending of

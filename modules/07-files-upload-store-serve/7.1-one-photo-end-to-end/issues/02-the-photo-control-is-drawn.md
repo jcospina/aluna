@@ -39,7 +39,7 @@ this page.
 **The refusal sentences are product copy.** They follow the product voice (ADR-0001) and
 `docs/prose-guidance.md`, and this page is where their wording is settled.
 
-`design/styles/components/form-controls.css` is at its 500-line ceiling, which
+`design/styles/components/controls/form-controls.css` is at its 500-line ceiling, which
 `layout-kit.test.ts` asserts. Any line this control adds is paid for by compressing
 something next to it.
 

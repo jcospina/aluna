@@ -75,16 +75,16 @@ and a query worker share nothing.
 
 ## What landed
 
-- `src/runtime/query/query-worker-thread.ts` — the Worker thread. Opens its own
+- `src/runtime/query/worker/query-worker-thread.ts` — the Worker thread. Opens its own
   `SQLITE_OPEN_READONLY` connection against the path it is handed, refuses the statement
   forms that leave that file behind, then runs one parameterized statement per message and
   posts rows back. Prepares and finalizes each statement rather than using the connection's
   statement cache, since a question's SQL is written once and never asked again.
-- `src/runtime/query/query-worker.ts` — the main-thread side. `createQueryWorker(path =
+- `src/runtime/query/worker/query-worker.ts` — the main-thread side. `createQueryWorker(path =
   DB_PATH)`, `read(sql, parameters)`, `close()`, and a `QueryWorkerError` family
   (`Statement`/`Busy`/`Closed`) in the shape of `ReadGateError`. One read at a time; a
   second concurrent read is refused rather than queued.
-- `src/runtime/query/query-worker.test.ts` — 17 tests.
+- `src/runtime/query/worker/query-worker.test.ts` — 17 tests.
 
 ## Findings
 
@@ -138,7 +138,7 @@ makes it reachable from the server.
 
 **2026-09-04 — the store sweep moved, and the authorizer note was wrong.** 6.2/02 needed
 the same no-state proof, so this issue's `sweep` helper now lives in
-`src/runtime/query/store-sweep.test-support.ts` and is shared by both query suites;
+`src/runtime/query/worker/store-sweep.test-support.ts` and is shared by both query suites;
 `query-worker.test.ts` consumes it and asserts exactly what it did before, with a per-table
 contents digest added. Separately, this issue's `query-worker-thread.ts` header said
 decision 6's table bound "needs `sqlite3_set_authorizer` through FFI". PLAN decision 6 names
@@ -160,4 +160,4 @@ the copy could not resolve.
 **The table bound the header pointed at is built.** `query-worker-thread.ts` recorded that
 bounding a statement to the catalog's *tables* — as opposed to the connection's own file —
 was "the loop's to wire up in 6.3/01". It is `assertWholeCatalogQuery` in
-`src/runtime/query/whole-catalog-query-scope.ts`.
+`src/runtime/query/scope/whole-catalog-query-scope.ts`.

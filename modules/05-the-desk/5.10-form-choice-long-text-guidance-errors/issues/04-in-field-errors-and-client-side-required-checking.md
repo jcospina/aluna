@@ -110,7 +110,7 @@ empty slot would have grown a blank line under every field; and `.field.is-inval
 .field__guidance` turned *every* line the field says signal, which is right for a design
 page with one line per field and wrong for a form whose field may carry a declared hint,
 the platform's line about commas and a character count at once. Both live in
-`design/styles/components/form-controls.css` now, and `design/controls.html`'s invalid
+`design/styles/components/controls/form-controls.css` now, and `design/controls.html`'s invalid
 example takes the `--error` modifier that scoping keys on. What stayed in the product is
 the one rule about product-only markup: a radio group, a segmented row and a checkbox have
 no well for the design to recolour, so the fill goes behind the field instead.

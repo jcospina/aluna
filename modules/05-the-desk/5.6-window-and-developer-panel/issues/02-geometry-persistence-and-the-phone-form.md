@@ -195,7 +195,7 @@ the tests. Every finding is fixed.
 - **`watchViewport` was not idempotent.** Three subscriptions with no way off them, and
   nothing stopping a second call stacking a second set.
 - **The design page's own desk violated the decisions it exists to embody.** Decision 47
-  is written about `desk--phone` and `design/scripts` by name, and `design/scripts/desk.js`
+  is written about `desk--phone` and `design/scripts` by name, and `design/scripts/desk/desk.js`
   bound both gestures on a phone and left the maximise lamp in the focus order with
   nothing to do; its `#load` spread stored JSON over the defaults, so `{"x":"nope"}`
   became the box and the window landed at `NaN`. It now has the same `#syncForm` split

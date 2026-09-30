@@ -81,7 +81,7 @@ continues into the builder for `new_capability`.
 - `bun test src/intent-resolver/resolver.test.ts`
 - `bun test`
 - `bun run typecheck`
-- `bunx biome check src/app/app.ts src/app/app.test.ts src/intent-resolver/resolver.ts src/intent-resolver/index.ts public/app.js public/app.css public/index.html`
+- `bunx biome check src/app/app.ts src/app/app.test.ts src/intent-resolver/resolver.ts src/intent-resolver/index.ts public/app.js public/css/app.css public/index.html`
 - `git diff --check`
 
 ## HITL test instructions

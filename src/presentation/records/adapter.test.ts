@@ -13,7 +13,7 @@ import { describe, expect, test } from "bun:test";
 
 import { createCapabilityActionRecord } from "../../runtime/data/index.ts";
 import { escapeHtml } from "../../server/http/html.ts";
-import { Doc, type El, parseHtml } from "../controls/choice-picker.test-support.ts";
+import { Doc, type El, parseHtml } from "../controls/double/choice-picker.test-support.ts";
 import type { RenderableCapability } from "../fields/field-renderer.ts";
 import {
   createPlatformPresentationAdapter,
@@ -22,8 +22,12 @@ import {
   type PresentableRecord,
   RECORD_TEMPLATE_ID_PREFIX,
 } from "./adapter.ts";
-import { ITEM_PAYLOAD_ATTR, ITEM_RECORD_VIEW_ATTR, ITEM_TRIGGER_CLASS } from "./list-container.ts";
-import { RECORD_BACK_ATTR } from "./record-view.ts";
+import {
+  ITEM_PAYLOAD_ATTR,
+  ITEM_RECORD_VIEW_ATTR,
+  ITEM_TRIGGER_CLASS,
+} from "./collection/list-container.ts";
+import { RECORD_BACK_ATTR } from "./record-view/record-view.ts";
 
 // The schema contains one inactive field so the adapter can prove the record's form
 // follows active form-field order without leaking stored retired values.

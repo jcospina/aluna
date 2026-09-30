@@ -5,8 +5,8 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
 import { zodSchema } from "ai";
 
-import { isAdmittedType } from "../../../../platform/files/admission.ts";
-import { requireFileLedgerRow } from "../../../../platform/files/ledger.test-support.ts";
+import { isAdmittedType } from "../../../../platform/files/admission/admission.ts";
+import { requireFileLedgerRow } from "../../../../platform/files/store/ledger.test-support.ts";
 import {
   CAPTION_FIELD,
   PHOTO_FIELD,

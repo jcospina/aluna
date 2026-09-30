@@ -65,7 +65,7 @@ refusal from inside a capability's window and confirm it renders there.
 ## What landed
 
 **The bar says what happened, and the flash stops being the whole message.** The prompt
-bar's one live slot is now a subject of its own — `public/prompt-bar.js`, a module beside
+bar's one live slot is now a subject of its own — `public/desk/prompt-bar.js`, a module beside
 the desk's others. Nothing calls into it: the shell glue and the deletion module both
 *say what happened* and let it place the sentence (`aluna:prompt-bar-message`), which is
 what keeps one pair of hands on the slot, on the 400ms cue, and on the rule that retires a
@@ -91,7 +91,7 @@ not a placement decision.
 **The desk-action rule.** A request from the ground that would take the window is refused
 while a run is using it, and clears the bar when it goes ahead. Where it would land is
 htmx's own resolved answer (`detail.target`), borrowed rather than re-derived from
-`hx-target` — the rule `public/swap-target.js` already states. A press on a capability's
+`hx-target` — the rule `public/core/swap-target.js` already states. A press on a capability's
 logo is exempt from the refusal only, and by `matches` rather than `closest`, so a control
 *hung on* a logo (5.9's menu and rename editor) is desk furniture like any other.
 
@@ -134,7 +134,7 @@ Two reviews, 26 findings, none deferred.
 - The logo exemption used `closest`, which would have swallowed 5.9's own controls.
 - `renderRestorationFragment` branded every notice a refusal on behalf of callers it does
   not control; the tone comes from the caller now.
-- `public/capability-deletion.js` still wrote the slot directly, and flattened a
+- `public/desk/logos/capability-deletion.js` still wrote the slot directly, and flattened a
   refusal-marked reply into plain text on the severed-request recovery path.
 - The prompt-form exemption was load-bearing and unreachable by any test, because the
   double's form was not an element. Four mutations are now caught that were not.

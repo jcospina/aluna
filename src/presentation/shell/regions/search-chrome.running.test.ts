@@ -1,23 +1,29 @@
 // The capability search running: its request core driven with its own seams, and the real
-// `public/search-chrome.js` started on the collection the server renders — typing, Enter, Clear,
+// `public/records/search-chrome.js` started on the collection the server renders — typing, Enter, Clear,
 // a post-save re-read taking the region, and a form missing what the search needs.
 
 import { afterEach, describe, expect, test } from "bun:test";
-
-import { COLLECTION_COUNT_LABEL_ATTR } from "#shell/collection-count.js";
-import { RECORDS_REFRESH_START_EVENT } from "#shell/records-refresh.js";
-import { recordsRegionStatusMessage, searchUrlWithQuery } from "#shell/records-region-status.js";
-import { regionScopeReport, releaseRegionContent } from "#shell/region-scope.js";
+import { regionScopeReport, releaseRegionContent } from "#shell/core/region-scope.js";
+import { COLLECTION_COUNT_LABEL_ATTR } from "#shell/records/collection-count.js";
+import { RECORDS_REFRESH_START_EVENT } from "#shell/records/records-refresh.js";
+import {
+  recordsRegionStatusMessage,
+  searchUrlWithQuery,
+} from "#shell/records/records-region-status.js";
 import {
   createDebouncedCapabilitySearch,
   DEFAULT_SEARCH_DEBOUNCE_MS,
-} from "#shell/search-chrome.js";
-import type { El } from "../../controls/choice-picker.test-support.ts";
+} from "#shell/records/search-chrome.js";
+import type { El } from "../../controls/double/choice-picker.test-support.ts";
 import { capabilityRecordsRegionId } from "../../fields/field-renderer.ts";
-import { renderCollectionCountSidecar } from "../../records/collection-count.ts";
-import { named } from "../../records/collection-page.test-support.ts";
-import { renderCollection } from "../../records/list-container.ts";
-import { CAPABILITY, recordDesk, standingWindow } from "../../records/record-view.test-support.ts";
+import { named } from "../../records/collection/collection-page.test-support.ts";
+import { renderCollection } from "../../records/collection/list-container.ts";
+import {
+  CAPABILITY,
+  recordDesk,
+  standingWindow,
+} from "../../records/record-view/record-view.test-support.ts";
+import { renderCollectionCountSidecar } from "../../records/region/collection-count.ts";
 
 /** A claim that never coordinates with anything, so the core's own invalidation is what is asked. */
 function freeClaims() {
@@ -209,7 +215,7 @@ async function searching(
 ) {
   const standing = await recordDesk(renderCollection({ capability: CAPABILITY }), {
     capabilityId: CAPABILITY.id,
-    modules: ["search-chrome.js"],
+    modules: ["records/search-chrome.js"],
   });
   desk = standing;
   const asked: string[] = [];

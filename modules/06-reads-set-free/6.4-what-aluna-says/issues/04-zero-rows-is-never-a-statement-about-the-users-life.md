@@ -71,14 +71,14 @@ statement about the user's data*.
 **The endings are three, and two of them are the platform's.** `QuestionEnding` grew
 `nothing_found`, for a question that searched and matched nothing, and `nothing_worked`, for one
 whose statements never came back at all. Neither runs an answer generation
-(`src/runtime/query/question-loop.ts`): there is no sentence of the model's in either, so there is
+(`src/runtime/query/loop/question-loop.ts`): there is no sentence of the model's in either, so there is
 nowhere for *you spent nothing on groceries* to be written. The words sit beside
 `QUESTION_BUDGET_SPENT_SENTENCE` in `question-narration.ts`.
 
 **The classification is read off the statement's plan, because a returned value cannot be read on
 its own.** `0` is what an empty `count` answers, and it is equally what `coalesce(sum(x), 0)` and
 `? AS category` hand back out of nothing. So `readQuestionPlan`
-(`src/runtime/query/question-nothing-found.ts`) walks the `EXPLAIN` the table bound already
+(`src/runtime/query/endings/question-nothing-found.ts`) walks the `EXPLAIN` the table bound already
 compiles and follows registers: which aggregates are finalized, which of them the result row is
 actually built from, and what stands between the two. What it hands back is what the statement
 would return **having matched nothing** — no row at all, or one row of nulls plus the answers of

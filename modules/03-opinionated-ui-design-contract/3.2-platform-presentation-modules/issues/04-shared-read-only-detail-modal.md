@@ -66,7 +66,7 @@ added (ADR-0005 §3).
   a bottom gutter; tokens only). **Explicit responsive width** (a native `<dialog>`
   otherwise shrinks to its content — the "too narrow" sign-off finding): almost full
   `<480px`, 80vw on small tablets, 600px on desktop (breakpoints mirror the shell's
-  768px line). Wired into `public/app.css`.
+  768px line). Wired into `public/css/app.css`.
 - `src/presentation/detail-modal.test.ts` — 19 tests: the single-dialog instance +
   labelling + native close + empty body, field-renderer delegation + type formatting +
   hostile-value escaping, the `<template>` wrapper + id escaping, CSS parity, and the

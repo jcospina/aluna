@@ -133,7 +133,7 @@ new tab: the photo draws. Send a `.heic` renamed to `.jpg` and see the refusal. 
 
 ## What landed
 
-**The object store.** `src/platform/files/object-store.ts` holds the S3-shaped interface and its
+**The object store.** `src/platform/files/store/object-store.ts` holds the S3-shaped interface and its
 local adapter. `put` streams a body into `<root>/.incoming/<key>` through a `Bun.file` sink on a
 descriptor the store opened itself, then fsyncs it. `StagedObject.place` renames it into
 `<root>/<key>` and fsyncs the directory, and answers `false` when a cleanup took the staged bytes
@@ -141,7 +141,7 @@ first. `get` opens its own descriptor with `O_NOFOLLOW | O_NONBLOCK`, so a plant
 socket answers as gone, and the body closes that descriptor however it ends. `delete` unlinks the
 staged copy first. `url` is always `/files/<key>`. `clearStaging` empties `.incoming/`, and boot
 calls it before the server listens. The root is `OMNI_OBJECT_STORE_ROOT`
-(`src/platform/files/object-store-root.ts`), `storage` when unset, and `bun run reset` now clears
+(`src/platform/files/store/object-store-root.ts`), `storage` when unset, and `bun run reset` now clears
 only the store's own entries under it: `.incoming/` and key-named files.
 
 Two mechanisms differ from this issue's text. Uploads are not written with `Bun.write`, which
@@ -152,7 +152,7 @@ the store closes only once the read in flight settles. ARCH, `docs/modules.md`, 
 and the PLAN's 7.1 bullet and decision 23 now say so.
 
 **The upload route.** `POST /capability/:id/:incarnation_id/upload/:field`
-(`src/server/files/upload-route.ts`, built by `fileUploadPath`) carries
+(`src/server/files/upload/upload-route.ts`, built by `fileUploadPath`) carries
 `guardStreamingRoute(maxFileBytes)`. The body is the file, and `X-File-Name` carries its name
 percent-encoded. Before a byte is read, the path must name the active incarnation and an active file
 field (404 otherwise), the header must be printable ASCII whose escapes are UTF-8 (400), and the
@@ -169,7 +169,7 @@ staged bytes were taken before the rename. A hang-up answers an empty 400 and is
 declared length over the cap never reaches the route, because Bun refuses it first with an empty
 413; 7.1/08's note says what the control does about that.
 
-**Admission** (`src/platform/files/admission.ts`). The extensions it admits are `jpg`, `jpeg`,
+**Admission** (`src/platform/files/admission/admission.ts`). The extensions it admits are `jpg`, `jpeg`,
 `jfif`, `pjpeg`, `pjp`, `png`, `gif`, `webp` and `avif`, compared lowercase on the decoded name
 before the length cap. Blank and `application/octet-stream` are no claim; `image/jpg`,
 `image/pjpeg` and `image/x-png` are aliases, and every parameter is dropped. The signature rows are
@@ -187,7 +187,7 @@ letter and its accent would otherwise leave the name outside NFC. The zero-width
 emoji and scripts need them. `capFileName` caps at 255 bytes, cuts between graphemes and keeps an
 extension of up to 16 bytes. `inlineContentDisposition` writes the RFC 6266 and 8187 header.
 
-**Serving** (`src/server/files/serve-route.ts`). `/files/:key` checks the key's shape, then the
+**Serving** (`src/server/files/serve/serve-route.ts`). `/files/:key` checks the key's shape, then the
 ledger, and serves only a `pending` or `owned` row whose kind and type admission could have
 recorded. It takes a read token for the row's incarnation, opens the file under it and gives the
 token back before the body streams. Bytes that are gone, or no longer the size admission recorded,
@@ -198,7 +198,7 @@ its body, so the route closes the file on the request's abort itself.
 
 **Around them.** `readActiveIncarnationCatalog` moved from the logo module to
 `src/registry/store/store.ts`, and the logo route and both file routes take their tokens against
-it. The refusal sentences live in `src/platform/files/refusal-copy.ts`, which the router's file
+it. The refusal sentences live in `src/platform/files/admission/refusal-copy.ts`, which the router's file
 refusal now reads too, with straight apostrophes like the rest of the product's copy. The ledger
 gained `insertPendingFile` and `enqueuePendingFile`. 7.1/08, 7.2/02 and 7.3/04 each carry a note on
 what this issue landed for them.

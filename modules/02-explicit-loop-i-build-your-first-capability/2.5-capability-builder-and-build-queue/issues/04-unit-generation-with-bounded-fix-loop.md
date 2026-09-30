@@ -107,7 +107,7 @@ _2026-06-23 — implemented and verified._
 - `bun test src/builder/units/units.test.ts`
 - `bun test src/app/app.test.ts`
 - `bun run typecheck`
-- `bunx biome check src/app/app.ts src/app/app.test.ts public/index.html public/app.js public/app.css src/builder/index.ts src/builder/units/units.ts src/builder/units/units.test.ts docs/adr/0002-sse-transport-conventions.md docs/agents/issue-tracker.md docs/modules.md AGENTS.md modules/02-explicit-loop-i-build-your-first-capability/2.5-capability-builder-and-build-queue/issues/02-spec-generation.md modules/02-explicit-loop-i-build-your-first-capability/2.5-capability-builder-and-build-queue/issues/04-unit-generation-with-bounded-fix-loop.md`
+- `bunx biome check src/app/app.ts src/app/app.test.ts public/index.html public/app.js public/css/app.css src/builder/index.ts src/builder/units/units.ts src/builder/units/units.test.ts docs/adr/0002-sse-transport-conventions.md docs/agents/issue-tracker.md docs/modules.md AGENTS.md modules/02-explicit-loop-i-build-your-first-capability/2.5-capability-builder-and-build-queue/issues/02-spec-generation.md modules/02-explicit-loop-i-build-your-first-capability/2.5-capability-builder-and-build-queue/issues/04-unit-generation-with-bounded-fix-loop.md`
 - `bun test`
 
 ## HITL test instructions

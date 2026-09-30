@@ -60,7 +60,7 @@ plain count come back.
 
 **Both numbers, in the shape 6.1/01 signed off.** A search answers `0 of 22 entries` where a
 resting collection answers `22 entries` — same label, same place, one more number
-(`filteredCollectionCountSentence`, `src/presentation/records/collection-count.ts`). The
+(`filteredCollectionCountSentence`, `src/presentation/records/region/collection-count.ts`). The
 total governs the noun, because the noun belongs to the collection and not to the search,
 and a noun the platform will not pluralize safely leaves the bare pair *(superseded
 2026-09-25: the plural is now the model-authored `plural_noun`, never declined)*. A total of zero says
@@ -69,7 +69,7 @@ bare collection says.
 
 **The matched half is read off the answer, never re-derived.** The capability's `search`
 Handler owns its filter and the platform cannot re-run it without re-running generated SQL it
-does not own, so `countRenderedItems` (`src/presentation/records/list-container.ts`) counts
+does not own, so `countRenderedItems` (`src/presentation/records/collection/list-container.ts`) counts
 the platform's own item wrappers in the very fragment being sent — matching
 `.capability-item[data-item]`, both marks the wrapper always writes together, so a Handler's
 own `<div class="capability-item stack">` is not a record. `answerWithHandlerFragment` now
@@ -104,7 +104,7 @@ pre-existing and INFO included.
   The shell now honours a sidecar only for a GET of *this* region's capability `read`/`search`
   route, which a mutation can never be. Separately, `hx-swap-oob` reaches any element on the
   desk by id and bypassed the guard entirely; the fragment enforcer now removes it — out-of-band
-  is platform machinery (`src/server/http/fragments.ts`) and no generation contract asks a
+  is platform machinery (`src/server/http/fragments/fragments.ts`) and no generation contract asks a
   Handler for one.
 - **An incoherent pair is not stated.** The two numbers are taken one after the other, so a
   delete landing between them can yield more matched than there are. "3 of 1 notes" is not a
@@ -123,7 +123,7 @@ pre-existing and INFO included.
 - Also fixed: the count label was called a *label* in prose and a *slot* in code (one name
   now); the two sentence functions duplicated their noun tail (`withNoun`); the sidecar seam
   had a dead default and a speculative name; `aria-describedby` was documented as the thing
-  that announces the count, when the window's own live region is; `design/scripts/patterns.js`
+  that announces the count, when the window's own live region is; `design/scripts/desk/patterns.js`
   counted in "records" rather than the capability's noun; issue 01's "the status line reserves
   a line" rationale was true only *because* of the dead selectors; and three comments described
   things the code does not do (`public/index.html`'s import claim, the header's non-existent

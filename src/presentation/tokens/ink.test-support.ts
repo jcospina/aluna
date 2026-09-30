@@ -1,6 +1,6 @@
 // A DOM small enough to run the ink system in Bun.
 //
-// `design/scripts/ink.js` is browser code and the repo carries no DOM harness, which
+// `design/scripts/ink/ink.js` is browser code and the repo carries no DOM harness, which
 // is why the parts of it that decide things — how many resize observations a list
 // costs, whether a redrawn element keeps its hand, what happens to an element that
 // cannot hold the layers — would otherwise be verifiable only by eye. This is the

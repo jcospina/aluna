@@ -14,19 +14,19 @@
 @import url("./layout.css");
 
 @import url("./components/window.css");
-@import url("./components/controls.css");
+@import url("./components/controls/controls.css");
 /* Extends controls.css with the full control set — see the header there. It
    must stay above ink.css like everything else that declares a border. */
-@import url("./components/form-controls.css");
+@import url("./components/controls/form-controls.css");
 /* The two fields made of other controls, a list and a file, so they load after what they arrange. */
-@import url("./components/list-field.css");
-@import url("./components/file-field.css");
-@import url("./components/file-recorder.css");
+@import url("./components/controls/list-field.css");
+@import url("./components/controls/file-field.css");
+@import url("./components/controls/file-recorder.css");
 @import url("./components/collection.css");
 @import url("./components/desk.css");
 /* The logo tile and label. Below desk.css, which owns the button they sit in. */
 @import url("./components/logo-contract.css");
-@import url("./components/doc.css");
+@import url("./doc.css");
 
 /* The layout kit — the vocabulary generated capability markup speaks. Below the
    components so its utilities win where they apply, above ink.css like everything

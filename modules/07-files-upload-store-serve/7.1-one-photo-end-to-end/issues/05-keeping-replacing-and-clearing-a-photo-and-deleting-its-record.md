@@ -158,9 +158,9 @@ Each fix that changes behaviour has a test that fails with the fix reverted, che
 `bun run typecheck` and `bun run lint` are clean. `bun run test` passes: 3324 tests, 0 failed. New
 suites:
 
-- `runtime/router/dispatch/router.file-edit.test.ts`
-- `runtime/router/dispatch/router.file-written-value.test.ts`
-- `runtime/router/dispatch/router.file-delete.test.ts`
+- `runtime/router/dispatch/files/router.file-edit.test.ts`
+- `runtime/router/dispatch/files/router.file-written-value.test.ts`
+- `runtime/router/dispatch/files/router.file-delete.test.ts`
 
 `router.file.test-support.ts` now holds the photos router the file suites share. These suites
 gained cases: `file-claims.test.ts`, `ledger.test.ts`, `file-contract.test.ts`,

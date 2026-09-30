@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ZodType } from "zod";
-import { BUILD_JOB_ID_ATTRIBUTE, PROMPT_FIELD_ID } from "#shell/shell-dom.js";
+import { BUILD_JOB_ID_ATTRIBUTE, PROMPT_FIELD_ID } from "#shell/core/shell-dom.js";
 import { createPromptBuildPipeline, type RecordMetrics } from "../../../pipeline/index.ts";
 import { createBuildJobQueue } from "../../../pipeline/jobs/build-jobs.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";

@@ -52,7 +52,7 @@ Presentation only — no capability rule, no canonical state.
   dispatching on `FieldType` through **total switches** (`assertNever` fails the
   build on an unhandled type — fail-closed, no text fallback, per ARCH §6.3).
 - `public/css/fields.css` — on-brand control + detail chrome (prompt-field
-  treatment; tokens only), wired into `public/app.css`.
+  treatment; tokens only), wired into `public/css/app.css`.
 - `src/presentation/field-renderer.test.ts` — 20 tests: every pantry type in both
   modes, wiring, escaping/hostile values, and a schema-driven exhaustiveness sweep.
 - `src/presentation/field-renderer-preview.ts` + route `GET /demo/field-renderer`

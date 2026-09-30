@@ -39,7 +39,7 @@ second tab's sentence instead of a reference.
 moves its own row to `cleanup_enqueued` (a no-op once the sweep has taken it) and answers 409 with
 `{ refusal: "gone", message }` and the add-it-again sentence. The test "whose row went in but
 whose bytes a cleanup took first asks for the file again" in
-`src/server/files/upload-route.concurrency.test.ts` stages that race by hand. The sweep itself,
+`src/server/files/upload/upload-route.concurrency.test.ts` stages that race by hand. The sweep itself,
 and the race run against it, are this issue's.
 
 ## Acceptance criteria

@@ -1,6 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { recoverSeveredCapabilityDeletion } from "#shell/capability-deletion.js";
-import { createRecordsRegionRequestCoordinator } from "#shell/records-region-requests.js";
 import {
   abortTransportUnder,
   CONTENT_REGION_SELECTOR,
@@ -8,15 +6,17 @@ import {
   RELEASE_REGION_EVENT,
   registerRegionRelease,
   startRegionScopes,
-} from "#shell/region-scope.js";
+} from "#shell/core/region-scope.js";
+import { recoverSeveredCapabilityDeletion } from "#shell/desk/logos/capability-deletion.js";
+import { createRecordsRegionRequestCoordinator } from "#shell/records/records-region-requests.js";
 import { renderCapabilityDeletionConfirmation } from "../../../lifecycle/deletion/index.ts";
 import { notesRow } from "../../../runtime/router/dispatch/router.test-support.ts";
+import { elementsOf, moduleSources } from "../../../server/http/served-page.test-support.ts";
 import {
   El as ShellEl,
   desk as shellDesk,
   Template,
-} from "../../../server/app.shell-double.test-support.ts";
-import { elementsOf, moduleSources } from "../../../server/http/served-page.test-support.ts";
+} from "../../../server/shell-glue/app.shell-double.test-support.ts";
 import { readSource } from "../../safety/source.test-support.ts";
 import type { El as DeskEl } from "../window/standing-desk.test-support.ts";
 import { viewportDesk } from "../window/viewport-desk.test-support.ts";
@@ -302,8 +302,8 @@ describe("the shell's own replacements release through the rule", () => {
     // destroys, so putting the window away is the only way a region disappears.
     const shell = readSource("public/index.html");
     const scripts = moduleSources(await elementsOf(shell));
-    expect(scripts).toContain("/static/region-scope.js");
-    expect(scripts).toContain("/static/desk-window.js");
+    expect(scripts).toContain("/static/core/region-scope.js");
+    expect(scripts).toContain("/static/desk/window/desk-window.js");
 
     // The marker the module looks for is the one the window writes on the region it makes.
     const screen = await viewportDesk();

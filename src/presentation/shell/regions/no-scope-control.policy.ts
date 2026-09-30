@@ -6,7 +6,7 @@
 // `no-scope-control.test.ts`, catches one that is not.
 //
 // What the open capability is allowed to reach is the classification prompt and the loop's turns
-// (`src/runtime/query/the-collection-in-the-window.test.ts`); what it may never reach is anything
+// (`src/runtime/query/turn/the-collection-in-the-window.test.ts`); what it may never reach is anything
 // a person sees outside Aluna's own sentence.
 
 import { describe, expect, test } from "bun:test";
@@ -21,13 +21,13 @@ function shipped(name: string): string {
 
 /**
  * The three controls decision 29 names. Nothing under `public/` carries any of them today — the
- * repo's one `.pill` is in `design/styles/components/controls.css`, which the desk never serves —
+ * repo's one `.pill` is in `design/styles/components/controls/controls.css`, which the desk never serves —
  * so a hit in any surface below is a control somebody added.
  */
 const A_SCOPE_CONTROL = ["chip", "badge", "pill"];
 
 /** Every stylesheet the desk serves, so a control cannot be styled in a quieter file. */
-const STYLESHEETS = readdirSync(join(PUBLIC, "css"))
+const STYLESHEETS = readdirSync(join(PUBLIC, "css"), { recursive: true, encoding: "utf8" })
   .filter((name) => name.endsWith(".css"))
   .map((name) => `css/${name}`);
 
@@ -35,7 +35,11 @@ const STYLESHEETS = readdirSync(join(PUBLIC, "css"))
  * The modules that draw the bar and the windows. `app.js` is not swept for the bare word `scope`
  * — a region scope and the `:scope` selector are both that word there, and neither is a control.
  */
-const DRAWS_THE_DESK = ["prompt-bar.js", "desk-window.js", "desk-answer-window.js"];
+const DRAWS_THE_DESK = [
+  "desk/prompt-bar.js",
+  "desk/window/desk-window.js",
+  "desk/window/desk-answer-window.js",
+];
 
 /** The prompt bar's whole strip, from the comment that introduces it to the end of its form. */
 const promptBar = (() => {

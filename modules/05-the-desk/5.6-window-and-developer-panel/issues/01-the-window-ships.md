@@ -78,15 +78,15 @@ at 5.10/01, before the final record-bearing form corpus.
 
 ## Implementation notes
 
-**`public/desk-window.js` is the product's half of the window seam**, the way
-`public/ink.js` is the drawn line's. It owns the one window: when it exists, what is
-in it, where it sits, and what the two lamps do. `design/scripts/window.js` still
+**`public/desk/window/desk-window.js` is the product's half of the window seam**, the way
+`public/core/ink.js` is the drawn line's. It owns the one window: when it exists, what is
+in it, where it sits, and what the two lamps do. `design/scripts/window/window.js` still
 draws every frame.
 
 **The three gestures were extracted rather than copied.** Dragging by the title bar,
-resizing from the corner and maximising now ship from `design/scripts/window-gestures.js`
+resizing from the corner and maximising now ship from `design/scripts/window/window-gestures.js`
 and are used by both the product's window and the design page's desk. The first draft
-re-implemented them beside `design/scripts/desk.js` and the two had already drifted —
+re-implemented them beside `design/scripts/desk/desk.js` and the two had already drifted —
 the design's grip was a focusable `<button>` whose Enter did nothing, the product's was
 a non-focusable handle. One implementation, one shape.
 
@@ -116,7 +116,7 @@ second half pushes the scroll one level up, which is where a sticky row starts
 drifting. 5.7/01 still owns opening an existing *record* by view swap, the back control
 it arrives under, and deleting the modal.
 
-The field chrome came with it, converged on `design/styles/components/form-controls.css`
+The field chrome came with it, converged on `design/styles/components/controls/form-controls.css`
 rather than redesigned: caps labels, one row height (`--control-h`), the well fill
 (`--surface-2`), the design's horizontal padding, `--space-4` between fields, and the
 hairline rule above the action row instead of full ink. The control is still a bare

@@ -75,7 +75,7 @@ wrapper is deleted, and `public/css/a11y.css` — the blanket `!important` reset
 other half was the second focus ring decision 45 removed — is deleted with its
 `@import`, its row in `AUDITED_SHEETS`, and a test pinning that it stays gone.
 
-**The window arrival** (`design/scripts/desk.js`) no longer asks the OS anything. It
+**The window arrival** (`design/scripts/desk/desk.js`) no longer asks the OS anything. It
 fades in and grows the last 4% into itself; the growth reads `--travel` off the token
 layer, because 4% of a window sweeps its edges further than any press travels. Under
 Reduce Motion it is a fade and nothing moves — measured live at 0px drift.
@@ -100,7 +100,7 @@ Two reviewers attacked the first implementation. Every finding is fixed.
 | `rotate` about a `transform-origin` outside the box is a sweep, not life | a `transform-origin` declaration is refused, with the reason |
 | keyframes could fly (`left: 0 → 300px`), and `0%, 40%` steps escaped the state test | keyframe steps, comma-combined included, are checked as travel |
 | `--travel-jump: 40px` in a component sheet counted as on-axis | travel tokens may only be declared in the token layer; any distance token named from a displacement must live there |
-| `public/app.css` and `design/styles/index.css` were audited by nothing | both are in the motion sheet set now |
+| `public/css/app.css` and `design/styles/index.css` were audited by nothing | both are in the motion sheet set now |
 | state forms the selector list misses (`.dragging`, `[open]`, `:nth-child`) | a missed state no longer falls through to nothing: it still may not state a raw length |
 | scripts could animate `{ translate: … }`, frames from a variable, or one frame | `.animate()` must state its frames inline and may not change a displacement; `style.transition` writes are refused |
 | the window's 4% arrival scale was the largest surviving displacement, unreviewed | it consumes the axis (above) |

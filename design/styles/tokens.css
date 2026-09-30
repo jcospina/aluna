@@ -105,7 +105,7 @@
    * Every boundary is 2px; there is no weight ladder.
    *
    * A `border` declaration is not the finished line — it is the space the line will
-   * occupy, which `scripts/ink.js` takes over and draws. See ink.css.
+   * occupy, which `scripts/ink/ink.js` takes over and draws. See ink.css.
    */
   --line: 2px;
   --line-plate: 1px; /* the label plate hairline — the one thing under 2px */

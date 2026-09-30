@@ -77,7 +77,7 @@ truncated, and the loop recovers by narrowing*.
 
 ## What landed
 
-- `src/runtime/query/question-payload.ts` — the cap. Two numbers, three refusals and the
+- `src/runtime/query/step/question-payload.ts` — the cap. Two numbers, three refusals and the
   measurement, in one file with the argument for the numbers written above them.
   `QUESTION_STEP_RESULT_CAP_BYTES` is 16 KiB of one step's rows;
   `QUESTION_RESULT_PAYLOAD_BUDGET_BYTES` is 64 KiB of everything a whole question renders into
@@ -89,7 +89,7 @@ truncated, and the loop recovers by narrowing*.
   rather than being arithmetic. It also does not multiply if 6.6/04's measurement ever argues
   for more than ten reads. What the pair does not do is hold the worst case fixed against a
   *raised* per-step cap, which is why the two are chosen together and said so in the file.
-- `src/runtime/query/question-turn.ts` — where it is enforced, between the worker and the
+- `src/runtime/query/turn/question-turn.ts` — where it is enforced, between the worker and the
   step, so an over-size result is refused while it is still a result and never becomes
   something a later reader has to remember not to use. `questionStepBytes` and
   `questionPayloadSpent` measure `formatStep`'s own output, so what is counted is what is

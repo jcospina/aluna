@@ -50,7 +50,7 @@ per-job stream (ADR-0002).
 no call, so it carries no label either. The acceptance criterion below stays literally true
 (there is no tool call to label), but the narration switch needs a branch for it, and decision
 14's generic fallback is the obvious home. The spent-budget ending's sentence already exists as
-`QUESTION_BUDGET_SPENT_SENTENCE` in `src/runtime/query/question-loop.ts` and is part of what
+`QUESTION_BUDGET_SPENT_SENTENCE` in `src/runtime/query/loop/question-loop.ts` and is part of what
 the sign-off gate below reads.
 
 ## Acceptance criteria
@@ -83,7 +83,7 @@ produce, so the words can be read before there is an answer window to read them 
 
 There are **two** over-size refusals, not one: `QUESTION_STEP_RESULT_TOO_LARGE` (this
 read alone was too big) and `QUESTION_PAYLOAD_BUDGET_SPENT` (the whole question has no
-room left). Both are exported from `src/runtime/query/question-payload.ts`, and the
+room left). Both are exported from `src/runtime/query/step/question-payload.ts`, and the
 sweep in the acceptance criteria above must drive both.
 
 Both strings are addressed to the model and **deliberately contain SQL keywords** —
@@ -95,7 +95,7 @@ words the model was told.
 ## What landed
 
 **The vocabulary is on the wire, and the words are not.** `QUESTION_STEP_LABELS`
-(`src/runtime/query/question-tool.ts`) is decision 14's six kinds — `naming`,
+(`src/runtime/query/step/question-tool.ts`) is decision 14's six kinds — `naming`,
 `counting`, `totalling`, `listing`, `dates`, `other` — as a `const` array behind a
 `z.enum`, the shape `SCALAR_FIELD_TYPES` and `LOGO_HUE_FAMILIES` already take. It is a
 required key of the strict call object, so `QuestionToolCall` cannot exist without one,

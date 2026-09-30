@@ -1,11 +1,16 @@
 import { describe, expect, test } from "bun:test";
 
-import { FILE_FIELD_HOOKS } from "#design/file-field.js";
-import { BUSY_LABEL_ATTRIBUTE } from "#shell/shell-dom.js";
+import { FILE_FIELD_HOOKS } from "#design/files/file-field.js";
+import { BUSY_LABEL_ATTRIBUTE } from "#shell/core/shell-dom.js";
 import { fieldTypeSchema, isFileFieldType } from "../../registry/index.ts";
 import { ADDING_LABEL } from "../controls/busy-label.ts";
-import { Doc, El, parseHtml } from "../controls/choice-picker.test-support.ts";
-import { collectionPage, inOrder, named, shown } from "../records/collection-page.test-support.ts";
+import { Doc, El, parseHtml } from "../controls/double/choice-picker.test-support.ts";
+import {
+  collectionPage,
+  inOrder,
+  named,
+  shown,
+} from "../records/collection/collection-page.test-support.ts";
 import { oneField, probeField, SAMPLE, sampleFieldValue } from "./field-renderer.test-support.ts";
 import {
   capabilityCreateErrorId,

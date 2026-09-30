@@ -1,5 +1,5 @@
 /*
- * The seam between the stylesheet and `scripts/ink.js`. Loaded last, so `.is-ink`
+ * The seam between the stylesheet and `scripts/ink/ink.js`. Loaded last, so `.is-ink`
  * takes over from whatever a component declared.
  *
  * The contract a drawn component keeps:
@@ -45,7 +45,7 @@
 
 /* The hands: `frame` for the surfaces that hold (the window, the prompt rail),
  * `fine` for everything drawn inside one, which is the default. The numbers live in
- * `scripts/spec.js` under HAND, because they are geometry, not style. */
+ * `scripts/ink/spec.js` under HAND, because they are geometry, not style. */
 
 /*
  * Note what is NOT here: `position: relative`. The layers need a positioned

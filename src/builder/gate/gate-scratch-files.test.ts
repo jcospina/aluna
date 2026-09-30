@@ -6,8 +6,8 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { requireFileLedgerRow } from "../../platform/files/ledger.test-support.ts";
-import { FILE_LEDGER_TABLE } from "../../platform/files/ledger.ts";
+import { requireFileLedgerRow } from "../../platform/files/store/ledger.test-support.ts";
+import { FILE_LEDGER_TABLE } from "../../platform/files/store/ledger.ts";
 import { runMigrations } from "../../platform/persistence/migrations.ts";
 import { PHOTO_FIELD, photoSpec } from "../../registry/fields/file.test-support.ts";
 import {

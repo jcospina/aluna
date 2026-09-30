@@ -48,7 +48,7 @@ export {
   type ReconcileCapabilityArtifactsInput,
   reconcileCapabilityArtifacts,
   type TombstonedCapabilityIncarnation,
-} from "./artifacts/publication/artifact-reconciliation.ts";
+} from "./artifacts/publication/reconciliation/artifact-reconciliation.ts";
 export {
   type CommitCapabilityInput,
   type CommitCapabilityResult,

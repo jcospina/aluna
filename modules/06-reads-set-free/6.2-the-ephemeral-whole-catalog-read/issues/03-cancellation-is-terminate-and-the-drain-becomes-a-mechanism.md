@@ -71,7 +71,7 @@ deletion the user had confirmed.
 
 ## What landed
 
-- `src/runtime/query/whole-catalog-read-scope.ts` — `scope.cancel(reason?)`, the one cancel
+- `src/runtime/query/scope/whole-catalog-read-scope.ts` — `scope.cancel(reason?)`, the one cancel
   entry point. It records the first cause, aborts the scope's own controller, and closes the
   worker; `query-worker.ts`'s `close()` is the kill, because `terminate()` is the only thing
   that ends a statement nothing can be asked to stop.
@@ -93,11 +93,11 @@ deletion the user had confirmed.
 - **A refused statement keeps its own message.** A cancel closes the worker underneath the
   read, so only a `QueryWorkerClosedError` is rephrased as the cancellation; a
   `QueryWorkerStatementError` reaches the caller intact, which is what 6.3's loop needs.
-- `src/runtime/query/query-worker.ts` — `close()` is idempotent: the bookkeeping repeats, the
+- `src/runtime/query/worker/query-worker.ts` — `close()` is idempotent: the bookkeeping repeats, the
   `terminate()` happens once. A cancelled question closes through it twice by construction,
   and the second call would otherwise reach a thread that may still be inside its statement.
-- `src/runtime/query/whole-catalog-read-scope.cancel.test.ts` — 10 tests, and
-  `src/runtime/query/read-scope.test-support.ts` and `runaway-query.test-support.ts` carry the
+- `src/runtime/query/scope/whole-catalog-read-scope.cancel.test.ts` — 10 tests, and
+  `src/runtime/query/scope/read-scope.test-support.ts` and `runaway-query.test-support.ts` carry the
   scratch platform and the runaway statement all three query suites now share.
   `two-phase-destruction.test.ts` gains the deletion end of the claim.
 - Decision 13's residual risk is recorded where the precedence is decided — the module header

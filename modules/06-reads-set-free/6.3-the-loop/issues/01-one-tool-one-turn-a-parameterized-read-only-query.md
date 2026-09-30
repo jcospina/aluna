@@ -75,7 +75,7 @@ that ran through it.
 
 ## What landed
 
-- `src/runtime/query/question-tool.ts` — the offer. `QUESTION_TOOLS` is a frozen
+- `src/runtime/query/step/question-tool.ts` — the offer. `QUESTION_TOOLS` is a frozen
   one-member inventory, and `questionToolCallSchema` is *derived* from it through
   `theOnlyQuestionTool`, which throws on an inventory that is not exactly one — so a
   second tool cannot be described in the prompt while the schema goes on admitting only
@@ -83,11 +83,11 @@ that ran through it.
   what OpenAI's strict structured outputs accept (every property required,
   `additionalProperties: false`, an `enum` rather than a `const`, no `oneOf`).
   Named `QUESTION_TOOLS` because `tools` already names a capability's fixed five Actions.
-- `src/runtime/query/whole-catalog-query-scope.ts` — the table bound decision 6 asks for
+- `src/runtime/query/scope/whole-catalog-query-scope.ts` — the table bound decision 6 asks for
   and `query-worker-thread.ts` recorded as the loop's to wire up. Builds the
   `CapabilityQueryScope` the plan describes (first granted incarnation as `target`, the
   rest as `dependencies`) and reuses `assertScopedQuery` unchanged.
-- `src/runtime/query/question-turn.ts` — one turn: build the prompt, generate the call,
+- `src/runtime/query/turn/question-turn.ts` — one turn: build the prompt, generate the call,
   take the bound, run the statement through 6.2/02's `scope.read`, return a step.
   `buildQuestionTurnPrompt` renders prior steps, which is what *the result reaching the
   model* means concretely.

@@ -4,8 +4,8 @@
 // and fixtures live in app.test-support.ts.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { DEV_STAGES } from "#design/devpanel.js";
-import { DEV_SEED_SELECTOR } from "#shell/desk-dev-panel.js";
+import { DEV_STAGES } from "#design/desk/devpanel.js";
+import { DEV_SEED_SELECTOR } from "#shell/desk/window/desk-dev-panel.js";
 import {
   reconcileRunningGenerationLifecycles,
   startGenerationLifecycle,
@@ -28,7 +28,7 @@ import {
   runPromptBuild,
   teardownScratchDbEnv,
 } from "../../app.test-support.ts";
-import { countMatches } from "../../http/fragments.test-support.ts";
+import { countMatches } from "../../http/fragments/fragments.test-support.ts";
 import { elementsOf } from "../../http/served-page.test-support.ts";
 import { createTestApp } from "../../isolated-app.test-support.ts";
 

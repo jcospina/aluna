@@ -49,7 +49,7 @@ describe("High Meadow token-layer cutover", () => {
     expect(existsSync(TOKENS_PATH)).toBe(true);
     expect(existsSync(join(ROOT, "public/css/tokens.css"))).toBe(false);
 
-    const appCss = read("public/app.css");
+    const appCss = read("public/css/app.css");
     expect(appCss).not.toContain("tokens.css");
     for (const file of filesUnder("public/css", new Set([".css"]))) {
       // A declaration the shell bridge makes, minus the three the ink system reads back off a
@@ -77,7 +77,7 @@ describe("High Meadow token-layer cutover", () => {
   test("loads the High Meadow manifest before the temporary shell bridge", () => {
     const html = read("public/index.html");
     const manifest = 'href="/design/styles/index.css"';
-    const shell = 'href="/static/app.css"';
+    const shell = 'href="/static/css/app.css"';
     expect(html).toContain(manifest);
     expect(html.indexOf(manifest)).toBeLessThan(html.indexOf(shell));
     expect(read("public/css/shell.css")).toContain(
@@ -111,7 +111,7 @@ describe("High Meadow token-layer cutover", () => {
   });
 
   test("pins the C12 green swap and both AA label pairs", () => {
-    const controls = read("design/styles/components/form-controls.css");
+    const controls = read("design/styles/components/controls/form-controls.css");
     const shellControls = read("public/css/components.css");
     expect(controls).toMatch(
       /\.btn--primary[\s\S]*?--btn-fill:\s*var\(--shade\)[\s\S]*?color:\s*var\(--surface\)/,
@@ -139,7 +139,7 @@ describe("the button set on the window surface", () => {
   test("every one of the seven reads on the window surface it stands on", () => {
     // AC of 5.10/05: the set is expressive and legible. The pairs are read out of the manifest
     // rather than restated here, so changing a fill re-measures.
-    const controls = read("design/styles/components/form-controls.css");
+    const controls = read("design/styles/components/controls/form-controls.css");
     const pairs = [...controls.matchAll(/\.btn--([a-z]+)\s*\{([^}]*)\}/g)]
       .map(([, name, body]) => ({
         name: name ?? "",
@@ -176,7 +176,7 @@ describe("the button set on the window surface", () => {
   // The shell bridge loads after the manifest, so a size it states for `.btn` silently wins:
   // the app shipped `--type-base` where controls.css specifies `--caps-size`, three steps down.
   test("the shell bridge does not restate the button's type size", () => {
-    const design = read("design/styles/components/controls.css");
+    const design = read("design/styles/components/controls/controls.css");
     expect(design).toMatch(/\.btn\s*\{[^}]*font-size:\s*var\(--caps-size\)/);
 
     const base = /(^|\n)\.btn\s*\{[^}]*\}/.exec(read("public/css/components.css"));
@@ -201,7 +201,7 @@ describe("the button set on the window surface", () => {
       /#[0-9a-f]{3,8}(?![\w-])|\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color|device-cmyk)\(/i;
 
     expect(read("design/styles/tokens.css")).not.toContain("PROPOSED");
-    expect(read("design/styles/components/form-controls.css")).not.toContain("PROPOSED");
+    expect(read("design/styles/components/controls/form-controls.css")).not.toContain("PROPOSED");
     for (const file of productSources) {
       expect(read(file), `${file} declares a literal colour below the token layer`).not.toMatch(
         literalColour,

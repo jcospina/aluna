@@ -75,7 +75,7 @@ mutation is in flight and confirm it opens rather than being silently swallowed.
 ## What landed
 
 **The record's own view.** `src/presentation/record-view.ts` renders a back
-control above the record's form; `public/record-view.js` performs the swap. The
+control above the record's form; `public/records/record-view.js` performs the swap. The
 form rides the inert `<template>` the adapter already emitted beside each item, so
 there is still no read-single route: opening a record is a DOM clone, taken
 *before* the collection is released, because the template stands inside the
@@ -106,10 +106,10 @@ severed read leaves the record standing with a control that still works.
 and its three suites, `renderDetailFields`/`renderDetailField`/the em-dash
 `EMPTY_VALUE`, the modal mount and its page-assembly anchor, `injectDetailModal`,
 and the `role="button"`/`aria-haspopup="dialog"`/Enter-and-Space wrapper.
-`detail-modal-refresh.js` moved to `public/records-refresh.js` rather than being
+`detail-modal-refresh.js` moved to `public/records/records-refresh.js` rather than being
 deleted: it is the committed-records refresh, which create and the search chrome
 both use, and only its name was ever about the modal. The request-feedback half of
-the modal controller moved to `public/record-mutations.js`.
+the modal controller moved to `public/records/record-mutations.js`.
 
 **Adversarial findings, all fixed.** Two hostile reviews (runtime correctness;
 spec + design compliance) produced 35 findings. Beyond the busy gate above: focus

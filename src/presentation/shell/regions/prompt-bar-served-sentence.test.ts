@@ -1,12 +1,12 @@
 // The one sentence that arrives with the document rather than after it (PLAN decision 21;
 // issue 5.9/03), and the rule that makes the prompt bar's live region hear it.
 //
-// The shipped module, not a copy of it: `#shell/prompt-bar.js` is started on a document
+// The shipped module, not a copy of it: `#shell/desk/prompt-bar.js` is started on a document
 // double the way the page starts it on a real one.
 
 import { describe, expect, test } from "bun:test";
 
-import { startPromptBar } from "#shell/prompt-bar.js";
+import { startPromptBar } from "#shell/desk/prompt-bar.js";
 import { NOT_FOUND_NOTICE } from "../../../server/http/index.ts";
 
 /**

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
-import { DELETION_RECHECK_ASKING } from "#shell/capability-deletion.js";
+import { DELETION_RECHECK_ASKING } from "#shell/desk/logos/capability-deletion.js";
 import {
   DELETION_ENDING_ATTRIBUTE,
   DELETION_EXIT_ATTRIBUTE,
@@ -9,12 +9,12 @@ import {
   renderCapabilityDeletionPreCommitFailure,
 } from "../../../lifecycle/deletion/index.ts";
 import { notesRow } from "../../../runtime/router/dispatch/router.test-support.ts";
-import { desk, El, Template } from "../../app.shell-double.test-support.ts";
+import { desk, El, Template } from "../../shell-glue/app.shell-double.test-support.ts";
 
-// The deletion that did not happen, run rather than grepped. `public/capability-deletion.js` is a
+// The deletion that did not happen, run rather than grepped. `public/desk/logos/capability-deletion.js` is a
 // module of the desk, so it runs on the same document double the shell's own glue is proved on.
 const { rescueCapabilityDeletionEnding, startCapabilityDeletionRecovery } = await import(
-  "#shell/capability-deletion.js"
+  "#shell/desk/logos/capability-deletion.js"
 );
 
 const SENTENCE = "I couldn’t delete Notes. Everything you had there is still safe.";

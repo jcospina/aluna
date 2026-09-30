@@ -35,7 +35,7 @@ import {
   gatesFor,
   readerCounts,
   type ScratchPlatforms,
-} from "../../runtime/query/read-scope.test-support.ts";
+} from "../../runtime/query/scope/read-scope.test-support.ts";
 import { NotADataQuestionError, runDataQuery } from "./data-query.ts";
 
 let platforms: ScratchPlatforms;
@@ -273,7 +273,7 @@ async function settled(running: Promise<unknown>): Promise<string> {
 }
 
 // The person's own two triggers — asking something else, dismissing the answer — arrive as this
-// job's cancellation (`public/desk-answer-window.js` raises them, `src/server/app.ts` routes
+// job's cancellation (`public/desk/window/desk-answer-window.js` raises them, `src/server/app.ts` routes
 // them). What is proved here is that they reach 6.2/03's one entry point rather than stopping at
 // the model: a question between statements ends, and a question inside one is killed.
 describe("a question the person gave up on", () => {

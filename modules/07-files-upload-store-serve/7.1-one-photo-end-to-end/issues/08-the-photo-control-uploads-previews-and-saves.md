@@ -41,7 +41,7 @@ What 7.1/05 landed for this issue. An edit posts the field's presence marker and
 the key the record holds, which keeps it, `""` when it holds none, a pending key, which
 replaces it, or `FILE_CLEAR_VALUE` (`src/runtime/data/index.ts`), which clears it. An empty
 value never clears. The browser script cannot import that constant, so the server-drawn
-control should carry it in its markup (from `src/presentation/controls/file-control.ts`)
+control should carry it in its markup (from `src/presentation/controls/file/file-control.ts`)
 rather than have `public/` restate it. An edit whose value no longer matches what the record
 holds, because another tab replaced, cleared or added a photo, is refused as
 `record_changed` with a platform sentence, retargeted to the edit form's error region with
@@ -53,19 +53,19 @@ through the projection's `url`.
 
 **The required rule lifts here.** 7.1/03 refuses `required: true` on a file field
 (`validateFileFields` in `src/registry/fields/file.ts`), because its stand-in
-(`src/presentation/controls/file-control.ts`) has nothing to fill. The drawn control can
+(`src/presentation/controls/file/file-control.ts`) has nothing to fill. The drawn control can
 fill one, so this issue removes the refusal and proves that a required photo refuses a save
 without one. The stand-in carries `data-file-stand-in`, not the drawn control's
 `data-file-field` mount hook.
 
 **What 7.1/07 landed for this issue.** The control posts the raw file to
-`fileUploadPath(capabilityId, incarnationId, field)` (`src/server/files/upload-route.ts`), with
+`fileUploadPath(capabilityId, incarnationId, field)` (`src/server/files/upload/upload-route.ts`), with
 `encodeURIComponent(file.name)` in `X-File-Name` and the file's own type as `Content-Type` (blank
 is fine). An admitted file answers 201 `{ key, url, name, kind, mime, size }`: the form posts `key`
 as the field's value, and the preview draws `url`. A refused one answers 415 with
 `{ refusal, message }`, where `refusal` names the stage (`extension`, `declared_type`,
 `signature`, `not_accepted`) and `message` is the field's sentence from
-`src/platform/files/refusal-copy.ts`. An upload whose bytes a sweep took first answers 409 with
+`src/platform/files/admission/refusal-copy.ts`. An upload whose bytes a sweep took first answers 409 with
 `refusal: "gone"` and the add-it-again sentence. A 404 has no body: the capability, its
 incarnation or the field is gone. Aborting the request deletes the staged file; an abort after
 the row committed leaves the row `cleanup_enqueued`.
@@ -117,7 +117,7 @@ This is the epic's done-when test. Run `bun run reset` and use the Aluna running
 
 ## What landed
 
-**The host the server draws.** `src/presentation/controls/file-control.ts` replaces the stand-in
+**The host the server draws.** `src/presentation/controls/file/file-control.ts` replaces the stand-in
 with the drawn control's mount, `<div class="field file" data-file-field data-kind="image">`, in
 create and in edit. It carries what the browser cannot know: the upload address
 (`fileUploadPath`, now in the leaf `src/platform/files/upload-path.ts`), the types the picker
@@ -130,10 +130,10 @@ projection). The field posts its presence marker and a hidden value that opens a
 Gate has none, so its control has nowhere to send a file. A form holding a file field gets a held
 save (`data-held-save` and its label span, `src/presentation/controls/submit-button.ts`).
 
-**The browser half.** `public/file-field.js` mounts `design/scripts/file-field.js` on every host
+**The browser half.** `public/controls/file-field.js` mounts `design/scripts/files/file-field.js` on every host
 that arrives and hands it an `XMLHttpRequest` transfer. The transfer refuses a file over the cap
 before a byte leaves. It sends the raw file with `X-File-Name` (`FILE_NAME_HEADER`, now shared
-through `public/shell-dom.js`) and the file's own type, drives the progress line from
+through `public/core/shell-dom.js`) and the file's own type, drives the progress line from
 `upload.onprogress`, and settles 201 into the held file, 415 and 409 into their sentences, and a
 bare 413, or a severed send of a file over the cap, into the size sentence. A field leaving the
 page aborts its upload through the region release. The design control now says each change of state
@@ -143,9 +143,9 @@ nothing, and `""` on a create. A create that is saved or cancelled puts the fiel
 submission is refused while a file travels, and the person is moved to the save that says what it
 waits on.
 
-**The rest of the page.** `public/record-mutations.js` writes the busy label into the held save's
+**The rest of the page.** `public/records/record-mutations.js` writes the busy label into the held save's
 label span, freezes file fields (`inert`) while a save is out, and thaws them as soon as a
-refusal arrives. `public/field-errors.js` refuses an empty or cleared required photo before the request,
+refusal arrives. `public/fields/field-errors.js` refuses an empty or cleared required photo before the request,
 and shares the photo's guidance slot with the control: it restores only what it took and forgets
 its verdict when the control re-renders. A refusal naming the photo focuses the photo's own button.
 `FIRST_FIELD_SELECTOR` skips hidden inputs and reaches the control, and a record view focuses after

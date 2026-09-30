@@ -8,7 +8,7 @@ describe("High Meadow delivery through the shell", () => {
     const html = await responseText(await app.request("/"));
 
     const highMeadow = 'href="/design/styles/index.css"';
-    const shell = 'href="/static/app.css"';
+    const shell = 'href="/static/css/app.css"';
     expect(html).toContain(highMeadow);
     expect(html.indexOf(highMeadow)).toBeLessThan(html.indexOf(shell));
     expect(html).not.toContain('class="content-topbar__brand"');

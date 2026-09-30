@@ -14,7 +14,7 @@
 
 import type { Context } from "hono";
 import { errorDetail } from "../../../platform/errors.ts";
-import { ADD_FILE_AGAIN_SENTENCE } from "../../../platform/files/refusal-copy.ts";
+import { ADD_FILE_AGAIN_SENTENCE } from "../../../platform/files/admission/refusal-copy.ts";
 import {
   capabilityCreateErrorId,
   capabilityDeleteErrorId,

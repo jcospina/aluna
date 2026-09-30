@@ -39,7 +39,7 @@ Files:
   server up`); issue 02 replaces this with the shell HTML. Static assets are
   mounted with `serveStatic` from `hono/bun` under the **`/static/*`** prefix,
   rooted at `./public`, with `rewriteRequestPath` stripping the prefix so
-  `/static/app.css` → `./public/app.css`. A dedicated prefix keeps the asset
+  `/static/css/app.css` → `./public/css/app.css`. A dedicated prefix keeps the asset
   namespace clear of the root-level routes that arrive later
   (`/capability/:id/:action`, `/files/:key`, the SSE channel). Exporting `app`
   separately from the bootstrap keeps it `app.request()`-testable.

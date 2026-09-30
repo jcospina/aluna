@@ -19,15 +19,15 @@ import {
   runIsUsingWindow,
   standDownWith,
   startLeavingGuard,
-} from "#shell/leaving-a-run.js";
-import { PROMPT_BAR_MESSAGE_EVENT } from "#shell/prompt-bar.js";
+} from "#shell/desk/leaving-a-run.js";
+import { PROMPT_BAR_MESSAGE_EVENT } from "#shell/desk/prompt-bar.js";
 import {
   RUN_LEAVING_BACK_ATTRIBUTE,
   RUN_LEAVING_GO_ATTRIBUTE,
   renderBuildEnding,
   renderBuildSubscriber,
-} from "../../server/http/fragments.ts";
-import { Doc, El, parseHtml } from "../controls/choice-picker.test-support.ts";
+} from "../../server/http/fragments/fragments.ts";
+import { Doc, El, parseHtml } from "../controls/double/choice-picker.test-support.ts";
 import { windowWithQuestion, windowWithRun } from "./leaving-a-run.test-support.ts";
 
 /** A desk with nothing running: the window holds no subscriber at all. */
@@ -211,7 +211,7 @@ describe("a cancel posted on the person's behalf that does not land", () => {
 });
 
 // Asking something else and dismissing the answer are decision 10's two user-raised triggers
-// (6.5/04). Both are raised in `public/desk-answer-window.js` and both stop the question here, at
+// (6.5/04). Both are raised in `public/desk/window/desk-answer-window.js` and both stop the question here, at
 // the same call a desk action reaches — one cancel path, not three.
 describe("giving up on a question", () => {
   test("is the same cancel, and nothing is asked first", () => {

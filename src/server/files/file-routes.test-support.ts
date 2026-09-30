@@ -5,10 +5,13 @@
 import { afterEach, beforeEach } from "bun:test";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { FILE_NAME_HEADER } from "#shell/shell-dom.js";
-import { FILE_LEDGER_TABLE, type FileLedgerRow } from "../../platform/files/ledger.ts";
-import { createLocalObjectStore, type ObjectStore } from "../../platform/files/object-store.ts";
-import { STAGING_DIRECTORY } from "../../platform/files/object-store-root.ts";
+import { FILE_NAME_HEADER } from "#shell/core/shell-dom.js";
+import { FILE_LEDGER_TABLE, type FileLedgerRow } from "../../platform/files/store/ledger.ts";
+import {
+  createLocalObjectStore,
+  type ObjectStore,
+} from "../../platform/files/store/object-store.ts";
+import { STAGING_DIRECTORY } from "../../platform/files/store/object-store-root.ts";
 import { fileUploadPath } from "../../platform/files/upload-path.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import {

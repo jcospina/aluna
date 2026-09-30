@@ -70,7 +70,7 @@ what it happened to have. The user-visible form of this arrives with 6.5.
 
 ## What landed
 
-- `src/runtime/query/question-loop.ts` — the loop. `QUESTION_STEP_BUDGET` is ten and is
+- `src/runtime/query/loop/question-loop.ts` — the loop. `QUESTION_STEP_BUDGET` is ten and is
   deliberately not injectable: a budget a caller could lower is a budget no test proves, and
   this is the number 6.6/04 goes on to measure. `QuestionLoopResult` is a union whose two
   endings are **different shapes** — `answered` carries its steps, `budget_spent` carries
@@ -81,13 +81,13 @@ what it happened to have. The user-visible form of this arrives with 6.5.
 - `QUESTION_BUDGET_SPENT_SENTENCE` — the one sentence this issue authors. It makes a claim
   about her own looking rather than about the user's data, which is decision 17's rule held
   one issue early. 6.3/04's sign-off gate reads it alongside the label vocabulary.
-- `src/runtime/query/question-tool.ts` — `questionDecisionSchema`, the two moves a turn may
+- `src/runtime/query/step/question-tool.ts` — `questionDecisionSchema`, the two moves a turn may
   make. It nests the *derived* one-tool call schema rather than restating it, so 6.3/01's
   invariant survives the wrapping: an inventory that grew a second member still fails at
   import. `read` is required-and-nullable with a refinement, for the reason
   `proposed_identity` is in `intent/schema.ts` — an absent key is what strict mode refuses,
   and a refinement emits nothing into the JSON Schema.
-- `src/runtime/query/question-turn.ts` — the turn returns a `QuestionTurn` union, the prompt
+- `src/runtime/query/turn/question-turn.ts` — the turn returns a `QuestionTurn` union, the prompt
   carries how many reads are left, and the provider is wrapped in the scope's signal so a
   generation that never settles is ended by the question ending rather than parking the loop.
   `QuestionStep.call` is now nullable, which is how an unreadable decision is shown back.

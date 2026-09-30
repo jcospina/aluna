@@ -9,7 +9,7 @@ import { readSource as read } from "../safety/source.test-support.ts";
 const ROOT = resolve(import.meta.dir, "../../..");
 
 const INK_SEAM = "components/ink.css";
-const SHELL_SHEETS = readdirSync(join(ROOT, "public/css"))
+const SHELL_SHEETS = readdirSync(join(ROOT, "public/css"), { recursive: true, encoding: "utf8" })
   .filter((name) => name.endsWith(".css"))
   .map((name) => `public/css/${name}`);
 const SHELL_PAGES = readdirSync(join(ROOT, "public")).filter((name) => name.endsWith(".html"));
@@ -62,8 +62,8 @@ function selectorList(source: string, marker: string): string[] {
 }
 
 const DRAWN = new Set([
-  ...selectorList(read("design/scripts/ink.js"), "export const INK_SELECTOR = ["),
-  ...selectorList(read("public/ink.js"), "const SHELL_INK = ["),
+  ...selectorList(read("design/scripts/ink/ink.js"), "export const INK_SELECTOR = ["),
+  ...selectorList(read("public/core/ink.js"), "const SHELL_INK = ["),
 ]);
 
 /** A modifier is drawn by its base: `.btn--danger` is a `.btn`. */
@@ -107,18 +107,18 @@ describe("the ink seam holds in the shipped product", () => {
 
     // The shell bridge loads after that manifest and declares borders of its own, so
     // the product's cascade has to end with the seam too or the border wins.
-    const imports = [...read("public/app.css").matchAll(/@import\s+(?:url\()?["']([^"')]+)/g)].map(
-      (match) => match[1] as string,
-    );
+    const imports = [
+      ...read("public/css/app.css").matchAll(/@import\s+(?:url\()?["']([^"')]+)/g),
+    ].map((match) => match[1] as string);
     expect(imports.at(-1)).toContain(INK_SEAM);
   });
 
   test("every page that loads the shell bridge loads the ink runtime", () => {
     for (const surface of SHELL_PAGES.map((page) => `public/${page}`)) {
       const source = read(surface);
-      if (!source.includes("/static/app.css")) continue;
+      if (!source.includes("/static/css/app.css")) continue;
       expect(source, `${surface} draws what the bridge reserves`).toContain(
-        '<script type="module" src="/static/ink.js"></script>',
+        '<script type="module" src="/static/core/ink.js"></script>',
       );
     }
   });
@@ -178,7 +178,7 @@ describe("the ink seam holds in the shipped product", () => {
   });
 
   test("no component asks for a weight, because there is no weight ladder", () => {
-    for (const sheet of [...SHELL_SHEETS, "public/app.css"]) {
+    for (const sheet of SHELL_SHEETS) {
       expect(read(sheet)).not.toContain("--ink-weight");
     }
   });

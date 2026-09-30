@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { RELEASE_REGION_EVENT } from "#shell/core/region-scope.js";
+import { ACTIVE_CAPABILITY_ATTRIBUTE } from "#shell/core/shell-dom.js";
 import {
   NAME_THE_WINDOW_EVENT,
   PUT_WINDOW_AWAY_EVENT,
   WINDOW_TOOK_CAPABILITY_EVENT,
-} from "#shell/desk-window.js";
-import { RELEASE_REGION_EVENT } from "#shell/region-scope.js";
-import { ACTIVE_CAPABILITY_ATTRIBUTE } from "#shell/shell-dom.js";
+} from "#shell/desk/window/desk-window.js";
+import { renderBuildEnding, renderBuildSubscriber } from "../../http/index.ts";
 import {
   closeStream,
   desk,
@@ -15,8 +16,7 @@ import {
   narrateEnding,
   openStream,
   streamRestoration,
-} from "../../app.shell-double.test-support.ts";
-import { renderBuildEnding, renderBuildSubscriber } from "../../http/index.ts";
+} from "../../shell-glue/app.shell-double.test-support.ts";
 
 // A run that ends with something to tell you holds the window there, and the press is
 // what gives back what it displaced (PLAN decisions 23 and 25; ARCH §6.2).

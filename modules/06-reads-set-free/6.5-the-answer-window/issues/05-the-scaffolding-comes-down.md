@@ -124,7 +124,7 @@ which is what makes the exercise redundant in the first place.
   attribute all use a benign question, for which `escapeHtml` is the identity function:
   deleting the escape left the whole suite green. Two tests now post a question carrying a
   quote and a handler, and a long one that the 120-character title bound cuts. Confirmed by
-  mutation — removing `escapeHtml` at `src/server/http/fragments.ts:291` reddens them.
+  mutation — removing `escapeHtml` at `src/server/http/fragments/fragments.ts:291` reddens them.
 - **`POST /prompt` had no cross-site guard, and the only implementation of one in the repo
   was inside the deleted page.** A prompt spends provider tokens and can commit a capability,
   and a urlencoded POST crosses origins with no preflight, so a page the user merely visited

@@ -68,11 +68,11 @@ Waiting on the sign-off gate; everything else is done.
 - **The open record.** The Files section of `design/controls.html` draws four file cards (a
   video with and without a first frame, a sound, a PDF) and the record's render view: the
   form's Open takes the window to it without leaving the record, and its full player plays
-  and seeks (`design/scripts/file-player.js`). A file the browser won't play shows its
+  and seeks (`design/scripts/files/file-player.js`). A file the browser won't play shows its
   download link where the player would be, in a drawn region the player's size. From a row,
   a PDF opens in a tab of its own (`rel="noopener"`, chosen by verified type) and any other
   document downloads under its own name (`Presupuesto año.docx`).
-- **The `file[]` list** (`design/scripts/file-list.js`): rows in pick order, an add well,
+- **The `file[]` list** (`design/scripts/files/file-list.js`): rows in pick order, an add well,
   in-flight rows with Stop, Remove, a held save, sound rows that keep playing across
   redraws, positions in every label, and the count cap refused whole before anything
   travels.
@@ -83,7 +83,7 @@ Waiting on the sign-off gate; everything else is done.
   refusals, the pick-time and save-time count-cap sentences, and "I can’t play … here."
 - **Decisions** C18, C19 and C20; one open question: how many files a list holds by
   default (the page uses six).
-- The shared markup moved to a leaf, `design/scripts/file-parts.js`, because
+- The shared markup moved to a leaf, `design/scripts/files/file-parts.js`, because
   `file-field.js` (also the shipped control) was at its line ceiling. Sample files were
   added under `design/assets/media/` and recorded in its README.
 - PLAN decision 3 and issues 7.2/02–04 were aligned with the drawing: 7.2/02 builds the

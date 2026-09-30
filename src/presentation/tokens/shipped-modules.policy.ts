@@ -7,11 +7,11 @@
 // `#design/*` and `#shell/*`, and every test imports through Bun, which honours `package.json`
 // `imports`, so typecheck, lint and the whole suite pass green on a desk that is dead on
 // arrival. It cost exactly that once: a module lifted out of `desk-window.js` kept the
-// `#design/desk-geometry.js` specifier, and left a desk where no logo opened.
+// `#design/desk/desk-geometry.js` specifier, and left a desk where no logo opened.
 
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import { elementsOf, scriptsOf } from "../../server/http/served-page.test-support.ts";
 import { shellScripts } from "../safety/source.test-support.ts";
@@ -76,7 +76,7 @@ describe("what a shipped module is allowed to import", () => {
   test("and every module a shipped module reaches for is a file that exists", () => {
     for (const [name, source] of shellScripts()) {
       for (const specifier of specifiersIn(source)) {
-        const target = resolve(ROOT, "public", specifier);
+        const target = resolve(ROOT, "public", dirname(name), specifier);
         expect(() => readFileSync(target, "utf8"), `${name} → ${specifier}`).not.toThrow();
       }
     }

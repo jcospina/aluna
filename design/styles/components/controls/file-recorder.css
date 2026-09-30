@@ -1,0 +1,60 @@
+/*
+ * The voice recorder — Record beside a sound field's well, and the row the field becomes while it
+ * records (`scripts/files/file-recorder.js`). The recording row is the field's own row, at a text
+ * field's height: the well holds the microphone, the time and a live soundwave, a stroke per
+ * moment as tall as it was loud and mirrored about a middle line, and Stop and Cancel are
+ * squares beside it, as Replace and Clear are. The wave is not the only signal, because the time
+ * runs and the live region says what changed, so where travel is off it lies still.
+ *
+ * It sits beside `file-field.css` for the reason that one sits beside `form-controls.css`: this
+ * arranges drawn controls into a field rather than drawing a control.
+ */
+
+/* A peer of the well, the control's height, with its word showing. */
+.file__record {
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+/* A row that records carries one more control, so a narrow field gives the well a line of its
+ * own and wraps Record, or the squares, under it rather than squeezing the name to nothing; the
+ * recording row wraps the same, so pressing Record doesn't move what follows. */
+.file__row:is(:has([data-file-record]), [data-recorder]) {
+  flex-wrap: wrap;
+}
+
+.file__row:is(:has([data-file-record]), [data-recorder]) > .file__well {
+  flex: 1 1 14rem;
+}
+
+.file__recorder {
+  gap: var(--space-2);
+}
+
+/* The time is what says it's recording, so a narrow well keeps it (`file-field.css` hides a
+ * well's other details below 13rem). */
+.file__recorder .recorder__time {
+  display: inline;
+}
+
+/* Said with the time, and not shown: the microphone and the running time show it. */
+.recorder__said {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The soundwave, drawn in the SVG's own strokes (`wavePath` in scripts/files/recorder-parts.js). */
+.recorder__wave {
+  flex: 1;
+  min-width: 0;
+  height: 1.5rem;
+  margin-right: var(--space-2);
+  color: var(--ink);
+  /* Flat at a hair when travel is off (`--travel` in tokens.css). */
+  transform: scaleY(calc(0.06 + 0.94 * var(--travel)));
+}

@@ -35,12 +35,6 @@ export {
   RECORD_TEMPLATE_ID_PREFIX,
 } from "./records/adapter.ts";
 export {
-  collectionCountSentence,
-  filteredCollectionCountSentence,
-  type RecordNouns,
-  renderCollectionCountSidecar,
-} from "./records/collection-count.ts";
-export {
   COLLECTION_LAYOUTS,
   type CollectionLayout,
   type CollectionOptions,
@@ -55,22 +49,28 @@ export {
   renderCollection,
   renderItemWrapper,
   serializeItemPayload,
-} from "./records/list-container.ts";
+} from "./records/collection/list-container.ts";
 export {
   RECORD_BACK_ATTR,
   RECORD_VIEW_ATTR,
   renderRecordView,
   renderRecordViewTemplate,
-} from "./records/record-view.ts";
-export { decodeAttributeValue } from "./safety/attribute-urls.ts";
-export { enforceItemMarkup, neutralizeItemMarkup } from "./safety/enforcer.ts";
-export { enforceHandlerFragment, type SafeFragment } from "./safety/fragment-safety.ts";
-export { describeStyleViolation, sanitizeStyle } from "./safety/style-discipline.ts";
+} from "./records/record-view/record-view.ts";
+export {
+  collectionCountSentence,
+  filteredCollectionCountSentence,
+  type RecordNouns,
+  renderCollectionCountSidecar,
+} from "./records/region/collection-count.ts";
+export { enforceItemMarkup, neutralizeItemMarkup } from "./safety/enforcer/enforcer.ts";
+export { describeStyleViolation, sanitizeStyle } from "./safety/enforcer/style-discipline.ts";
 export {
   ALLOWED_CLASSES,
   ALLOWED_ELEMENTS,
   REMOVED_ELEMENTS,
-} from "./safety/vocabulary.ts";
+} from "./safety/enforcer/vocabulary.ts";
+export { enforceHandlerFragment, type SafeFragment } from "./safety/fragment-safety.ts";
+export { decodeAttributeValue } from "./safety/markup/attribute-urls.ts";
 export {
   isTokenFrom,
   PALETTE_COLOR_TOKENS,

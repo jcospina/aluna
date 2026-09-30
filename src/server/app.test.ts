@@ -7,14 +7,14 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { DEV_SEED_SELECTOR, DEV_TILE_SELECTOR } from "#shell/desk-dev-panel.js";
-import { PROMPT_FORM_ID, WINDOW_LAYER_SELECTOR } from "#shell/desk-window.js";
 import {
   PROMPT_FIELD_ID,
   PROMPT_NOTICE_ID,
   PROMPT_TRIGGER_ID,
   WINDOW_CONTENT_ID,
-} from "#shell/shell-dom.js";
+} from "#shell/core/shell-dom.js";
+import { DEV_SEED_SELECTOR, DEV_TILE_SELECTOR } from "#shell/desk/window/desk-dev-panel.js";
+import { PROMPT_FORM_ID, WINDOW_LAYER_SELECTOR } from "#shell/desk/window/desk-window.js";
 import { code } from "../presentation/safety/source.test-support.ts";
 import { responseText } from "./app.test-support.ts";
 import {
@@ -111,10 +111,10 @@ describe("GET / (shell)", () => {
     expect(field.attributes.has("value")).toBe(false);
     expect(byId(elements, PROMPT_NOTICE_ID).within).toContain(PROMPT_FORM_ID);
     // The developer panel's eight readouts left the page with the rail; they are code blocks in
-    // the panel's own window now (public/desk-dev-panel.js). The page still carries the tile.
+    // the panel's own window now (public/desk/window/desk-dev-panel.js). The page still carries the tile.
     expect(elements.filter(carrying(DEV_TILE_SELECTOR))).toHaveLength(1);
     expect(elements.filter(carrying(DEV_SEED_SELECTOR))).toHaveLength(1);
-    expect(moduleSources(elements)).toContain("/static/desk-dev-panel.js");
+    expect(moduleSources(elements)).toContain("/static/desk/window/desk-dev-panel.js");
   });
 
   test("the bar's button says it is working exactly while the shell is busy", async () => {
@@ -175,7 +175,11 @@ describe("GET / (shell)", () => {
     );
     expect(inert).toEqual([]);
     // The dumb glue files load: the record swap, its mutation feedback, and search.
-    for (const glue of ["record-view.js", "record-mutations.js", "search-chrome.js"]) {
+    for (const glue of [
+      "records/record-view.js",
+      "records/record-mutations.js",
+      "records/search-chrome.js",
+    ]) {
       expect(modules).toContain(`/static/${glue}`);
     }
   });
@@ -243,7 +247,7 @@ describe("GET / (shell) — the window layer", () => {
     // The target the prompt form and every logo name is created by the client, inside the window.
     // The page carries the ground it stands on and the module that stands it there, nothing else.
     expect(layers.map(({ text }) => text)).toEqual([""]);
-    expect(moduleSources(elements)).toContain("/static/desk-window.js");
+    expect(moduleSources(elements)).toContain("/static/desk/window/desk-window.js");
     expect(
       elements.filter((element) => element.attributes.get("id") === WINDOW_CONTENT_ID),
     ).toEqual([]);

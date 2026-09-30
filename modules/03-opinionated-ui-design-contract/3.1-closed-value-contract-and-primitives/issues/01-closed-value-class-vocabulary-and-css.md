@@ -91,7 +91,7 @@ variants activate the **full palette**.
   typical of neobrutalism;
   `--border-width` aliased to `--border-thin` so authored chrome is unchanged.
 - **Primitive vocabulary** (`public/css/primitives.css`, imported late in
-  `public/app.css` before `a11y.css`): `.stack`/`.cluster`; layout utilities
+  `public/css/app.css` before `a11y.css`): `.stack`/`.cluster`; layout utilities
   (`.flex`/`.grid`/`.flex-col`/`.flex-wrap`/`.items-*`/`.justify-*`/`.gap-*`→
   `--space-*`/`.grid-cols-{2,3}`/`.grow`/`.w-full`); type scale
   (`.text-{xs,sm,lg,xl,bold,muted,subtle}`); truncation
@@ -118,7 +118,7 @@ variants activate the **full palette**.
 ## Verification
 
 - `bunx biome check public/css/*.css public/*.html design/design-system.md` — clean.
-- `bun run dev`, then `curl -sf` on `/static/app.css`, `/static/css/primitives.css`,
+- `bun run dev`, then `curl -sf` on `/static/css/app.css`, `/static/css/primitives.css`,
   `/static/css/components.css`, `/static/primitives-preview.html` — all `200`;
   `app.css` imports both new layers.
 - Contrast ratios computed OKLCH→linear-sRGB→WCAG; all button text ≥ 4.5:1.

@@ -8,7 +8,7 @@
 // assertion rather than a comment. Ingestion is atomic and current-only, so a batch derived before
 // a deletion and presented after it is rejected whole and cannot resurrect purged content.
 //
-// The store shape is the fixed one `../installed-payloads.ts` purges. M10 installs it by platform
+// The store shape is the fixed one `../../installed-payloads.ts` purges. M10 installs it by platform
 // migration; the tests install it on demand, which makes the core purge exercisable before M10.
 
 import type { Database } from "bun:sqlite";

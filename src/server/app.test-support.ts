@@ -8,7 +8,7 @@
 // here — a test must not bill the BYO key on every run.
 
 import type { ZodType } from "zod";
-import { BUILD_JOB_ID_ATTRIBUTE, PROMPT_NOTICE_ID } from "#shell/shell-dom.js";
+import { BUILD_JOB_ID_ATTRIBUTE, PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
 import {
   behavioralResponseFor,
   type FullBehavioralTestSuite,
