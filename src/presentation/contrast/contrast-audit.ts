@@ -61,6 +61,7 @@ export const AUDITED_SHEETS: readonly string[] = [
   "design/styles/components/desk.css",
   "design/styles/components/doc.css",
   "design/styles/components/file-field.css",
+  "design/styles/components/file-recorder.css",
   "design/styles/components/form-controls.css",
   "design/styles/components/ink.css",
   "design/styles/components/list-field.css",

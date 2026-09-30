@@ -21,6 +21,7 @@
 /* The two fields made of other controls, a list and a file, so they load after what they arrange. */
 @import url("./components/list-field.css");
 @import url("./components/file-field.css");
+@import url("./components/file-recorder.css");
 @import url("./components/collection.css");
 @import url("./components/desk.css");
 /* The logo tile and label. Below desk.css, which owns the button they sit in. */

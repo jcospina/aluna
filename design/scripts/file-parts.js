@@ -47,6 +47,8 @@ export const G = {
   open: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v6H4V6h6"/>',
   expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
   download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+  microphone:
+    '<path d="M9 6a3 3 0 0 1 6 0v5a3 3 0 0 1-6 0z"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/>',
 };
 
 /**
@@ -175,9 +177,11 @@ export const progressAttrs = (u) =>
  * @param {string} label
  * @param {string} body
  * @param {string} attrs
+ * @param {string} [variant] the button's kind: outline, primary for Record, danger for a square that
+ *   throws a recording away
  */
-export const square = (f, role, label, body, attrs) =>
-  `<button class="btn btn--outline file__action" type="button" ${attrs} aria-label="${label}" aria-describedby="${f.host.id}-guidance"${seed(f, role)}>${body}</button>`;
+export const square = (f, role, label, body, attrs, variant = "btn--outline") =>
+  `<button class="btn ${variant} file__action" type="button" ${attrs} aria-label="${label}" aria-describedby="${f.host.id}-guidance"${seed(f, role)}>${body}</button>`;
 
 /**
  * Where a held file goes from its row: a video or a sound opens in the record's render view,
