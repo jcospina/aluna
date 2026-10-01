@@ -6,7 +6,7 @@ import {
   openRegularFiles,
   sampleFile,
 } from "../../../platform/files/admission/sample-files.test-support.ts";
-import { inlineContentDisposition } from "../../../platform/files/file-name.ts";
+import { contentDisposition } from "../../../platform/files/file-name.ts";
 import { FILE_URL_PREFIX, fileUrl } from "../../../platform/files/file-url.ts";
 import { seedFileLedgerRow } from "../../../platform/files/store/ledger.test-support.ts";
 import {
@@ -87,7 +87,7 @@ describe("/files/:key", () => {
     expectInert(response, "image/png");
     expect(Object.fromEntries(response.headers)).toMatchObject({
       ...IMMUTABLE,
-      "content-disposition": inlineContentDisposition("tide pool.jpg"),
+      "content-disposition": contentDisposition("inline", "tide pool.jpg"),
     });
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(bytes);
   });

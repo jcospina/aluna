@@ -1,8 +1,12 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { SIGNATURE_WINDOW_BYTES } from "../../../platform/files/admission/admission.ts";
-import { NOT_ADMITTED_SENTENCES } from "../../../platform/files/admission/refusal-copy.ts";
+import {
+  DOCUMENTS_NAMED_AS,
+  misnamedSentence,
+  NOT_ADMITTED_SENTENCES,
+} from "../../../platform/files/admission/refusal-copy.ts";
 import { sampleFile } from "../../../platform/files/admission/sample-files.test-support.ts";
-import { inlineContentDisposition } from "../../../platform/files/file-name.ts";
+import { contentDisposition } from "../../../platform/files/file-name.ts";
 import type { FileFamily } from "../../../registry/fields/file.ts";
 import * as registryStore from "../../../registry/store/store.ts";
 import { probeBody } from "../../http/writing-route-guard.test-support.ts";
@@ -17,6 +21,7 @@ import { PDF_POLICY } from "../serve/serve-route.ts";
 const files = useFileRoutes();
 
 const NOT_A_DOCUMENT = NOT_ADMITTED_SENTENCES.document;
+const NOT_THE_PDF = misnamedSentence(DOCUMENTS_NAMED_AS.get("pdf") ?? "");
 
 /** What a browser sends when a link opens the file in a tab of its own. */
 const OPENED_IN_A_TAB = { "sec-fetch-mode": "navigate", "sec-fetch-dest": "document" };
@@ -61,7 +66,7 @@ describe("a PDF that travels in", () => {
     // Read after every middleware has run: one policy, the PDF's, and none added behind it.
     expect(served.headers.get("content-security-policy")).toBe(PDF_POLICY);
     expect(served.headers.get("content-type")).toBe("application/pdf");
-    expect(served.headers.get("content-disposition")).toBe(inlineContentDisposition(name));
+    expect(served.headers.get("content-disposition")).toBe(contentDisposition("inline", name));
     expect(served.headers.get("x-content-type-options")).toBe("nosniff");
     const page = await app.request("/");
     for (const header of ["x-frame-options", "referrer-policy"]) {
@@ -109,7 +114,7 @@ describe("a file renamed .pdf", () => {
     for (const format of ["jpeg", "text", "svg"] as const) {
       const response = await files.upload(sampleFile(format), { name: "manual.pdf" });
       expect(response.status, format).toBe(415);
-      expect(await response.json()).toEqual({ refusal: "signature", message: NOT_A_DOCUMENT });
+      expect(await response.json()).toEqual({ refusal: "signature", message: NOT_THE_PDF });
     }
     expectNothingLeft();
   });
@@ -120,7 +125,7 @@ describe("a file renamed .pdf", () => {
       .app()
       .request(PHOTO_UPLOAD_PATH, uploadInit(body.stream, { name: "manual.pdf" }));
     expect(response.status).toBe(415);
-    expect(await response.json()).toEqual({ refusal: "signature", message: NOT_A_DOCUMENT });
+    expect(await response.json()).toEqual({ refusal: "signature", message: NOT_THE_PDF });
     expect(body.pulledBytes()).toBeLessThanOrEqual(SIGNATURE_WINDOW_BYTES);
     expect(body.cancelled()).toBe(true);
     expectNothingLeft();

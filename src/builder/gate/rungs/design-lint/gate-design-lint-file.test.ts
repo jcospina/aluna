@@ -5,6 +5,7 @@
 
 import { describe, expect, spyOn, test } from "bun:test";
 import * as admission from "../../../../platform/files/admission/admission.ts";
+import { WORD_DOCUMENT_TYPE } from "../../../../platform/files/admission/documents/word-package.ts";
 import { enforceItemMarkup } from "../../../../presentation/index.ts";
 import { PHOTO_FIELD, photoSpec } from "../../../../registry/fields/file.test-support.ts";
 import type { CapabilitySpec } from "../../../../registry/index.ts";
@@ -12,7 +13,9 @@ import { validSpec } from "../../../../registry/spec/spec.test-support.ts";
 import { FEW_SHOT_DESIGN_EXAMPLES } from "../../../units/generation/few-shot/few-shot-gallery.ts";
 import { ESCAPE_HELPER } from "../../../units/generation/unit-fixtures.test-support.ts";
 import { loadItemRenderer } from "../../gate-internal.ts";
+import { scratchFileType, tokenFileName } from "../../gate-scratch-names.ts";
 import { findDesignViolation } from "./gate-design-lint.ts";
+import { mislabelledDocument } from "./gate-file-kinds.ts";
 
 function showingThePhoto() {
   const spec = photoSpec();
@@ -214,15 +217,19 @@ describe("a card whose file field takes sounds", () => {
   });
 });
 
+const takes = (...accepts: ("image" | "document")[]) => {
+  const spec = showingThePhoto();
+  const fields = spec.schema.fields.map((field) =>
+    field.name === "photo" ? { ...field, accepts } : field,
+  );
+  return { ...spec, schema: { fields } };
+};
+
+/** A document said in words: "PDF" for a PDF, "Document" for any other type. */
+const inWords =
+  'file ? `<span>${(file as { mime?: string }).mime === "application/pdf" ? "PDF" : "Document"}</span>` : "<span>No manual yet</span>"';
+
 describe("a card whose file field takes documents", () => {
-  const takes = (...accepts: ("image" | "document")[]) => {
-    const spec = showingThePhoto();
-    const fields = spec.schema.fields.map((field) =>
-      field.name === "photo" ? { ...field, accepts } : field,
-    );
-    return { ...spec, schema: { fields } };
-  };
-  const inWords = 'file ? "<span>PDF</span>" : "<span>No manual yet</span>"';
   const drawing = (drawn: string) => renderer(`file ? ${drawn} : "<span>None</span>"`);
 
   test("passes when it says in words that the record holds a document", () => {
@@ -240,7 +247,7 @@ describe("a card whose file field takes documents", () => {
   });
 
   test("fails when it frames a document, which has no picture", () => {
-    const framed = '`<span class="media-frame"><span>PDF</span></span>`';
+    const framed = '`<span class="media-frame"><span>Document</span></span>`';
     expect(findDesignViolation(takes("document"), drawing(framed))).toContain("media-frame");
     const byKind = renderer(
       `!file ? "<span>None</span>" : (file as { kind?: string }).kind === "document" ? ${framed} : \`<img src="\${escapeHtml(file.url)}" alt="">\``,
@@ -265,7 +272,7 @@ describe("a card whose file field takes documents", () => {
         'const art = record.cover ? `<span class="media-frame"><img src="${escapeHtml((record.cover as { url: string }).url)}" alt=""></span>` : `<span class="media-frame"><span>No cover</span></span>`;\n  return `${art}',
       );
     expect(findDesignViolation(both, withCover(inWords))).toBeUndefined();
-    const framed = '`<span class="media-frame"><span>PDF</span></span>`';
+    const framed = '`<span class="media-frame"><span>Document</span></span>`';
     expect(
       findDesignViolation(both, withCover(`file ? ${framed} : "<span>None</span>"`)),
     ).toContain("A document has no picture");
@@ -288,6 +295,11 @@ describe("a card whose file field takes documents", () => {
     }
   });
 
+  test("keeps a scratch document a PDF, named as one", () => {
+    expect(scratchFileType("document")).toBe("application/pdf");
+    expect(tokenFileName("document").endsWith(".pdf")).toBe(true);
+  });
+
   test("is reviewed down its document branch, not only the photo's", () => {
     const photoOrDocument = renderer(
       `!file ? "<span>None</span>" : \`<img src="\${escapeHtml(file.url)}" alt="">\``,
@@ -295,6 +307,179 @@ describe("a card whose file field takes documents", () => {
     expect(findDesignViolation(takes("image", "document"), photoOrDocument)).toContain(
       "for a synthetic document record",
     );
+  });
+});
+
+describe("a card that names a document's type", () => {
+  test("catches a card that calls every file a PDF, however it spells it", () => {
+    for (const label of ["PDF", "pdf", "PDFs", "&#80;DF", "P<b>DF</b>", "<b>P</b>DF", "P&shy;DF"]) {
+      const always = renderer(`file ? "<span>${label}</span>" : "<span>No ${label} yet</span>"`);
+      expect(findDesignViolation(takes("document"), always), label).toContain('says "PDF"');
+    }
+  });
+
+  test("reads a field that holds several files as well as one", () => {
+    const word = { kind: "document", mime: WORD_DOCUMENT_TYPE, url: "/files/a", name: "a.docx" };
+    const say = (record: Readonly<Record<string, unknown>>) =>
+      record.manuals ? "<span>PDF</span>" : "<span>None</span>";
+    const record = { manuals: [word] };
+    expect(mislabelledDocument(record, say)).toContain(WORD_DOCUMENT_TYPE);
+    const right = (held: Readonly<Record<string, unknown>>) =>
+      Array.isArray(held.manuals)
+        ? held.manuals.map((file) => (file.mime === word.mime ? "Document" : "PDF")).join()
+        : "None";
+    expect(mislabelledDocument(record, right)).toBeUndefined();
+  });
+
+  test("lets a card hint at the types it takes beside a type it names right", () => {
+    const hint = renderer(
+      `file ? \`<span>\${(file as { mime?: string }).mime === "application/pdf" ? "PDF" : "Document"}</span><span>PDF or Word</span>\` : "<span>No manual</span>"`,
+    );
+    expect(findDesignViolation(takes("document"), hint)).toBeUndefined();
+  });
+
+  test("lets a card say PDF between the parts that show the file", () => {
+    const between = renderer(
+      '`<span>${file ? escapeHtml(file.name) : "No manual"}</span><span>Printed copies are PDF only</span>${file ? "<span>Open</span>" : ""}`',
+    );
+    expect(findDesignViolation(takes("document"), between)).toBeUndefined();
+  });
+
+  test("lets a card say PDF where it names no file's type", () => {
+    const aside = renderer(`"<span>Keep the PDF or Word manual</span>" + (${inWords})`);
+    expect(findDesignViolation(takes("document"), aside)).toBeUndefined();
+  });
+
+  test("catches a card that calls any further document type a PDF, or draws it", () => {
+    const further = admission.admittedTypes("document").slice(1);
+    expect(further.length).toBeGreaterThan(1);
+    for (const type of further) {
+      const only = (drawn: string) =>
+        renderer(
+          `file && (file as { mime?: string }).mime === "${type}" ? ${drawn} : (${inWords})`,
+        );
+      const probe = `for a synthetic document (${type}) record`;
+      expect(findDesignViolation(takes("document"), only('"<span>PDF</span>"'))).toContain(probe);
+      expect(
+        findDesignViolation(
+          takes("document"),
+          only('`<img src="${escapeHtml(file.url)}" alt="">`'),
+        ),
+      ).toContain(probe);
+    }
+  });
+});
+
+describe("a card's PDF labels, read against the same card for a PDF and for none", () => {
+  const word = { kind: "document", mime: WORD_DOCUMENT_TYPE, url: "/files/a", name: "a.docx" };
+  const record = { manual: word };
+  const spans = (...runs: string[]) => runs.map((run) => `<span>${run}</span>`).join("");
+  /** The card for a record, or undefined when it throws, as the Gate renders one. */
+  const cardOf =
+    (draw: (held: { mime?: string } | null) => string) =>
+    (held: Readonly<Record<string, unknown>>) => {
+      try {
+        return draw(held.manual as { mime?: string } | null);
+      } catch {
+        return undefined;
+      }
+    };
+  const flagged = (draw: (held: { mime?: string } | null) => string) =>
+    mislabelledDocument(record, cardOf(draw)) !== undefined;
+
+  test("catches a PDF chip a card shows for every file", () => {
+    const chip = (held: { mime?: string } | null) =>
+      held
+        ? spans("PDF", held.mime === "application/pdf" ? "View PDF" : "Download")
+        : spans("No manual");
+    expect(flagged(chip)).toBe(true);
+  });
+
+  test("catches a label when the card throws without a file, as a required field's may", () => {
+    const required = (held: { mime?: string } | null) => {
+      if (!held) throw new Error("A required manual is always there.");
+      return spans("PDF", "48 KB");
+    };
+    expect(flagged(required)).toBe(true);
+  });
+
+  test("catches a label in an element's name, however it is spelled", () => {
+    for (const name of ['title="P&#68;F"', 'aria-label="P&shy;DF"', 'aria-label="P\u00ADDF"']) {
+      const named = (held: { mime?: string } | null) =>
+        held ? `<span ${name}>Manual</span>` : spans("None");
+      expect(flagged(named), name).toBe(true);
+    }
+  });
+
+  test("lets a card say PDF where it says it of no file, or names the file's own type", () => {
+    const cards = [
+      (held: { mime?: string } | null) => spans("Manual", held ? "Word file, not a PDF" : "None"),
+      (held: { mime?: string } | null) =>
+        held
+          ? spans("C", "PDF", "PDF", "A", "A", "B", "PDF")
+          : spans("PDF", "B", "PDF", "PDF", "B", "B"),
+    ];
+    for (const card of cards) expect(flagged(card)).toBe(false);
+  });
+
+  test("reads each document field apart from another that holds a PDF", () => {
+    const pdf = { ...word, mime: "application/pdf", name: "b.pdf" };
+    const label = (file: unknown) => {
+      const { mime } = file as { mime: string };
+      return mime === "application/pdf" ? "PDF" : "Document";
+    };
+    const both = (held: Readonly<Record<string, unknown>>) =>
+      spans(label(held.contract), label(held.addendum));
+    const required = (held: Readonly<Record<string, unknown>>) => {
+      try {
+        return both(held);
+      } catch {
+        return undefined;
+      }
+    };
+    for (const record of [
+      { contract: word, addendum: pdf },
+      { contract: pdf, addendum: word },
+    ]) {
+      expect(mislabelledDocument(record, required)).toBeUndefined();
+    }
+  });
+
+  test("catches a card whose label for one field reads another's type", () => {
+    const pdf = { ...word, mime: "application/pdf", name: "b.pdf" };
+    const typeOf = (file: unknown) =>
+      (file as { mime?: string }).mime === "application/pdf" ? "PDF" : "Document";
+    // The contract's label reads the addendum's type: the slip a two-field card invites.
+    const swapped = (held: Readonly<Record<string, unknown>>) =>
+      spans(held.contract ? typeOf(held.addendum) : "No contract", typeOf(held.addendum));
+    expect(mislabelledDocument({ contract: word, addendum: pdf }, swapped)).toContain(
+      WORD_DOCUMENT_TYPE,
+    );
+  });
+
+  test("reads each file of a list by its own type", () => {
+    const pdf = { ...word, mime: "application/pdf", name: "b.pdf" };
+    const chips = (say: (mime: string) => string) => (held: Readonly<Record<string, unknown>>) =>
+      Array.isArray(held.papers)
+        ? spans(...held.papers.map((file: { mime: string }) => say(file.mime)))
+        : spans("No papers");
+    const right = chips((mime) => (mime === "application/pdf" ? "PDF" : "Document"));
+    const wrong = chips(() => "PDF");
+    for (const papers of [
+      [pdf, word],
+      [word, pdf],
+    ]) {
+      expect(mislabelledDocument({ papers }, right)).toBeUndefined();
+      expect(mislabelledDocument({ papers }, wrong)).toContain(WORD_DOCUMENT_TYPE);
+    }
+  });
+
+  test("reads a card of thousands of runs at once", () => {
+    const rows = Array.from({ length: 5_000 }, (_, at) => `row ${at}`);
+    const long = (held: { mime?: string } | null) => spans(...rows, held ? "PDF" : "No manual");
+    const started = performance.now();
+    expect(flagged(long)).toBe(true);
+    expect(performance.now() - started).toBeLessThan(1_000);
   });
 });
 

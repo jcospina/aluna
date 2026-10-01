@@ -114,12 +114,28 @@ in ADR-0009, and in the architecture and design documents.
      The central directory sits at the end of the file and the entry is deflated, so this
      check runs after the write and inflates under a size cap. DOCM, DOTX and XLSX fail it.
      A password-protected `.docx` is an OLE2 file rather than a zip, and its refusal says
-     so.
+     so. The check reads the end-of-directory record, a central directory of at most 4 MB,
+     and two parts inflated to at most 1 MB each with their CRCs checked: `_rels/.rels`,
+     whose one office-document relationship names the main part, and `[Content_Types].xml`,
+     which must declare that part the WordprocessingML main document. ZIP64, a split zip,
+     an encrypted entry, a local header that disagrees with the directory, and a name
+     listed twice are refused. Both parts are read as a strict XML reader reads them, in one
+     pass, each element told by its name and carrying exactly its own attributes, and a
+     comment, processing instruction, CDATA, DOCTYPE, prefixed name, a child's own
+     namespace, a declared encoding other than the part's, a name outside OPC's characters,
+     or an ambiguous relationship target refuses the file. An OLE2 file named `.docx` is locked
+     when its directory holds an `EncryptedPackage` stream, and is otherwise a file whose
+     contents aren't what its name says. *(7.2/06)*
    - DOC is OLE2, which XLS, PPT and MSG share, so the check confirms the family and not
      the application. A DOC downloads, so a spreadsheet saved as `.doc` harms nothing.
    - Markdown and plain text are UTF-8 with or without a BOM, UTF-16 with a BOM, or 8-bit
      text with no zero bytes, such as the Windows-1252 Excel writes for Spanish text. The
      check streams over the whole file and records the encoding it found for Module 9.
+     The ledger's `encoding` holds a WHATWG label `TextDecoder` reads as it is: `utf-8`,
+     `utf-16le`, `utf-16be`, or `windows-1252` for 8-bit text. A document's extension alone
+     picks its row, so a `.md` that opens with `%PDF-` is recorded as Markdown and
+     downloads, and a document picker offers extensions only, as design/ draws it: a picker
+     widens a type to every extension the system maps to it. *(7.2/06)*
    - Containers are checked and codecs are not. A video whose codec the browser refuses
      shows its download link where the player would be, in the record's render view
      (decision 29).
@@ -318,7 +334,8 @@ in ADR-0009, and in the architecture and design documents.
     still runs inside the viewer, which is the viewer's to confine. The route refuses any
     load that would run a file as code (a script, a style, a worker, a manifest), and a
     player's cors-mode load only a sound or a video answers. A test reads the headers after
-    the app's full middleware has run. *(7.2/05)* 7.2 proves that a PDF opens in Chrome,
+    the app's full middleware has run. *(7.2/05)* Every other document is an attachment
+    under `default-src 'none'; sandbox`. *(7.2/06)* 7.2 proves that a PDF opens in Chrome,
     Safari and Firefox and that video and audio play when opened in a tab of their own. A
     link that opens a file carries `rel="noopener"`.
 28. **No derivatives.** No thumbnails, no video posters. The platform HTML filter puts

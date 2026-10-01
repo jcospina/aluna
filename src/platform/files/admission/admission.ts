@@ -1,12 +1,13 @@
 // File admission (Module 7 PLAN decisions 1 to 4, ADR-0009). The table below is the allowlist. The
 // extension names a family, and the bytes may then pick any row of it, so a PNG called `.jpg` is
 // recorded as the PNG it is. Containers are checked and codecs are not. A HEIC or HEIF brand, TIFF,
-// SVG and a Matroska that isn't WebM match no row. It imports only the byte tests, leaves, and a
-// type.
+// SVG and a Matroska that isn't WebM match no row. A document's extension alone picks its row,
+// since a document downloads under its name. It imports only the byte tests, leaves, and a type.
 //
+// The image extensions admitted: jpg, jpeg, jfif, pjpeg, pjp, png, gif, webp and avif.
 // The video extensions admitted: mp4, m4v, mov, webm, ogv and ogg.
 // The audio extensions admitted: mp3, m4a, aac, wav, ogg, oga, opus, webm and flac.
-// The document extensions admitted: pdf, whose `%PDF-` header must open the file.
+// The document extensions admitted: pdf, doc, docx, md and txt.
 
 import type { FileFamily } from "../../../registry/fields/file.ts";
 import { adtsFrame, type FrameReader, FrameScan, mpegAudioFrame } from "./audio-frames.ts";
@@ -22,11 +23,19 @@ import {
   webmDocument,
   webmFamily,
 } from "./container-signatures.ts";
+import { isCompoundFile, type ReadAt } from "./documents/compound-file.ts";
+import { TextScan } from "./documents/text-scan.ts";
+import { WORD_DOCUMENT_TYPE, wordPackageOf } from "./documents/word-package.ts";
 
 /** The most of a body the bytes are read from before the rows must have decided. */
 export const SIGNATURE_WINDOW_BYTES = 64 * 1024;
 
-export type AdmissionRefusalReason = "extension" | "not_accepted" | "declared_type" | "signature";
+export type AdmissionRefusalReason =
+  | "extension"
+  | "not_accepted"
+  | "declared_type"
+  | "signature"
+  | "locked";
 
 /** A file the platform will not store, and which stage refused it. */
 export class FileAdmissionRefusal extends Error {
@@ -37,10 +46,12 @@ export class FileAdmissionRefusal extends Error {
   }
 }
 
-/** What admission lets a file be recorded as: its family and the type its bytes proved. */
+/** What admission lets a file be recorded as: its family, the type its bytes proved, and a
+ *  text's encoding. */
 export interface AdmittedType {
   readonly kind: FileFamily;
   readonly mime: string;
+  readonly encoding?: string;
 }
 
 interface RowClaims {
@@ -51,6 +62,10 @@ interface RowClaims {
   readonly familyless?: readonly string[];
   /** The extensions its picker offers, when not every one it admits. */
   readonly offers?: readonly string[];
+  /** A row only a file named with one of its extensions may match. */
+  readonly byName?: true;
+  /** A container read after the write, from its end: the refusal it earns, if any. */
+  readonly afterWrite?: (read: ReadAt, size: number) => Promise<AdmissionRefusalReason | undefined>;
 }
 
 /** A row its container's leading bytes decide. */
@@ -71,9 +86,16 @@ interface FrameRow extends RowClaims {
   readonly frames: FrameReader;
 }
 
-type SignatureRow = HeadRow | FrameRow;
+/** A row with no signature, whose whole body must read as text. */
+interface TextRow extends RowClaims {
+  readonly text: true;
+}
 
-const isHeadRow = (row: SignatureRow): row is HeadRow => !("frames" in row);
+type SignatureRow = HeadRow | FrameRow | TextRow;
+
+const isHeadRow = (row: SignatureRow): row is HeadRow => "headBytes" in row;
+const isFrameRow = (row: SignatureRow): row is FrameRow => "frames" in row;
+const isTextRow = (row: SignatureRow): row is TextRow => "text" in row;
 
 const oggPage = (head: Uint8Array) => asciiAt(head, 0, "OggS");
 
@@ -195,10 +217,45 @@ const SIGNATURES: readonly SignatureRow[] = [
     kind: "document",
     mime: "application/pdf",
     extensions: ["pdf"],
+    byName: true,
     headBytes: 5,
     matches: (head) => asciiAt(head, 0, "%PDF-"),
   },
+  {
+    kind: "document",
+    mime: "application/msword",
+    extensions: ["doc"],
+    byName: true,
+    headBytes: 8,
+    matches: isCompoundFile,
+  },
+  {
+    kind: "document",
+    mime: WORD_DOCUMENT_TYPE,
+    extensions: ["docx"],
+    byName: true,
+    familyless: ["application/zip", "application/x-zip-compressed"],
+    headBytes: 8,
+    // A locked DOCX is an OLE2 file, which the read after the write names as locked.
+    matches: (head) => asciiAt(head, 0, "PK\x03\x04") || isCompoundFile(head),
+    afterWrite: wordAfterWrite,
+  },
+  {
+    kind: "document",
+    mime: "text/markdown",
+    extensions: ["md"],
+    byName: true,
+    familyless: ["text/plain"],
+    text: true,
+  },
+  { kind: "document", mime: "text/plain", extensions: ["txt"], byName: true, text: true },
 ];
+
+async function wordAfterWrite(read: ReadAt, size: number) {
+  const found = await wordPackageOf(read, size);
+  if (found === "word") return undefined;
+  return found === "locked" ? "locked" : "signature";
+}
 
 /** Every type admission records a file of `kind` as, in table order: what its picker offers. */
 export function admittedTypes(kind: string): readonly string[] {
@@ -207,14 +264,17 @@ export function admittedTypes(kind: string): readonly string[] {
 
 /**
  * What a picker for `families` offers: every type admission records them as, then every extension
- * it admits, since a system names some files by a type no row records, as it does an `.m4v`.
+ * it admits, since a system names some files by a type no row records, as it does an `.m4v`. A row
+ * its name alone picks offers only its extensions: a picker widens a type to every extension the
+ * system maps to it, such as `text/plain` to `.log`, and admission would refuse each of those.
  */
 export function offeredTypes(families: readonly string[]): readonly string[] {
   const rows = SIGNATURES.filter((row) => families.includes(row.kind));
+  const types = rows.filter((row) => !row.byName).map((row) => row.mime);
   const extensions = rows.flatMap((row) =>
     (row.offers ?? row.extensions).map((extension) => `.${extension}`),
   );
-  return [...new Set([...rows.map((row) => row.mime), ...extensions])];
+  return [...new Set([...types, ...extensions])];
 }
 
 /** The extension a file admission records as `mime` is usually named with: its row's first. */
@@ -251,6 +311,8 @@ const TYPE_ALIASES: ReadonlyMap<string, string> = new Map([
   ...aliasesOf("audio/wav", ["audio/x-wav", "audio/wave", "audio/vnd.wave"]),
   ["audio/x-flac", "audio/flac"],
   ...aliasesOf("application/pdf", ["application/x-pdf", "application/acrobat", "text/pdf"]),
+  ["application/x-msword", "application/msword"],
+  ["text/x-markdown", "text/markdown"],
 ]);
 
 /** The extensions whose container holds sound or picture alike, and the family each usually is. */
@@ -329,11 +391,37 @@ export function familiesTheBytesMayName(
   return USUAL_FAMILY.has(extensionOf(name)) ? accepts : [kind];
 }
 
+/** Whether a file named with `extension` may match `row`. */
+function reachable(row: SignatureRow, extension: string): boolean {
+  return !row.byName || row.extensions.includes(extension);
+}
+
+declare const WRITTEN: unique symbol;
+
+/** A type admission settled with the file written: the only one a ledger row may record. */
+export type WrittenAdmission = AdmittedType & { readonly [WRITTEN]: true };
+
+/**
+ * The last stage, for a row whose container is read after the write, from its end: a DOCX's. It
+ * throws the refusal the written bytes earn.
+ */
+export async function admitWritten(
+  admitted: AdmittedType,
+  read: ReadAt,
+  size: number,
+): Promise<WrittenAdmission> {
+  const row = SIGNATURES.find((candidate) => candidate.mime === admitted.mime);
+  const refusal = await row?.afterWrite?.(read, size);
+  if (refusal) throw new FileAdmissionRefusal(refusal);
+  return admitted as WrittenAdmission;
+}
+
 /**
  * The third stage, fed each chunk as it arrives. It holds at most {@link SIGNATURE_WINDOW_BYTES}
  * of head and of the window after any ID3v2 tags, and throws the moment no row of `kind` can
  * match, so a mismatch aborts the upload there. A WebM or an Ogg whose bytes hold the other of
  * sound and picture is recorded as that family when `families` holds it, and refused when not.
+ * A document's `name` picks its row, and a Markdown or text file is read to its end instead.
  */
 export class SignatureCheck {
   readonly #heads: readonly HeadRow[];
@@ -347,11 +435,15 @@ export class SignatureCheck {
   #headMissed = false;
   #scanMissed = false;
   #admitted: SignatureRow | undefined;
+  readonly #text: { readonly row: TextRow; readonly scan: TextScan } | undefined;
 
-  constructor(kind: FileFamily, families: readonly FileFamily[] = [kind]) {
-    const rows = SIGNATURES.filter((row) => row.kind === kind);
+  constructor(name: string, kind: FileFamily, families: readonly FileFamily[] = [kind]) {
+    const extension = extensionOf(name);
+    const rows = SIGNATURES.filter((row) => row.kind === kind && reachable(row, extension));
+    const text = rows.find(isTextRow);
+    this.#text = text && { row: text, scan: new TextScan() };
     this.#heads = rows.filter(isHeadRow);
-    this.#frames = rows.filter((row): row is FrameRow => !isHeadRow(row));
+    this.#frames = rows.filter(isFrameRow);
     this.#families = families;
     this.#scan =
       this.#frames.length === 0
@@ -368,7 +460,8 @@ export class SignatureCheck {
 
   inspect(chunk: Uint8Array): void {
     this.#total += chunk.byteLength;
-    if (this.#admitted) return;
+    if (this.#text && !this.#text.scan.feed(chunk)) throw new FileAdmissionRefusal("signature");
+    if (this.#admitted || this.#text) return;
     if (!this.#headMissed) {
       const taken = chunk.subarray(0, this.#needed - this.#headFilled);
       this.#head.set(taken, this.#headFilled);
@@ -381,6 +474,7 @@ export class SignatureCheck {
 
   /** At the end of the body: the type the bytes proved, or the refusal a short body earns. */
   finish(): AdmittedType {
+    if (this.#text) return this.#finishText(this.#text);
     if (!this.#admitted && !this.#headMissed) this.#decideHead();
     if (!this.#admitted && this.#scan && !this.#scanMissed) this.#scanned(this.#scan.finish());
     const row = this.#admitted;
@@ -389,6 +483,12 @@ export class SignatureCheck {
       throw new FileAdmissionRefusal("signature");
     }
     return { kind: row.kind, mime: row.mime };
+  }
+
+  #finishText({ row, scan }: { row: TextRow; scan: TextScan }): AdmittedType {
+    const encoding = scan.finish();
+    if (!encoding) throw new FileAdmissionRefusal("signature");
+    return { kind: row.kind, mime: row.mime, encoding };
   }
 
   #decideHead(): void {

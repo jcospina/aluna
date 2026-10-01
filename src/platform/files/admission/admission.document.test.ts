@@ -23,7 +23,7 @@ function refusalOf(run: () => unknown): AdmissionRefusalReason | undefined {
 
 /** Feed `bytes` to a fresh document check in `chunkSize` pieces and settle it. */
 function checkDocument(bytes: Uint8Array, chunkSize = bytes.byteLength) {
-  const check = new SignatureCheck("document");
+  const check = new SignatureCheck("manual.pdf", "document", DOCUMENTS);
   for (let at = 0; at < bytes.byteLength; at += chunkSize) {
     check.inspect(bytes.subarray(at, at + chunkSize));
   }
@@ -41,7 +41,7 @@ describe("a PDF", () => {
   });
 
   test("is refused the moment its first five bytes are not a PDF header", () => {
-    const check = new SignatureCheck("document");
+    const check = new SignatureCheck("manual.pdf", "document", DOCUMENTS);
     check.inspect(new TextEncoder().encode("%PDF"));
     expect(refusalOf(() => check.inspect(new TextEncoder().encode("!")))).toBe("signature");
   });

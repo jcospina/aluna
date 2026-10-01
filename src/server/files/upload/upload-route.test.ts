@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { SIGNATURE_WINDOW_BYTES } from "../../../platform/files/admission/admission.ts";
 import { NOT_ADMITTED_SENTENCES } from "../../../platform/files/admission/refusal-copy.ts";
 import { sampleFile } from "../../../platform/files/admission/sample-files.test-support.ts";
-import { inlineContentDisposition } from "../../../platform/files/file-name.ts";
+import { contentDisposition } from "../../../platform/files/file-name.ts";
 import { fileUrl } from "../../../platform/files/file-url.ts";
 import { fileUploadPath } from "../../../platform/files/upload-path.ts";
 import { SECOND_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
@@ -136,7 +136,9 @@ describe("a filename", () => {
     expect(reference.name).toBe("日本.jpg");
     expect(files.ledgerRows()[0]?.name).toBe("日本.jpg");
     const served = await files.app().request(reference.url);
-    expect(served.headers.get("content-disposition")).toBe(inlineContentDisposition("日本.jpg"));
+    expect(served.headers.get("content-disposition")).toBe(
+      contentDisposition("inline", "日本.jpg"),
+    );
   });
 
   test("is kept NFC, without control or bidirectional characters, and within 255 bytes", async () => {
@@ -165,7 +167,8 @@ describe("a filename", () => {
 describe("admission", () => {
   test("refuses a wrong extension or a contradicting type before a byte is read", async () => {
     const cases = [
-      [{ name: "notes.txt" }, "extension"],
+      [{ name: "notes.rtf" }, "extension"],
+      [{ name: "notes.txt" }, "not_accepted"],
       [{ name: "vector.svg", type: "image/svg+xml" }, "extension"],
       [{ name: "scan.tiff", type: "image/tiff" }, "extension"],
       [{ name: "phone.heic", type: "image/heic" }, "extension"],

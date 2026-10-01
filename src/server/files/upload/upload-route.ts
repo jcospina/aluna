@@ -1,21 +1,24 @@
-// The upload route (Module 7 PLAN decisions 8, 11 and 13 to 15; ADR-0009). Nothing is awaited
+// The upload route (Module 7 PLAN decisions 3, 8, 11 and 13 to 15; ADR-0009). Nothing is awaited
 // before the body is read but the store opening its staging file. The read token goes back the
-// moment the last byte is read and admitted, before the fsync, so deletion's drain never waits on
-// the disk. A 409 or 415 is JSON naming its stage and the field's sentence. A 413 is the guard's
-// or Bun's and carries no sentence, and neither does a 400 or a 404.
+// moment the last byte is read and the stream admitted, before the fsync, so deletion's drain never
+// waits on the disk. A container read from its end, a DOCX's, is admitted after the write. A 409
+// or 415 is JSON naming its stage and the field's sentence. A 413 is the guard's or Bun's and
+// carries no sentence, and neither does a 400 or a 404.
 
 import type { Context, Hono } from "hono";
 import { FILE_NAME_HEADER } from "#shell/core/shell-dom.js";
 import {
   type AdmittedType,
   admitClaims,
+  admitWritten,
   FileAdmissionRefusal,
   familiesTheBytesMayName,
   SignatureCheck,
+  type WrittenAdmission,
 } from "../../../platform/files/admission/admission.ts";
 import {
   ADD_FILE_AGAIN_SENTENCE,
-  notAdmittedSentence,
+  refusalSentence,
 } from "../../../platform/files/admission/refusal-copy.ts";
 import { capFileName, decodeFileName } from "../../../platform/files/file-name.ts";
 import {
@@ -94,8 +97,13 @@ function refuse(c: Context, status: 409 | 415, refusal: string, message: string)
   return c.json({ refusal, message }, status, NO_STORE);
 }
 
-function notAdmitted(c: Context, field: UploadField, error: FileAdmissionRefusal): Response {
-  return refuse(c, 415, error.reason, notAdmittedSentence(field.accepts));
+function notAdmitted(
+  c: Context,
+  field: UploadField,
+  name: string,
+  error: FileAdmissionRefusal,
+): Response {
+  return refuse(c, 415, error.reason, refusalSentence(error.reason, name, field.accepts));
 }
 
 /** The name to keep and the family its extension names, or the refusal owed before a byte is read. */
@@ -110,7 +118,7 @@ function admitBeforeReading(
     const families = familiesTheBytesMayName(decoded, kind, field.accepts);
     return { name: capFileName(decoded), kind, families };
   } catch (error) {
-    if (error instanceof FileAdmissionRefusal) return notAdmitted(c, field, error);
+    if (error instanceof FileAdmissionRefusal) return notAdmitted(c, field, decoded, error);
     throw error;
   }
 }
@@ -145,7 +153,7 @@ async function* admittedChunks(
   body: ReadableStream<Uint8Array> | null,
   signal: AbortSignal,
   check: SignatureCheck,
-  read: () => void,
+  read: (admitted: AdmittedType) => void,
 ): AsyncGenerator<Uint8Array> {
   if (body) {
     for await (const chunk of readUntilAborted(body, signal)) {
@@ -153,38 +161,39 @@ async function* admittedChunks(
       yield chunk;
     }
   }
-  check.finish();
-  read();
+  read(check.finish());
 }
 
 /** Stream into staging holding the read token, and give it back once the whole body is in. */
 async function stageUnderReadToken(
   c: Context,
   deps: FileUploadDeps,
-  claims: { kind: FileFamily; families: readonly FileFamily[] },
+  claims: { name: string; kind: FileFamily; families: readonly FileFamily[] },
   tokens: ReadTokenSet,
 ): Promise<{ staged: StagedObject; admitted: AdmittedType }> {
-  const check = new SignatureCheck(claims.kind, claims.families);
+  const check = new SignatureCheck(claims.name, claims.kind, claims.families);
   const signal = AbortSignal.any([c.req.raw.signal, tokens.signal]);
-  let read = false;
-  const release = () => {
-    read = true;
+  let admitted: AdmittedType | undefined;
+  const release = (settled: AdmittedType) => {
+    admitted = settled;
     deps.readGates.release(tokens);
   };
   try {
     const chunks = admittedChunks(c.req.raw.body, signal, check, release);
     const staged = await deps.objectStore.put(mintFileKey(), chunks);
-    return { staged, admitted: check.finish() };
+    if (!admitted) throw new Error("The store took the body without reading it to its end.");
+    return { staged, admitted };
   } catch (error) {
     // Read before the release below, which aborts the same signal to mark the tokens spent.
-    if (!read && tokens.signal.aborted) throw new IncarnationClosedError("The incarnation closed.");
+    if (!admitted && tokens.signal.aborted)
+      throw new IncarnationClosedError("The incarnation closed.");
     throw error;
   } finally {
     deps.readGates.release(tokens);
   }
 }
 
-type AdmittedFile = PendingFile & AdmittedType;
+type AdmittedFile = PendingFile & WrittenAdmission;
 
 /** The one platform write: the incarnation and field still take this file, and the row goes in. */
 function recordPendingFile(database: PlatformDatabase["readwrite"], file: AdmittedFile): boolean {
@@ -245,10 +254,10 @@ function isHangUp(c: Context, error: unknown): boolean {
 }
 
 /** The answer an upload that stopped short earns, or undefined for a failure it does not own. */
-function stoppedShort(c: Context, field: UploadField, error: unknown) {
+function stoppedShort(c: Context, field: UploadField, name: string, error: unknown) {
   // Nobody reads this one; answering it keeps a hang-up from being logged as a failure.
   if (isHangUp(c, error)) return c.body(null, 400, NO_STORE);
-  if (error instanceof FileAdmissionRefusal) return notAdmitted(c, field, error);
+  if (error instanceof FileAdmissionRefusal) return notAdmitted(c, field, name, error);
   if (error instanceof IncarnationClosedError) return c.body(null, 404, NO_STORE);
   return undefined;
 }
@@ -265,19 +274,21 @@ async function upload(c: Context, deps: FileUploadDeps): Promise<Response> {
   try {
     const stage = await stageUnderReadToken(c, deps, claims, tokens);
     staged = stage.staged;
+    const read = (start: number, length: number) => stage.staged.read(start, length);
+    const written = await admitWritten(stage.admitted, read, stage.staged.size);
     const { capabilityId, incarnationId } = target.incarnation;
     const file: AdmittedFile = {
       key: staged.key,
       capability_id: capabilityId,
       incarnation_id: incarnationId,
       field: target.field.name,
-      ...stage.admitted,
+      ...written,
       size: staged.size,
       name: claims.name,
     };
     return await recordAndPlace(c, deps, file, staged);
   } catch (error) {
-    const answer = stoppedShort(c, target.field, error);
+    const answer = stoppedShort(c, target.field, claims.name, error);
     if (answer) return answer;
     throw error;
   } finally {

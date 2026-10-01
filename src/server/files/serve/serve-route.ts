@@ -16,7 +16,7 @@
 
 import type { Context, Hono } from "hono";
 import { isAdmittedType } from "../../../platform/files/admission/admission.ts";
-import { inlineContentDisposition } from "../../../platform/files/file-name.ts";
+import { contentDisposition } from "../../../platform/files/file-name.ts";
 import { FILE_URL_PREFIX } from "../../../platform/files/file-url.ts";
 import {
   type FileLedgerRow,
@@ -102,24 +102,40 @@ export const INERT_PLAYER_POLICY =
  */
 export const PDF_POLICY = "default-src 'none'; sandbox allow-downloads allow-modals";
 
-const POLICY_BY_KIND: ReadonlyMap<string, string> = new Map([
-  ["image", INERT_IMAGE_POLICY],
-  ["video", INERT_PLAYER_POLICY],
-  ["audio", INERT_PLAYER_POLICY],
+/**
+ * Any other document's (PLAN decision 27): it downloads under its name, and a browser that drew it
+ * all the same would find nothing it may load or run.
+ */
+export const DOWNLOAD_POLICY = INERT_IMAGE_POLICY;
+
+interface Served {
+  readonly policy: string;
+  readonly disposition: "inline" | "attachment";
+}
+
+const SERVED_BY_KIND: ReadonlyMap<string, Served> = new Map([
+  ["image", { policy: INERT_IMAGE_POLICY, disposition: "inline" }],
+  ["video", { policy: INERT_PLAYER_POLICY, disposition: "inline" }],
+  ["audio", { policy: INERT_PLAYER_POLICY, disposition: "inline" }],
 ]);
 
-/** A document is served by its verified type, since each opens or downloads as its type does. */
-const POLICY_BY_TYPE: ReadonlyMap<string, string> = new Map([["application/pdf", PDF_POLICY]]);
+/** A PDF opens in a tab; every other document downloads. */
+function servedDocument(mime: string): Served {
+  if (mime === "application/pdf") return { policy: PDF_POLICY, disposition: "inline" };
+  return { policy: DOWNLOAD_POLICY, disposition: "attachment" };
+}
 
 function absent(c: Context): Response {
   return c.body(null, 404, NO_STORE);
 }
 
-/** The policy a row's bytes are served under, or undefined for a row that must not serve. */
-function servedPolicy(row: FileLedgerRow | null): string | undefined {
+/** How a row's bytes are served, or undefined for a row that must not serve. */
+function servedAs(row: FileLedgerRow | null): Served | undefined {
   if (!row || !SERVED_STATES.has(row.state) || !isAdmittedType(row.kind, row.mime))
     return undefined;
-  return POLICY_BY_KIND.get(row.kind) ?? POLICY_BY_TYPE.get(row.mime);
+  return (
+    SERVED_BY_KIND.get(row.kind) ?? (row.kind === "document" ? servedDocument(row.mime) : undefined)
+  );
 }
 
 async function openUnderReadToken(
@@ -190,13 +206,13 @@ async function answerSpan(
 async function serveFile(c: Context, deps: FileServeDeps): Promise<Response> {
   const key = c.req.param("key") ?? "";
   const row = isFileKey(key) ? readFileLedgerRow(deps.databases.readonly, key) : null;
-  const policy = servedPolicy(row);
-  if (!row || !policy || refused(c, row)) return absent(c);
+  const served = servedAs(row);
+  if (!row || !served || refused(c, row)) return absent(c);
   const etag = strongEtag(row.key);
   const headers = {
     "content-type": row.mime,
-    "content-security-policy": policy,
-    "content-disposition": inlineContentDisposition(row.name),
+    "content-security-policy": served.policy,
+    "content-disposition": contentDisposition(served.disposition, row.name),
     "accept-ranges": "bytes",
     etag,
     vary: VARY,
