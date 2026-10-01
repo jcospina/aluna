@@ -9,7 +9,7 @@
 
 import ts from "typescript";
 
-import { FILE_FAMILIES, hasActiveFileField } from "../registry/fields/file.ts";
+import { FILE_FAMILIES, hasActiveFileField, isFileListFieldType } from "../registry/fields/file.ts";
 import type { CapabilitySpec } from "../registry/spec/spec.ts";
 import { FULL_CAPABILITY_TOOLS } from "../registry/tools.ts";
 import { QUERY_RESULT_TYPES } from "../runtime/data/query-result-types.ts";
@@ -68,17 +68,31 @@ export function hasExportSurface(statement: ts.Statement): boolean {
 
 /**
  * The Handlers whose compiled contract differs between two specs: every one when only one of them
- * carries files, since each holds `query` and reads records typed by
+ * carries files, or a list of files, since each holds `query` and reads records typed by
  * {@link recordContractDeclarations}.
  */
 export function handlersWithMovedFileContract(
   committed: Pick<CapabilitySpec, "schema">,
   candidate: Pick<CapabilitySpec, "schema">,
 ): readonly HandlerUnitName[] {
-  return hasActiveFileField(committed.schema.fields) === hasActiveFileField(candidate.schema.fields)
-    ? []
-    : FULL_CAPABILITY_TOOLS;
+  const shape = (spec: Pick<CapabilitySpec, "schema">) => JSON.stringify(fileContract(spec));
+  return shape(committed) === shape(candidate) ? [] : FULL_CAPABILITY_TOOLS;
 }
+
+/**
+ * Which file values a spec's records carry: one file, and a list of files. A spec without a
+ * `file[]` keeps the contract it had before lists, so code checked against it checks the same.
+ */
+function fileContract(spec: Pick<CapabilitySpec, "schema">) {
+  const active = spec.schema.fields.filter((field) => field.lifecycle === "active");
+  return {
+    files: hasActiveFileField(active),
+    lists: active.some((field) => isFileListFieldType(field.type)),
+  };
+}
+
+const fileValueTypes = ({ files, lists }: ReturnType<typeof fileContract>) =>
+  `${files ? " | CapabilityFileProjection" : ""}${lists ? " | readonly CapabilityFileProjection[]" : ""}`;
 
 const FILE_PROJECTION_TYPES = {
   url: "string",
@@ -102,13 +116,13 @@ ${Object.entries(FILE_PROJECTION_TYPES)
  * A capability with no active file field is checked against the value types it had before files.
  * The projection's interface is declared either way: an unused declaration changes no code's types.
  */
-function recordContractDeclarations(files: boolean): string {
+function recordContractDeclarations(contract: ReturnType<typeof fileContract>): string {
   return `${FILE_PROJECTION_DECLARATION}
 type CapabilityDataColumnValue =
   | string
   | number
   | boolean
-  | readonly string[]${files ? "\n  | CapabilityFileProjection" : ""}
+  | readonly string[]${fileValueTypes(contract)}
   | null;
 interface CapabilityDataRow {
   readonly id: string;
@@ -131,14 +145,14 @@ type PresentationAdapter = (record: CapabilityActionRecord) => string;
  * `src/runtime/router/contract.ts` declares and the gate's structural rung re-checks.
  */
 export function handlerContractDeclarations(spec: Pick<CapabilitySpec, "schema">): string {
-  const files = hasActiveFileField(spec.schema.fields);
-  return `${recordContractDeclarations(files)}
+  const contract = fileContract(spec);
+  return `${recordContractDeclarations(contract)}
 type CapabilityInputValue = string | readonly string[];
 interface CapabilityInput<Value = CapabilityInputValue> {
   readonly values: Readonly<Record<string, Value>>;
   readonly submittedFields: ReadonlySet<string>;
 }
-type CapabilitySaveInputValue = CapabilityInputValue${files ? " | CapabilityFileProjection | null" : ""};
+type CapabilitySaveInputValue = CapabilityInputValue${contract.files ? `${fileValueTypes(contract)} | null` : ""};
 type CapabilitySaveInput = CapabilityInput<CapabilitySaveInputValue>;
 interface CapabilityMutationPort {
   create(values: Record<string, unknown>): CapabilityActionRecord;
@@ -205,7 +219,7 @@ export function handlerContractType(action: HandlerUnitName): string {
 // The item-renderer contract: one record → its inner markup string (the composition
 // input the presentation adapter binds, src/presentation/records/adapter.ts `ItemRenderer`).
 export function itemRendererContractDeclarations(spec: Pick<CapabilitySpec, "schema">): string {
-  return `${recordContractDeclarations(hasActiveFileField(spec.schema.fields))}
+  return `${recordContractDeclarations(fileContract(spec))}
 type ItemRenderer = (record: PresentableRecord) => string;
 `;
 }

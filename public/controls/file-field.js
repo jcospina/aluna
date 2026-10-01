@@ -1,10 +1,12 @@
 // @ts-check
 
 /**
- * The photo control, the product's half of the seam. `design/scripts/files/file-field.js` is the control;
- * this hands it the upload route as its transfer and keeps what the form posts in step with what
- * the field holds. Everything a field needs to know arrives on the markup the server drew
- * (`src/presentation/controls/file/file-control.ts`): where to send a file, the cap, and the clear.
+ * The file controls, the product's half of the seam. `design/scripts/files/file-field.js` is the
+ * control for one file and `file-list.js` the one for many; this hands each the upload route as its
+ * transfer and keeps what the form posts in step with what the field holds: one input for a file,
+ * and an input per file in a list's `[data-file-keys]` holder. Everything a field needs to know
+ * arrives on the markup the server drew (`src/presentation/controls/file/file-control.ts`): where
+ * to send a file, the cap, the clear and a list's removal mark.
  */
 
 import {
@@ -15,6 +17,7 @@ import {
   settleFileFields,
   uploadingIn,
 } from "../../design/scripts/files/file-field.js";
+import { FILE_LIST_CHANGE, mountFileLists } from "../../design/scripts/files/file-list.js";
 import { kindsIn } from "../../design/scripts/files/file-parts.js";
 import { watchArrivals } from "../core/dom-arrivals.js";
 import { registerRegionRelease } from "../core/region-scope.js";
@@ -39,7 +42,10 @@ import {
  */
 
 const FIELD = `[${FILE_FIELD_HOOKS.field}]`;
+const LIST = `[${FILE_FIELD_HOOKS.list}]`;
 const VALUE = `[${WIRE.value}]`;
+const KEY_HOLDER = `[${WIRE.keys}]`;
+const FILE_PATH = "/files/";
 const HELD_SAVE = `[${FILE_FIELD_HOOKS.save}]`;
 
 /** The key the route answered each admitted file with, by the file as the field holds it. */
@@ -59,6 +65,31 @@ export const admittedKey = (held) => KEYS.get(held);
 export function postedValue(current, drawn) {
   if (current === null) return drawn.held === "" ? "" : drawn.clear;
   return admittedKey(current) ?? drawn.held;
+}
+
+/**
+ * The key a list posts for a file it holds: the one its upload answered with, or, for a file it was
+ * drawn holding, the one its address names.
+ *
+ * @param {Held} held
+ */
+export function listedKey(held) {
+  const drawn = held.url.startsWith(FILE_PATH) ? held.url.slice(FILE_PATH.length) : "";
+  return admittedKey(held) ?? drawn;
+}
+
+/**
+ * What a list posts for what it holds now: each file's key, in order, and each file it was drawn
+ * holding and holds no longer, marked as removed, so a file another window added since stays.
+ *
+ * @param {readonly Held[]} current
+ * @param {{ held: readonly string[], remove: string }} drawn
+ * @returns {string[]}
+ */
+export function postedKeys(current, drawn) {
+  const kept = current.map(listedKey);
+  const removed = drawn.held.filter((key) => !kept.includes(key));
+  return [...kept, ...removed.map((key) => `${drawn.remove}${key}`)];
 }
 
 /** @param {string} body @returns {Record<string, unknown>} */
@@ -201,6 +232,31 @@ function keepValueInStep(event) {
   input.value = postedValue(change.current, drawn);
 }
 
+/** @param {Event} event */
+function keepListInStep(event) {
+  const host = event.target;
+  if (!(host instanceof HTMLElement)) return;
+  const holder = host.querySelector(KEY_HOLDER);
+  if (!(holder instanceof HTMLElement)) return;
+  const change =
+    /** @type {CustomEvent<import("../../design/scripts/files/file-list.js").FileListChange>} */ (
+      event
+    ).detail;
+  // What the list holds as saved is the baseline its removals are counted from: what it was
+  // drawn holding, until a save keeps what it holds then.
+  const drawn = {
+    held: change.saved.map(listedKey),
+    remove: holder.getAttribute(WIRE.removePrefix) ?? "",
+  };
+  const name = holder.getAttribute(WIRE.fieldName) ?? "";
+  const inputs = postedKeys(change.current, drawn).map((value) => {
+    const input = host.ownerDocument.createElement("input");
+    Object.assign(input, { type: "hidden", name, value });
+    return input;
+  });
+  holder.replaceChildren(...inputs);
+}
+
 /**
  * The fields' listeners, apart from their mounting so the rules run in Bun: their value kept in
  * step, put back when a create finishes or is put down, and a form refusing to send while a file
@@ -211,6 +267,7 @@ function keepValueInStep(event) {
  */
 export function wireFileFields(root, settle = settleFileFields) {
   root.addEventListener(FILE_FIELD_CHANGE, keepValueInStep);
+  root.addEventListener(FILE_LIST_CHANGE, keepListInStep);
   onCreateFinished(root, (form) => settle(form, "revert"));
   root.addEventListener(
     "submit",
@@ -228,8 +285,8 @@ export function wireFileFields(root, settle = settleFileFields) {
 
 /** @param {Document | Element} node @returns {Element[]} */
 const hostsIn = (node) => [
-  ...(node instanceof Element && node.matches(FIELD) ? [node] : []),
-  ...node.querySelectorAll(FIELD),
+  ...(node instanceof Element && node.matches(`${FIELD}, ${LIST}`) ? [node] : []),
+  ...node.querySelectorAll(`${FIELD}, ${LIST}`),
 ];
 
 /**
@@ -249,7 +306,8 @@ function mountArrivals(nodes, transfer) {
     } catch (error) {
       refusals.push(error);
     }
-    mountFileFields(host.parentElement, transfer, { hold: registerRegionRelease });
+    const mount = host.matches(LIST) ? mountFileLists : mountFileFields;
+    mount(host.parentElement, transfer, { hold: registerRegionRelease });
   }
   if (refusals.length > 0) throw refusals[0];
 }

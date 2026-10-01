@@ -6,9 +6,14 @@ import {
   type CapabilitySpec,
   type FileFamily,
   isFileFieldType,
+  isFileListFieldType,
   type SpecField,
 } from "../../../../../registry/index.ts";
-import { deriveCapabilityTableDdl, FILE_CLEAR_VALUE } from "../../../../../runtime/data/index.ts";
+import {
+  deriveCapabilityTableDdl,
+  FILE_CLEAR_VALUE,
+  FILE_REMOVE_PREFIX,
+} from "../../../../../runtime/data/index.ts";
 import type { CapabilityInput } from "../../../../../runtime/router/index.ts";
 import { mintScratchFile } from "../../../gate-scratch-files.ts";
 import { tokenFileName } from "../../../gate-scratch-names.ts";
@@ -27,14 +32,17 @@ interface BehavioralInputValue {
 
 /**
  * Materialize model-authored field/value pairs into a record, normalized as
- * {@link inputValuesToHandlerInput} shapes handler input. A `null` asserts absence, not a list.
+ * {@link inputValuesToHandlerInput} shapes handler input. A `null` asserts absence, not a list; a
+ * `file[]`'s tokens gather into its list as a `string[]`'s values do.
  */
 export function fieldValuesToRecord(
   fields: readonly SpecField[],
   values: readonly BehavioralFieldValue[],
 ): Record<string, BehavioralScalar> {
   const listFields = new Set(
-    fields.filter((field) => field.type === "string[]").map((field) => field.name),
+    fields
+      .filter((field) => field.type === "string[]" || isFileListFieldType(field.type))
+      .map((field) => field.name),
   );
   const record: Record<string, BehavioralScalar> = {};
   for (const entry of values) {
@@ -54,6 +62,7 @@ export function fieldValuesToRecord(
 /**
  * The form's submission for a case, before any file exists: a file field carries its token, or
  * `""` for none, and a submitted file field the case leaves out posts `""`, as the wire reads it.
+ * A `file[]` carries its tokens in order, one entry each, and none for a `null`.
  */
 export function inputValuesToHandlerInput(
   spec: CapabilitySpec,
@@ -76,11 +85,16 @@ export function inputValuesToHandlerInput(
     if (field && isFileFieldType(field.type) && !grouped.has(name)) grouped.set(name, [""]);
   }
 
+  const shaped = (type: string | undefined, submitted: readonly string[]) => {
+    if (type === "string[]") return submitted;
+    if (type !== undefined && isFileListFieldType(type)) return submitted.filter(Boolean);
+    return submitted[0] ?? "";
+  };
   return {
     values: Object.fromEntries(
       [...grouped].map(([fieldName, submitted]) => [
         fieldName,
-        fieldsByName.get(fieldName)?.type === "string[]" ? submitted : (submitted[0] ?? ""),
+        shaped(fieldsByName.get(fieldName)?.type, submitted),
       ]),
     ),
     submittedFields: new Set(submittedFieldNames),
@@ -90,7 +104,7 @@ export function inputValuesToHandlerInput(
 /**
  * A case's submission as the form's photo control posts it: a family token becomes a pending
  * scratch file, and an empty one clears the file an update's record holds or leaves an empty
- * field empty.
+ * field empty. A `file[]`'s tokens each become one, and none clears the list the same way.
  */
 export function scratchFormInput(
   spec: CapabilitySpec,
@@ -100,34 +114,54 @@ export function scratchFormInput(
 ): CapabilityInput {
   const values = { ...input.values };
   for (const field of activeFileFields(spec.schema.fields)) {
-    const token = values[field.name];
-    if (typeof token !== "string") continue;
-    if (token !== "") {
-      const name = tokenFileName(token);
-      values[field.name] = mintScratchFile(
-        database,
-        spec,
-        field,
-        name,
-        null,
-        token as FileFamily,
-      ).key;
-    } else if (recordId !== undefined && holdsFile(spec, field, recordId, database)) {
-      values[field.name] = FILE_CLEAR_VALUE;
-    }
+    const tokens = tokensOf(field, values[field.name]);
+    if (tokens === undefined) continue;
+    const keys = scratchKeys(spec, field, tokens, database, recordId);
+    values[field.name] = isFileListFieldType(field.type) ? keys : (keys[0] ?? "");
   }
   return { values, submittedFields: input.submittedFields };
 }
 
-function holdsFile(
+/** The tokens a field's submission names, in order, or `undefined` when it names none at all. */
+function tokensOf(field: SpecField, token: unknown): readonly string[] | undefined {
+  if (isFileListFieldType(field.type)) return Array.isArray(token) ? token : undefined;
+  return typeof token === "string" ? [token].filter(Boolean) : undefined;
+}
+
+/**
+ * A pending scratch file per token, in order. A `file`'s none clears what an update's record holds;
+ * a list's tokens take the place of every file the record holds, each named as removed.
+ */
+function scratchKeys(
+  spec: CapabilitySpec,
+  field: SpecField,
+  tokens: readonly string[],
+  database: Database,
+  recordId: string | undefined,
+): readonly string[] {
+  const minted = tokens.map(
+    (token) =>
+      mintScratchFile(database, spec, field, tokenFileName(token), null, token as FileFamily).key,
+  );
+  const held = recordId === undefined ? null : heldColumn(spec, field, recordId, database);
+  if (isFileListFieldType(field.type)) {
+    const keys = typeof held === "string" ? (JSON.parse(held) as { key: string }[]) : [];
+    return [...minted, ...keys.map(({ key }) => `${FILE_REMOVE_PREFIX}${key}`)];
+  }
+  if (minted.length > 0) return minted;
+  return held === null ? [] : [FILE_CLEAR_VALUE];
+}
+
+/** What an update's record holds in `field`'s column, as stored, or `null` for nothing. */
+function heldColumn(
   spec: CapabilitySpec,
   field: SpecField,
   recordId: string,
   database: Database,
-): boolean {
+): unknown {
   const table = sqlIdentifier(deriveCapabilityTableDdl(spec).tableName);
   const row = database
     .query(`SELECT ${sqlIdentifier(field.name)} AS "held" FROM ${table} WHERE "id" = ?`)
     .get(recordId) as { held: unknown } | null;
-  return row !== null && row.held !== null;
+  return row?.held ?? null;
 }

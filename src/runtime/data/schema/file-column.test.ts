@@ -7,6 +7,7 @@ import { describe, expect, test } from "bun:test";
 import { fileUrl } from "../../../platform/files/file-url.ts";
 import { mintFileKey } from "../../../platform/files/store/ledger.ts";
 import {
+  ALBUM_FIELD,
   CAPTION_FIELD,
   PHOTO_FIELD,
   photoSpec,
@@ -18,7 +19,12 @@ import {
   createCapabilityQueryPort,
   deriveAdditiveCapabilityMigration,
 } from "../index.ts";
-import { fileKeyFromProjection, projectStoredFileReference } from "./file-values.ts";
+import {
+  fileKeyFromProjection,
+  keylessStoredFileReference,
+  projectStoredFileList,
+  projectStoredFileReference,
+} from "./file-values.ts";
 import { tableColumns } from "./table-shape.test-support.ts";
 
 const REFERENCE = JSON.stringify({
@@ -124,5 +130,85 @@ describe("reading a file column through the query port", () => {
     } finally {
       database.close();
     }
+  });
+});
+
+const storedFile = (name: string) => ({ ...JSON.parse(REFERENCE), key: mintFileKey(), name });
+
+function insertAlbum(database: Database, album: string | null, id = crypto.randomUUID()): void {
+  database
+    .query(`INSERT INTO "cap_photos" ("id", "caption", "album") VALUES (?, 'A trip', ?)`)
+    .run(id, album);
+}
+
+describe("a file list's column", () => {
+  test("holds nothing or one JSON array, and refuses any other shape", () => {
+    const database = new Database(":memory:");
+    try {
+      applyCapabilityTableDdl(photoSpec([CAPTION_FIELD, ALBUM_FIELD]), database);
+      insertAlbum(database, null);
+      insertAlbum(database, "[]");
+      insertAlbum(database, JSON.stringify([storedFile("a.jpg"), storedFile("b.jpg")]));
+      for (const wrong of [REFERENCE, '"a.jpg"', "not json", "42"]) {
+        expect(() => insertAlbum(database, wrong)).toThrow(/CHECK constraint failed/);
+      }
+    } finally {
+      database.close();
+    }
+  });
+
+  test("arrives by evolution holding NULL in older records, which a read carries as []", () => {
+    const database = new Database(":memory:");
+    try {
+      const committed = photoSpec([CAPTION_FIELD]);
+      applyCapabilityTableDdl(committed, database);
+      database.query(`INSERT INTO "cap_photos" ("id", "caption") VALUES ('a', 'Before')`).run();
+      const evolved = photoSpec([CAPTION_FIELD, ALBUM_FIELD]);
+      applyAdditiveCapabilityMigration(
+        deriveAdditiveCapabilityMigration(committed, evolved),
+        database,
+      );
+      expect(database.query(`SELECT "album" FROM "cap_photos"`).get()).toEqual({ album: null });
+      const query = createCapabilityQueryPort(database, { target: evolved });
+      const [record] = query.records({ sql: 'SELECT "id" AS "target_id" FROM "cap_photos"' });
+      expect(record?.record.fields).toMatchObject({ caption: "Before", album: [] });
+    } finally {
+      database.close();
+    }
+  });
+});
+
+describe("a stored file list as generated code sees it", () => {
+  test("keeps its order, each file named by its address, and cannot be changed", () => {
+    const files = [storedFile("b.jpg"), storedFile("a.jpg"), storedFile("c.jpg")];
+    const list = projectStoredFileList(ALBUM_FIELD.name, JSON.stringify(files));
+    expect(list.map((file) => file.name)).toEqual(["b.jpg", "a.jpg", "c.jpg"]);
+    expect(list.map(fileKeyFromProjection)).toEqual(files.map((file) => file.key));
+    expect(Object.isFrozen(list)).toBe(true);
+    expect(list.every((file) => Object.isFrozen(file))).toBe(true);
+  });
+
+  test("is [] for NULL and for an empty list", () => {
+    expect(projectStoredFileList(ALBUM_FIELD.name, null)).toEqual([]);
+    expect(projectStoredFileList(ALBUM_FIELD.name, "[]")).toEqual([]);
+  });
+
+  test("fails closed on any other shape, or a file listed twice", () => {
+    const one = storedFile("a.jpg");
+    const wrong = [REFERENCE, "not json", "[1]", JSON.stringify([one, one]), JSON.stringify([{}])];
+    for (const value of [...wrong, 42]) {
+      expect(() => projectStoredFileList(ALBUM_FIELD.name, value)).toThrow(ALBUM_FIELD.name);
+    }
+  });
+
+  test("reaches a question without a single key", () => {
+    const files = [storedFile("a.jpg"), storedFile("b.pdf")];
+    const shown = keylessStoredFileReference(JSON.stringify(files));
+    expect(JSON.parse(shown ?? "null")).toEqual(
+      files.map(({ kind, mime, size, name }) => ({ kind, mime, size, name })),
+    );
+    for (const file of files) expect(shown).not.toContain(file.key);
+    expect(keylessStoredFileReference("[]")).toBeUndefined();
+    expect(keylessStoredFileReference(JSON.stringify([files[0], "x"]))).toBeUndefined();
   });
 });

@@ -7,7 +7,11 @@ import type { CapabilitySpec, SpecField } from "../spec/spec.ts";
 import { allUnique, sameOrderedStrings, sqlNameText } from "../spec/spec-text.ts";
 import { capabilityToolSchema, FULL_CAPABILITY_TOOLS } from "../tools.ts";
 import { CHOICE_DISABLED_ERROR_CODE, INVALID_CHOICE_ERROR_CODE } from "./choice.ts";
-import { INVALID_FILE_REFERENCE_ERROR_CODE, RECORD_CHANGED_ERROR_CODE } from "./file.ts";
+import {
+  INVALID_FILE_REFERENCE_ERROR_CODE,
+  RECORD_CHANGED_ERROR_CODE,
+  TOO_MANY_FILES_ERROR_CODE,
+} from "./file.ts";
 import { MAX_LENGTH_EXCEEDED_ERROR_CODE } from "./max-length.ts";
 
 export const MISSING_REQUIRED_FIELDS_ERROR_CODE = "missing_required_fields";
@@ -74,6 +78,7 @@ export const PLATFORM_OWNED_ERROR_CODES = [
   MAX_LENGTH_EXCEEDED_ERROR_CODE,
   INVALID_FILE_REFERENCE_ERROR_CODE,
   RECORD_CHANGED_ERROR_CODE,
+  TOO_MANY_FILES_ERROR_CODE,
 ] as const;
 
 /** {@link PLATFORM_OWNED_ERROR_CODES} as a prompt names them, so a new one reaches every prompt. */

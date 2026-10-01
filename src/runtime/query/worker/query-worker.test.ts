@@ -467,6 +467,59 @@ describe("the views a question reads its tables through (Module 7 decision 37)",
     ]);
   });
 
+  test("shows a file list as its files without their keys, and NULL as an empty list", async () => {
+    const { path, database } = seeded();
+    const key = randomUUID();
+    database.exec(`CREATE TABLE ${FILE_LEDGER_TABLE} ("key" TEXT PRIMARY KEY)`);
+    database.run(`INSERT INTO ${FILE_LEDGER_TABLE} VALUES (?)`, [key]);
+    database.exec("CREATE TABLE album (id TEXT, files TEXT) STRICT");
+    const file = (name: string, kind = "image") => ({
+      key: randomUUID(),
+      kind,
+      mime: "image/png",
+      size: 3,
+      name,
+    });
+    const rows: [string, string | null][] = [
+      ["two", JSON.stringify([file("b.png"), file("a.pdf", "document")])],
+      ["named", JSON.stringify([file(`${key}.png`)])],
+      ["empty", "[]"],
+      ["older", null],
+      ["scalar", JSON.stringify([key])],
+      ["doubled", `[{"key":"a","key":"${key}","kind":"image"}]`],
+      ["object", JSON.stringify(file("c.png"))],
+    ];
+    for (const row of rows) database.run("INSERT INTO album VALUES (?, ?)", row);
+    const worker = createQueryWorker(path, {
+      schema: QUESTION_DESK_SCHEMA,
+      views: [
+        questionView("album", [
+          { name: "id", reading: "value" },
+          { name: "files", reading: "files" },
+        ]),
+      ],
+    });
+    workers.push(worker);
+    const read = await worker.read("SELECT id, files FROM album");
+    const shown = (kind: string, name: string) => ({ kind, mime: "image/png", size: 3, name });
+    expect(Object.fromEntries(read.map((row) => [row.id, row.files]))).toEqual({
+      two: JSON.stringify([shown("image", "b.png"), shown("document", "a.pdf")]),
+      named: JSON.stringify([shown("image", QUESTION_FILE_WITHHELD)]),
+      empty: "[]",
+      older: "[]",
+      scalar: null,
+      doubled: null,
+      object: null,
+    });
+    const kinds = await worker.read(
+      "SELECT json_extract(entry.value, '$.kind') AS kind, count(*) AS n FROM album, json_each(album.files) AS entry GROUP BY kind ORDER BY kind",
+    );
+    expect(kinds).toEqual([
+      { kind: "document", n: 1 },
+      { kind: "image", n: 2 },
+    ]);
+  });
+
   test("reads a note in time that follows its length, not its square", async () => {
     // Hex runs all through it, so every chunk is walked window by window. Timed in CPU, which a
     // loaded machine delays but does not inflate: a note 32 times longer costs 27-51 times more,

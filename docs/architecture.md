@@ -787,8 +787,8 @@ by platform mutation validation, and refused at evolution activation if any
 committed physical value already exceeds a new or lower limit. Generated Handlers
 receive admitted values rather than reimplementing these structural constraints;
 crafted overflow returns typed 422 `max_length_exceeded` with the same field
-marker. These three structural codes, the file field's `invalid_file_reference` and
-`record_changed` (ADR-0009), and their authored platform sentences do not enter
+marker. These three structural codes, the file field's `invalid_file_reference`,
+`record_changed` and `too_many_files` (ADR-0009), and their authored platform sentences do not enter
 model-authored `behavioral_errors`. Older active rows may omit Module 5's new form
 collections; omission canonicalizes to empty without rewriting historical
 snapshots, while new specs emit the complete form shape.
@@ -988,7 +988,8 @@ active field, and the complete result validates before the write. An edit theref
 cannot erase soft-hidden or forward-compatible state. A file field goes further: its
 written value is always the router-checked submission, whether the Handler passes it
 back or leaves it out, any other value is refused, and only the platform control's
-explicit clear empties it (ADR-0009). Incidental I/O stays the
+explicit clear empties it, or for a `file[]` its naming each file it removes (ADR-0009).
+Incidental I/O stays the
 Handler's business; canonical state always crosses the mutation interface.
 
 ### Reads — free

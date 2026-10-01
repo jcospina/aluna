@@ -1,7 +1,7 @@
 // What `src/index.ts` hands `Bun.serve`, resolved apart from the boot so a test can read it. A leaf
 // but for the file cap and the number parse, which are themselves leaves.
 
-import { resolveMaxFileBytes } from "../platform/files/file-cap.ts";
+import { resolveMaxFileBytes, resolveMaxListFiles } from "../platform/files/file-cap.ts";
 import { parseWholeNumber } from "../platform/whole-number.ts";
 
 /** Loopback only: the platform runs locally for one person, and no other machine may write to it. */
@@ -25,9 +25,10 @@ export interface ServeOptions {
 /**
  * PORT must be a whole number from 0 to 65535 in decimal digits; anything else falls back to the
  * default (Bun binds 65535 for a larger one). An explicit "0" asks the OS for an ephemeral port.
- * A malformed file cap throws.
+ * A malformed file cap or list count throws, so neither is found wrong on the first save.
  */
 export function resolveServeOptions(env: NodeJS.ProcessEnv = process.env): ServeOptions {
+  resolveMaxListFiles(env);
   const requested = env.PORT?.trim() ?? "";
   const port = parseWholeNumber(requested);
   return {

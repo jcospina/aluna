@@ -16,6 +16,7 @@ import {
   type CapabilitySpec,
   defaultBehavioralErrorsForSchema,
   fieldTypeSchema,
+  isFileFieldType,
   isSearchableTextType,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   type SpecField,
@@ -108,7 +109,7 @@ const anyField = fc
   })
   .map(({ options, ...field }): SpecField => {
     if (field.type === "choice") return { ...field, values: options, groups: [] };
-    if (field.type === "file") return { ...field, accepts: PHOTO_FIELD.accepts };
+    if (isFileFieldType(field.type)) return { ...field, accepts: PHOTO_FIELD.accepts };
     return field;
   });
 

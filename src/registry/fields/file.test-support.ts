@@ -1,5 +1,6 @@
-// The smallest capability a file field can live in: a required caption and one optional photo.
-// Shared by every layer's file-field suite, so each proves its part against the same spec.
+// The smallest capability a file field can live in: a required caption and one optional photo, and
+// the list a `file[]` suite adds beside them. Shared by every layer's file-field suite, so each
+// proves its part against the same spec.
 
 import { validSpec } from "../spec/spec.test-support.ts";
 import type { SpecField } from "../spec/spec.ts";
@@ -19,6 +20,16 @@ export const PHOTO_FIELD: SpecField = {
   required: false,
   lifecycle: "active",
   accepts: ["image"],
+};
+
+/** A list of photos and documents, which a trip or a note may hold several of. */
+export const ALBUM_FIELD: SpecField = {
+  name: "album",
+  label: "Album",
+  type: "file[]",
+  required: false,
+  lifecycle: "active",
+  accepts: ["image", "document"],
 };
 
 export function photoSpec(fields: readonly SpecField[] = [CAPTION_FIELD, PHOTO_FIELD]) {

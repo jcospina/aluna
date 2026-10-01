@@ -8,7 +8,7 @@
 // live in `spec.behavior.test.ts`. The shared `validSpec` fixture lives in `spec.test-support.ts`.
 
 import { describe, expect, test } from "bun:test";
-import { FILE_FAMILIES } from "../fields/file.ts";
+import { FILE_FAMILIES, isFileFieldType } from "../fields/file.ts";
 import { validSpec } from "./spec.test-support.ts";
 import {
   ALUNA_RESERVED_FIELD_PREFIX,
@@ -32,7 +32,7 @@ function pantryField(type: CapabilitySpec["schema"]["fields"][number]["type"], r
     required,
     lifecycle: "active" as const,
     ...(type === "choice" ? { values: [{ value: "one", label: "One" }], groups: [] } : {}),
-    ...(type === "file" ? { accepts: [...FILE_FAMILIES] } : {}),
+    ...(isFileFieldType(type) ? { accepts: [...FILE_FAMILIES] } : {}),
   };
 }
 

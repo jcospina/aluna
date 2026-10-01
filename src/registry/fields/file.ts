@@ -1,7 +1,8 @@
 // The file field type (ADR-0009).
 //
-// A file field's column holds one reference to a file the platform stores, as JSON in TEXT, the
-// way `string[]` stores its array. It is a type of its own, not a list type.
+// A `file` column holds one reference to a file the platform stores, as JSON in TEXT, the way
+// `string[]` stores its array, and a `file[]` column an ordered array of them. Both are file types,
+// never list types.
 //
 // `accepts` names the families a field takes. It is authored by the model and gated here before
 // anything downstream reads it.
@@ -11,16 +12,23 @@ import { z } from "zod";
 import type { CapabilitySpec, SpecField } from "../spec/spec.ts";
 import { allUnique } from "../spec/spec-text.ts";
 
-export const FILE_FIELD_TYPES = ["file"] as const;
+export const FILE_FIELD_TYPES = ["file", "file[]"] as const;
 
 /** A save naming a file this field may not claim: platform-owned, like an undeclared choice. */
 export const INVALID_FILE_REFERENCE_ERROR_CODE = "invalid_file_reference";
 /** An edit whose file field no longer matches what its record holds: it changed in another window. */
 export const RECORD_CHANGED_ERROR_CODE = "record_changed";
+/** A save whose `file[]` holds more files than the configured count: platform-owned too. */
+export const TOO_MANY_FILES_ERROR_CODE = "too_many_files";
 export type FileFieldType = (typeof FILE_FIELD_TYPES)[number];
 
 export function isFileFieldType(type: string): type is FileFieldType {
   return (FILE_FIELD_TYPES as readonly string[]).includes(type);
+}
+
+/** Whether a file field holds an ordered list of files rather than one. */
+export function isFileListFieldType(type: string): type is "file[]" {
+  return type === "file[]";
 }
 
 function isActiveFileField(field: Pick<SpecField, "type" | "lifecycle">): boolean {

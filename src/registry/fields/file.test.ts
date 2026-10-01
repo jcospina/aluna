@@ -18,11 +18,20 @@ import {
   fieldTypeSchema,
   getCapability,
   insertCapability,
+  isFileFieldType,
+  isFileListFieldType,
+  isListFieldType,
   isSearchableTextType,
   promptCapabilitySpecSchema,
   type SpecField,
 } from "../index.ts";
-import { CAPTION_FIELD, orderings, PHOTO_FIELD, photoSpec } from "./file.test-support.ts";
+import {
+  ALBUM_FIELD,
+  CAPTION_FIELD,
+  orderings,
+  PHOTO_FIELD,
+  photoSpec,
+} from "./file.test-support.ts";
 import { familiesSchema } from "./file.ts";
 
 /** Where a refused spec was refused; the sentence is the schema's own, so it is not restated. */
@@ -164,5 +173,30 @@ describe("the provider schema", () => {
     Object.assign(wire.schema.fields[1] ?? {}, { accepts: [...FILE_FAMILIES] });
     const parsed = promptCapabilitySpecSchema.parse(wire);
     expect(parsed.schema.fields[1]?.accepts).toEqual([...FILE_FAMILIES]);
+  });
+});
+
+describe("a spec may declare a field that holds many files", () => {
+  const albumSpec = () => photoSpec([CAPTION_FIELD, ALBUM_FIELD]);
+
+  test("as a file type, never a list type, so search never reads it", () => {
+    expect(capabilitySpecSchema.parse(albumSpec())).toEqual(albumSpec());
+    expect(isFileFieldType("file[]")).toBe(true);
+    expect(isFileListFieldType("file[]")).toBe(true);
+    expect(isFileListFieldType("file")).toBe(false);
+    expect(isListFieldType("file[]")).toBe(false);
+    expect(isSearchableTextType("file[]")).toBe(false);
+  });
+
+  test("declaring what it accepts, as a file field does", () => {
+    const spec = albumSpec() as unknown as { schema: { fields: Record<string, unknown>[] } };
+    spec.schema.fields[1] = { ...ALBUM_FIELD, accepts: undefined };
+    expect(refusedAt(spec)).toEqual(["schema.fields.1.accepts"]);
+  });
+
+  test("never taking a list-input intent, which would comma-split its keys", () => {
+    const spec = albumSpec();
+    spec.ui_intent.form.list_inputs = [{ field: "album", mode: "repeatable" }];
+    expect(refusedAt(spec)).toContain("ui_intent.form.list_inputs.0.field");
   });
 });

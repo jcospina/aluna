@@ -20,6 +20,7 @@ import {
   choiceFieldOptions,
   isChoiceFieldType,
   isFileFieldType,
+  isFileListFieldType,
   type SpecField,
 } from "../../../registry/index.ts";
 import { deriveCapabilityTableDdl, SQLITE_TYPE_BY_FIELD_TYPE } from "../../data/index.ts";
@@ -156,7 +157,18 @@ function formatChoiceValues(field: SpecField): string {
  */
 function formatFileReference(field: SpecField): string {
   const kinds = field.accepts ? ` (one of: ${field.accepts.join("; ")})` : "";
-  return `      as JSON: kind${kinds}, mime (its media type, such as image/png), size (in bytes) and name (the name it was uploaded under)`;
+  const shape = isFileListFieldType(field.type)
+    ? "as a JSON array, [] when it holds none, of files in the order they were added, each"
+    : "as JSON:";
+  return `      ${shape} kind${kinds}, mime (its media type, such as image/png), size (in bytes) and name (the name it was uploaded under)`;
+}
+
+/** Whether a column may read as null; a `file[]` that holds nothing reads as `[]` instead. */
+function nullability(field: SpecField): string {
+  if (isFileListFieldType(field.type)) return ", never null";
+  return field.required
+    ? ", set by every save, though a record saved before it was required may hold null"
+    : ", may be null";
 }
 
 /** "an expense", not "a expense". Every collection heading reads better for one comparison. */
@@ -169,11 +181,7 @@ function formatCollection(spec: CapabilitySpec): string {
   const fields = spec.schema.fields
     .filter((field) => field.lifecycle === "active")
     .flatMap((field) => [
-      `    - ${field.name}: ${SQLITE_TYPE_BY_FIELD_TYPE[field.type]}, holds a ${field.type}${
-        field.required
-          ? ", set by every save, though a record saved before it was required may hold null"
-          : ", may be null"
-      }`,
+      `    - ${field.name}: ${SQLITE_TYPE_BY_FIELD_TYPE[field.type]}, holds a ${field.type}${nullability(field)}`,
       ...(isChoiceFieldType(field.type) ? [formatChoiceValues(field)] : []),
       ...(isFileFieldType(field.type) ? [formatFileReference(field)] : []),
     ]);

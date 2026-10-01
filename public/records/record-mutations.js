@@ -30,7 +30,7 @@ const BACK_SELECTOR = "[data-record-form-back]";
 const RECORD_VIEW_SELECTOR = "[data-record-view]";
 const SUBMIT_BUTTON_SELECTOR = 'button[type="submit"]';
 const HELD_SAVE_LABEL_SELECTOR = `[${FILE_FIELD_HOOKS.saveLabel}]`;
-const FILE_FIELD_SELECTOR = `[${FILE_FIELD_HOOKS.field}]`;
+const FILE_FIELD_SELECTOR = `[${FILE_FIELD_HOOKS.field}], [${FILE_FIELD_HOOKS.list}]`;
 
 /**
  * @param {Event} event

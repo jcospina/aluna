@@ -144,8 +144,12 @@ export function assertValidationErrorMarkers(
   }
 }
 
-/** What a stored file must be to match a row's token: of the family it names, or none at all. */
-function tokenFile(token: unknown): { readonly kind: string; readonly name: string } | null {
+/**
+ * What a stored file must be to match a row's token: of the family it names, or none at all. A
+ * list's tokens each name one file, in order.
+ */
+function tokenFile(token: unknown): unknown {
+  if (Array.isArray(token)) return token.map(tokenFile);
   return typeof token === "string" ? { kind: token, name: tokenFileName(token) } : null;
 }
 

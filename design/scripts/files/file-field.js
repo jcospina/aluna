@@ -30,6 +30,7 @@ import {
   kindsIn,
   nounFor,
   pctOf,
+  pressOnce,
   progressAttrs,
   rowEnds,
   seed,
@@ -80,6 +81,7 @@ export const FILE_FIELD_HOOKS = Object.freeze({
   list: "data-file-list",
   holds: "data-holds",
   cap: "data-file-cap",
+  count: "data-file-count",
   body: "data-file-body",
   kind: "data-kind",
   accept: "data-file-accept",
@@ -651,8 +653,7 @@ function mountOne(host, transfer, options) {
     const hit = ACTIONS.find(([selector]) => target?.closest(selector));
     if (hit && f.env.now() >= (f.settleUntil ?? 0)) hit[1](f);
   });
-  // A held Enter presses once: its repeats would press whatever the first press put there.
-  host.addEventListener("keydown", (event) => event.repeat && event.preventDefault(), true);
+  host.addEventListener("keydown", pressOnce, true);
   input.addEventListener("change", () => {
     const file = input.files?.[0];
     if (file) take(f, fromFile(file));

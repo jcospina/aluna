@@ -14,7 +14,10 @@
 
 import type { Context } from "hono";
 import { errorDetail } from "../../../platform/errors.ts";
-import { ADD_FILE_AGAIN_SENTENCE } from "../../../platform/files/admission/refusal-copy.ts";
+import {
+  ADD_FILE_AGAIN_SENTENCE,
+  tooManyFilesSentence,
+} from "../../../platform/files/admission/refusal-copy.ts";
 import {
   capabilityCreateErrorId,
   capabilityDeleteErrorId,
@@ -32,6 +35,7 @@ import type {
   MissingRequiredFieldsError,
   RecordChangedError,
   RecordNotFoundError,
+  TooManyFilesError,
 } from "../../data/index.ts";
 import type { WireProtocolAction } from "./wire-protocol.ts";
 
@@ -236,6 +240,22 @@ export function invalidFileReferenceFailure(
 ): Response {
   retargetMutationError(c, capabilityId, error.action);
   return c.html(refusalFragment(error.code, ADD_FILE_AGAIN_SENTENCE, error.fields), 422);
+}
+
+/**
+ * A `file[]` growing past the files its field takes. Every such field is named, and the sentence
+ * counts the first: the control refuses an over-count pick before it travels, so reaching this
+ * takes a submission from elsewhere, where one count is enough to say what went wrong.
+ */
+export function tooManyFilesFailure(
+  c: Context,
+  capabilityId: string,
+  error: TooManyFilesError,
+): Response {
+  retargetMutationError(c, capabilityId, error.action);
+  const [first] = Object.values(error.counts);
+  const sentence = first ? tooManyFilesSentence(first.count, first.cap) : SIDEWAYS_COPY;
+  return c.html(refusalFragment(error.code, sentence, error.fields), 422);
 }
 
 /**

@@ -236,8 +236,11 @@ function seedRows(
   return rows.map((row, index) => {
     const values = Object.entries(row);
     const tokens = Object.fromEntries(
-      values.filter(([name, value]) => fileFields.has(name) && typeof value === "string"),
-    ) as Record<string, string>;
+      values.filter(
+        ([name, value]) =>
+          fileFields.has(name) && (typeof value === "string" || Array.isArray(value)),
+      ),
+    ) as Record<string, string | readonly string[]>;
     const form = { values: tokens, submittedFields: new Set(Object.keys(tokens)) };
     const { binding } = scratchSubmission(spec, scratchFormInput(spec, form, database), database);
     const create = createCapabilityMutationPort(spec, binding);

@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from "bun:test";
 
-import { PHOTO_FIELD } from "../../../../registry/fields/file.test-support.ts";
+import { ALBUM_FIELD, PHOTO_FIELD } from "../../../../registry/fields/file.test-support.ts";
 import {
   type CapabilityRow,
   capabilitySpecFromRow,
@@ -208,5 +208,44 @@ describe("a committed file field's accepts", () => {
         Object.assign(widen(draft), { lifecycle: "active" }),
       ),
     ).toEqual(["file_families", "field_lifecycle"]);
+  });
+});
+
+describe("adding a field that holds many files", () => {
+  test("beside a file field, moves every reader's contract, since a record now carries a list", () => {
+    const diff = workFor(journalWithPhoto(), (draft) => withPhoto(draft, ALBUM_FIELD));
+    expect(diff.facts).toEqual([{ kind: "new_active_field", field: "album", fieldType: "file[]" }]);
+    expect(diff.workPlan.regeneratedUnits).toEqual([
+      "create",
+      "read",
+      "update",
+      "delete",
+      "search",
+    ]);
+  });
+
+  test("derives one nullable ADD COLUMN holding an array, so older records hold NULL", () => {
+    const row = journalCapabilityRow();
+    const candidate = validate(row, (draft) => withPhoto(draft, ALBUM_FIELD));
+    const migration = deriveAdditiveCapabilityMigration(capabilitySpecFromRow(row), candidate);
+    expect(migration.statements).toEqual([
+      'ALTER TABLE "cap_journal" ADD COLUMN "album" TEXT CHECK ("album" IS NULL OR ' +
+        `(json_valid("album") AND json_type("album") = 'array'));`,
+    ]);
+  });
+
+  test("keeps a file field from becoming one, or one from becoming a file field", () => {
+    const toList = rejection(journalWithPhoto(), (draft) => {
+      photoOf(draft).type = "file[]";
+    });
+    expect(toList.map((issue) => issue.path)).toContain("schema.fields.photo.type");
+    const base = journalCapabilityRow();
+    const listed = journalCapabilityRow({
+      schema: { fields: [...base.schema.fields, { ...ALBUM_FIELD, name: "photo" }] },
+    });
+    const toOne = rejection(listed, (draft) => {
+      photoOf(draft).type = "file";
+    });
+    expect(toOne.map((issue) => issue.path)).toContain("schema.fields.photo.type");
   });
 });

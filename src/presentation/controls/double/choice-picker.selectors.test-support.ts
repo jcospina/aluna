@@ -11,6 +11,8 @@ export interface Step {
 
 const ATTRIBUTE_TEST = /\[([a-zA-Z0-9_-]+)(?:=["']?([^\]"']*)["']?)?\]/g;
 const NEGATION = /:not\((\[[^\]]+\])\)/g;
+/** An attribute test whose value is quoted, the one place a browser reads a colon as a value's. */
+const QUOTED_ATTRIBUTE_TEST = /\[[a-zA-Z0-9_-]+=(["'])[^"']*\1\]/g;
 
 const attributeTests = (part: string) =>
   [...part.matchAll(ATTRIBUTE_TEST)].map(
@@ -27,8 +29,11 @@ export function parseSelector(selector: string): Step[] {
     .map((part) => {
       const held = part.replace(NEGATION, "");
       // Any other pseudo-class is refused rather than ignored: skipping one turned
-      // `button:not([disabled])` into `button[disabled]`, the exact inverse.
-      if (/:/.test(held)) throw new Error(`Unsupported selector in the DOM double: ${selector}`);
+      // `button:not([disabled])` into `button[disabled]`, the exact inverse. A colon inside an
+      // attribute's quoted value, as in `[data-ink-role="well:0"]`, is that value's.
+      if (/:/.test(held.replace(QUOTED_ATTRIBUTE_TEST, ""))) {
+        throw new Error(`Unsupported selector in the DOM double: ${selector}`);
+      }
       // Whatever the steps below do not read — a combinator, a `*`, an escape — is refused too.
       const unread = held
         .replace(/^[a-zA-Z][a-zA-Z0-9-]*/, "")

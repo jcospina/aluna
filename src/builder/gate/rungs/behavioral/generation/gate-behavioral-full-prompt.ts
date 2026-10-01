@@ -5,6 +5,7 @@
 // Handler source, no field label, no field order, no inactive field, no `ui_intent`, and
 // no dependency schema anywhere in scope to leak.
 
+import { DEFAULT_MAX_LIST_FILES } from "../../../../../platform/files/file-cap.ts";
 import { MISSING_REQUIRED_FIELDS_ERROR_CODE } from "../../../../../registry/index.ts";
 import type { HandlerUnitName } from "../../../../units/generation/units.ts";
 import {
@@ -54,6 +55,7 @@ export function buildActionBehavioralTestPrompt(
     "- A row field that lists `max_length` holds at most that many characters. The platform refuses a longer value before the Handler runs, so a case that seeds one fails the build rather than testing anything.",
     "- A row field marked `required` holds a value in every setup row, as every saved record does: never null, an empty string, or left out. The platform seeds each setup row through a save, which refuses a record without one.",
     "- A row field of type `file` holds a token: one of the families its `accepts` lists, such as `image`, for a record that holds a file of that family, or null for a record that holds none, which a required field never is. The platform supplies the file itself, so its name and address are never values a case writes or asserts, and a token never appears in a fragment assertion.",
+    '- A row field of type `file[]` holds an array of those tokens, one per file in the order the record holds them, such as `["image", "document"]`, or null or an empty array for a record that holds none, which a required field never is.',
     canonicalTestInputJson(fixture),
   ].join("\n");
 }
@@ -75,6 +77,7 @@ function inputGuidance(action: HandlerUnitName): readonly string[] {
       "- A schema field may also list `retired_values`. Those are options records already hold but nobody may choose any more: the platform refuses one on a new selection before the Handler runs. Never submit one and never seed one — they are here only so a change to them is visible, never as values to draw from.",
       "- A schema field that lists `max_length` accepts at most that many characters. The limit is structural and the platform enforces it itself, refusing a longer submission before the Handler runs; write cases inside it rather than testing it.",
       "- A schema field of type `file` takes a token rather than a string: one of the families its `accepts` lists, such as `image`, submits a new file of that family, and null submits none. On update, null removes the file the record holds, and leaving the field out of `input` keeps it. A file field marked required never takes null in a save the case expects to go through: a create gives it a family token, and an update gives it one or leaves it out to keep the file. Only a `missing_required_fields` case leaves it empty, because the platform refuses any other save that does. A missing-record case leaves every file field out of `input`, because the platform answers record_not_found for a file before the Handler runs. No other field's value may be null.",
+      `- A schema field of type \`file[]\` holds several files in order, at most ${DEFAULT_MAX_LIST_FILES}. Repeat its entry once per file, each a family token, to submit that many new files in that order, which on update take the place of every file the record holds; a single null entry submits none, and on update removes them all. Leaving the field out of \`input\` keeps the list. A required one follows the rule above for a required file field.`,
     ];
   }
   if (action === "search") {

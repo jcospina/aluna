@@ -50,13 +50,18 @@ export const FILE_NAME_HEADER = "x-file-name";
 /**
  * What the server draws on a file field for the product's half of it (`file-field.js`): where its
  * upload goes, the cap and the sentence a file over it earns, and the one input it posts, with the
- * key it was drawn holding, the value that clears it, and whether it may be left empty.
+ * key it was drawn holding, the value that clears it, and whether it may be left empty. A list posts
+ * one input per file from inside its `keys` holder, which carries its field's name, the mark it
+ * posts before a key it removes, and whether it may be left empty.
  */
 export const FILE_FIELD_ATTRIBUTES = Object.freeze({
   upload: "data-file-upload",
   cap: "data-file-cap",
   oversize: "data-file-oversize",
   value: "data-file-value",
+  keys: "data-file-keys",
+  fieldName: "data-file-field-name",
+  removePrefix: "data-file-remove-prefix",
   heldKey: "data-file-held-key",
   clearValue: "data-file-clear-value",
   required: "data-file-required",

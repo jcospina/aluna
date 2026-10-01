@@ -206,10 +206,12 @@ describe("what the last review of the recorder found", () => {
 
   test("a held Enter presses once, and its repeats press nothing", () => {
     const s = scene();
-    const repeat = s.doc.fire("keydown", s.q("[data-file-record]") as never, { repeat: true });
-    const first = s.doc.fire("keydown", s.q("[data-file-record]") as never, { repeat: false });
-    expect(repeat.prevented).toBe(true);
-    expect(first.prevented).toBe(false);
+    const record = s.q("[data-file-record]") as never;
+    for (const key of ["Enter", " "]) {
+      expect(s.doc.fire("keydown", record, { key, repeat: true }).prevented).toBe(true);
+      expect(s.doc.fire("keydown", record, { key, repeat: false }).prevented).toBe(false);
+    }
+    expect(s.doc.fire("keydown", record, { key: "Tab", repeat: true }).prevented).toBe(false);
   });
 
   test("a drop onto a recording kept unsent is refused out loud rather than replacing it", async () => {
