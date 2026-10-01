@@ -58,7 +58,7 @@ export async function invokeCapabilityHandler(
   parsedRequest: ParsedCapabilityRequest,
   signal: AbortSignal,
 ): Promise<string> {
-  const { input, recordTarget } = parsedRequest;
+  const { input, recordTarget, drawnFiles } = parsedRequest;
   const query = createCapabilityQueryPort(databases.readonly, {
     target: spec,
     dependencies: dependencies.map(capabilitySpecFromRow),
@@ -66,7 +66,7 @@ export async function invokeCapabilityHandler(
   });
   const writes = writeWindow();
   const fileScope = () =>
-    fileClaimScope(databases.readwrite, spec, row.incarnation_id, recordTarget);
+    fileClaimScope(databases.readwrite, spec, row.incarnation_id, recordTarget, drawnFiles);
 
   const runSave = async <Port extends object>(
     save: "create" | "update",

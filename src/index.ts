@@ -18,6 +18,7 @@ import { listCapabilityDeletionTombstones, readActiveRegistryCatalog } from "./r
 import {
   app,
   platformDeletionCleanup,
+  platformFileCleanup,
   platformLogoClaims,
   platformMutationCoordinator,
   platformObjectStore,
@@ -58,6 +59,17 @@ for (const result of deletionRecovery) {
   }
 }
 platformDeletionCleanup.requestRetry();
+// Bytes a previous process enqueued and never deleted. A failure retries on the worker's backoff.
+// Awaited, because a local unlink is quick; a network store's backlog should not hold the listen.
+const fileCleanup = await platformFileCleanup.drain();
+const fileCleanupFailures = fileCleanup.filter((outcome) => outcome.error !== undefined);
+if (fileCleanup.length > fileCleanupFailures.length) {
+  const deleted = fileCleanup.length - fileCleanupFailures.length;
+  console.log(`omni-crud deleted ${deleted} file(s) a previous run left behind`);
+}
+for (const outcome of fileCleanupFailures) {
+  console.error(`omni-crud could not delete file ${outcome.key}:`, outcome.error);
+}
 platformReadGates.recoverAtBoot(
   readActiveRegistryCatalog(dbReadonly).capabilities.map((row) => ({
     capabilityId: row.id,

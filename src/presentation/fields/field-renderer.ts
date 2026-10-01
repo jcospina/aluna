@@ -283,7 +283,8 @@ function renderEditField(
     return renderChoiceField(`edit-${capabilityId}-${field.name}`, field, form, value);
   }
   if (isFileFieldType(field.type)) {
-    return renderFileField(`edit-${capabilityId}-${field.name}`, field, form, capability, value);
+    const id = `edit-${capabilityId}-${field.name}`;
+    return renderFileField(id, field, form, capability, value ?? null);
   }
   if (field.type === "datetime") return renderEditDatetimeField(capabilityId, field, form, value);
   return renderScalarField(

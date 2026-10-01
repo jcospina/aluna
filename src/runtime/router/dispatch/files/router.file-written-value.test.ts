@@ -37,7 +37,7 @@ import {
 describe("the edit's check runs again inside the save's transaction", () => {
   const photos = usePhotosRouter();
 
-  test("and refuses a kept key another save replaced in between", async () => {
+  test("and refuses a kept key another save replaced, and the worker cleaned, in between", async () => {
     const kept = photos.mint();
     const id = await photos.save(kept);
     const other = photos.mint({ state: "owned", recordId: id });
@@ -54,10 +54,7 @@ describe("the edit's check runs again inside the save's transaction", () => {
             storedFileReference(requireFileLedgerRow(readwrite, other)),
             id,
           ]);
-          readwrite.run(
-            `UPDATE ${FILE_LEDGER_TABLE} SET "state" = 'cleanup_enqueued' WHERE "key" = ?`,
-            [kept],
-          );
+          readwrite.run(`DELETE FROM ${FILE_LEDGER_TABLE} WHERE "key" = ?`, [kept]);
         }),
       },
     );
@@ -233,7 +230,7 @@ describe("mutation.update and the written-value rule", () => {
 
     expect(response.status).toBe(200);
     expect(photos.photoOf(id)).toMatchObject({ key: next });
-    expect(photos.ledger(old).state).toBe("cleanup_enqueued");
+    expect(photos.gone(old)).toBe(true);
   });
 
   test("a second update in one Handler keeps what the first wrote", async () => {
@@ -254,7 +251,7 @@ describe("mutation.update and the written-value rule", () => {
     expect(response.status).toBe(200);
     expect(photos.photoOf(id)).toMatchObject({ key: next });
     expect(photos.ledger(next)).toMatchObject({ state: "owned", record_id: id });
-    expect(photos.ledger(old).state).toBe("cleanup_enqueued");
+    expect(photos.gone(old)).toBe(true);
   });
 });
 
@@ -328,7 +325,7 @@ describe("an edit racing its capability's deletion", () => {
 
     const response = await app.request(
       "/capability/photos/update",
-      editBody(id, { [PHOTO]: kept }),
+      editBody(id, { [PHOTO]: kept }, { [PHOTO]: [kept] }),
     );
 
     expect(response.status).toBe(422);

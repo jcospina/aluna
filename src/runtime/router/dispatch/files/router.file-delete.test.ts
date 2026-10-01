@@ -1,5 +1,6 @@
 // Deleting a record gives up every file it holds, hidden fields' included, in the delete's own
-// transaction. Through the router and the photos fixture, with ledger rows minted directly.
+// transaction, and their bytes and rows go once it commits. Through the router and the photos
+// fixture, with ledger rows minted directly.
 
 import { describe, expect, test } from "bun:test";
 
@@ -32,7 +33,7 @@ function withHiddenCover(): CapabilityRow {
   };
 }
 
-describe("deleting a record gives up every key it holds", () => {
+describe("deleting a record takes every file it holds", () => {
   const photos = usePhotosRouter(withHiddenCover);
 
   /** A record holding a photo and, in the hidden field, a cover, both owned in the ledger. */
@@ -60,20 +61,22 @@ describe("deleting a record gives up every key it holds", () => {
     const other = await photos.save(theirs);
     const displaced = photos.mint({ state: "cleanup_enqueued", recordId: id });
     const uploading = photos.mint();
+    const keys = [photo, cover, displaced, theirs, uploading];
+    for (const key of keys) photos.place(key);
 
     const response = await photos.request("/capability/photos/delete", editBody(id, {}));
 
     expect(response.status).toBe(200);
     expect(photos.stored().map((record) => record.id)).toEqual([other]);
-    for (const key of [photo, cover, displaced]) {
-      expect(photos.ledger(key)).toMatchObject({ state: "cleanup_enqueued", record_id: id });
-    }
+    expect(keys.map(photos.gone)).toEqual([true, true, true, false, false]);
+    expect(keys.map(photos.onDisk)).toEqual([false, false, false, true, true]);
     expect(photos.ledger(theirs)).toMatchObject({ state: "owned", record_id: other });
     expect(photos.ledger(uploading)).toMatchObject({ state: "pending", record_id: null });
   });
 
   test("in the delete's transaction, so a Handler that deletes and then fails gives nothing up", async () => {
     const { id, photo, cover } = await recordWithCover();
+    photos.place(photo);
     const loadHandler: HandlerLoader = async () => async (context: CapabilityDeleteContext) => {
       context.mutation.delete();
       throw new Error("the Handler broke after deleting");
@@ -86,6 +89,7 @@ describe("deleting a record gives up every key it holds", () => {
     expect(response.status).toBe(500);
     expect(photos.stored().map((record) => record.id)).toEqual([id]);
     for (const key of [photo, cover]) expect(photos.ledger(key).state).toBe("owned");
+    expect(photos.onDisk(photo)).toBe(true);
   });
 
   test("a delete that fails gives nothing up, even to a Handler that answers anyway", async () => {

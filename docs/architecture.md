@@ -1061,9 +1061,11 @@ local filesystem and built so an R2, S3 or Garage adapter can take its place.
   and again inside the save's transaction; the Handler passes back the projection
   it was given, or leaves the field out, and either way the checked submission is
   written; and the mutation interface accepts only a pending reference minted for
-  that incarnation and field, or the key that record's field holds now. Database
-  success promotes the reference, assigning the key exclusively to one
-  incarnation/record/field, and enqueues whatever it displaced. A failed save
+  that incarnation and field, or the key that record's field holds now. An edit
+  also posts what each file field held when its form was drawn, so a form drawn
+  before another window saved the field is refused rather than giving up that
+  window's file. Database success promotes the reference, assigning the key
+  exclusively to one incarnation/record/field, and enqueues whatever it displaced. A failed save
   changes nothing, so its pending references stay with the open form, and an
   abandoned upload is deleted by a confirmed leave or taken by the next desk-load
   sweep. The AI never touches bytes.

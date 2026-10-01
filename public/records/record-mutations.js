@@ -6,6 +6,7 @@
  */
 
 import { FILE_FIELD_HOOKS } from "../../design/scripts/files/file-field.js";
+import { keepSavedFileFields } from "../controls/file-field.js";
 import { registerRegionRelease } from "../core/region-scope.js";
 import {
   BUSY_LABEL_ATTRIBUTE,
@@ -368,6 +369,7 @@ async function handleCreateOutcome(form, successful, outcomeUnknown, surfaceGone
 function handleEditOutcome(form, successful, outcomeUnknown, surfaceGone) {
   setEditPending(form, false);
   if (successful) {
+    keepSavedFileFields(form);
     const view = form.closest(RECORD_VIEW_SELECTOR);
     if (view instanceof HTMLElement) leaveRecordView(view);
     return;

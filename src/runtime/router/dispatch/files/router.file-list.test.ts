@@ -1,20 +1,15 @@
 // A `file[]` through the router: an ordered list of keys, each judged by the rule a single file
 // follows, none twice and no more than the configured count, every file an edit removes named as
 // removed, what generated code writes always the list the router checked, and every entry an edit
-// or a delete gives up enqueued as it commits.
+// or a delete gives up cleaned once it commits.
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { tooManyFilesSentence } from "../../../../platform/files/admission/refusal-copy.ts";
 import { MAX_LIST_FILES_ENV_VAR } from "../../../../platform/files/file-cap.ts";
 import { requireFileLedgerRow } from "../../../../platform/files/store/ledger.test-support.ts";
-import {
-  ALBUM_FIELD,
-  CAPTION_FIELD,
-  photoSpec,
-} from "../../../../registry/fields/file.test-support.ts";
+import { ALBUM_FIELD } from "../../../../registry/fields/file.test-support.ts";
 import { SECOND_INCARNATION_ID } from "../../../../registry/incarnations.test-support.ts";
 import {
-  defaultBehavioralErrorsForSchema,
   INVALID_FILE_REFERENCE_ERROR_CODE,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   RECORD_CHANGED_ERROR_CODE,
@@ -29,27 +24,36 @@ import {
 import { FileFieldWriteError } from "../../../data/internal.ts";
 import { storedFileList } from "../../../data/schema/file-values.ts";
 import type { CapabilityCreateContext, CapabilityUpdateContext } from "../../contract.ts";
-import { ALUNA_PRESENT_MARKER, ALUNA_RECORD_ID_MARKER } from "../../wire/wire-protocol.ts";
-import { makeSpyLoader, photosRow } from "../router.test-support.ts";
+import {
+  ALUNA_DRAWN_MARKER,
+  ALUNA_PRESENT_MARKER,
+  ALUNA_RECORD_ID_MARKER,
+  drawnFileValue,
+} from "../../wire/wire-protocol.ts";
+import { makeSpyLoader } from "../router.test-support.ts";
 import type { HandlerLoader } from "../router.ts";
-import { between, keyOf, sentenceOf, usePhotosRouter } from "./router.file.test-support.ts";
+import {
+  albumsRow,
+  between,
+  keyOf,
+  sentenceOf,
+  usePhotosRouter,
+} from "./router.file.test-support.ts";
 
 const ALBUM = ALBUM_FIELD.name;
 
 /** What the list control posts for a file an edit removes. */
 const removed = (key: string) => `${FILE_REMOVE_PREFIX}${key}`;
 
-function albumsRow(album: SpecField = ALBUM_FIELD) {
-  const spec = photoSpec([CAPTION_FIELD, album]);
-  return photosRow({
-    schema: spec.schema,
-    behavioral_errors: defaultBehavioralErrorsForSchema(spec.schema),
-    ui_intent: { ...spec.ui_intent, item: { ...spec.ui_intent.item, shows: [ALBUM, "caption"] } },
-  });
-}
-
-/** A save's body: the caption, and the album's marker with one value per key, in order. */
-function albumBody(keys: readonly string[] | undefined, recordId?: string): RequestInit {
+/**
+ * A save's body: the caption, and the album's marker with one value per key, in order. An edit
+ * given `drawn` posts it as what the list held when its form was drawn.
+ */
+function albumBody(
+  keys: readonly string[] | undefined,
+  recordId?: string,
+  drawn?: readonly string[],
+): RequestInit {
   const body = new URLSearchParams(
     recordId === undefined ? [] : [[ALUNA_RECORD_ID_MARKER, recordId]],
   );
@@ -59,6 +63,7 @@ function albumBody(keys: readonly string[] | undefined, recordId?: string): Requ
     body.append(ALUNA_PRESENT_MARKER, ALBUM);
     for (const key of keys) body.append(ALBUM, key);
   }
+  if (drawn !== undefined) body.append(ALUNA_DRAWN_MARKER, drawnFileValue(ALBUM, drawn));
   return {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -87,13 +92,18 @@ function useAlbumsRouter(album?: SpecField) {
     if (!id) throw new Error("the create stored nothing");
     return id;
   };
-  const edit = (id: string, keys?: readonly string[], loadHandler?: HandlerLoader) =>
+  const edit = (
+    id: string,
+    keys?: readonly string[],
+    loadHandler?: HandlerLoader,
+    drawn?: readonly string[],
+  ) =>
     photos.request(
       "/capability/photos/update",
-      albumBody(keys, id),
+      albumBody(keys, id, drawn),
       loadHandler ? { loadHandler } : {},
     );
-  const state = (key: string) => photos.ledger(key).state;
+  const state = (key: string) => (photos.gone(key) ? "gone" : photos.ledger(key).state);
   return { ...photos, mint, albumOf, create, saved, edit, state };
 }
 
@@ -142,12 +152,12 @@ describe("a file list saves in the order it was posted", () => {
 describe("an edit changes a list entry by entry", () => {
   const albums = useAlbumsRouter();
 
-  test("removing an entry enqueues it and keeps the rest in order", async () => {
+  test("removing an entry cleans it and keeps the rest in order", async () => {
     const [a, b, c] = [albums.mint(), albums.mint(), albums.mint()];
     const id = await albums.saved([a, b, c]);
     expect((await albums.edit(id, [a, c, removed(b)])).status).toBe(200);
     expect(albums.albumOf(id)).toEqual([a, c]);
-    expect([a, b, c].map(albums.state)).toEqual(["owned", "cleanup_enqueued", "owned"]);
+    expect([a, b, c].map(albums.state)).toEqual(["owned", "gone", "owned"]);
   });
 
   test("reordering writes the new order and gives nothing up", async () => {
@@ -167,12 +177,12 @@ describe("an edit changes a list entry by entry", () => {
     expect(albums.ledger(added)).toMatchObject({ state: "owned", record_id: id });
   });
 
-  test("removing every entry empties it and enqueues each", async () => {
+  test("removing every entry empties it and cleans each", async () => {
     const keys = [albums.mint(), albums.mint()];
     const id = await albums.saved(keys);
     expect((await albums.edit(id, keys.map(removed))).status).toBe(200);
     expect(albums.albumOf(id)).toEqual([]);
-    expect(keys.map(albums.state)).toEqual(["cleanup_enqueued", "cleanup_enqueued"]);
+    expect(keys.map(albums.state)).toEqual(["gone", "gone"]);
   });
 
   test("an empty list never clears one: it says the list held nothing, and it did", async () => {
@@ -189,7 +199,8 @@ describe("an edit changes a list entry by entry", () => {
     const [a, b] = [albums.mint(), albums.mint()];
     const id = await albums.saved([a, b]);
     expect((await albums.edit(id, [a, removed(b)])).status).toBe(200);
-    expect(await refusal(await albums.edit(id, [a, b]))).toMatchObject({
+    expect(albums.state(b)).toBe("gone");
+    expect(await refusal(await albums.edit(id, [a, b], undefined, [a, b]))).toMatchObject({
       status: 422,
       code: RECORD_CHANGED_ERROR_CODE,
     });
@@ -201,8 +212,8 @@ describe("an edit changes a list entry by entry", () => {
     const id = await albums.saved([a, b]);
     const c = albums.mint();
     expect((await albums.edit(id, [a, b, c])).status).toBe(200);
-    for (const stale of [[a, removed(b)], [a, b], []]) {
-      expect(await refusal(await albums.edit(id, stale))).toMatchObject({
+    for (const stale of [[a, removed(b)], [a, b], [b, a], []]) {
+      expect(await refusal(await albums.edit(id, stale, undefined, [a, b]))).toMatchObject({
         status: 422,
         code: RECORD_CHANGED_ERROR_CODE,
       });
@@ -255,7 +266,7 @@ describe("an edit changes a list entry by entry", () => {
     expect(albums.albumOf(id)).toEqual(keys);
   });
 
-  test("deleting the record enqueues every entry", async () => {
+  test("deleting the record cleans every entry", async () => {
     const keys = [albums.mint(), albums.mint(), albums.mint()];
     const id = await albums.saved(keys);
     const body = new URLSearchParams([[ALUNA_RECORD_ID_MARKER, id]]);
@@ -265,7 +276,7 @@ describe("an edit changes a list entry by entry", () => {
       body: body.toString(),
     });
     expect(response.status).toBe(200);
-    expect(keys.map(albums.state)).toEqual(keys.map(() => "cleanup_enqueued"));
+    expect(keys.map(albums.state)).toEqual(keys.map(() => "gone"));
   });
 });
 
@@ -338,7 +349,7 @@ describe("a list the router refuses, before generated code runs", () => {
       [foreign, a, b],
       [a, b, foreign],
     ]) {
-      expect(await refusal(await albums.edit(id, posted))).toMatchObject({
+      expect(await refusal(await albums.edit(id, posted, undefined, [a, b]))).toMatchObject({
         code: RECORD_CHANGED_ERROR_CODE,
       });
     }
@@ -357,7 +368,7 @@ describe("a list the router refuses, before generated code runs", () => {
       [a, b, albums.mint()],
       [a, b, fresh, fresh],
     ]) {
-      expect(await refusal(await albums.edit(id, posted))).toMatchObject({
+      expect(await refusal(await albums.edit(id, posted, undefined, [a, b]))).toMatchObject({
         code: RECORD_CHANGED_ERROR_CODE,
       });
     }
@@ -487,12 +498,7 @@ describe("what generated code hands back is the list the router checked, or noth
     };
     expect((await albums.edit(id, posted, loadHandler)).status).toBe(200);
     expect(albums.albumOf(id)).toEqual(next);
-    expect([...keys, ...next].map(albums.state)).toEqual([
-      "cleanup_enqueued",
-      "owned",
-      "owned",
-      "owned",
-    ]);
+    expect([...keys, ...next].map(albums.state)).toEqual(["gone", "owned", "owned", "owned"]);
   });
 
   test("and writes the checked list when it hands back a copy, or leaves the list out", async () => {
@@ -509,7 +515,7 @@ describe("what generated code hands back is the list the router checked, or noth
       };
       expect((await albums.edit(id, posted, loadHandler)).status).toBe(200);
       expect(albums.albumOf(id)).toEqual(next);
-      expect(albums.state(keys[0] as string)).toBe("cleanup_enqueued");
+      expect(albums.state(keys[0] as string)).toBe("gone");
     }
   });
 });

@@ -15,6 +15,10 @@ import { STAGING_DIRECTORY } from "../../platform/files/store/object-store-root.
 import { fileUploadPath } from "../../platform/files/upload-path.ts";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import {
+  createMutationCoordinator,
+  type MutationCoordinator,
+} from "../../runtime/concurrency/mutation-coordinator.ts";
+import {
   install,
   photosRow,
   setupRouterTest,
@@ -22,6 +26,7 @@ import {
 } from "../../runtime/router/dispatch/router.test-support.ts";
 import type { AppDeps } from "../app.ts";
 import { createTestApp } from "../isolated-app.test-support.ts";
+import { createFileCleanupWorker, type FileCleanupWorker } from "./cleanup/file-cleanup.ts";
 
 const photos = photosRow();
 export const PHOTOS = { capabilityId: photos.id, incarnationId: photos.incarnation_id } as const;
@@ -63,9 +68,17 @@ export function uploadInit(
   return { method: "POST", headers, body, signal: options.signal, duplex: "half" } as RequestInit;
 }
 
-/** A scratch database with the photos fixture installed and a store beside it, fresh per case. */
+/**
+ * A scratch database with the photos fixture installed and a store beside it, fresh per case. An
+ * upload answers once the cleanup it woke has settled; `cleaned` waits for a request sent otherwise.
+ */
 export function useFileRoutes() {
-  const scratch: { dir?: string; conns?: PlatformDatabase; store?: ObjectStore } = {};
+  const scratch: {
+    dir?: string;
+    conns?: PlatformDatabase;
+    store?: ObjectStore;
+    coordinator?: MutationCoordinator;
+  } = {};
   beforeEach(() => {
     const env = setupRouterTest();
     install(env.conns, photosRow());
@@ -73,6 +86,7 @@ export function useFileRoutes() {
       dir: env.dir,
       conns: env.conns,
       store: createLocalObjectStore(join(env.dir, "storage")),
+      coordinator: createMutationCoordinator(),
     });
   });
   afterEach(() => {
@@ -89,19 +103,47 @@ export function useFileRoutes() {
   };
   const root = () => join(scratch.dir ?? "", "storage");
   const entries = (path: string) => (existsSync(path) ? readdirSync(path).sort() : []);
-  const app = (deps: AppDeps = {}) =>
-    createTestApp({ capabilityRouter: { databases: conns() }, objectStore: store(), ...deps });
+  const workers: FileCleanupWorker[] = [];
+  const app = (deps: AppDeps = {}) => {
+    const mutationCoordinator =
+      deps.mutationCoordinator ?? scratch.coordinator ?? createMutationCoordinator();
+    const objectStore = deps.objectStore ?? store();
+    const fileCleanup =
+      deps.fileCleanup ??
+      createFileCleanupWorker({
+        databases: conns(),
+        objectStore,
+        mutationCoordinator,
+        schedule: () => {},
+      });
+    workers.push(fileCleanup);
+    return createTestApp({
+      capabilityRouter: { databases: conns() },
+      ...deps,
+      mutationCoordinator,
+      objectStore,
+      fileCleanup,
+    });
+  };
+  const cleaned = async () => {
+    for (const worker of workers.splice(0)) await worker.idle();
+  };
 
   return {
     conns,
     store,
     root,
     app,
-    upload: (
+    cleaned,
+    upload: async (
       body: Uint8Array<ArrayBuffer> | ReadableStream<Uint8Array>,
       options: UploadOptions = {},
       deps: AppDeps = {},
-    ) => app(deps).request(PHOTO_UPLOAD_PATH, uploadInit(body, options)),
+    ) => {
+      const response = await app(deps).request(PHOTO_UPLOAD_PATH, uploadInit(body, options));
+      await cleaned();
+      return response;
+    },
     /** What sits in staging. */
     staged: () => entries(join(root(), STAGING_DIRECTORY)),
     /** What sits in place, beside staging. */

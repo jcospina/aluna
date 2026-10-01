@@ -561,7 +561,7 @@ place ownership is asserted — a capability's own column holds the reference a
 record shows, never the claim to it — and it is what a deletion asks for every
 key an incarnation owns. A file still streaming sits in staging with no row; the
 row is written once the file is admitted, and the ledger is the cleanup queue as
-well.
+well: once the save that displaced a key commits, its bytes go, then its row.
 _Avoid_: file table, uploads table, blob registry
 
 **List input mode**:

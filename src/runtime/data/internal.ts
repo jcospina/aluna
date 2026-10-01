@@ -171,7 +171,9 @@ export class RecordChangedError extends CapabilityDataValidationError {
   readonly fields: readonly string[];
 
   constructor(capabilityId: string, fields: readonly string[]) {
-    super(`Kept file no longer held for capability "${capabilityId}": ${fields.join(", ")}.`);
+    super(
+      `File field changed since the form was drawn for capability "${capabilityId}": ${fields.join(", ")}.`,
+    );
     this.fields = [...fields];
   }
 }

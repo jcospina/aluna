@@ -1,5 +1,5 @@
 // The file ledger's table: the two indexes that answer "the keys this record holds" and "the keys
-// this incarnation owns", and the states a row can be in.
+// this incarnation owns", the states a row can be in, and the queue the cleanup worker drains.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
@@ -11,6 +11,8 @@ import {
 } from "../../persistence/scratch-db.test-support.ts";
 import { seedFileLedgerRow } from "./ledger.test-support.ts";
 import {
+  deleteCleanedFile,
+  ENQUEUED_FILES_SQL,
   enqueueDisplacedFile,
   enqueuePendingFile,
   enqueueRecordFiles,
@@ -19,8 +21,10 @@ import {
   isFileKey,
   mintFileKey,
   promotePendingFile,
+  readEnqueuedFiles,
   readFileLedgerRow,
   reassignRecordFiles,
+  recordFileCleanupFailure,
 } from "./ledger.ts";
 
 let env: ScratchDbEnv;
@@ -45,11 +49,19 @@ function seed(overrides: Partial<Parameters<typeof seedFileLedgerRow>[1]> = {}):
 }
 
 describe("the file ledger table", () => {
-  test("is indexed by record and by incarnation", () => {
-    const indexed = pragma(`PRAGMA index_list(${FILE_LEDGER_TABLE})`)
-      .filter((index) => index.origin === "c")
-      .map((index) => pragma(`PRAGMA index_info(${String(index.name)})`).map((c) => c.name));
-    expect(indexed.sort()).toEqual([["incarnation_id"], ["record_id"]]);
+  test("is indexed by record and by incarnation, and its cleanup queue by its enqueued keys", () => {
+    const indexes = pragma(`PRAGMA index_list(${FILE_LEDGER_TABLE})`).filter(
+      (index) => index.origin === "c",
+    );
+    const indexed = indexes.map((index) =>
+      pragma(`PRAGMA index_info(${String(index.name)})`).map((c) => c.name),
+    );
+    expect(indexed.sort()).toEqual([["incarnation_id"], ["key"], ["record_id"]]);
+    expect(indexes.filter((index) => index.partial === 1)).toHaveLength(1);
+    const plan = pragma(`EXPLAIN QUERY PLAN ${ENQUEUED_FILES_SQL}`);
+    expect(plan.map((step) => String(step.detail)).join(" ")).toContain(
+      `INDEX ${FILE_LEDGER_TABLE}_cleanup`,
+    );
   });
 
   test("a fresh row is pending, unclaimed, stamped, and has no cleanup history", () => {
@@ -131,6 +143,37 @@ describe("giving up a key", () => {
       "owned",
       "pending",
     ]);
+  });
+});
+
+describe("the cleanup queue", () => {
+  test("holds only enqueued keys, with what their failures cost", () => {
+    const [first, owned, second] = [
+      seed({ state: "cleanup_enqueued" }),
+      seed({ state: "owned" }),
+      seed({ state: "cleanup_enqueued" }),
+    ];
+    recordFileCleanupFailure(env.conns.readwrite, second, "held open");
+    recordFileCleanupFailure(env.conns.readwrite, owned, "never enqueued");
+
+    const queue = readEnqueuedFiles(env.conns.readwrite);
+    expect(queue.sort((a, b) => a.key.localeCompare(b.key))).toEqual(
+      [
+        { key: first, attempts: 0 },
+        { key: second, attempts: 1 },
+      ].sort((a, b) => a.key.localeCompare(b.key)),
+    );
+    expect(readFileLedgerRow(env.conns.readwrite, second)?.cleanup_error).toBe("held open");
+    expect(readFileLedgerRow(env.conns.readwrite, owned)?.cleanup_attempts).toBe(0);
+  });
+
+  test("lets go of an enqueued row once its bytes are gone, and of no other", () => {
+    const [enqueued, owned] = [seed({ state: "cleanup_enqueued" }), seed({ state: "owned" })];
+    deleteCleanedFile(env.conns.readwrite, enqueued);
+    deleteCleanedFile(env.conns.readwrite, enqueued);
+    deleteCleanedFile(env.conns.readwrite, owned);
+    expect(readFileLedgerRow(env.conns.readwrite, enqueued)).toBeNull();
+    expect(readFileLedgerRow(env.conns.readwrite, owned)?.state).toBe("owned");
   });
 });
 

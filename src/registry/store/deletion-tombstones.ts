@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { z } from "zod";
-import { errorMessage } from "../../platform/errors.ts";
+import { CLEANUP_ERROR_MAX_LENGTH, errorMessage } from "../../platform/errors.ts";
 
 import { REGISTRY_TABLE } from "../../platform/persistence/table-names.ts";
 
@@ -158,7 +158,7 @@ export function recordCapabilityDeletionCleanupFailure(
             deletion_cleanup_error = ?
       WHERE id = ? AND incarnation_id = ? AND lifecycle_state = ?`,
     [
-      message.slice(0, 500),
+      message.slice(0, CLEANUP_ERROR_MAX_LENGTH),
       expectation.capabilityId,
       expectation.incarnationId,
       DELETION_TOMBSTONE_STATE,

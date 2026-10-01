@@ -56,6 +56,7 @@ import {
   type ReadGateCoordinator,
 } from "../runtime/concurrency/read-gates.ts";
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../runtime/router/index.ts";
+import { createFileCleanupWorker, type FileCleanupWorker } from "./files/cleanup/file-cleanup.ts";
 import { registerFileRoutes } from "./files/index.ts";
 import {
   BLANK_PROMPT_NOTICE,
@@ -125,6 +126,11 @@ export interface AppDeps {
   readonly maxFileBytes?: number;
   /** Where uploaded bytes live. Defaults to the local store under `OMNI_OBJECT_STORE_ROOT`. */
   readonly objectStore?: ObjectStore;
+  /**
+   * Deletes the bytes the ledger enqueues. Defaults to one over this app's store and ledger; one
+   * handed in must drive the same ones under the same coordinator, or the app refuses to build.
+   */
+  readonly fileCleanup?: FileCleanupWorker;
 }
 
 /** The fully-resolved dependency set every route group below is wired from. */
@@ -148,6 +154,7 @@ interface ResolvedAppDeps {
   readonly logoClaimObservationMs?: number;
   readonly maxFileBytes: number;
   readonly objectStore: ObjectStore;
+  readonly fileCleanup: FileCleanupWorker;
 }
 
 function resolveRegistryDatabases(
@@ -190,6 +197,7 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     readwrite: db,
     readonly: dbReadonly,
   });
+  const objectStore = resolveObjectStore(deps);
   return {
     getProvider,
     sseHeartbeatMs,
@@ -208,7 +216,8 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     logoClaims: deps.logoClaims ?? createRunningLogoClaims(),
     logoClaimObservationMs: deps.logoClaimObservationMs,
     maxFileBytes: resolveFileCap(deps),
-    objectStore: resolveObjectStore(deps),
+    objectStore,
+    fileCleanup: resolveFileCleanup(deps, registryDatabases, objectStore, mutationCoordinator),
     deletionCleanup:
       deps.deletionCleanup ??
       createDeletionCleanupSupervisor({
@@ -221,6 +230,21 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
 
 function resolveFileCap(deps: AppDeps): number {
   return deps.maxFileBytes ?? resolveMaxFileBytes();
+}
+
+function resolveFileCleanup(
+  deps: AppDeps,
+  databases: PlatformDatabase,
+  objectStore: ObjectStore,
+  mutationCoordinator: MutationCoordinator,
+): FileCleanupWorker {
+  const wiring = { databases, objectStore, mutationCoordinator };
+  if (!deps.fileCleanup) return createFileCleanupWorker(wiring);
+  // Under another coordinator its row writes could join an open save's transaction.
+  if (!deps.fileCleanup.drives(wiring)) {
+    throw new Error("The file cleanup worker must drive the app's ledger, store and coordinator.");
+  }
+  return deps.fileCleanup;
 }
 
 function resolveObjectStore(deps: AppDeps): ObjectStore {
@@ -315,12 +339,14 @@ function registerCapabilityPageRecovery(app: Hono, recoverLogos: () => Promise<v
 
 /**
  * What a desk load discharges before the tiles are drawn, never at the cost of the desk rendering.
- * One sweep pass at a time, and a forced cleanup retry: a stranded tombstone reserves its id.
+ * One sweep pass at a time, and a forced cleanup retry: a stranded tombstone reserves its id, and
+ * a file whose retries ran out gets another try, which the render does not wait for.
  */
 function createDeskLoadRecovery(ctx: ResolvedAppDeps): () => Promise<void> {
   const recoverLogos = createPlatformLogoRecovery(ctx);
   return () => {
     ctx.deletionCleanup.forceRetry();
+    void ctx.fileCleanup.drain();
     return recoverLogos();
   };
 }
@@ -511,6 +537,7 @@ export function createApp(deps: AppDeps = {}): Hono {
   registerSecurityHeaders(app);
 
   const recoverOnDeskLoad = createDeskLoadRecovery(ctx);
+  const wakeFileCleanup = () => ctx.fileCleanup.wake();
   registerShellRoute(app, ctx, recoverOnDeskLoad);
   registerCapabilityPageRecovery(app, recoverOnDeskLoad);
   registerBuildJobRoutes(app, ctx);
@@ -535,11 +562,12 @@ export function createApp(deps: AppDeps = {}): Hono {
     readGates: ctx.readGates,
     objectStore: ctx.objectStore,
     maxFileBytes: ctx.maxFileBytes,
+    wakeFileCleanup,
   });
 
   // The deterministic capability router: the fixed `/capability/:id/:action` convention the
   // generated UI targets. Its own subsystem (src/router), so this file stays the wiring sheet.
-  registerCapabilityRoutes(app, {
+  registerCapabilityRoutes(app, wakeFileCleanup, {
     ...ctx.capabilityRouter,
     mutationCoordinator: ctx.mutationCoordinator,
     readGates: ctx.readGates,
@@ -596,10 +624,17 @@ export const platformDeletionCleanup = createDeletionCleanupSupervisor({
 export const platformLogoClaims = createRunningLogoClaims();
 /** Exported so boot empties the staging of the store the upload route writes. */
 export const platformObjectStore = createLocalObjectStore();
+/** Exported so boot drains what a previous process left enqueued, before the server listens. */
+export const platformFileCleanup = createFileCleanupWorker({
+  databases: { readwrite: db, readonly: dbReadonly },
+  objectStore: platformObjectStore,
+  mutationCoordinator: platformMutationCoordinator,
+});
 export const app = createApp({
   readGates: platformReadGates,
   mutationCoordinator: platformMutationCoordinator,
   deletionCleanup: platformDeletionCleanup,
   logoClaims: platformLogoClaims,
   objectStore: platformObjectStore,
+  fileCleanup: platformFileCleanup,
 });

@@ -48,11 +48,10 @@ export const IDLE_LABEL_ATTRIBUTE = "data-idle-label";
 export const FILE_NAME_HEADER = "x-file-name";
 
 /**
- * What the server draws on a file field for the product's half of it (`file-field.js`): where its
- * upload goes, the cap and the sentence a file over it earns, and the one input it posts, with the
- * key it was drawn holding, the value that clears it, and whether it may be left empty. A list posts
- * one input per file from inside its `keys` holder, which carries its field's name, the mark it
- * posts before a key it removes, and whether it may be left empty.
+ * What the server draws on a file field for `file-field.js`: where its upload goes, the cap and its
+ * sentence, the one input it posts with the key it was drawn holding, the clear, and whether it may
+ * be empty. A list posts an input per file from its `keys` holder, which names the field and the
+ * removal mark. On an edit either posts the `drawn` input, what the field held when drawn.
  */
 export const FILE_FIELD_ATTRIBUTES = Object.freeze({
   upload: "data-file-upload",
@@ -65,6 +64,7 @@ export const FILE_FIELD_ATTRIBUTES = Object.freeze({
   heldKey: "data-file-held-key",
   clearValue: "data-file-clear-value",
   required: "data-file-required",
+  drawn: "data-file-drawn",
 });
 
 /**
