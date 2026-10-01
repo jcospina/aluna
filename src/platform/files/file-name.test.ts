@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import fc from "fast-check";
 import {
   capFileName,
+  contentDisposition,
   decodeFileName,
-  inlineContentDisposition,
   MAX_EXTENSION_BYTES,
   MAX_NAME_BYTES,
 } from "./file-name.ts";
@@ -192,7 +192,7 @@ describe("the cap on a filename", () => {
 
 describe("the disposition a served file carries", () => {
   test("names the file in ASCII and, whole, in RFC 8187's encoding", () => {
-    expect(inlineContentDisposition("日本.jpg")).toBe(
+    expect(contentDisposition("inline", "日本.jpg")).toBe(
       `inline; filename="__.jpg"; filename*=UTF-8''%E6%97%A5%E6%9C%AC.jpg`,
     );
   });
@@ -201,7 +201,9 @@ describe("the disposition a served file carries", () => {
     const printable = fc.integer({ min: 0x20, max: 0x7e }).map(char);
     fc.assert(
       fc.property(fc.string({ unit: printable }), (name) => {
-        const fallback = /^inline; filename="([^"]*)"; /.exec(inlineContentDisposition(name))?.[1];
+        const fallback = /^inline; filename="([^"]*)"; /.exec(
+          contentDisposition("inline", name),
+        )?.[1];
         expect(fallback).toHaveLength(name.length);
         [...name].forEach((written, at) => {
           const expected = ['"', "\\", "%"].includes(written) ? "_" : written;
@@ -213,7 +215,7 @@ describe("the disposition a served file carries", () => {
   });
 
   test("keeps quotes, backslashes and percent signs out of the fallback", () => {
-    expect(inlineContentDisposition(`a"b\\c%d's (1)*.png`)).toBe(
+    expect(contentDisposition("inline", `a"b\\c%d's (1)*.png`)).toBe(
       `inline; filename="a_b_c_d's (1)*.png"; filename*=UTF-8''a%22b%5Cc%25d%27s%20%281%29%2A.png`,
     );
   });
@@ -222,7 +224,7 @@ describe("the disposition a served file carries", () => {
     const loneSurrogate = String.fromCharCode(0xd800);
     for (const name of ["日本.jpg", `tab${char(0x9)}.png`, `${loneSurrogate}.gif`, "a\r\nb", ""]) {
       const response = new Response(null, {
-        headers: { "content-disposition": inlineContentDisposition(name) },
+        headers: { "content-disposition": contentDisposition("inline", name) },
       });
       expect(response.headers.get("content-disposition")).toStartWith("inline; filename=");
     }

@@ -142,6 +142,45 @@ describe("the local object store's bytes", () => {
   });
 });
 
+describe("the local object store's staged reads", () => {
+  test("reads staged bytes through one descriptor, never past the end, and gives it back", async () => {
+    const before = openRegularFiles();
+    const bytes = sampleFile("png", 10_000);
+    const staged = await store.put(mintFileKey(), chunksOf(bytes));
+    expect(await staged.read(0, 8)).toEqual(bytes.subarray(0, 8));
+    expect(openRegularFiles()).toBe(before + 1);
+    expect(await staged.read(9_990, 2 ** 31)).toEqual(bytes.subarray(9_990));
+    expect(await staged.read(2 ** 40, 16)).toEqual(new Uint8Array(0));
+    await Promise.all([staged.read(100, 4), staged.read(200, 4)]);
+    expect(openRegularFiles()).toBe(before + 1);
+    await staged.discard();
+    expect(openRegularFiles()).toBe(before);
+    await expect(staged.read(0, 8)).rejects.toThrow();
+  });
+
+  test("refuses a staged read asked for while the bytes are placed or discarded", async () => {
+    const before = openRegularFiles();
+    for (const settle of ["place", "discard"] as const) {
+      const staged = await store.put(mintFileKey(), chunksOf(sampleFile("png")));
+      const inFlight = staged.read(0, 8);
+      const settling = staged[settle]();
+      const late = expect(staged.read(0, 8)).rejects.toThrow();
+      expect(await inFlight).toHaveLength(8);
+      await settling;
+      await late;
+      expect(openRegularFiles(), settle).toBe(before);
+    }
+  });
+
+  test("gives the staged reader's descriptor back when the bytes are placed", async () => {
+    const before = openRegularFiles();
+    const staged = await store.put(mintFileKey(), chunksOf(sampleFile("png")));
+    await staged.read(0, 8);
+    expect(await staged.place()).toBe(true);
+    expect(openRegularFiles()).toBe(before);
+  });
+});
+
 describe("the local object store's spans", () => {
   const bytes = sampleFile("isom", 1_500_000);
   let key: string;

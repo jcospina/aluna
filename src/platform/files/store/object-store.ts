@@ -25,6 +25,8 @@ export interface StagedObject {
   place(): Promise<boolean>;
   /** Removes the staged bytes, if they are still there. */
   discard(): Promise<void>;
+  /** Up to `length` staged bytes from `start`, for a check that reads a container from its end. */
+  read(start: number, length: number): Promise<Uint8Array>;
 }
 
 /** The bytes of an object a read asks for: `length` of them from `start`. */
@@ -106,6 +108,48 @@ async function fill(handle: FileHandle, chunks: AsyncIterable<Uint8Array>): Prom
   await sink.end();
   await handle.sync();
   return size;
+}
+
+/** Up to `length` bytes from `start`, never more than the object holds past it. */
+async function readSpan(handle: FileHandle, span: ByteSpan, size: number): Promise<Uint8Array> {
+  const { start, length } = requireSpan(span);
+  const buffer = new Uint8Array(Math.max(0, Math.min(length, size - start)));
+  let filled = 0;
+  while (filled < buffer.byteLength) {
+    const { bytesRead } = await handle.read(
+      buffer,
+      filled,
+      buffer.byteLength - filled,
+      start + filled,
+    );
+    if (bytesRead === 0) break;
+    filled += bytesRead;
+  }
+  return buffer.subarray(0, filled);
+}
+
+/**
+ * The staged bytes' reader: one descriptor, opened at the first read and closed once, after the
+ * reads in flight settle, by `place` or `discard`. A read asked for once closing began is refused.
+ */
+function stagedReader(path: string, size: number) {
+  let opened: Promise<FileHandle> | undefined;
+  let closed = false;
+  let reading: Promise<unknown> = Promise.resolve();
+  return {
+    read(start: number, length: number): Promise<Uint8Array> {
+      if (closed) return Promise.reject(new Error("The staged bytes are no longer read."));
+      opened ??= open(path, READ_FLAGS);
+      const read = opened.then((handle) => readSpan(handle, { start, length }, size));
+      reading = Promise.all([reading, read.catch(() => undefined)]);
+      return read;
+    },
+    async close(): Promise<void> {
+      closed = true;
+      await reading;
+      await opened?.then((handle) => handle.close()).catch(() => undefined);
+    },
+  };
 }
 
 /** An existing file at `path` fails the open and is left alone: it is another upload's. */
@@ -218,21 +262,29 @@ export function createLocalObjectStore(root: string = resolveObjectStoreRoot()):
   const stagedPath = (key: string) => join(staging, requireKey(key));
   const objectPath = (key: string) => join(root, requireKey(key));
 
-  const staged = (key: string, size: number): StagedObject => ({
-    key,
-    size,
-    place: async () => {
-      try {
-        await rename(stagedPath(key), objectPath(key));
-      } catch (error) {
-        if (errorCode(error) === "ENOENT") return false;
-        throw error;
-      }
-      await syncDirectory(root);
-      return true;
-    },
-    discard: () => rm(stagedPath(key), { force: true }),
-  });
+  const staged = (key: string, size: number): StagedObject => {
+    const reader = stagedReader(stagedPath(key), size);
+    return {
+      key,
+      size,
+      place: async () => {
+        await reader.close();
+        try {
+          await rename(stagedPath(key), objectPath(key));
+        } catch (error) {
+          if (errorCode(error) === "ENOENT") return false;
+          throw error;
+        }
+        await syncDirectory(root);
+        return true;
+      },
+      discard: async () => {
+        await reader.close();
+        await rm(stagedPath(key), { force: true });
+      },
+      read: reader.read,
+    };
+  };
 
   return {
     async put(key, chunks) {

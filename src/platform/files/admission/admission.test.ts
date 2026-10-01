@@ -23,7 +23,7 @@ function refusalOf(run: () => unknown): AdmissionRefusalReason | undefined {
 
 /** Feed `bytes` to a fresh image check in `chunkSize` pieces and settle it. */
 function checkBytes(bytes: Uint8Array, chunkSize = bytes.byteLength) {
-  const check = new SignatureCheck("image");
+  const check = new SignatureCheck("photo.jpg", "image");
   for (let offset = 0; offset < bytes.byteLength; offset += chunkSize) {
     check.inspect(bytes.subarray(offset, offset + chunkSize));
   }
@@ -56,7 +56,7 @@ describe("the extension", () => {
       "phone.heif",
       "scan.tiff",
       "scan.tif",
-      "notes.txt",
+      "notes.rtf",
       "page.html",
       "photo",
       "photo.jpg.exe",
@@ -68,6 +68,7 @@ describe("the extension", () => {
 
   test("names a family the field does not take, and the field refuses it", () => {
     expect(refusalOf(() => admitClaims("photo.jpg", "", []))).toBe("not_accepted");
+    expect(refusalOf(() => admitClaims("notes.txt", "", IMAGES))).toBe("not_accepted");
   });
 });
 
@@ -133,27 +134,27 @@ describe("the bytes", () => {
       "text",
     ];
     for (const format of refused) {
-      const check = new SignatureCheck("image");
+      const check = new SignatureCheck("photo.jpg", "image");
       expect(refusalOf(() => check.inspect(sampleFile(format, 16)))).toBe("signature");
     }
   });
 
   test("abort inside the 64 KB window, not after the whole body", () => {
-    const check = new SignatureCheck("image");
+    const check = new SignatureCheck("photo.jpg", "image");
     const window = sampleFile("text", SIGNATURE_WINDOW_BYTES);
     expect(refusalOf(() => check.inspect(window))).toBe("signature");
   });
 
   test("too short to hold a signature, or absent, are refused when the body ends", () => {
-    const empty = new SignatureCheck("image");
+    const empty = new SignatureCheck("photo.jpg", "image");
     expect(refusalOf(() => empty.finish())).toBe("signature");
-    const short = new SignatureCheck("image");
+    const short = new SignatureCheck("photo.jpg", "image");
     short.inspect(new Uint8Array([0xff, 0xd8]));
     expect(refusalOf(() => short.finish())).toBe("signature");
   });
 
   test("once admitted, are not read again, and later bytes do not change the answer", () => {
-    const check = new SignatureCheck("image");
+    const check = new SignatureCheck("photo.jpg", "image");
     check.inspect(sampleFile("jpeg", 64));
     check.inspect(sampleFile("text", SIGNATURE_WINDOW_BYTES * 2));
     expect(check.finish()).toEqual({ kind: "image", mime: "image/jpeg" });
@@ -183,7 +184,7 @@ const VIDEOS = ["video"] as const;
 
 /** Feed `bytes` to a fresh video check in `chunkSize` pieces and settle it. */
 function checkVideo(bytes: Uint8Array, chunkSize = bytes.byteLength) {
-  const check = new SignatureCheck("video");
+  const check = new SignatureCheck("clip.mp4", "video");
   for (let offset = 0; offset < bytes.byteLength; offset += chunkSize) {
     check.inspect(bytes.subarray(offset, offset + chunkSize));
   }
@@ -392,7 +393,7 @@ describe("a video's bytes, beside an image's", () => {
   });
 
   test("decide inside the 64 KB window", () => {
-    const check = new SignatureCheck("video");
+    const check = new SignatureCheck("clip.mp4", "video");
     expect(refusalOf(() => check.inspect(sampleFile("text", SIGNATURE_WINDOW_BYTES)))).toBe(
       "signature",
     );

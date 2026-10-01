@@ -86,11 +86,11 @@ function encodeExtValue(name: string): string {
 }
 
 /**
- * An inline disposition naming the file (RFC 6266 and RFC 8187): an ASCII fallback for a client
- * that reads only `filename`, and the whole name, percent-encoded, in `filename*`.
+ * A disposition naming the file (RFC 6266 and RFC 8187): an ASCII fallback for a client that reads
+ * only `filename`, and the whole name, percent-encoded, in `filename*`.
  */
-export function inlineContentDisposition(name: string): string {
+export function contentDisposition(disposition: "inline" | "attachment", name: string): string {
   const wellFormed = name.toWellFormed();
   const fallback = [...wellFormed].map((char) => (isPlainAscii(char) ? char : "_")).join("");
-  return `inline; filename="${fallback}"; filename*=UTF-8''${encodeExtValue(wellFormed)}`;
+  return `${disposition}; filename="${fallback}"; filename*=UTF-8''${encodeExtValue(wellFormed)}`;
 }

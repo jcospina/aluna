@@ -50,7 +50,12 @@ import type { CapabilityGateInput, DesignLintAttempt, DesignLintGateResult } fro
 import { loadItemRenderer } from "../../gate-internal.ts";
 import { scratchFileProjection } from "../../gate-scratch-files.ts";
 import { scratchFileName } from "../../gate-scratch-names.ts";
-import { drawsEmptyMediaFrame, fileKindViolation, fileNoun } from "./gate-file-kinds.ts";
+import {
+  drawsEmptyMediaFrame,
+  fileKindViolation,
+  fileNoun,
+  mislabelledDocument,
+} from "./gate-file-kinds.ts";
 import { observableItemRecordContent } from "./gate-item-content.ts";
 import { findInlineStyleViolation } from "./inline-style-scan.ts";
 
@@ -298,7 +303,9 @@ function reviewProbe(
     };
   }
 
-  const misdrawn = fileKindViolation(probe.record, inner);
+  const rendered = (record: PresentableRecord) => renderedOrUndefined(renderItem, record);
+  const misdrawn =
+    fileKindViolation(probe.record, inner) ?? mislabelledDocument(probe.record, rendered);
   if (misdrawn) {
     return {
       inner,
@@ -318,6 +325,17 @@ function reviewProbe(
   }
 
   return { inner };
+}
+
+function renderedOrUndefined(
+  renderItem: (record: PresentableRecord) => string,
+  record: PresentableRecord,
+): string | undefined {
+  try {
+    return renderItem(record);
+  } catch {
+    return undefined;
+  }
 }
 
 /** One probe fed through the renderer: a synthetic or hostile record and a human label. */

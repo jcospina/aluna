@@ -120,15 +120,16 @@ export function readFileLedgerRow(database: Database, key: string): FileLedgerRo
 export type PendingFile = Pick<
   FileLedgerRow,
   "key" | "capability_id" | "incarnation_id" | "field" | "kind" | "mime" | "size" | "name"
->;
+> & { readonly encoding?: string | null };
 
 /** Record an admitted key as `pending`. The caller has found its incarnation active in this write. */
 export function insertPendingFile(database: Database, file: PendingFile): void {
   database
     .query(
       `INSERT INTO ${FILE_LEDGER_TABLE}
-         (key, capability_id, incarnation_id, field, record_id, state, kind, mime, size, name)
-       VALUES (?, ?, ?, ?, NULL, 'pending', ?, ?, ?, ?)`,
+         (key, capability_id, incarnation_id, field, record_id, state, kind, mime, size, name,
+          encoding)
+       VALUES (?, ?, ?, ?, NULL, 'pending', ?, ?, ?, ?, ?)`,
     )
     .run(
       file.key,
@@ -139,6 +140,7 @@ export function insertPendingFile(database: Database, file: PendingFile): void {
       file.mime,
       file.size,
       file.name,
+      file.encoding ?? null,
     );
 }
 

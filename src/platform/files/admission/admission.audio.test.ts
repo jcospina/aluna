@@ -38,7 +38,7 @@ function refusalOf(run: () => unknown): AdmissionRefusalReason | undefined {
 
 /** Feed `bytes` to a fresh audio check in `chunkSize` pieces and settle it. */
 function checkAudio(bytes: Uint8Array, chunkSize = bytes.byteLength) {
-  const check = new SignatureCheck("audio");
+  const check = new SignatureCheck("sound.mp3", "audio");
   for (let offset = 0; offset < bytes.byteLength; offset += chunkSize) {
     check.inspect(bytes.subarray(offset, offset + chunkSize));
   }
@@ -134,7 +134,7 @@ describe("a WebM's or an Ogg's bytes", () => {
 
   /** What a check presuming `kind`, for a field that takes `accepts`, records `bytes` as. */
   const settle = (bytes: Uint8Array, kind: "video" | "audio", accepts: readonly FileFamily[]) => {
-    const check = new SignatureCheck(kind, accepts);
+    const check = new SignatureCheck("clip.webm", kind, accepts);
     for (let at = 0; at < bytes.byteLength; at += 700) check.inspect(bytes.subarray(at, at + 700));
     return check.finish();
   };
@@ -243,7 +243,7 @@ describe("an MP3's frames", () => {
   });
 
   test("are refused inside the 64 KB after the tag, not after the whole body", () => {
-    const check = new SignatureCheck("audio");
+    const check = new SignatureCheck("sound.mp3", "audio");
     check.inspect(id3Tag(SIGNATURE_WINDOW_BYTES * 2));
     expect(refusalOf(() => check.inspect(text(SIGNATURE_WINDOW_BYTES - 1)))).toBeUndefined();
     expect(refusalOf(() => check.inspect(text(1)))).toBe("signature");
@@ -302,7 +302,7 @@ describe("an MP3's frames", () => {
   });
 
   test("behind which only a sound a tagger tags is found, and never another family", () => {
-    const mixed = new SignatureCheck("audio", MEDIA);
+    const mixed = new SignatureCheck("sound.mp3", "audio", MEDIA);
     const tagged = concatBytes(id3Tag(40), webmWithTracks([2, 1]), sampleFile("text", 70_000));
     const settle = () => {
       mixed.inspect(tagged);
@@ -331,7 +331,7 @@ describe("an MP3's frames", () => {
 
   test("are never read for a video or an image", () => {
     for (const kind of ["video", "image"] as const) {
-      const check = new SignatureCheck(kind);
+      const check = new SignatureCheck(kind === "video" ? "clip.mp4" : "photo.jpg", kind);
       const settle = () => {
         check.inspect(mp3File(64));
         return check.finish();

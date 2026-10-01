@@ -4,8 +4,10 @@
 import { describe, expect, test } from "bun:test";
 
 import { FILE_FIELD_HOOKS as HOOKS } from "#design/files/file-field.js";
-import { kindOf } from "#design/files/file-parts.js";
+import { KINDS, kindOf } from "#design/files/file-parts.js";
 import { RECORD_TITLE_ATTRIBUTE } from "#shell/core/shell-dom.js";
+import { offeredTypes } from "../../../platform/files/admission/admission.ts";
+import { WORD_DOCUMENT_TYPE } from "../../../platform/files/admission/documents/word-package.ts";
 import { FILE_URL_PREFIX } from "../../../platform/files/file-url.ts";
 import { mintFileKey } from "../../../platform/files/store/ledger.ts";
 import {
@@ -72,6 +74,22 @@ describe("a held PDF in the edit form", () => {
   });
 });
 
+describe("a held Word document in the edit form", () => {
+  test("shows its name and a link that downloads it under that name", () => {
+    const name = "Presupuesto año.docx";
+    const mime = WORD_DOCUMENT_TYPE;
+    const host = manualInRecord({ ...MANUAL, name, mime });
+    expect(host.getAttribute(HOOKS.holdsType)).toBe(mime);
+    expect(host.textContent).toContain(name);
+    expect(host.querySelector("img, video, audio, embed, object, iframe")).toBeNull();
+    const links = host.querySelectorAll("a[href]") as El[];
+    expect(links).toHaveLength(1);
+    expect(links[0]?.getAttribute("href")).toBe(MANUAL.url);
+    expect(links[0]?.getAttribute("download")).toBe(name);
+    expect(links[0]?.hasAttribute("target")).toBe(false);
+  });
+});
+
 describe("a held file's kind", () => {
   test("is a document when its verified type is one, whatever its name says", () => {
     const either = ["image", "document"] as const;
@@ -81,11 +99,12 @@ describe("a held file's kind", () => {
 });
 
 describe("a document field's picker", () => {
-  test("offers a PDF", () => {
+  test("offers every document extension admission takes, as design/ draws the picker", () => {
     const surface = new Doc().createElement("div");
     parseHtml(renderCreateForm(manuals()), surface);
     const host = surface.querySelector(hooked(HOOKS.field)) as El;
-    const offered = host.getAttribute(HOOKS.accept)?.split(",") ?? [];
-    expect(offered).toEqual(expect.arrayContaining(["application/pdf", ".pdf"]));
+    const offered = host.getAttribute(HOOKS.accept);
+    expect(offered).toBe(offeredTypes(["document"]).join(","));
+    expect(offered).toBe(KINDS.document.accept);
   });
 });

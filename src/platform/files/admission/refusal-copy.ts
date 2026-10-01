@@ -35,6 +35,40 @@ export function notAdmittedSentence(accepts: readonly [FileFamily, ...FileFamily
   return `That isn’t ${nouns.join(", ")} or ${last} I can keep here. Mind picking a different one?`;
 }
 
+/** What a document's name says it is, for the sentence that says it isn't, as design/ names it. */
+export const DOCUMENTS_NAMED_AS: ReadonlyMap<string, string> = new Map([
+  ["pdf", "PDF"],
+  ["doc", "Word document"],
+  ["docx", "Word document"],
+  ["md", "Markdown file"],
+  ["txt", "text file"],
+]);
+
+/** A Word document Office locked with a password, which only its owner can open. */
+export const LOCKED_SENTENCE =
+  "That Word document has a password on it, so I can’t keep it. Mind saving a copy without one?";
+
+/** A document whose contents aren't what its name says, such as a spreadsheet named `.docx`. */
+export function misnamedSentence(namedAs: string): string {
+  return `That isn’t the ${namedAs} its name says it is. Mind picking a different one?`;
+}
+
+/**
+ * What a field says of an upload admission refused at `reason`. A locked Word document, and a
+ * document whose bytes aren't what its name says, each get a sentence of their own.
+ */
+export function refusalSentence(
+  reason: string,
+  name: string,
+  accepts: readonly [FileFamily, ...FileFamily[]],
+): string {
+  if (reason === "locked") return LOCKED_SENTENCE;
+  const dot = name.lastIndexOf(".");
+  const namedAs = dot < 0 ? undefined : DOCUMENTS_NAMED_AS.get(name.slice(dot + 1).toLowerCase());
+  if (reason === "signature" && namedAs) return misnamedSentence(namedAs);
+  return notAdmittedSentence(accepts);
+}
+
 /** The cap as a person reads it: whole megabytes, as the drawn "500 MB" is, never rounded up. */
 function sizeInWords(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${Math.floor(bytes / (1024 * 1024))} MB`;
