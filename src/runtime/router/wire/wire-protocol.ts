@@ -1,3 +1,4 @@
+import { isFileKey } from "../../../platform/files/store/ledger.ts";
 import {
   ALUNA_RESERVED_FIELD_PREFIX,
   activeSpecFields,
@@ -12,12 +13,24 @@ import type { CapabilityInput, CapabilityInputValue } from "../contract.ts";
 
 export const ALUNA_PRESENT_MARKER = `${ALUNA_RESERVED_FIELD_PREFIX}present`;
 export const ALUNA_RECORD_ID_MARKER = `${ALUNA_RESERVED_FIELD_PREFIX}record_id`;
+/**
+ * What an edit's file field held when its form was drawn, posted beside its value, so a form drawn
+ * before another window saved the field is told so, whether it keeps, replaces or clears.
+ */
+export const ALUNA_DRAWN_MARKER = `${ALUNA_RESERVED_FIELD_PREFIX}drawn`;
+
+/** The {@link ALUNA_DRAWN_MARKER} value naming the keys `field` held, in order: `field:key,key`. */
+export function drawnFileValue(field: string, keys: readonly string[]): string {
+  return `${field}:${keys.join(",")}`;
+}
 
 export type WireProtocolAction = "create" | "read" | "update" | "delete" | "search";
 
 export interface ParsedCapabilityRequest {
   readonly input: CapabilityInput;
   readonly recordTarget?: string;
+  /** On an update, the keys each submitted file field held when the form was drawn. */
+  readonly drawnFiles?: ReadonlyMap<string, readonly string[]>;
 }
 
 export class WireProtocolError extends Error {
@@ -38,9 +51,11 @@ export async function parseCapabilityRequest(
 
   const presentMarkers = take(grouped, ALUNA_PRESENT_MARKER);
   const targetMarkers = take(grouped, ALUNA_RECORD_ID_MARKER);
+  const drawnMarkers = take(grouped, ALUNA_DRAWN_MARKER);
   const activeFields = activeSpecFields(spec.schema.fields);
   const submittedFields = validatePresenceMarkers(action, presentMarkers, activeFields);
   const recordTarget = validateRecordTarget(action, targetMarkers);
+  const drawnFiles = validateDrawnMarkers(action, drawnMarkers, activeFields, submittedFields);
   const values = normalizeValues(
     action,
     grouped,
@@ -52,6 +67,7 @@ export async function parseCapabilityRequest(
   return {
     input: { values: Object.freeze(values), submittedFields },
     ...(recordTarget === undefined ? {} : { recordTarget }),
+    ...(drawnFiles === undefined ? {} : { drawnFiles }),
   };
 }
 
@@ -78,7 +94,8 @@ function rejectUnknownReservedKeys(grouped: ReadonlyMap<string, readonly string[
     if (
       key.startsWith(ALUNA_RESERVED_FIELD_PREFIX) &&
       key !== ALUNA_PRESENT_MARKER &&
-      key !== ALUNA_RECORD_ID_MARKER
+      key !== ALUNA_RECORD_ID_MARKER &&
+      key !== ALUNA_DRAWN_MARKER
     ) {
       throw new WireProtocolError(`Unknown reserved marker "${key}".`);
     }
@@ -164,6 +181,54 @@ function validateRecordTarget(
     throw new WireProtocolError(`${action} requires exactly one nonblank record target.`);
   }
   return markers[0];
+}
+
+/**
+ * An update names, at most once, what each file field it submits held when drawn; nothing else
+ * does. A field it leaves undrawn, as a form drawn before the marker existed does, is the file
+ * rule's to answer: that form has to be opened again.
+ */
+function validateDrawnMarkers(
+  action: WireProtocolAction,
+  markers: readonly string[],
+  activeFields: ReturnType<typeof activeSpecFields>,
+  submittedFields: ReadonlySet<string>,
+): ReadonlyMap<string, readonly string[]> | undefined {
+  if (action !== "update") {
+    if (markers.length > 0) {
+      throw new WireProtocolError(`Drawn file markers are not accepted for ${action}.`);
+    }
+    return undefined;
+  }
+  const fileFields = new Map(
+    activeFields
+      .filter((field) => isFileFieldType(field.type) && submittedFields.has(field.name))
+      .map((field) => [field.name, isFileListFieldType(field.type)]),
+  );
+  const drawn = new Map<string, readonly string[]>();
+  for (const marker of markers) {
+    const [name, keys] = parseDrawnMarker(marker, fileFields);
+    if (drawn.has(name)) throw new WireProtocolError(`Duplicate drawn file marker "${name}".`);
+    drawn.set(name, keys);
+  }
+  return drawn;
+}
+
+/** @param fileFields each submitted file field, and whether it is a `file[]` */
+function parseDrawnMarker(
+  marker: string,
+  fileFields: ReadonlyMap<string, boolean>,
+): [string, readonly string[]] {
+  const colon = marker.indexOf(":");
+  const name = marker.slice(0, colon);
+  const listed = marker.slice(colon + 1);
+  const keys = listed === "" ? [] : listed.split(",");
+  const isList = fileFields.get(name);
+  const fits = isList === true || (isList === false && keys.length <= 1);
+  if (colon < 0 || !fits || !keys.every(isFileKey) || new Set(keys).size !== keys.length) {
+    throw new WireProtocolError(`Invalid drawn file marker "${marker}".`);
+  }
+  return [name, keys];
 }
 
 function normalizeValues(

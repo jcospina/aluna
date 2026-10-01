@@ -92,6 +92,54 @@ export function postedKeys(current, drawn) {
   return [...kept, ...removed.map((key) => `${drawn.remove}${key}`)];
 }
 
+/**
+ * After a committed edit each field holds what it posted, so the form says so: what it was drawn
+ * holding, and what a list counts its removals from, move to what it holds now. A form left
+ * standing then saves again as itself. A Handler that answered without saving the field leaves
+ * the form ahead of the record, and its next save is refused as stale, which gives nothing up.
+ *
+ * @param {Element} form
+ * @param {(scope: Element, how: "keep" | "revert") => void} [settle]
+ */
+export function keepSavedFileFields(form, settle = settleFileFields) {
+  settle(form, "keep");
+  for (const input of form.querySelectorAll(VALUE)) keepSavedFile(input);
+  for (const holder of form.querySelectorAll(KEY_HOLDER)) keepSavedList(holder);
+}
+
+/** @param {Element} input */
+function keepSavedFile(input) {
+  if (!(input instanceof HTMLInputElement)) return;
+  const held = input.value === input.getAttribute(WIRE.clearValue) ? "" : input.value;
+  input.value = held;
+  input.setAttribute(WIRE.heldKey, held);
+  redraw(input, held === "" ? [] : [held]);
+}
+
+/** @param {Element} holder */
+function keepSavedList(holder) {
+  const remove = holder.getAttribute(WIRE.removePrefix) ?? "";
+  const removed = (/** @type {string} */ key) => remove !== "" && key.startsWith(remove);
+  const inputs = [...holder.querySelectorAll("input")];
+  for (const input of inputs) if (removed(input.value)) input.remove();
+  redraw(
+    holder,
+    inputs.map((input) => input.value).filter((key) => !removed(key)),
+  );
+}
+
+/**
+ * Write the drawn input of the field around `node` as holding `keys`, in the server's
+ * `field:key,key` shape (`drawnFileValue` in `src/runtime/router/wire/wire-protocol.ts`).
+ *
+ * @param {Element} node @param {readonly string[]} keys
+ */
+function redraw(node, keys) {
+  const drawn = node.closest(`${FIELD}, ${LIST}`)?.querySelector(`[${WIRE.drawn}]`);
+  if (!(drawn instanceof HTMLInputElement)) return;
+  drawn.value = `${drawn.value.slice(0, drawn.value.indexOf(":"))}:${keys.join(",")}`;
+}
+
 /** @param {string} body @returns {Record<string, unknown>} */
 function parsed(body) {
   try {

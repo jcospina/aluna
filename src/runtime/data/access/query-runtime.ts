@@ -93,6 +93,13 @@ export function materializeCapabilityActionRecord(
   return { id: canonical.id, created_at: canonical.created_at, ...record.fields };
 }
 
+/** The row a Handler's record was read or written as, before generated code shaped its fields. */
+export function storedCapabilityActionRecord(record: CapabilityActionRecord): CapabilityDataRow {
+  const canonical = actionRecordHandles.get(record.handle as object);
+  if (!canonical) throw new CapabilityDataValidationError("Unknown capability record handle.");
+  return canonical;
+}
+
 export function isCapabilityActionRecord(value: unknown): value is CapabilityActionRecord {
   if (typeof value !== "object" || value === null || !("handle" in value)) return false;
   const handle = value.handle;

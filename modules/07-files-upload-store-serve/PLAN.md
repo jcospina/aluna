@@ -241,6 +241,13 @@ in ADR-0009, and in the architecture and design documents.
     clear from the platform control empties a field. An edit of a `file[]` names each file
     it removes, so a file the record holds that the edit neither keeps nor removes says
     the record changed in another window, and a list empties only file by file (7.2/07).
+    An edit also posts the keys each file field held when its form was drawn (7.3/01). A
+    `file` holding anything else now says the record changed, whether the edit keeps,
+    replaces or clears it, so a stale form never gives up a file another window saved.
+    A `file[]` keeping a file it was drawn with and no longer holds says the same. Neither
+    answer reads the displaced key's ledger row, so both outlive the worker deleting it. A
+    stale list's order and removals still apply, since neither gives up a file another
+    window saved: its order wins over the other window's, and a file both removed stays gone.
 17. **Generated code gets the projection both ways, and cannot change a file.** Every
     record generated code receives carries each file as `{ url, name, kind, mime, size }`:
     the router's input, what `mutation.create` and `mutation.update` return,
@@ -507,9 +514,9 @@ Done when "keep track of my photos" typed into the prompt bar builds a capabilit
 `file` field, a photo uploads with a visible progress line, the card shows it, editing the
 title keeps it, replacing it enqueues the old key, and the ledger says `owned`.
 
-Until 7.3, nothing drains the queue: an enqueued key keeps its bytes, and deleting a
-capability leaves its ledger rows and files behind. `bun run reset` clears both, which is
-enough for a tracer bullet.
+Until 7.3/01, nothing drained the queue: an enqueued key kept its bytes. Until 7.3/05,
+deleting a capability leaves its ledger rows and files behind. `bun run reset` clears both,
+which is enough for a tracer bullet.
 
 ### 7.2 — Every kind, and many
 

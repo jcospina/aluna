@@ -95,28 +95,30 @@ describe("an edit keeps the photo its record holds", () => {
   });
 });
 
-describe("a kept key the record no longer holds is refused before generated code runs", () => {
+describe("a form drawn before another window saved the photo is refused before generated code runs", () => {
   const photos = usePhotosRouter();
-  const elsewhere: readonly [string, () => Promise<[id: string, kept: string]>][] = [
+  const elsewhere: readonly [string, () => Promise<[id: string, drawn: string]>][] = [
     [
       "another window replaced it",
       async () => {
-        const kept = photos.mint();
-        const id = await photos.save(kept);
+        const drawn = photos.mint();
+        const id = await photos.save(drawn);
         await photos.request("/capability/photos/update", editBody(id, { [PHOTO]: photos.mint() }));
-        return [id, kept];
+        expect(photos.gone(drawn)).toBe(true);
+        return [id, drawn];
       },
     ],
     [
       "another window cleared it",
       async () => {
-        const kept = photos.mint();
-        const id = await photos.save(kept);
+        const drawn = photos.mint();
+        const id = await photos.save(drawn);
         await photos.request(
           "/capability/photos/update",
           editBody(id, { [PHOTO]: FILE_CLEAR_VALUE }),
         );
-        return [id, kept];
+        expect(photos.gone(drawn)).toBe(true);
+        return [id, drawn];
       },
     ],
     [
@@ -128,30 +130,38 @@ describe("a kept key the record no longer holds is refused before generated code
       },
     ],
   ];
+  const asks: readonly [string, (drawn: string) => string][] = [
+    ["keeps what it was drawn with", (drawn) => drawn],
+    ["replaces it", () => photos.mint()],
+    ["clears it", () => FILE_CLEAR_VALUE],
+  ];
 
   for (const [name, arrange] of elsewhere) {
-    test(`when ${name}`, async () => {
-      const [id, kept] = await arrange();
-      const before = { stored: photos.stored(), ledger: photos.ledgerRows() };
-      const spy = makeSpyLoader();
+    for (const [ask, value] of asks) {
+      test(`when ${name}, and the form ${ask}`, async () => {
+        const [id, drawn] = await arrange();
+        const posted = value(drawn);
+        const before = { stored: photos.stored(), ledger: photos.ledgerRows() };
+        const spy = makeSpyLoader();
 
-      const response = await photos.request(
-        "/capability/photos/update",
-        editBody(id, { caption: "Dusk", [PHOTO]: kept }),
-        { loadHandler: spy.loadHandler },
-      );
+        const response = await photos.request(
+          "/capability/photos/update",
+          editBody(id, { caption: "Dusk", [PHOTO]: posted }, { [PHOTO]: drawn ? [drawn] : [] }),
+          { loadHandler: spy.loadHandler },
+        );
 
-      expect(response.status).toBe(422);
-      expect(response.headers.get("HX-Retarget")).toBe(`#${capabilityEditErrorId("photos")}`);
-      const body = await response.clone().text();
-      expect(body).toContain(`data-error-code="${RECORD_CHANGED_ERROR_CODE}"`);
-      expect(body).toContain(`data-error-fields="${PHOTO}"`);
-      const sentence = sentenceOf(await response.text());
-      expect(sentence).toMatch(/another window/);
-      expect(sentence).not.toMatch(/key|ledger|reference|incarnation|pending|record|file/i);
-      expect(spy.calls).toEqual([]);
-      expect({ stored: photos.stored(), ledger: photos.ledgerRows() }).toEqual(before);
-    });
+        expect(response.status).toBe(422);
+        expect(response.headers.get("HX-Retarget")).toBe(`#${capabilityEditErrorId("photos")}`);
+        const body = await response.clone().text();
+        expect(body).toContain(`data-error-code="${RECORD_CHANGED_ERROR_CODE}"`);
+        expect(body).toContain(`data-error-fields="${PHOTO}"`);
+        const sentence = sentenceOf(await response.text());
+        expect(sentence).toMatch(/another window/);
+        expect(sentence).not.toMatch(/key|ledger|reference|incarnation|pending|record|file/i);
+        expect(spy.calls).toEqual([]);
+        expect({ stored: photos.stored(), ledger: photos.ledgerRows() }).toEqual(before);
+      });
+    }
   }
 });
 
@@ -190,10 +200,13 @@ describe("a record that no longer exists answers as not found before any key is 
 describe("replacing a photo", () => {
   const photos = usePhotosRouter();
 
-  test("promotes the new key, writes it from the ledger and gives up the old one", async () => {
+  test("promotes the new key, writes it from the ledger, and the old one's bytes and row go", async () => {
     const old = photos.mint({ name: "old.jpg" });
     const id = await photos.save(old);
     const next = photos.mint({ name: "new.png", mime: "image/png", size: 9_001 });
+    photos.place(old);
+    photos.place(next);
+    const woken = photos.wakes();
     const seen: unknown[] = [];
     const loadHandler = updateHandler(({ input, mutation }) => {
       seen.push(input.values.photo);
@@ -216,7 +229,9 @@ describe("replacing a photo", () => {
       name: "new.png",
     });
     expect(photos.ledger(next)).toMatchObject({ state: "owned", record_id: id });
-    expect(photos.ledger(old)).toMatchObject({ state: "cleanup_enqueued", record_id: id });
+    expect(photos.wakes() - woken).toBe(1);
+    expect(photos.gone(old)).toBe(true);
+    expect([photos.onDisk(old), photos.onDisk(next)]).toEqual([false, true]);
   });
 
   test("through the real fixture, whose card then draws the new photo", async () => {
@@ -231,7 +246,7 @@ describe("replacing a photo", () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toContain(`src="${fileUrl(next)}"`);
-    expect(photos.ledger(old).state).toBe("cleanup_enqueued");
+    expect(photos.gone(old)).toBe(true);
   });
 
   test("onto a record that held none gives nothing up", async () => {
@@ -248,56 +263,6 @@ describe("replacing a photo", () => {
     expect(
       photos.conns().readwrite.query(`SELECT count(*) AS n FROM ${FILE_LEDGER_TABLE}`).get(),
     ).toEqual({ n: 1 });
-  });
-
-  test("a Handler that updates and then fails leaves the old key owned and the new one pending", async () => {
-    const old = photos.mint();
-    const id = await photos.save(old);
-    const next = photos.mint();
-    const loadHandler: HandlerLoader = async () => async (context: CapabilityUpdateContext) => {
-      context.mutation.update({ photo: context.input.values.photo });
-      throw new Error("the Handler broke after writing");
-    };
-
-    const response = await photos.request(
-      "/capability/photos/update",
-      editBody(id, { [PHOTO]: next }),
-      { loadHandler },
-    );
-
-    expect(response.status).toBe(500);
-    expect(photos.photoOf(id)).toMatchObject({ key: old });
-    expect(photos.ledger(old)).toMatchObject({ state: "owned", record_id: id });
-    expect(photos.ledger(next)).toMatchObject({ state: "pending", record_id: null });
-  });
-
-  test("an update that fails gives both keys back, even to a Handler that answers anyway", async () => {
-    const old = photos.mint();
-    const id = await photos.save(old);
-    const next = photos.mint();
-    photos.conns().readwrite.exec(
-      `CREATE TRIGGER "refuse_edits" BEFORE UPDATE ON "cap_photos"
-       BEGIN SELECT RAISE(ABORT, 'the update failed'); END;`,
-    );
-    const loadHandler: HandlerLoader = async () => async (context: CapabilityUpdateContext) => {
-      try {
-        context.mutation.update({ photo: context.input.values.photo });
-      } catch {
-        // Swallowed, so the route answers 200 and commits whatever the transaction holds.
-      }
-      return "<p>saved, it thinks</p>";
-    };
-
-    const response = await photos.request(
-      "/capability/photos/update",
-      editBody(id, { [PHOTO]: next }),
-      { loadHandler },
-    );
-
-    expect(response.status).toBe(200);
-    expect(photos.photoOf(id)).toMatchObject({ key: old });
-    expect(photos.ledger(old)).toMatchObject({ state: "owned", record_id: id });
-    expect(photos.ledger(next)).toMatchObject({ state: "pending", record_id: null });
   });
 
   test("with a key another record owns is refused as a file this field may not claim", async () => {
@@ -321,12 +286,73 @@ describe("replacing a photo", () => {
   });
 });
 
+describe("a replace whose save never commits wakes no cleanup", () => {
+  const photos = usePhotosRouter();
+
+  test("a Handler that updates and then fails wakes no cleanup, and the old bytes stay", async () => {
+    const old = photos.mint();
+    const id = await photos.save(old);
+    const next = photos.mint();
+    photos.place(old);
+    const woken = photos.wakes();
+    const loadHandler: HandlerLoader = async () => async (context: CapabilityUpdateContext) => {
+      context.mutation.update({ photo: context.input.values.photo });
+      throw new Error("the Handler broke after writing");
+    };
+
+    const response = await photos.request(
+      "/capability/photos/update",
+      editBody(id, { [PHOTO]: next }),
+      { loadHandler },
+    );
+
+    expect(response.status).toBe(500);
+    expect(photos.wakes() - woken).toBe(0);
+    expect(photos.photoOf(id)).toMatchObject({ key: old });
+    expect(photos.ledger(old)).toMatchObject({ state: "owned", record_id: id });
+    expect(photos.ledger(next)).toMatchObject({ state: "pending", record_id: null });
+    expect(photos.onDisk(old)).toBe(true);
+  });
+
+  test("an update that fails gives both keys back, even to a Handler that answers anyway", async () => {
+    const old = photos.mint();
+    const id = await photos.save(old);
+    const next = photos.mint();
+    photos.place(old);
+    photos.conns().readwrite.exec(
+      `CREATE TRIGGER "refuse_edits" BEFORE UPDATE ON "cap_photos"
+       BEGIN SELECT RAISE(ABORT, 'the update failed'); END;`,
+    );
+    const loadHandler: HandlerLoader = async () => async (context: CapabilityUpdateContext) => {
+      try {
+        context.mutation.update({ photo: context.input.values.photo });
+      } catch {
+        // Swallowed, so the route answers 200 and commits whatever the transaction holds.
+      }
+      return "<p>saved, it thinks</p>";
+    };
+
+    const response = await photos.request(
+      "/capability/photos/update",
+      editBody(id, { [PHOTO]: next }),
+      { loadHandler },
+    );
+
+    expect(response.status).toBe(200);
+    expect(photos.photoOf(id)).toMatchObject({ key: old });
+    expect(photos.ledger(old)).toMatchObject({ state: "owned", record_id: id });
+    expect(photos.ledger(next)).toMatchObject({ state: "pending", record_id: null });
+    expect(photos.onDisk(old)).toBe(true);
+  });
+});
+
 describe("clearing a photo", () => {
   const photos = usePhotosRouter();
 
-  test("the control's clear empties the field and gives up the old key", async () => {
+  test("the control's clear empties the field, and the old key's bytes and row go", async () => {
     const old = photos.mint();
     const id = await photos.save(old);
+    photos.place(old);
     const seen: unknown[] = [];
     const loadHandler = updateHandler(({ input, mutation }) => {
       seen.push(input.values.photo);
@@ -344,7 +370,7 @@ describe("clearing a photo", () => {
     expect(response.status).toBe(200);
     expect(seen).toEqual([null, null]);
     expect(photos.photoOf(id)).toBeNull();
-    expect(photos.ledger(old)).toMatchObject({ state: "cleanup_enqueued", record_id: id });
+    expect([photos.gone(old), photos.onDisk(old)]).toEqual([true, false]);
   });
 
   const clears: readonly [string, HandlerLoader | undefined][] = [
@@ -368,7 +394,7 @@ describe("clearing a photo", () => {
 
       expect(response.status).toBe(200);
       expect(photos.photoOf(id)).toBeNull();
-      expect(photos.ledger(old).state).toBe("cleanup_enqueued");
+      expect(photos.gone(old)).toBe(true);
     });
   }
 

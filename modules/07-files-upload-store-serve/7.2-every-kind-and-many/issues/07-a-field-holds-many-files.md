@@ -2,6 +2,10 @@
 
 Status: ready-for-agent — built and verified; waiting on the owner's sign-off
 
+Superseded in part by 7.3/01: a removed entry's bytes and row now go once the save commits, and
+a list keeping a file it was drawn with that it no longer holds answers `record_changed`. The
+text below records this issue as it landed.
+
 ## Epic
 
 Module 7 — Files: Upload, Store & Serve · Epic 7.2 — Every kind, and many

@@ -54,7 +54,10 @@ export interface ObjectStore {
    * the whole object without one, and a span past the object's end errors the body there.
    */
   get(key: string, span?: ByteSpan): Promise<OpenedObject | null>;
-  /** Removes the object, staged copy first, so a racing `place` cannot leave bytes behind. */
+  /**
+   * Removes the object, staged copy first, so a racing `place` cannot leave bytes behind, and
+   * makes the removal durable before it settles: a ledger row deleted after it outlives no bytes.
+   */
   delete(key: string): Promise<void>;
   /** Always the same-origin address: the page's CSP and the HTML filter refuse any other. */
   url(key: string): string;
@@ -87,6 +90,15 @@ async function syncDirectory(path: string): Promise<void> {
     await directory.sync();
   } finally {
     await directory.close();
+  }
+}
+
+/** A directory that was never made holds no unlink to make durable. */
+async function syncPresentDirectory(path: string): Promise<void> {
+  try {
+    await syncDirectory(path);
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") throw error;
   }
 }
 
@@ -296,6 +308,8 @@ export function createLocalObjectStore(root: string = resolveObjectStoreRoot()):
     async delete(key) {
       await rm(stagedPath(key), { force: true });
       await rm(objectPath(key), { force: true });
+      await syncPresentDirectory(staging);
+      await syncPresentDirectory(root);
     },
     url: (key) => fileUrl(requireKey(key)),
     async clearStaging() {

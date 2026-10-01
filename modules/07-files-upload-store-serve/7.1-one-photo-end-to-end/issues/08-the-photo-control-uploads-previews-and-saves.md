@@ -5,6 +5,10 @@ Type: HITL — this issue closes the epic's done-when test, and the control is n
 furniture drawn in 7.1/02. A human runs the whole photo round trip and confirms the
 control matches the drawing.
 
+Superseded in part by 7.3/01: a replaced or cleared photo's bytes and row now go once the save
+commits, and a replace or clear posted from a stale form answers `record_changed` and gives
+nothing up. The text below records this issue as it landed.
+
 ## Epic
 
 Module 7 — Files: Upload, Store & Serve · Epic 7.1 — One photo, end to end

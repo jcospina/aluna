@@ -17,6 +17,7 @@ import { renderCreateForm, renderEditForm } from "../../../presentation/fields/f
 import { submittedInputs } from "../../../presentation/fields/form-submission.test-support.ts";
 import { renderableFromRow } from "../../../presentation/fields/renderable-capability.ts";
 import {
+  ALBUM_FIELD,
   CAPTION_FIELD,
   PHOTO_FIELD,
   photoSpec,
@@ -27,6 +28,7 @@ import {
   type CapabilityRow,
   INVALID_FILE_REFERENCE_ERROR_CODE,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  RECORD_CHANGED_ERROR_CODE,
 } from "../../../registry/index.ts";
 import {
   answeredReference,
@@ -52,9 +54,12 @@ import {
 } from "../dispatch/router.test-support.ts";
 import type { CapabilityCreateContext, CapabilityUpdateContext } from "../index.ts";
 import {
+  ALUNA_DRAWN_MARKER,
   ALUNA_PRESENT_MARKER,
   ALUNA_RECORD_ID_MARKER,
+  drawnFileValue,
   parseCapabilityRequest,
+  WireProtocolError,
 } from "./wire-protocol.ts";
 
 /** The body a browser posts from `html`, with `edits` written over the matching controls. */
@@ -163,23 +168,117 @@ describe("a save through the photo control, as its rendered form posts it", () =
     expect(photos.ledger(key).state).toBe("owned");
   });
 
-  test("a replacement claims the new photo and gives the old one up", async () => {
+  test("a replacement claims the new photo, and the old one's row goes", async () => {
     const old = photos.mint();
     const id = await createdWith({ key: old });
     const replacement = photos.mint();
     expect((await edit(id, { key: replacement })).status).toBe(200);
     expect(photos.photoOf(id)).toMatchObject({ key: replacement });
     expect(photos.ledger(replacement).state).toBe("owned");
-    expect(photos.ledger(old).state).toBe("cleanup_enqueued");
+    expect(photos.gone(old)).toBe(true);
   });
 
-  test("the clear the server drew empties the field and gives its photo up", async () => {
+  test("the clear the server drew empties the field, and its photo's row goes", async () => {
     const key = photos.mint();
     const id = await createdWith({ key });
     expect((await edit(id, "cleared")).status).toBe(200);
     expect(photos.photoOf(id)).toBeNull();
-    expect(photos.ledger(key).state).toBe("cleanup_enqueued");
+    expect(photos.gone(key)).toBe(true);
   });
+
+  test("a form drawn before another window replaced the photo gives nothing up, whatever it asks", async () => {
+    const drawn = photos.mint();
+    const id = await createdWith({ key: drawn });
+    const stale = form(record(id));
+    const theirs = photos.mint();
+    expect((await edit(id, { key: theirs })).status).toBe(200);
+    expect(photos.gone(drawn)).toBe(true);
+
+    for (const asked of ["kept", "cleared", { key: photos.mint() }] as const) {
+      const posted = { caption: "Dusk", photo: await photoPosted(stale, asked) };
+      const before = { stored: photos.stored(), ledger: photos.ledgerRows() };
+      const response = await photos.request(
+        "/capability/photos/update",
+        await submit(stale, posted),
+      );
+      expect(response.status).toBe(422);
+      expect(await response.text()).toContain(`data-error-code="${RECORD_CHANGED_ERROR_CODE}"`);
+      expect({ stored: photos.stored(), ledger: photos.ledgerRows() }).toEqual(before);
+    }
+    expect(photos.photoOf(id)).toMatchObject({ key: theirs });
+  });
+});
+
+describe("what an edit says its file fields held when its form was drawn", () => {
+  const listSpec = () => photoSpec([CAPTION_FIELD, PHOTO_FIELD, ALBUM_FIELD]);
+  const [one, two] = [mintFileKey(), mintFileKey()];
+
+  function parse(
+    action: "create" | "update",
+    drawn: readonly string[],
+    present = [PHOTO_FIELD.name],
+  ) {
+    const body = new URLSearchParams(action === "update" ? [[ALUNA_RECORD_ID_MARKER, "r"]] : []);
+    if (action === "create") body.append(ALUNA_PRESENT_MARKER, CAPTION_FIELD.name);
+    for (const name of present) body.append(ALUNA_PRESENT_MARKER, name);
+    for (const value of drawn) body.append(ALUNA_DRAWN_MARKER, value);
+    return parseCapabilityRequest(
+      new Request("http://aluna.test/", { method: "POST", body }),
+      action,
+      listSpec(),
+    );
+  }
+
+  test("is read once for each file field an edit submits, a list's in order", async () => {
+    const parsed = await parse(
+      "update",
+      [drawnFileValue(PHOTO_FIELD.name, [one]), drawnFileValue(ALBUM_FIELD.name, [two, one])],
+      [PHOTO_FIELD.name, ALBUM_FIELD.name],
+    );
+    expect(parsed.drawnFiles).toEqual(
+      new Map([
+        [PHOTO_FIELD.name, [one]],
+        [ALBUM_FIELD.name, [two, one]],
+      ]),
+    );
+    expect(Object.keys(parsed.input.values)).not.toContain(ALUNA_DRAWN_MARKER);
+  });
+
+  test("is left for the file rule to answer when an edit's field sends none", async () => {
+    const parsed = await parse("update", []);
+    expect(parsed.drawnFiles).toEqual(new Map());
+  });
+
+  const refused: readonly [string, "create" | "update", readonly string[], string[]?][] = [
+    ["when a create sends one", "create", [drawnFileValue(PHOTO_FIELD.name, [])]],
+    ["when it names a field the edit leaves out", "update", [drawnFileValue(ALBUM_FIELD.name, [])]],
+    [
+      "when it names a field that holds no file",
+      "update",
+      [drawnFileValue(CAPTION_FIELD.name, [])],
+    ],
+    [
+      "when one field's is sent twice",
+      "update",
+      [drawnFileValue(PHOTO_FIELD.name, [one]), drawnFileValue(PHOTO_FIELD.name, [one])],
+    ],
+    [
+      "when it names two files for a single file",
+      "update",
+      [drawnFileValue(PHOTO_FIELD.name, [one, two])],
+    ],
+    [
+      "when it names something that is no key",
+      "update",
+      [drawnFileValue(PHOTO_FIELD.name, ["harbour.jpg"])],
+    ],
+    ["when it names no field at all", "update", [one]],
+  ];
+  for (const [name, action, drawn, present] of refused) {
+    test(`is refused ${name}`, async () => {
+      await expect(parse(action, drawn, present)).rejects.toThrow(WireProtocolError);
+    });
+  }
 });
 
 describe("a photo sent where the stored capability's form says", () => {
@@ -323,12 +422,14 @@ describe("the file field's refusals below the router", () => {
     const body = new URLSearchParams([
       [ALUNA_PRESENT_MARKER, PHOTO_FIELD.name],
       [ALUNA_RECORD_ID_MARKER, "r"],
+      [ALUNA_DRAWN_MARKER, drawnFileValue(PHOTO_FIELD.name, [])],
     ]);
     const update = new Request("http://aluna.test/", { method: "POST", body });
     const edited = await parseCapabilityRequest(update, "update", photoSpec());
     expect(edited.input.values).toEqual({ [PHOTO_FIELD.name]: "" });
 
     body.delete(ALUNA_RECORD_ID_MARKER);
+    body.delete(ALUNA_DRAWN_MARKER);
     body.append(ALUNA_PRESENT_MARKER, CAPTION_FIELD.name);
     const create = new Request("http://aluna.test/", { method: "POST", body });
     const parsed = await parseCapabilityRequest(create, "create", photoSpec());

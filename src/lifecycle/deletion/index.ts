@@ -5,6 +5,8 @@ export {
   type DeletionCleanupSupervisorOptions,
   type PendingDeletionCleanup,
   pendingDeletionCleanups,
+  type ScheduleRetry,
+  scheduleUnrefTimer,
 } from "./destruction/cleanup-supervisor.ts";
 export {
   type CapabilityDeletionRecoveryResult,

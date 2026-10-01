@@ -13,7 +13,7 @@
 import type { Database } from "bun:sqlite";
 import { LOGO_BIRTH_STATUS, LOGO_STATUSES } from "../../registry/logo.ts";
 import { REGISTRY_TABLE } from "../../registry/store/store.ts";
-import { createFileLedgerSchema } from "../files/store/ledger.ts";
+import { createFileCleanupIndex, createFileLedgerSchema } from "../files/store/ledger.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,
@@ -319,6 +319,8 @@ export const MIGRATIONS: readonly Migration[] = [
       database.exec(`ALTER TABLE ${REGISTRY_TABLE} ADD COLUMN plural_noun TEXT;`);
     },
   },
+  // The cleanup worker's queue read (Module 7 PLAN decision 31), on a ledger 0016 already built.
+  { id: "0018_file_ledger_cleanup_index", up: createFileCleanupIndex },
 ];
 
 // The set of migration ids already recorded in the ledger. Empty when the ledger table does not

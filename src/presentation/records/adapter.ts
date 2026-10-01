@@ -11,9 +11,11 @@
 // Synchronous: the enforcer parses with Bun's native HTMLRewriter and the rest is string
 // composition. The router resolves the item renderer once, which is why it loads it eagerly.
 
+import { isFileFieldType } from "../../registry/index.ts";
 import {
   type CapabilityActionRecord,
   materializeCapabilityActionRecord,
+  storedCapabilityActionRecord,
 } from "../../runtime/data/index.ts";
 import type { RenderableCapability } from "../fields/field-renderer.ts";
 import { enforceItemMarkup } from "../safety/enforcer/enforcer.ts";
@@ -60,7 +62,26 @@ export function createPresentationAdapter(
   options: PresentationAdapterOptions,
 ): PresentationAdapter {
   const { capability, renderItem } = options;
-  return (record) => present(capability, renderItem, materializeCapabilityActionRecord(record));
+  return (record) =>
+    present(
+      capability,
+      renderItem,
+      materializeCapabilityActionRecord(record),
+      storedFiles(capability, storedCapabilityActionRecord(record)),
+    );
+}
+
+/**
+ * What the record's file fields hold as stored. Generated code cannot change a file (Module 7 PLAN
+ * decision 17), so the edit form draws these whatever the Handler presented, and says it was drawn
+ * holding them.
+ */
+function storedFiles(
+  capability: RenderableCapability,
+  stored: PresentableRecord,
+): PresentableRecord {
+  const files = capability.schema.fields.filter((field) => isFileFieldType(field.type));
+  return Object.fromEntries(files.map((field) => [field.name, stored[field.name]]));
 }
 
 /** Platform-only presentation for synthetic previews and deterministic design probes. */
@@ -79,9 +100,10 @@ function present(
   capability: RenderableCapability,
   renderItem: ItemRenderer,
   record: PresentableRecord,
+  files: PresentableRecord = {},
 ): string {
   const templateId = recordTemplateId(capability.id, record);
-  const recordTemplate = renderRecordViewTemplate(templateId, capability, record);
+  const recordTemplate = renderRecordViewTemplate(templateId, capability, { ...record, ...files });
   const recordView: ItemRecordViewRef | undefined =
     recordTemplate === "" ? undefined : { templateId };
 

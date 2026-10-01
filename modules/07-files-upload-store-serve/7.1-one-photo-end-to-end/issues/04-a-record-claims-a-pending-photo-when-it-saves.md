@@ -2,6 +2,9 @@
 
 Status: done
 
+Superseded in part by 7.3/01: an enqueued key's bytes and row now go once the save that
+displaced it commits. The text below records this issue as it landed.
+
 ## Epic
 
 Module 7 — Files: Upload, Store & Serve · Epic 7.1 — One photo, end to end

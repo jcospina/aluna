@@ -1,10 +1,13 @@
-// The file rule of a save (Module 7 PLAN decisions 16, 17 and 22). A file field takes a pending key
-// minted for this incarnation and this field, or nothing. An update may also carry what its record's
-// field holds now, which keeps it, or the control's explicit clear. A `file[]` takes an ordered list
-// of such keys, none twice and no more than the configured count, and an edit names each file it
-// removes, so a file another window added is never removed by a form that never saw it. The router checks it before
-// generated code runs and again inside the save's transaction, and the mutation interface checks it
-// a third time as it writes, because a sweep or another save can commit between any two.
+// The file rule of a save (Module 7 PLAN decisions 16, 17 and 22). A file field takes a pending
+// key minted for this incarnation and this field, or nothing. An update may also carry what its
+// record's field holds now, which keeps it, or the control's explicit clear. A `file[]` takes an
+// ordered list of such keys, none twice and no more than the configured count, and an edit names
+// each file it removes, so a file another window added is never removed by a form that never saw
+// it. An edit also names what each field held when its form was drawn: a `file` holding anything
+// else now says the record changed, whether the form keeps, replaces or clears, and so does a list
+// keeping a file it was drawn with that it no longer holds. The router checks it before generated
+// code runs and again inside the save's transaction, because a sweep or another save can commit
+// in between, and the mutation interface checks a keep a third time as it writes.
 
 import type { Database } from "bun:sqlite";
 import { resolveMaxListFiles } from "../../../platform/files/file-cap.ts";
@@ -60,14 +63,23 @@ export interface FileClaimScope {
   readonly record?: { readonly table: string; readonly id: string };
   /** How many files a `file[]` may hold; the configured count unless the Gate names its own. */
   readonly maxListFiles?: number;
+  /**
+   * What each submitted file field held when the edit's form was drawn. The router always names
+   * it on an update; a Gate save has no form and names none.
+   */
+  readonly drawn?: ReadonlyMap<string, readonly string[]>;
 }
 
-/** The scope of `spec`'s incarnation, naming the record an update or a delete acts on. */
+/**
+ * The scope of `spec`'s incarnation, naming the record an update or a delete acts on, and what an
+ * update's form was drawn with.
+ */
 export function fileClaimScope(
   database: Database,
   spec: CapabilitySpec,
   incarnationId: string,
   recordId?: string,
+  drawn?: ReadonlyMap<string, readonly string[]>,
 ): FileClaimScope {
   return {
     database,
@@ -76,6 +88,7 @@ export function fileClaimScope(
     ...(recordId === undefined
       ? {}
       : { record: { table: deriveCapabilityTableDdl(spec).tableName, id: recordId } }),
+    ...(drawn === undefined ? {} : { drawn }),
   };
 }
 
@@ -207,7 +220,11 @@ export function resolveSubmittedFiles(
   const outcomes = submitted.map((field) => {
     const holding = held?.get(field.name);
     const value = values[field.name];
-    const outcome = isFileListFieldType(field.type)
+    const list = isFileListFieldType(field.type);
+    if (held && !list && !drawnAsHeld(scope.drawn, field.name, holding)) {
+      return [field.name, "changed"] as const;
+    }
+    const outcome = list
       ? resolveSubmittedList(field, value, holding as ListHolding, scope)
       : resolveSubmittedFile(field, value, holding as FileHolding, scope);
     return [field.name, outcome] as const;
@@ -235,6 +252,18 @@ export function resolveSubmittedFiles(
   );
 }
 
+/** Whether a `file` holds what its form was drawn with; a save with no form passes. */
+function drawnAsHeld(
+  drawn: FileClaimScope["drawn"],
+  field: string,
+  holding: HeldFiles | undefined,
+): boolean {
+  if (drawn === undefined) return true;
+  const keys = drawn.get(field);
+  const held = heldFileKeys(holding);
+  return keys?.length === held.length && keys.every((key, at) => key === held[at]);
+}
+
 /** What an update's record holds in a `file`, `null` for nothing, or `undefined` on a create. */
 type FileHolding = CapabilityFileProjection | null | undefined;
 /** What an update's record holds in a `file[]`, or `undefined` on a create. */
@@ -242,11 +271,10 @@ type ListHolding = readonly CapabilityFileProjection[] | undefined;
 type Resolved = SubmittedFile | FileReferenceRefusal | "changed";
 
 /**
- * A `file[]`'s keys in order, and on an edit the ones it removes. Refused as the fields of one
- * save are, the record changing first: a file the record holds that the edit leaves unnamed, or a
- * key it once held, then a list growing past the count, then a removal naming no key, a key twice
- * or one it may not claim. A list a lowered count already passes may still be edited, so long as
- * it does not grow. Each key is read once, and a list no longer than its request body allows.
+ * A `file[]`'s keys in order, and on an edit the ones it removes. Refused as one save's fields are:
+ * the record changing first (a held file left unnamed, or a drawn one kept that is gone), then a
+ * list grown past the count, then a misread removal or drawn key, a key twice or one it may not
+ * claim. A list a lowered count already passes may still be edited while it does not grow.
  */
 function resolveSubmittedList(
   field: SpecField,
@@ -254,13 +282,13 @@ function resolveSubmittedList(
   holding: ListHolding,
   scope: FileClaimScope,
 ): Resolved | FileListCount {
-  const split = splitRemovals(value, holding);
+  const drawn = scope.drawn ? scope.drawn.get(field.name) : [];
+  const split = splitRemovals(value, holding, drawn);
   if (!split) return "malformed";
   const { keys, removes, misread } = split;
   const held = heldFileKeys(holding);
-  if (uncovered(held, keys, removes)) return "changed";
+  if (uncovered(held, keys, removes) || keepsWhatWentAway(drawn, keys, held)) return "changed";
   const read = new Map(keys.map((key) => [key, resolveListEntry(field, key, holding, scope)]));
-  if ([...read.values()].includes("changed")) return "changed";
   const cap = scope.maxListFiles ?? resolveMaxListFiles();
   if (keys.length > cap && keys.length > held.length) return { count: keys.length, cap };
   const posted = [...keys, ...removes];
@@ -274,19 +302,37 @@ function resolveSubmittedList(
 }
 
 /**
+ * Whether a list keeps a file its form was drawn with that the record no longer holds, or names
+ * nothing it was drawn with where the router read what every form was drawn with.
+ */
+function keepsWhatWentAway(
+  drawn: readonly string[] | undefined,
+  keys: readonly string[],
+  held: readonly string[],
+): boolean {
+  if (!drawn) return true;
+  const [holds, drew] = [new Set(held), new Set(drawn)];
+  return keys.some((key) => drew.has(key) && !holds.has(key));
+}
+
+/**
  * A `file[]`'s posted values as the keys it holds and the keys it removes, or `undefined` for a
  * value of another shape. `misread` says a removal names no key or comes on a create, which
- * removes nothing.
+ * removes nothing, or that a key the form was drawn with is neither kept nor removed.
  */
 function splitRemovals(
   value: unknown,
   holding: ListHolding,
+  drawn: readonly string[] = [],
 ): { keys: string[]; removes: string[]; misread: boolean } | undefined {
   if (!Array.isArray(value) || !value.every((key) => typeof key === "string")) return undefined;
   const removing = (key: string) => key.startsWith(FILE_REMOVE_PREFIX);
   const keys = value.filter((key) => !removing(key));
   const removes = value.filter(removing).map((key) => key.slice(FILE_REMOVE_PREFIX.length));
-  const misread = removes.length > 0 && (holding === undefined || !removes.every(isFileKey));
+  const named = new Set([...keys, ...removes]);
+  const misread =
+    (removes.length > 0 && (holding === undefined || !removes.every(isFileKey))) ||
+    drawn.some((key) => !named.has(key));
   return { keys, removes, misread };
 }
 
@@ -295,11 +341,11 @@ function resolveListEntry(
   key: string,
   holding: ListHolding,
   scope: FileClaimScope,
-): SubmittedEntry | FileReferenceRefusal | "changed" {
+): SubmittedEntry | FileReferenceRefusal {
   if (!isFileKey(key)) return "malformed";
   const held = holding?.find((projection) => fileKeyFromProjection(projection) === key);
   if (held) return { write: "keep", held };
-  const resolved = resolveSubmittedKey(field, key, holding !== undefined, scope);
+  const resolved = resolveSubmittedKey(field, key, scope);
   if (typeof resolved === "string") return resolved;
   return resolved.write === "claim" ? resolved : "malformed";
 }
@@ -315,24 +361,22 @@ function resolveSubmittedFile(
   if (value === "") return holding ? "changed" : { write: "keep", held: null };
   if (!isFileKey(value)) return "malformed";
   if (holding && heldFileKeys(holding)[0] === value) return { write: "keep", held: holding };
-  return resolveSubmittedKey(field, value, holding !== undefined, scope);
+  return resolveSubmittedKey(field, value, scope);
 }
 
-/** A key the record does not hold now: one it once held here, or a pending key to claim. */
+/** A key the record does not hold now: a pending key to claim, or one it may not. */
 function resolveSubmittedKey(
   field: SpecField,
   key: string,
-  onRecord: boolean,
   scope: FileClaimScope,
-): Resolved {
+): SubmittedFile | FileReferenceRefusal {
   const row = readFileLedgerRow(scope.database, key);
   if (!row) return "unknown";
-  if (onRecord && heldByThisRecord(row, field, scope)) return "changed";
   return claimRefusal(row, field, scope) ?? { write: "claim", row };
 }
 
 /** What each submitted file field of an update's record holds now, as generated code sees it. */
-function readHeldFiles(
+export function readHeldFiles(
   fields: readonly SpecField[],
   scope: FileClaimScope,
 ): ReadonlyMap<string, HeldFiles> {
@@ -351,16 +395,6 @@ function readHeldFiles(
       }
       return [field.name, value === null ? null : projectStoredFileReference(field.name, value)];
     }),
-  );
-}
-
-/** A key this record's field once held and another save has since replaced or cleared. */
-function heldByThisRecord(row: FileLedgerRow, field: SpecField, scope: FileClaimScope): boolean {
-  return (
-    row.capability_id === scope.capabilityId &&
-    row.incarnation_id === scope.incarnationId &&
-    row.field === field.name &&
-    row.record_id === scope.record?.id
   );
 }
 

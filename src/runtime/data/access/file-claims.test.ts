@@ -187,6 +187,41 @@ function savedWithPhoto(): { held: string; id: string } {
   return { held, id };
 }
 
+describe("what an edit's form was drawn with", () => {
+  /** Resolve an edit of `id`'s photo posting `photo`, as a form drawn holding `drawn` would. */
+  function resolveEdit(id: string, photo: string, drawn?: readonly string[]) {
+    const scope = fileClaimScope(
+      env.conns.readwrite,
+      spec,
+      FIRST_INCARNATION_ID,
+      id,
+      new Map(drawn === undefined ? [] : [[PHOTO_FIELD.name, drawn]]),
+    );
+    return () => resolveSubmittedFiles(spec.schema.fields, { photo }, "update", scope);
+  }
+
+  test("a form drawn holding another file says the record changed, with no ledger row to read", () => {
+    const { held, id } = savedWithPhoto();
+    const gone = mintFileKey();
+    expect(resolveEdit(id, held, [held])().get("photo")).toMatchObject({ write: "keep" });
+    for (const posted of [gone, mint(), FILE_CLEAR_VALUE, ""]) {
+      expect(resolveEdit(id, posted, [gone])).toThrow(RecordChangedError);
+    }
+  });
+
+  test("a form that says nothing of what it was drawn with is asked to open again", () => {
+    const { held, id } = savedWithPhoto();
+    expect(resolveEdit(id, held)).toThrow(RecordChangedError);
+  });
+
+  test("a save with no form, as the Gate's is, is judged on what it posts alone", () => {
+    const { held, id } = savedWithPhoto();
+    const scope = fileClaimScope(env.conns.readwrite, spec, FIRST_INCARNATION_ID, id);
+    const files = resolveSubmittedFiles(spec.schema.fields, { photo: held }, "update", scope);
+    expect(files.get("photo")).toMatchObject({ write: "keep" });
+  });
+});
+
 describe("an edit's mutation interface checks once more", () => {
   /** A record holding a claimed photo, and the port an edit submitting `photo` (or keeping) binds. */
   function edit(photo?: string) {

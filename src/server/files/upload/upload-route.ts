@@ -51,6 +51,8 @@ export interface FileUploadDeps {
   readonly objectStore: ObjectStore;
   /** The per-file cap the upload's guard counts against (7.1/01). */
   readonly maxFileBytes: number;
+  /** Told once an abandoned key's move to cleanup commits. */
+  readonly wakeFileCleanup: () => void;
 }
 
 /** Deletion's drain closed the incarnation's gate while the body streamed. */
@@ -207,10 +209,11 @@ function recordPendingFile(database: PlatformDatabase["readwrite"], file: Admitt
 }
 
 /** The key an upload minted and never handed back goes to cleanup. */
-function abandon(deps: FileUploadDeps, key: string): Promise<boolean> {
-  return deps.mutationCoordinator.withPlatformWrite(() =>
+async function abandon(deps: FileUploadDeps, key: string): Promise<void> {
+  const enqueued = await deps.mutationCoordinator.withPlatformWrite(() =>
     enqueuePendingFile(deps.databases.readwrite, key),
   );
+  if (enqueued) deps.wakeFileCleanup();
 }
 
 async function recordAndPlace(

@@ -7,6 +7,7 @@
 
 import type { Database } from "bun:sqlite";
 import { randomUUID } from "node:crypto";
+import { CLEANUP_ERROR_MAX_LENGTH } from "../../errors.ts";
 import { FILE_LEDGER_TABLE } from "../../persistence/table-names.ts";
 
 export { FILE_LEDGER_TABLE } from "../../persistence/table-names.ts";
@@ -68,6 +69,18 @@ export function createFileLedgerSchema(database: Database): void {
   database.exec(
     `CREATE INDEX IF NOT EXISTS ${FILE_LEDGER_TABLE}_incarnation
      ON ${FILE_LEDGER_TABLE} (incarnation_id);`,
+  );
+  createFileCleanupIndex(database);
+}
+
+/**
+ * The cleanup worker reads its queue after every save and on every desk load, so the read walks
+ * only enqueued rows. Migration `0018_file_ledger_cleanup_index` adds it to an older ledger.
+ */
+export function createFileCleanupIndex(database: Database): void {
+  database.exec(
+    `CREATE INDEX IF NOT EXISTS ${FILE_LEDGER_TABLE}_cleanup
+     ON ${FILE_LEDGER_TABLE} (key) WHERE state = 'cleanup_enqueued';`,
   );
 }
 
@@ -177,7 +190,7 @@ export interface FileLedgerOwner {
 }
 
 /**
- * Give up a key that `recordId`'s `field` owns, for 7.3/01's worker to delete. False when no such
+ * Give up a key that `recordId`'s `field` owns, for the cleanup worker to delete. False when no such
  * owned row exists, which the caller refuses: the stored reference and the ledger disagree.
  */
 export function enqueueDisplacedFile(
@@ -228,4 +241,37 @@ export function reassignRecordFiles(
        WHERE "record_id" = ? AND "capability_id" = ? AND "incarnation_id" = ? AND "state" = 'owned'`,
     )
     .run(nextRecordId, recordId, owner.capabilityId, owner.incarnationId);
+}
+
+/** A key awaiting cleanup, and how many passes have failed to clean it. */
+export interface EnqueuedFile {
+  readonly key: string;
+  readonly attempts: number;
+}
+
+/** The cleanup worker's read of its queue, which walks only the cleanup index. */
+export const ENQUEUED_FILES_SQL = `SELECT "key", "cleanup_attempts" AS attempts
+  FROM ${FILE_LEDGER_TABLE} WHERE "state" = 'cleanup_enqueued'`;
+
+/** Every key the cleanup worker owes, in no order a caller may rely on. */
+export function readEnqueuedFiles(database: Database): EnqueuedFile[] {
+  return database.query<EnqueuedFile, []>(ENQUEUED_FILES_SQL).all();
+}
+
+/** Delete the row of a key whose bytes are gone. A row already deleted is success. */
+export function deleteCleanedFile(database: Database, key: string): void {
+  database
+    .query(`DELETE FROM ${FILE_LEDGER_TABLE} WHERE "key" = ? AND "state" = 'cleanup_enqueued'`)
+    .run(key);
+}
+
+/** Count a failed cleanup of `key` and keep why, as the deletion tombstone keeps its own. */
+export function recordFileCleanupFailure(database: Database, key: string, error: string): void {
+  database
+    .query(
+      `UPDATE ${FILE_LEDGER_TABLE}
+       SET "cleanup_attempts" = "cleanup_attempts" + 1, "cleanup_error" = ?
+       WHERE "key" = ? AND "state" = 'cleanup_enqueued'`,
+    )
+    .run(error.slice(0, CLEANUP_ERROR_MAX_LENGTH), key);
 }

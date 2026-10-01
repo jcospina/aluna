@@ -21,7 +21,11 @@ import {
   FILE_REMOVE_PREFIX,
   fileKeyFromProjection,
 } from "../../../runtime/data/index.ts";
-import { ALUNA_PRESENT_MARKER } from "../../../runtime/router/wire/wire-protocol.ts";
+import {
+  ALUNA_DRAWN_MARKER,
+  ALUNA_PRESENT_MARKER,
+  drawnFileValue,
+} from "../../../runtime/router/wire/wire-protocol.ts";
 import { escapeHtml } from "../../../server/http/html.ts";
 import { fieldChrome } from "../../fields/chrome/field-chrome.ts";
 
@@ -73,8 +77,18 @@ function uploadAttributes(
 }
 
 /**
- * @param value what an edit's record holds in the field, as generated code sees it; `undefined`
- * on a create
+ * The hidden marker an edit posts naming the keys `name` held when its form was drawn. A create,
+ * whose `value` is `undefined`, posts none.
+ */
+function drawnMarker(name: string, keys: readonly string[], value: unknown): string {
+  if (value === undefined) return "";
+  const drawn = escapeHtml(drawnFileValue(name, keys));
+  return `<input type="hidden" name="${ALUNA_DRAWN_MARKER}" value="${drawn}" ${WIRE.drawn}>`;
+}
+
+/**
+ * @param value what an edit's record holds in the field, as generated code sees it, and never
+ * `undefined` there, which is a create's and posts no drawn marker
  */
 export function renderFileField(
   inputId: string,
@@ -94,6 +108,7 @@ export function renderFileField(
     ` ${HOOKS.kind}="${escapeHtml(families.join(" "))}"` +
     `${held.attributes}${uploadAttributes(target, field, families)}>` +
     `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${name}">` +
+    drawnMarker(field.name, held.key === "" ? [] : [held.key], value) +
     `<input type="hidden" name="${name}" value="${key}" ${WIRE.value}` +
     ` ${WIRE.heldKey}="${key}" ${WIRE.clearValue}="${escapeHtml(FILE_CLEAR_VALUE)}"` +
     `${field.required ? ` ${WIRE.required}` : ""}>` +
@@ -149,6 +164,7 @@ function renderManyFiles(
     ` ${HOOKS.kind}="${escapeHtml(families.join(" "))}" ${HOOKS.holds}="${holds}"` +
     ` ${HOOKS.count}="${resolveMaxListFiles()}"${uploadAttributes(target, field, families)}>` +
     `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${name}">` +
+    drawnMarker(field.name, keys, value) +
     `<span hidden ${WIRE.keys} ${WIRE.fieldName}="${name}"` +
     ` ${WIRE.removePrefix}="${escapeHtml(FILE_REMOVE_PREFIX)}"${field.required ? ` ${WIRE.required}` : ""}>` +
     `${posted.join("")}</span>` +

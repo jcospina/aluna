@@ -50,7 +50,8 @@ export interface PendingDeletionCleanup {
   readonly exhausted: boolean;
 }
 
-function defaultSchedule(run: () => void, delayMs: number): void {
+/** `setTimeout`, unreferenced: what both cleanup retries schedule on outside tests. */
+export function scheduleUnrefTimer(run: () => void, delayMs: number): void {
   const timer = setTimeout(run, delayMs);
   // A pending retry must never be the reason the process refuses to exit.
   timer.unref?.();
@@ -72,7 +73,7 @@ export class DeletionCleanupSupervisor {
   constructor(options: DeletionCleanupSupervisorOptions) {
     this.options = options;
     this.retryDelaysMs = options.retryDelaysMs ?? DEFAULT_DELETION_CLEANUP_RETRY_DELAYS_MS;
-    this.schedule = options.schedule ?? defaultSchedule;
+    this.schedule = options.schedule ?? scheduleUnrefTimer;
   }
 
   /** Every deletion whose durable cleanup is still owed, with why it has not landed. */

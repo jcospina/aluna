@@ -145,7 +145,15 @@ const METHOD_BY_ACTION = {
  * Attach the capability router to the app (called from createApp). Generated code
  * reaches the platform only through what this builds — never the Hono context.
  */
-export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps = {}): void {
+/**
+ * @param wakeFileCleanup told after a save or a delete commits, so the files it displaced go
+ * (Module 7 PLAN decision 31)
+ */
+export function registerCapabilityRoutes(
+  app: Hono,
+  wakeFileCleanup: () => void,
+  deps: CapabilityRouterDeps = {},
+): void {
   const databases = deps.databases ?? { readwrite: db, readonly: dbReadonly };
   const loadHandler = deps.loadHandler ?? defaultLoadHandler;
   const loadItemRenderer = deps.loadItemRenderer ?? defaultLoadItemRenderer;
@@ -161,8 +169,8 @@ export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps =
   app.get(CAPABILITY_VIEW_TRAILING_SLASH_ROUTE, view);
   // Catch every HTTP method here so a wrong pair receives the same warm product
   // boundary instead of falling through to Hono's generic 404 response.
-  app.all(CAPABILITY_ROUTE, guardWritingRoute(), (c) =>
-    handleCapabilityRequest(
+  app.all(CAPABILITY_ROUTE, guardWritingRoute(), async (c) => {
+    const response = await handleCapabilityRequest(
       c,
       databases,
       loadHandler,
@@ -172,8 +180,11 @@ export function registerCapabilityRoutes(app: Hono, deps: CapabilityRouterDeps =
       mutationCoordinator,
       readGates,
       handlerTimeoutMs,
-    ),
-  );
+    );
+    // Only a write answers a POST, and only a committed one answers it ok.
+    if (response.ok && c.req.method === "POST") wakeFileCleanup();
+    return response;
+  });
 }
 
 function handleCapabilityViewRequest(
@@ -347,7 +358,13 @@ function platformRefusal(
       activeSpecFields(spec.schema.fields),
       parsedRequest.input.values,
       action,
-      fileClaimScope(databases.readonly, spec, row.incarnation_id, parsedRequest.recordTarget),
+      fileClaimScope(
+        databases.readonly,
+        spec,
+        row.incarnation_id,
+        parsedRequest.recordTarget,
+        parsedRequest.drawnFiles,
+      ),
     );
     return undefined;
   } catch (error) {

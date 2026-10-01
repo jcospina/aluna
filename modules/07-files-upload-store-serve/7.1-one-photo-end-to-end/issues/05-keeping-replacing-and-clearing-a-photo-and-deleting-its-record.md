@@ -2,6 +2,11 @@
 
 Status: done
 
+Superseded in part by 7.3/01: an enqueued key's bytes and row now go once its save commits, and
+an edit posts what each file field held when its form was drawn. A stale keep, replace or clear
+answers `record_changed` without reading the displaced row, and `heldByThisRecord` is gone. The
+text below records this issue as it landed.
+
 ## Epic
 
 Module 7 — Files: Upload, Store & Serve · Epic 7.1 — One photo, end to end

@@ -75,5 +75,6 @@ export {
   normalizeSearchText,
   RecordChangedError,
   selectCapabilityRows,
+  storedCapabilityActionRecord,
   TooManyFilesError,
 } from "./tool.ts";

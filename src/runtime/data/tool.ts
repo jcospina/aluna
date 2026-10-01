@@ -18,6 +18,7 @@ import {
   assertScopedQuery,
   executeRecordQuery,
   materializeCapabilityActionRecord,
+  storedCapabilityActionRecord,
 } from "./access/query-runtime.ts";
 import { assertReadOwnership } from "./access/read-ownership.ts";
 import {
@@ -54,7 +55,7 @@ export {
   TooManyFilesError,
 } from "./internal.ts";
 export type { CapabilityFileProjection };
-export { materializeCapabilityActionRecord };
+export { materializeCapabilityActionRecord, storedCapabilityActionRecord };
 
 export type CapabilityDataColumnValue =
   | string

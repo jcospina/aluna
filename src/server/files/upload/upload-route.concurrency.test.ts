@@ -203,7 +203,7 @@ describe("the order an upload lands in", () => {
     );
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ refusal: "gone", message: ADD_FILE_AGAIN_SENTENCE });
-    expect(files.ledgerRows()).toEqual([expect.objectContaining({ state: "cleanup_enqueued" })]);
+    expect(files.ledgerRows()).toEqual([]);
     expect(files.staged()).toEqual([]);
     expect(files.stored()).toEqual([]);
   });
@@ -304,7 +304,7 @@ describe("a client that hangs up", () => {
     }
   });
 
-  test("after its row commits leaves the row for cleanup instead of answering nobody", async () => {
+  test("after its row commits hands the key to cleanup instead of answering nobody", async () => {
     const inner = files.store();
     let hangUp = async () => {};
     const store: ObjectStore = {
@@ -332,9 +332,9 @@ describe("a client that hangs up", () => {
       client.write("0\r\n\r\n");
 
       await until(() => socket.answered.length === 1);
-      const [row] = files.ledgerRows();
-      expect(row).toMatchObject({ state: "cleanup_enqueued", record_id: null });
-      expect(files.stored()).toEqual([row?.key ?? "no row"]);
+      await files.cleaned();
+      expect(files.ledgerRows()).toEqual([]);
+      expect(files.stored()).toEqual([]);
       expect(files.staged()).toEqual([]);
     } finally {
       socket.server.stop(true);
@@ -367,7 +367,7 @@ describe("a client that hangs up", () => {
       expect(response.status).toBe(500);
     });
     expect(errors.map((call) => call.includes(diskFailure))).toEqual([true]);
-    expect(files.ledgerRows()).toEqual([expect.objectContaining({ state: "cleanup_enqueued" })]);
+    expect(files.ledgerRows()).toEqual([]);
     expect(files.staged()).toEqual([]);
   });
 });

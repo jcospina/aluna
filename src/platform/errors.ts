@@ -1,3 +1,6 @@
+/** How much of a failed cleanup's error the deletion tombstone and the file ledger each keep. */
+export const CLEANUP_ERROR_MAX_LENGTH = 500;
+
 /**
  * The message of an unknown error value. A leaf with no imports, so every layer can reach it and
  * nothing can cycle through it — which is why the four copies of this line had no shared home.

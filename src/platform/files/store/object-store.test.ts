@@ -252,6 +252,12 @@ describe("the local object store's spans", () => {
 });
 
 describe("the local object store's keys", () => {
+  test("a delete in a store nothing was ever written to is no failure", async () => {
+    const empty = createLocalObjectStore(join(root, "never-written"));
+    await empty.delete(mintFileKey());
+    expect(existsSync(join(root, "never-written"))).toBe(false);
+  });
+
   test("deletes a key from staging first and from its place, and a missing key is no failure", async () => {
     const placed = await store.put(mintFileKey(), chunksOf(sampleFile("avif")));
     await placed.place();
