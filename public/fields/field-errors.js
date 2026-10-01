@@ -6,6 +6,7 @@
  */
 
 import { FILE_FIELD_CHANGE, FILE_FIELD_HOOKS } from "../../design/scripts/files/file-field.js";
+import { FILE_LIST_CHANGE } from "../../design/scripts/files/file-list.js";
 import { FILE_FIELD_ATTRIBUTES } from "../core/shell-dom.js";
 
 const FIELD = ".field";
@@ -34,6 +35,8 @@ const REQUIRED_LIST = "[data-list-required]";
  * is an empty value, or the clear the server drew for it once the file it held is taken away.
  */
 const REQUIRED_FILE = `[${FILE_FIELD_ATTRIBUTES.value}][${FILE_FIELD_ATTRIBUTES.required}]`;
+/** A required file list's posted keys: it holds nothing with none, or only removals. */
+const REQUIRED_FILES = `[${FILE_FIELD_ATTRIBUTES.keys}][${FILE_FIELD_ATTRIBUTES.required}]`;
 const LIST_ROW_INPUT = "[data-list-field-row] input";
 const NOTICE = "[data-error-fields]";
 /**
@@ -178,7 +181,9 @@ function clearFormErrors(form) {
  */
 function fieldNamed(form, name) {
   if (!FIELD_NAME.test(name)) return null;
-  return form.querySelector(`[name="${name}"]`)?.closest(FIELD) ?? null;
+  // A file list holding nothing posts no input under its name; its holder still names it.
+  const named = `[name="${name}"], [${FILE_FIELD_ATTRIBUTES.fieldName}="${name}"]`;
+  return form.querySelector(named)?.closest(FIELD) ?? null;
 }
 
 /**
@@ -230,6 +235,13 @@ function holdsNothing(field) {
   const file = field.querySelector(REQUIRED_FILE);
   if (file instanceof HTMLInputElement) {
     return file.value === "" || file.value === file.getAttribute(FILE_FIELD_ATTRIBUTES.clearValue);
+  }
+  const files = field.querySelector(REQUIRED_FILES);
+  if (files) {
+    const removed = files.getAttribute(FILE_FIELD_ATTRIBUTES.removePrefix) ?? "";
+    return [...files.querySelectorAll("input")].every(
+      (input) => !(input instanceof HTMLInputElement) || input.value.startsWith(removed),
+    );
   }
   if (!field.matches(REQUIRED_LIST)) return false;
   const rows = [...field.querySelectorAll(LIST_ROW_INPUT)];
@@ -364,9 +376,11 @@ export function startFieldErrors(root) {
   };
   root.addEventListener("input", corrected);
   root.addEventListener("change", corrected);
-  root.addEventListener(FILE_FIELD_CHANGE, (event) => {
-    if (event.target instanceof Element) forgetFieldError(event.target);
-  });
+  for (const change of [FILE_FIELD_CHANGE, FILE_LIST_CHANGE]) {
+    root.addEventListener(change, (event) => {
+      if (event.target instanceof Element) forgetFieldError(event.target);
+    });
+  }
 
   // A reset is the draft being put down — create's Cancel, and the form a committed create
   // empties. Every verdict on it goes with it.

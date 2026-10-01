@@ -2,6 +2,7 @@
 
 export {
   FILE_CLEAR_VALUE,
+  FILE_REMOVE_PREFIX,
   type FileClaimScope,
   fileClaimScope,
   resolveSubmittedFiles,
@@ -40,6 +41,7 @@ export {
   FILE_URL_PREFIX,
   fileKeyFromProjection,
   projectFileLedgerRow,
+  storedFileList,
   storedFileReference,
 } from "./schema/file-values.ts";
 export {
@@ -73,4 +75,5 @@ export {
   normalizeSearchText,
   RecordChangedError,
   selectCapabilityRows,
+  TooManyFilesError,
 } from "./tool.ts";

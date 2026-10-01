@@ -5,7 +5,8 @@
 // `default`), so a new field type cannot reach the smoke without a sample of its own. A
 // choice is the one type whose sample is not free text: it can only ever hold a value it
 // declares, so both phases draw from its declared options. A file field submits what the form's
-// photo control posts, and takes the edits in turn that its field permits (`fileUpdateSamples`).
+// photo control posts, and takes the edits in turn that its field permits (`fileUpdateSamples`); a
+// `file[]` posts several, in order, and takes a list's edits (`listUpdateSamples`).
 
 import type { Database } from "bun:sqlite";
 import {
@@ -13,6 +14,7 @@ import {
   activeSpecFields,
   type CapabilitySpec,
   isFileFieldType,
+  isFileListFieldType,
   type SpecField,
   selectableChoiceValues,
 } from "../../../../registry/index.ts";
@@ -20,6 +22,7 @@ import {
   type CapabilityDataColumnValue,
   type CapabilityFileProjection,
   FILE_CLEAR_VALUE,
+  FILE_REMOVE_PREFIX,
   projectFileLedgerRow,
 } from "../../../../runtime/data/index.ts";
 import type { CapabilityInput, CapabilityInputValue } from "../../../../runtime/router/index.ts";
@@ -38,11 +41,12 @@ export interface SmokeFile {
 }
 
 /**
- * The files one cycle submits to a file field: on create, as a replacement, onto an empty field,
- * and to the second create, which a required field is never left out of.
+ * The files one cycle submits to a file field: on create, beside it in a list, as a replacement,
+ * onto an empty field, and to the second create, which a required field is never left out of.
  */
 export interface SmokeFiles {
   readonly created: SmokeFile;
+  readonly beside: SmokeFile;
   readonly replacement: SmokeFile;
   readonly added: SmokeFile;
   readonly leftOut: SmokeFile;
@@ -62,6 +66,7 @@ export function mintSmokeFiles(
       };
       const files = {
         created: mint("gate smoke"),
+        beside: mint("gate beside"),
         replacement: mint("gate update"),
         added: mint("gate added"),
         leftOut: mint("gate second"),
@@ -108,17 +113,24 @@ export function leftOutCreate(
   for (const field of fileFields) {
     if (leftOut.has(field.name)) {
       delete values[field.name];
-      expectedValues[field.name] = null;
+      expectedValues[field.name] = isFileListFieldType(field.type) ? [] : null;
       continue;
     }
-    const own = requireSmokeFiles(field, files.get(field.name)).leftOut;
-    values[field.name] = own.key;
+    const own = posted(field, requireSmokeFiles(field, files.get(field.name)).leftOut);
+    values[field.name] = own.input;
     expectedValues[field.name] = own.expected;
   }
   const submittedFields = new Set(
     [...smoke.input.submittedFields].filter((name) => !leftOut.has(name)),
   );
   return { input: { values, submittedFields }, expectedValues };
+}
+
+/** What a field posts for one file and then holds: the file, or a list of it alone. */
+function posted(field: SpecField, file: SmokeFile) {
+  return isFileListFieldType(field.type)
+    ? { input: [file.key], expected: [file.expected] }
+    : { input: file.key, expected: file.expected };
 }
 
 export interface SmokeUpdateSample {
@@ -135,7 +147,10 @@ export function buildUpdateInputs(
   if (fields.length === 0) throw new Error("Smoke update requires at least one active field.");
   return fields.flatMap((field) => {
     if (isFileFieldType(field.type)) {
-      return fileUpdateSamples(field, requireSmokeFiles(field, files.get(field.name)));
+      const own = requireSmokeFiles(field, files.get(field.name));
+      return isFileListFieldType(field.type)
+        ? listUpdateSamples(field, own)
+        : fileUpdateSamples(field, own);
     }
     const sample = sampleValue(field, "update", undefined);
     return [updateSample(field, sample.input, sample.expected)];
@@ -159,6 +174,25 @@ function fileUpdateSamples(field: SpecField, files: SmokeFiles): readonly SmokeU
     updateSample(field, "", null),
     updateSample(field, files.added.key, files.added.expected),
   ];
+}
+
+/**
+ * The edits the list control posts, each from what the last left, naming every file it removes:
+ * keep every file, drop the first while the rest move up and one is added, and then, unless the
+ * field is required, remove every file, leave it empty, and add one to the empty list.
+ */
+function listUpdateSamples(field: SpecField, files: SmokeFiles): readonly SmokeUpdateSample[] {
+  const { created, beside, replacement, added } = files;
+  const removed = (...each: SmokeFile[]) => each.map((file) => `${FILE_REMOVE_PREFIX}${file.key}`);
+  const listed = (each: SmokeFile[], removes: string[] = []) =>
+    updateSample(
+      field,
+      [...each.map((file) => file.key), ...removes],
+      each.map((file) => file.expected),
+    );
+  const holding = [listed([created, beside]), listed([beside, replacement], removed(created))];
+  if (field.required) return holding;
+  return [...holding, listed([], removed(beside, replacement)), listed([]), listed([added])];
 }
 
 function updateSample(
@@ -217,6 +251,13 @@ function sampleValue(
     case "file": {
       const { created } = requireSmokeFiles(field, files);
       return { input: created.key, expected: created.expected };
+    }
+    case "file[]": {
+      const { created, beside } = requireSmokeFiles(field, files);
+      return {
+        input: [created.key, beside.key],
+        expected: [created.expected, beside.expected],
+      };
     }
   }
 }

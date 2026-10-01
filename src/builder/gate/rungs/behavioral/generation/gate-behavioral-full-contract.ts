@@ -11,7 +11,6 @@
 
 import { normalizeSearchText } from "../../../../../platform/persistence/sqlite-functions.ts";
 import {
-  activeFileFields,
   activeSpecFields,
   type CapabilitySpec,
   type CapabilityTool,
@@ -19,11 +18,16 @@ import {
   isFileFieldType,
   isSearchableTextType,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
-  type SpecField,
 } from "../../../../../registry/index.ts";
 import { isMissingRequiredValue } from "../../../../../runtime/data/index.ts";
 import { actionTestInputDigest, actionTestInputs } from "../freeze/behavioral-test-inputs.ts";
 import { assertKnownFields, sameBehavioralError } from "../gate-behavioral-shared.ts";
+import {
+  assertFileTokens,
+  assertSavedCaseHoldsRequiredFiles,
+  holdsNoFile,
+  withoutFileTokens,
+} from "./gate-behavioral-file-tokens.ts";
 import type {
   FrozenBehavioralTests,
   FullBehavioralTestCase,
@@ -142,7 +146,7 @@ function assertSetupRowsHoldRequired(spec: CapabilitySpec, testCase: FullBehavio
     for (const field of active.filter(({ required }) => required)) {
       const value = record[field.name];
       const empty = isFileFieldType(field.type)
-        ? value === undefined || value === null
+        ? holdsNoFile(value)
         : isMissingRequiredValue(field, value);
       if (!empty) continue;
       throw new Error(
@@ -150,43 +154,6 @@ function assertSetupRowsHoldRequired(spec: CapabilitySpec, testCase: FullBehavio
       );
     }
   }
-}
-
-/**
- * A save never leaves a required file field empty unless its case expects the missing_required
- * refusal: the platform refuses that save whatever the Handler does, before any other verdict.
- */
-function assertSavedCaseHoldsRequiredFiles(
-  spec: CapabilitySpec,
-  testCase: FullBehavioralTestCase,
-): void {
-  const saves = testCase.action === "create" || testCase.action === "update";
-  const missingRequired = testCase.expectedError?.code === MISSING_REQUIRED_FIELDS_ERROR_CODE;
-  if (!saves || missingRequired || testCase.expectedPlatformError) return;
-  const required = activeFileFields(spec.schema.fields).filter((field) => field.required);
-  for (const field of required) {
-    const entry = testCase.input.find((value) => value.field === field.name);
-    if (entry === undefined ? testCase.action === "update" : entry.value !== null) continue;
-    throw new Error(
-      `Behavioral test "${testCase.name}" leaves required file field "${field.name}" empty in a save it expects to go through; give it a family token.`,
-    );
-  }
-}
-
-function withoutFileTokens(
-  spec: CapabilitySpec,
-  testCase: FullBehavioralTestCase,
-): FullBehavioralTestCase {
-  const files = new Set(activeFileFields(spec.schema.fields).map((field) => field.name));
-  const textualRow = (row: FullBehavioralTestCase["setupRows"][number]) => ({
-    values: row.values.filter((entry) => !files.has(entry.field)),
-  });
-  return {
-    ...testCase,
-    input: testCase.input.filter((entry) => !files.has(entry.field)),
-    setupRows: testCase.setupRows.map(textualRow),
-    expectedRows: testCase.expectedRows.map(textualRow),
-  };
 }
 
 /**
@@ -236,65 +203,6 @@ export function assertCaseFieldVocabulary(
     );
   }
   assertFileTokens(spec, testCase);
-}
-
-/**
- * A file field takes a closed token (PLAN decision 39): a family its field accepts, or `null` for
- * none. Every other input is a string, since only a file field has a token for none.
- */
-function assertFileTokens(spec: CapabilitySpec, testCase: FullBehavioralTestCase): void {
-  const files = new Map(activeFileFields(spec.schema.fields).map((field) => [field.name, field]));
-  for (const entry of testCase.input) {
-    const field = files.get(entry.field);
-    if (field) assertFileToken(testCase.name, "input", field, entry.value);
-    else if (entry.value === null) {
-      throw new Error(
-        `Behavioral test "${testCase.name}" input "${entry.field}" is null; only a file field takes null.`,
-      );
-    }
-  }
-  assertRowFileTokens(testCase.name, "setupRows", testCase.setupRows, files);
-  assertRowFileTokens(testCase.name, "expectedRows", testCase.expectedRows, files);
-  assertMissingRecordPostsNoFile(testCase, files);
-}
-
-/**
- * The platform checks a file against the record it edits before any Handler runs, so a
- * missing-record case that posts one proves the platform's not-found and never the Handler's.
- */
-function assertMissingRecordPostsNoFile(
-  testCase: FullBehavioralTestCase,
-  files: ReadonlyMap<string, SpecField>,
-): void {
-  if (testCase.target !== "missing_record") return;
-  const posted = testCase.input.find((entry) => files.has(entry.field));
-  if (posted) {
-    throw new Error(
-      `Behavioral test "${testCase.name}" posts file field "${posted.field}" to a missing record; leave file fields out of a missing-record case.`,
-    );
-  }
-}
-
-function assertRowFileTokens(
-  testName: string,
-  label: string,
-  rows: FullBehavioralTestCase["setupRows"],
-  files: ReadonlyMap<string, SpecField>,
-): void {
-  for (const [index, row] of rows.entries()) {
-    for (const entry of row.values) {
-      const field = files.get(entry.field);
-      if (field) assertFileToken(testName, `${label}[${index}]`, field, entry.value);
-    }
-  }
-}
-
-function assertFileToken(testName: string, label: string, field: SpecField, token: unknown): void {
-  const families: readonly unknown[] = field.accepts ?? [];
-  if (token === null || families.includes(token)) return;
-  throw new Error(
-    `Behavioral test "${testName}" ${label} gives file field "${field.name}" ${JSON.stringify(token)}; a file field takes one of ${JSON.stringify(families)} or null.`,
-  );
 }
 
 /**

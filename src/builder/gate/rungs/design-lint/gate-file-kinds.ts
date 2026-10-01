@@ -10,12 +10,15 @@ import type { FileFamily } from "../../../../registry/index.ts";
 /** What an element draws a file it names as: a picture, or the player it is or sits in. */
 type Drawn = "image" | "video" | "audio";
 
-/** Each file's address in `record`, and its kind; an address two kinds share is left out. */
+/**
+ * Each file's address in `record`, a list's files each, and its kind; an address two kinds share
+ * is left out.
+ */
 function kindsByUrl(record: Readonly<Record<string, unknown>>): Map<string, string> {
   const kinds = new Map<string, string>();
   const shared = new Set<string>();
-  for (const value of Object.values(record)) {
-    const { url, kind } = (value ?? {}) as Record<string, unknown>;
+  for (const value of Object.values(record).flatMap(projections)) {
+    const { url, kind } = value;
     if (typeof url !== "string" || typeof kind !== "string" || url === "") continue;
     if (kinds.has(url) && kinds.get(url) !== kind) shared.add(url);
     kinds.set(url, kind);
@@ -67,8 +70,8 @@ function misdrawnKind(
 }
 
 /**
- * The first file `markup` draws as another kind than it is, said for the model to fix, or
- * undefined when every file it draws is drawn as itself.
+ * The first file `markup` draws as another kind than it is, or a list whose pictures it draws only
+ * some of, said for the model to fix, or undefined when every file it draws is drawn as itself.
  */
 export function fileKindViolation(
   record: Readonly<Record<string, unknown>>,
@@ -77,12 +80,14 @@ export function fileKindViolation(
   const kinds = kindsByUrl(record);
   if (kinds.size === 0) return undefined;
   const frames: string[] = [];
+  const pictured = new Set<string>();
   let violation: string | undefined;
   new HTMLRewriter()
     .on("*", {
       element(element) {
         const tag = element.tagName.toLowerCase();
         const drawn = drawnAs(tag, frames.at(-1));
+        if (drawn) addAll(pictured, namedPaths(element));
         const kind = drawn && misdrawnKind(element, drawn, kinds);
         if (kind && drawn) violation ??= misdrawnSentence(kind, drawn, tag);
         if (FRAMES.has(tag) && element.canHaveContent) {
@@ -92,7 +97,32 @@ export function fileKindViolation(
       },
     })
     .transform(markup);
-  return violation;
+  return violation ?? partialListSentence(record, pictured);
+}
+
+function addAll(into: Set<string>, values: readonly string[]): void {
+  for (const value of values) into.add(value);
+}
+
+/**
+ * A card that draws one of a list's photos or videos draws each of them, in order; one that names
+ * the list in words alone, such as a count, draws none and passes.
+ */
+function partialListSentence(
+  record: Readonly<Record<string, unknown>>,
+  pictured: ReadonlySet<string>,
+): string | undefined {
+  for (const value of Object.values(record)) {
+    if (!Array.isArray(value)) continue;
+    const pictures = projections(value)
+      .filter((file) => file.kind === "image" || file.kind === "video")
+      .flatMap((file) => (typeof file.url === "string" ? [pathOf(file.url)] : []));
+    const drawn = pictures.filter((path) => pictured.has(path)).length;
+    if (drawn > 0 && drawn < pictures.length) {
+      return `it draws ${drawn} of the ${pictures.length} photos or videos a list holds. Draw every file in a list, in its order, or name the list in words alone, such as how many files it holds.`;
+    }
+  }
+  return undefined;
 }
 
 function misdrawnSentence(kind: string, drawn: Drawn, tag: string): string {
@@ -282,11 +312,10 @@ function retyped(value: unknown, which: (file: Record<string, unknown>) => boole
   return Array.isArray(value) ? value.map(retype) : retype(value);
 }
 
-/** `value` without its documents of another type than PDF: null when nothing else is left. */
+/** `value` without its documents of another type than PDF: null for a file, and a list keeps the rest. */
 function withoutOthers(value: unknown): unknown {
   if (!Array.isArray(value)) return null;
-  const left = value.filter((file) => !projections(file).some(isOtherDocument));
-  return left.length > 0 ? left : null;
+  return value.filter((file) => !projections(file).some(isOtherDocument));
 }
 
 /**
@@ -299,7 +328,11 @@ function callsItPdf(said?: string, empty?: string, pdf?: string): boolean {
   return pdfLabels(sameForAPdf) > pdfLabels(shared(sameForAPdf, saying(empty ?? "")));
 }
 
-/** Whether `record`'s card calls `field`'s documents of another type "PDF". */
+/**
+ * Whether `record`'s card calls `field`'s documents of another type "PDF". A list holding no other
+ * file is read against `null` as well as `[]`, so a card that tests a list by its truth, which an
+ * empty list passes, is still read with the field empty.
+ */
 function labelsAsPdf(
   record: Readonly<Record<string, unknown>>,
   field: string,
@@ -307,10 +340,21 @@ function labelsAsPdf(
   emptyMayThrow: boolean,
 ): boolean {
   const value = record[field];
-  const empty = render({ ...record, [field]: withoutOthers(value) });
-  if (empty === undefined && !emptyMayThrow) return false;
   const pdf = render({ ...record, [field]: retyped(value, isOtherDocument, PDF_TYPE) });
-  return callsItPdf(render(record), empty, pdf);
+  // `null` stands in for a list emptied of its only documents, the ones being read. A list is
+  // never null, so a card may throw on one: that reading is taken only when it renders.
+  const left = withoutOthers(value);
+  const empties: [unknown, boolean][] = !Array.isArray(value)
+    ? [[null, emptyMayThrow]]
+    : [
+        [left, emptyMayThrow],
+        ...(Array.isArray(left) && left.length === 0 ? [[null, false] as [unknown, boolean]] : []),
+      ];
+  return empties.some(([without, mayThrow]) => {
+    const empty = render({ ...record, [field]: without });
+    if (empty === undefined && !mayThrow) return false;
+    return callsItPdf(render(record), empty, pdf);
+  });
 }
 
 /**

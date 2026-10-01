@@ -100,6 +100,7 @@ try {
 }
 
 // A malformed `OMNI_MAX_FILE_BYTES` never gets this far: importing the app resolves it and throws.
+// A malformed `OMNI_MAX_LIST_FILES` throws here, before the server listens.
 const server = Bun.serve({ ...resolveServeOptions(), fetch: app.fetch });
 
 // Log the actual bound port (server.port), which differs from the requested one when an

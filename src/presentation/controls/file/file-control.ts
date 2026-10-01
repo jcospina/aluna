@@ -5,16 +5,22 @@
 // upload goes, the types its picker offers, the cap and the sentence a file over it earns, the file
 // an edit opens holding and its verified type, and the value that clears it.
 // The field posts its presence marker and one value, kept in step by the browser: the key it was
-// drawn holding, a pending key it took since, `""` for nothing, or the clear.
+// drawn holding, a pending key it took since, `""` for nothing, or the clear. A `file[]` posts one
+// key per file in order and a marked key for each file it was drawn holding and holds no longer,
+// and also carries how many files it takes.
 
 import { FILE_FIELD_HOOKS as HOOKS } from "#design/files/file-field.js";
 import { FILE_FIELD_ATTRIBUTES as WIRE } from "#shell/core/shell-dom.js";
 import { offeredTypes } from "../../../platform/files/admission/admission.ts";
 import { oversizeSentence } from "../../../platform/files/admission/refusal-copy.ts";
-import { resolveMaxFileBytes } from "../../../platform/files/file-cap.ts";
+import { resolveMaxFileBytes, resolveMaxListFiles } from "../../../platform/files/file-cap.ts";
 import { fileUploadPath } from "../../../platform/files/upload-path.ts";
 import type { SpecField, UiFormIntent } from "../../../registry/index.ts";
-import { FILE_CLEAR_VALUE, fileKeyFromProjection } from "../../../runtime/data/index.ts";
+import {
+  FILE_CLEAR_VALUE,
+  FILE_REMOVE_PREFIX,
+  fileKeyFromProjection,
+} from "../../../runtime/data/index.ts";
 import { ALUNA_PRESENT_MARKER } from "../../../runtime/router/wire/wire-protocol.ts";
 import { escapeHtml } from "../../../server/http/html.ts";
 import { fieldChrome } from "../../fields/chrome/field-chrome.ts";
@@ -77,6 +83,7 @@ export function renderFileField(
   target: FileFieldTarget,
   value: unknown,
 ): string {
+  if (field.type === "file[]") return renderManyFiles(inputId, field, form, target, value);
   const chrome = fieldChrome(inputId, field, form, { emptyable: true });
   const name = escapeHtml(field.name);
   const families = field.accepts ?? ["image"];
@@ -90,6 +97,61 @@ export function renderFileField(
     `<input type="hidden" name="${name}" value="${key}" ${WIRE.value}` +
     ` ${WIRE.heldKey}="${key}" ${WIRE.clearValue}="${escapeHtml(FILE_CLEAR_VALUE)}"` +
     `${field.required ? ` ${WIRE.required}` : ""}>` +
+    `<span class="field__label caps" id="${inputId}-label">` +
+    `${escapeHtml(field.label)}${chrome.labelSuffix}</span>` +
+    `<div ${HOOKS.body}></div>` +
+    chrome.trailing +
+    `</div>`
+  );
+}
+
+/**
+ * The files a list opens holding, in order, each as the list reads it off its host: the verified
+ * type as `type`, which is where `design/scripts/files/file-list.js` reads one. A value that is not
+ * a list of whole projections draws the list empty, as a single field does.
+ */
+function heldEntries(value: unknown): { key: string; holds: Record<string, unknown> }[] {
+  if (!Array.isArray(value)) return [];
+  const entries = value.map((file) => {
+    const key = fileKeyFromProjection(file);
+    const { name, size, url, kind, mime } = (file ?? {}) as Record<string, unknown>;
+    // As `heldFrom` in `file-list.js` reads one: a file the list can't hold, it would not post.
+    const whole =
+      key !== undefined &&
+      typeof name === "string" &&
+      name !== "" &&
+      typeof url === "string" &&
+      Number.isSafeInteger(size) &&
+      (size as number) >= 0;
+    return whole ? { key, holds: { name, size, url, kind, type: mime } } : undefined;
+  });
+  return entries.every((entry) => entry !== undefined) ? entries : [];
+}
+
+function renderManyFiles(
+  inputId: string,
+  field: SpecField,
+  form: UiFormIntent,
+  target: FileFieldTarget,
+  value: unknown,
+): string {
+  const chrome = fieldChrome(inputId, field, form, { emptyable: true });
+  const name = escapeHtml(field.name);
+  const families = field.accepts ?? ["image"];
+  const held = heldEntries(value);
+  const keys = held.map((entry) => entry.key);
+  const holds = escapeHtml(JSON.stringify(held.map((entry) => entry.holds)));
+  const posted = keys.map(
+    (key) => `<input type="hidden" name="${name}" value="${escapeHtml(key)}">`,
+  );
+  return (
+    `<div class="field file" id="${inputId}" ${HOOKS.list}` +
+    ` ${HOOKS.kind}="${escapeHtml(families.join(" "))}" ${HOOKS.holds}="${holds}"` +
+    ` ${HOOKS.count}="${resolveMaxListFiles()}"${uploadAttributes(target, field, families)}>` +
+    `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${name}">` +
+    `<span hidden ${WIRE.keys} ${WIRE.fieldName}="${name}"` +
+    ` ${WIRE.removePrefix}="${escapeHtml(FILE_REMOVE_PREFIX)}"${field.required ? ` ${WIRE.required}` : ""}>` +
+    `${posted.join("")}</span>` +
     `<span class="field__label caps" id="${inputId}-label">` +
     `${escapeHtml(field.label)}${chrome.labelSuffix}</span>` +
     `<div ${HOOKS.body}></div>` +

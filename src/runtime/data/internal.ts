@@ -6,6 +6,7 @@ import {
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   RECORD_CHANGED_ERROR_CODE,
   RECORD_NOT_FOUND_ERROR_CODE,
+  TOO_MANY_FILES_ERROR_CODE,
 } from "../../registry/index.ts";
 
 // The platform's typed data-validation failures. The base class and the structural refusals live
@@ -121,7 +122,10 @@ export class MaxLengthExceededError extends CapabilityDataValidationError {
   }
 }
 
-/** Why a save's file reference was refused: its shape, its absence, whose it is, its kind or its state. */
+/**
+ * Why a save's file reference was refused: its shape, its absence, whose it is, its kind, its state,
+ * or a list naming it twice.
+ */
 export type FileReferenceRefusal =
   | "malformed"
   | "unknown"
@@ -129,7 +133,8 @@ export type FileReferenceRefusal =
   | "other_field"
   | "not_accepted"
   | "owned"
-  | "cleanup_enqueued";
+  | "cleanup_enqueued"
+  | "duplicate";
 
 /**
  * A file field naming anything but a pending key minted for this incarnation and field, refused
@@ -168,5 +173,36 @@ export class RecordChangedError extends CapabilityDataValidationError {
   constructor(capabilityId: string, fields: readonly string[]) {
     super(`Kept file no longer held for capability "${capabilityId}": ${fields.join(", ")}.`);
     this.fields = [...fields];
+  }
+}
+
+/** How many files a `file[]` save named, against how many the field may hold. */
+export interface FileListCount {
+  readonly count: number;
+  readonly cap: number;
+}
+
+/**
+ * A `file[]` growing past the configured count. The control refuses such a pick before anything
+ * travels, so reaching this means a submission from elsewhere. A list a lowered count already
+ * passes may still be edited, so long as it does not grow.
+ */
+export class TooManyFilesError extends CapabilityDataValidationError {
+  override readonly name = "TooManyFilesError";
+  readonly action: "create" | "update";
+  readonly code = TOO_MANY_FILES_ERROR_CODE;
+  readonly fields: readonly string[];
+  readonly counts: Readonly<Record<string, FileListCount>>;
+
+  constructor(
+    capabilityId: string,
+    counts: Readonly<Record<string, FileListCount>>,
+    action: "create" | "update",
+  ) {
+    const fields = Object.keys(counts);
+    super(`Too many files for capability "${capabilityId}": ${fields.join(", ")}.`);
+    this.action = action;
+    this.fields = fields;
+    this.counts = Object.freeze({ ...counts });
   }
 }

@@ -159,7 +159,8 @@ in ADR-0009, and in the architecture and design documents.
    `filename="<ASCII fallback>"; filename*=UTF-8''<percent-encoded>` (RFC 6266 and
    RFC 8187), because Bun answers a raw `日本.pdf` in that header with a 500.
 7. **500 MB per file, configurable.** One number for every family. A `file[]` also caps
-   how many files it holds.
+   how many files it holds: twenty unless `OMNI_MAX_LIST_FILES` says otherwise (7.2/07,
+   awaiting the owner's sign-off), checked at boot as the byte cap is.
 
 ### How a file travels
 
@@ -237,7 +238,9 @@ in ADR-0009, and in the architecture and design documents.
     answers as record-not-found before either. The check runs again inside the save's
     transaction, before the Handler, so a sweep or another save committing in between
     cannot slip past it, and the mutation interface checks once more. Only an explicit
-    clear from the platform control empties a field.
+    clear from the platform control empties a field. An edit of a `file[]` names each file
+    it removes, so a file the record holds that the edit neither keeps nor removes says
+    the record changed in another window, and a list empties only file by file (7.2/07).
 17. **Generated code gets the projection both ways, and cannot change a file.** Every
     record generated code receives carries each file as `{ url, name, kind, mime, size }`:
     the router's input, what `mutation.create` and `mutation.update` return,
@@ -455,8 +458,8 @@ in ADR-0009, and in the architecture and design documents.
     as routing is. The empty field is the case a generated template most often forgets.
 39. **Behavioral tests name files by token.** A behavioral input is a plain string today,
     and the model cannot mint a pending reference. A file input becomes a closed token —
-    the family, or `null` for none, and for `file[]` an array of families — in a
-    required-nullable shape rather than a
+    the family, or `null` for none, and for `file[]` one input entry per family, or a lone
+    `null`, and an array of families in a row — in a required-nullable shape rather than a
     `discriminatedUnion`, whose `oneOf` OpenAI's strict mode rejects. The harness turns
     tokens into scratch references, rows compare by `kind` and `name` and never by key,
     and the behavioral input digest covers the new shape.

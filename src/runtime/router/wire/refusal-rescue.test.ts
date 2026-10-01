@@ -25,6 +25,7 @@ import {
   MissingRequiredFieldsError,
   RecordChangedError,
   RecordNotFoundError,
+  TooManyFilesError,
 } from "../../data/index.ts";
 import { setupRouterTest, teardownRouterTest } from "../dispatch/router.test-support.ts";
 import {
@@ -39,6 +40,7 @@ import {
   recordChangedFailure,
   recordMutationRefusal,
   recordNotFoundFailure,
+  tooManyFilesFailure,
   WIRE_PROTOCOL_ERROR_FRAGMENT,
 } from "./failure-responses.ts";
 import { answerWithHandlerFragment } from "./handler-response.ts";
@@ -113,6 +115,13 @@ async function everyShownRefusal(databases: PlatformDatabase): Promise<readonly 
         ),
       ),
       answered((c) => recordChangedFailure(c, "notes", new RecordChangedError("notes", ["photo"]))),
+      answered((c) =>
+        tooManyFilesFailure(
+          c,
+          "notes",
+          new TooManyFilesError("notes", { album: { count: 7, cap: 6 } }, "update"),
+        ),
+      ),
       answered((c) =>
         recordNotFoundFailure(c, "notes", "update", new RecordNotFoundError("notes", "update")),
       ),

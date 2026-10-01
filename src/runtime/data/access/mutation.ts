@@ -7,6 +7,7 @@ import {
   type CapabilitySpec,
   capabilitySpecSchema,
   isFileFieldType,
+  isFileListFieldType,
   PLATFORM_COLUMNS,
   type SpecField,
 } from "../../../registry/index.ts";
@@ -17,7 +18,12 @@ import {
   RecordNotFoundError,
 } from "../internal.ts";
 import { deriveCapabilityTableDdl } from "../schema/ddl.ts";
-import { fileKeyFromProjection, storedFileReference } from "../schema/file-values.ts";
+import {
+  fileKeyFromProjection,
+  storedFileList,
+  storedFileReference,
+  storedFromProjection,
+} from "../schema/file-values.ts";
 import { ownValue } from "../schema/own-value.ts";
 import {
   type CapabilityActionRecord,
@@ -34,11 +40,12 @@ import {
 import {
   claimPendingFile,
   type FileClaimScope,
-  heldFileKey,
+  heldFileKeys,
+  keepsWhatChanged,
+  keptAfterWrite,
   type SubmittedFile,
   type SubmittedFiles,
-  submittedFileKey,
-  submittedFileProjection,
+  submittedFileKeys,
 } from "./file-claims.ts";
 import { assertReadOwnership } from "./read-ownership.ts";
 
@@ -107,11 +114,8 @@ export function createCapabilityMutationPort(
       // A savepoint inside the save's transaction: a Handler that catches a failed insert and
       // answers anyway must not commit the key it promoted for a record that was never written.
       const insert = database.transaction((): StoredCapabilityRow => {
-        for (const [field, key] of keys) {
-          normalized[field.name] =
-            key === null
-              ? null
-              : storedFileReference(claimPendingFile(field, key, id, "create", scope));
+        for (const [field, fieldKeys] of keys) {
+          normalized[field.name] = claimedColumn(field, fieldKeys, id, scope);
         }
         const columns = ["id", ...fields.map((field) => field.name)];
         const sqlValues: SqlValue[] = [
@@ -127,47 +131,64 @@ export function createCapabilityMutationPort(
           .get(...sqlValues) as StoredCapabilityRow;
       });
       const stored = insert();
-      for (const key of keys.values()) if (key !== null) written.add(key);
+      for (const fieldKeys of keys.values()) for (const key of fieldKeys) written.add(key);
       return createCapabilityActionRecord(normalizeStoredRow(fields, stored));
     },
   };
 }
 
+/** A create's file column: each key promoted to `recordId` as it is written, in order. */
+function claimedColumn(
+  field: SpecField,
+  keys: readonly string[],
+  recordId: string,
+  scope: FileClaimScope,
+): SqlValue {
+  const rows = keys.map((key) => claimPendingFile(field, key, recordId, "create", scope));
+  if (isFileListFieldType(field.type)) return storedFileList(rows);
+  return rows[0] === undefined ? null : storedFileReference(rows[0]);
+}
+
 /**
- * The key each file field writes: always the router-checked submission. A Handler may hand back the
- * projection it was given, or leave the field out; any other value is refused before any write.
+ * The keys each file field writes, in order: always the router-checked submission. A Handler may
+ * hand back the projection it was given, or leave the field out; any other value is refused before
+ * any write.
  */
 function writtenFileKeys(
   fileFields: readonly SpecField[],
   values: CapabilityCreateValues,
   submitted: SubmittedFiles,
   written: ReadonlySet<string>,
-): ReadonlyMap<SpecField, string | null> {
-  const keys = new Map<SpecField, string | null>();
+): ReadonlyMap<SpecField, readonly string[]> {
+  const keys = new Map<SpecField, readonly string[]>();
   for (const field of fileFields) {
     const file = submitted.get(field.name);
-    const submittedKey = file === undefined ? null : submittedFileKey(file);
-    assertHandedBack(values, field, submittedKey);
-    if (submittedKey !== null && written.has(submittedKey)) {
-      throw new FileFieldWriteError(field.name);
-    }
-    keys.set(field, submittedKey);
+    const submittedKeys = file === undefined ? [] : submittedFileKeys(file);
+    assertHandedBack(values, field, submittedKeys);
+    if (submittedKeys.some((key) => written.has(key))) throw new FileFieldWriteError(field.name);
+    keys.set(field, submittedKeys);
   }
   return keys;
 }
 
-/** Refuse a Handler's value for a file field unless it is left out or names the submission. */
+/**
+ * Refuse a Handler's value for a file field unless it is left out or names the submission: the
+ * same file or `null` for a `file`, and for a `file[]` the same files in the same order.
+ */
 function assertHandedBack(
   values: Readonly<Record<string, unknown>>,
   field: SpecField,
-  submittedKey: string | null,
+  submittedKeys: readonly string[],
 ): void {
   const given = ownValue(values, field.name);
   if (given === undefined) return;
-  const named =
-    given === null
-      ? submittedKey === null
-      : submittedKey !== null && fileKeyFromProjection(given) === submittedKey;
+  const named = isFileListFieldType(field.type)
+    ? Array.isArray(given) &&
+      given.length === submittedKeys.length &&
+      given.every((each, index) => fileKeyFromProjection(each) === submittedKeys[index])
+    : given === null
+      ? submittedKeys.length === 0
+      : submittedKeys.length === 1 && fileKeyFromProjection(given) === submittedKeys[0];
   if (!named) throw new FileFieldWriteError(field.name);
 }
 
@@ -179,11 +200,13 @@ function assertRequiredFilesHeld(
   capabilityId: string,
   fields: readonly SpecField[],
   values: Readonly<Record<string, unknown>>,
-  fileKeys: ReadonlyMap<SpecField, string | null>,
+  fileKeys: ReadonlyMap<SpecField, readonly string[]>,
   action: "create" | "update",
 ): void {
   const empty = new Set(
-    [...fileKeys].filter(([field, key]) => field.required && key === null).map(([field]) => field),
+    [...fileKeys]
+      .filter(([field, keys]) => field.required && keys.length === 0)
+      .map(([field]) => field),
   );
   if (empty.size === 0) return;
   const missing = fields.filter((field) =>
@@ -198,17 +221,17 @@ function assertRequiredFilesHeld(
   );
 }
 
-/** The key each active file field holds once an update is written: its submission's, or the record's. */
+/** The keys each active file field holds once an update is written: its submission's, or the record's. */
 function resultingFileKeys(
   fileFields: readonly SpecField[],
   current: CapabilityDataRow,
   fileWrites: FileWrites,
-): ReadonlyMap<SpecField, string | null> {
+): ReadonlyMap<SpecField, readonly string[]> {
   const submitted = new Map(fileWrites);
   return new Map(
     fileFields.map((field) => {
       const file = submitted.get(field);
-      return [field, file === undefined ? heldKey(current, field) : submittedFileKey(file)];
+      return [field, file === undefined ? heldKeys(current, field) : submittedFileKeys(file)];
     }),
   );
 }
@@ -259,7 +282,7 @@ export function createCapabilityUpdateMutationPort(
       }
       // Written once: the same submission again keeps what this call wrote.
       for (const [field, file] of depth === 0 ? fileWrites : []) {
-        input.files.set(field.name, { write: "keep", held: submittedFileProjection(file) });
+        input.files.set(field.name, keptAfterWrite(file));
       }
       return createCapabilityActionRecord(updated);
     },
@@ -366,15 +389,16 @@ function submittedFileWrites(
   return authority.fileFields.flatMap((field) => {
     const file = authority.submittedFields.has(field.name) && authority.files.get(field.name);
     if (!file) return [];
-    assertHandedBack(values, field, submittedFileKey(file));
+    assertHandedBack(values, field, submittedFileKeys(file));
     return [[field, file] as const];
   });
 }
 
 /**
- * Write each submitted file the record does not already hold, and give up the key it displaces, in
- * the update's savepoint (Module 7 PLAN decision 19). A kept key the record no longer holds is
- * refused first, so the file another window saved stays where it is.
+ * Write each submitted file field that changes what its record holds, and give up every key it
+ * displaces, in the update's savepoint (Module 7 PLAN decision 19): for a `file[]`, each entry the
+ * list no longer holds. A kept key the record no longer holds is refused first, so the file another
+ * window saved stays where it is.
  */
 function writeSubmittedFiles(
   authority: BoundUpdateAuthority,
@@ -382,33 +406,52 @@ function writeSubmittedFiles(
   fileWrites: FileWrites,
 ): Record<string, SqlValue> {
   const changed = fileWrites
-    .filter(
-      ([field, file]) =>
-        file.write === "keep" && heldKey(current, field) !== submittedFileKey(file),
-    )
+    .filter(([field, file]) => keepsWhatChanged(file, heldKeys(current, field)))
     .map(([field]) => field.name);
   if (changed.length > 0) throw new RecordChangedError(authority.capabilityId, changed);
 
   const columns: Record<string, SqlValue> = {};
   for (const [field, file] of fileWrites) {
-    if (file.write === "keep") continue;
-    columns[field.name] =
-      file.write === "claim"
-        ? storedFileReference(
-            claimPendingFile(field, file.row.key, authority.target, "update", authority.scope),
-          )
-        : null;
-    const displaced = heldKey(current, field);
+    const held = heldKeys(current, field);
+    const next = submittedFileKeys(file);
+    if (file.write === "keep" || sameKeys(held, next)) continue;
+    columns[field.name] = storedFileColumn(authority, field, file);
     const owner = { ...authority.scope, field: field.name, recordId: authority.target };
-    if (displaced !== null && !enqueueDisplacedFile(authority.scope.database, owner, displaced)) {
-      throw new Error(`The file "${field.name}" held is not owned by its record in the ledger.`);
+    for (const displaced of held.filter((key) => !next.includes(key))) {
+      if (!enqueueDisplacedFile(authority.scope.database, owner, displaced)) {
+        throw new Error(`The file "${field.name}" held is not owned by its record in the ledger.`);
+      }
     }
   }
   return columns;
 }
 
-function heldKey(current: CapabilityDataRow, field: SpecField): string | null {
-  return heldFileKey(ownValue(current, field.name));
+/** The column a submitted file field writes, each claimed key promoted as it is written. */
+function storedFileColumn(
+  authority: BoundUpdateAuthority,
+  field: SpecField,
+  file: SubmittedFile,
+): SqlValue {
+  const claim = (key: string) =>
+    claimPendingFile(field, key, authority.target, "update", authority.scope);
+  if (file.write === "claim") return storedFileReference(claim(file.row.key));
+  if (file.write !== "list") return isFileListFieldType(field.type) ? "[]" : null;
+  return storedFileList(
+    file.entries.map((entry) => {
+      if (entry.write === "claim") return claim(entry.row.key);
+      const kept = storedFromProjection(entry.held);
+      if (!kept) throw new Error(`A file "${field.name}" keeps is not a stored reference.`);
+      return kept;
+    }),
+  );
+}
+
+function sameKeys(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((key, index) => key === right[index]);
+}
+
+function heldKeys(current: CapabilityDataRow, field: SpecField): readonly string[] {
+  return heldFileKeys(ownValue(current, field.name));
 }
 
 function persistBoundUpdate(

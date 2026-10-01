@@ -11,6 +11,7 @@ import {
   NOT_ADMITTED_SENTENCES,
   notAdmittedSentence,
   refusalSentence,
+  tooManyFilesSentence,
 } from "./refusal-copy.ts";
 
 const DRAWN = readFileSync(join(import.meta.dir, "../../../../design/controls.html"), "utf8");
@@ -38,6 +39,17 @@ describe("a refused file's sentence", () => {
       expect(at).toEqual([...at].sort((a, b) => a - b));
       expect(sentence).not.toBe(notAdmittedSentence([accepts[0]]));
     }
+  });
+});
+
+describe("a list saved holding more files than it takes", () => {
+  test("is refused in the sentence design/ settles for the save", () => {
+    expect(DRAWN_FLAT).toContain(`<em>${tooManyFilesSentence(7, 6)}</em>`);
+  });
+
+  test("asks for more than one removal past one, and never counts one file as files", () => {
+    expect(tooManyFilesSentence(9, 6)).not.toBe(tooManyFilesSentence(7, 6).replace("7", "9"));
+    expect(tooManyFilesSentence(2, 1)).not.toMatch(/\b1 files\b/);
   });
 });
 

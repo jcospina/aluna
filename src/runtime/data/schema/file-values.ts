@@ -24,13 +24,28 @@ const PROJECTION_KEYS = ["url", "name", "kind", "mime", "size"] as const;
 
 /** The column value a ledger row stands for. Nothing the browser posted reaches it. */
 export function storedFileReference(row: PendingFile): string {
-  return JSON.stringify({
-    key: row.key,
-    kind: row.kind,
-    mime: row.mime,
-    size: row.size,
-    name: row.name,
-  });
+  return JSON.stringify(storedFile(row));
+}
+
+/** A `file[]` column's value for `files`, in their order, each built as a `file` column's is. */
+export function storedFileList(files: readonly StoredFile[]): string {
+  return JSON.stringify(files.map(storedFile));
+}
+
+type StoredFile = Pick<PendingFile, (typeof STORED_KEYS)[number]>;
+
+function storedFile(row: StoredFile): StoredFile {
+  return { key: row.key, kind: row.kind, mime: row.mime, size: row.size, name: row.name };
+}
+
+/** What a projection the platform made says about its file, as its column stored it. */
+export function storedFromProjection(
+  projection: CapabilityFileProjection,
+): StoredFileReference | undefined {
+  const key = fileKeyFromProjection(projection);
+  if (key === undefined) return undefined;
+  const { kind, mime, size, name } = projection;
+  return { key, kind, mime, size, name };
 }
 
 /** What a save of `row` will store, as generated code sees it: the router's input to a Handler. */
@@ -58,14 +73,41 @@ export function projectStoredFileReference(
 }
 
 /**
- * A stored reference with its key dropped, as a question's model may read it (decision 37), or
- * `undefined` for a value that is not one.
+ * A stored `file[]` as generated code sees it, in order. `NULL`, which older rows hold when an
+ * evolution adds the column, is `[]`. Any other shape, or a key twice, is corruption.
+ */
+export function projectStoredFileList(
+  column: string,
+  value: unknown,
+): readonly CapabilityFileProjection[] {
+  if (value === null) return Object.freeze([]);
+  const parsed = typeof value === "string" ? parseJson(value) : undefined;
+  const files = Array.isArray(parsed) ? parsed.map(parseStoredObject) : undefined;
+  const whole = files?.every((file) => file !== undefined);
+  const keys = new Set(files?.map((file) => file?.key));
+  if (!files || !whole || keys.size !== files.length) {
+    throw new Error(`Expected file column "${column}" to hold a list of stored file references.`);
+  }
+  return Object.freeze(
+    files.map((file) => projectStoredFileReference(column, JSON.stringify(file))),
+  );
+}
+
+/**
+ * A stored reference, or a stored `file[]` of them, with every key dropped, as a question's model
+ * may read it (decision 37), or `undefined` for a value that is neither.
  */
 export function keylessStoredFileReference(value: unknown): string | undefined {
-  const stored = parseStoredReference(value);
-  if (!stored) return undefined;
-  const { kind, mime, size, name } = stored;
-  return JSON.stringify({ kind, mime, size, name });
+  if (typeof value !== "string") return undefined;
+  const parsed = parseJson(value);
+  const listed = Array.isArray(parsed);
+  const files = (listed ? parsed : [parsed]).map(parseStoredObject);
+  if (files.length === 0 || files.some((file) => file === undefined)) return undefined;
+  const keyless = files.map((file) => {
+    const { kind, mime, size, name } = file as StoredFileReference;
+    return { kind, mime, size, name };
+  });
+  return JSON.stringify(listed ? keyless : keyless[0]);
 }
 
 /**
@@ -80,7 +122,7 @@ export function fileKeyFromProjection(value: unknown): string | undefined {
   return isFileKey(key) ? key : undefined;
 }
 
-interface StoredFileReference {
+export interface StoredFileReference {
   readonly key: string;
   readonly kind: FileFamily;
   readonly mime: string;
@@ -88,14 +130,19 @@ interface StoredFileReference {
   readonly name: string;
 }
 
-function parseStoredReference(value: unknown): StoredFileReference | undefined {
-  if (typeof value !== "string") return undefined;
-  let parsed: unknown;
+function parseJson(value: string): unknown {
   try {
-    parsed = JSON.parse(value);
+    return JSON.parse(value);
   } catch {
     return undefined;
   }
+}
+
+function parseStoredReference(value: unknown): StoredFileReference | undefined {
+  return typeof value === "string" ? parseStoredObject(parseJson(value)) : undefined;
+}
+
+function parseStoredObject(parsed: unknown): StoredFileReference | undefined {
   if (!hasExactKeys(parsed, STORED_KEYS)) return undefined;
   const { key, kind, mime, size, name } = parsed;
   const valid =

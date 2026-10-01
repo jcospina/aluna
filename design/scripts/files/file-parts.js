@@ -493,3 +493,13 @@ export function togglePlayback(scope, say, kind, name) {
     if (!quiet && !refusesToPlay(media)) say(cantPlay(kind, name));
   });
 }
+
+/**
+ * A held Enter or Space presses once: its repeats would press whatever the first press put there.
+ * Every other key repeats, so a held Tab still walks the page.
+ *
+ * @param {KeyboardEvent} event
+ */
+export function pressOnce(event) {
+  if (event.repeat && (event.key === "Enter" || event.key === " ")) event.preventDefault();
+}

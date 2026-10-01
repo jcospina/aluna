@@ -33,6 +33,7 @@ export const SQLITE_TYPE_BY_FIELD_TYPE = {
   choice: "TEXT",
   "string[]": "TEXT",
   file: "TEXT",
+  "file[]": "TEXT",
 } as const satisfies Record<FieldType, "TEXT" | "REAL" | "INTEGER">;
 
 export interface CapabilityTableDdl {
@@ -147,7 +148,8 @@ function columnDefinition(name: string, fieldType: FieldType): string {
 /**
  * The JSON a TEXT column holding structured data must parse as. A file reference is the object
  * `{key, kind, mime, size, name}` (PLAN decision 20), held the way a `string[]` column holds its
- * array. Total over the pantry, so a new type states its shape or states that it has none.
+ * array, and a `file[]` is an array of them. Total over the pantry, so a new type states its
+ * shape or states that it has none.
  */
 const JSON_SHAPE_BY_FIELD_TYPE = {
   string: null,
@@ -158,6 +160,7 @@ const JSON_SHAPE_BY_FIELD_TYPE = {
   choice: null,
   "string[]": "array",
   file: "object",
+  "file[]": "array",
 } as const satisfies Record<FieldType, "array" | "object" | null>;
 
 function jsonShapeCheck(name: string, shape: "array" | "object"): string {

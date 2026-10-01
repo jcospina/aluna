@@ -6,16 +6,24 @@
  * stopped stays on the field, unsent, until it goes up again or is thrown away; while it does,
  * the form's save waits and the page asks before it is left.
  *
- * `file-field.js` hands in what it draws and takes with, so this imports nothing of it.
+ * `file-field.js` and `file-list.js` hand in what they draw and take with, so this imports nothing
+ * of either but types.
  */
 
 import { Recorder, SETTLE_MS } from "./file-recorder.js";
 
 /**
- * @typedef {import("./file-field.js").Field} Field
+ * What records: a single field, or a list, whose recording joins it as one more file.
+ *
  * @typedef {import("./file-parts.js").Picked} Picked
- * @typedef {{ render: (f: Field) => void, take: (f: Field, picked: Picked) => void,
- *   say: (f: Field, text: string) => void, cap: (f: Field) => number }} FieldApi
+ * @typedef {{ host: HTMLElement, seeds: Map<string, number>,
+ *   env: import("./recorder-env.js").RecorderEnv,
+ *   hold?: import("./file-field.js").Hold, recorder: Recorder | null,
+ *   unsent?: Picked | null, unholdUnsent?: () => void, refusal: string | null,
+ *   notice?: string | null, quiet?: boolean, focus?: string | null, settleUntil?: number,
+ *   upload?: import("./file-parts.js").InFlight | null }} Field
+ * @typedef {{ render(f: Field): void, take(f: Field, picked: Picked): boolean | void,
+ *   say(f: Field, text: string): void, cap(f: Field): number }} FieldApi
  */
 
 const RECORD = "[data-file-record]";
@@ -90,8 +98,9 @@ export function record(f, api) {
       const picked = { name: file.name, type: file.type, size: file.size, file };
       keepUnsent(f, picked, api.render);
       f.notice = note || null;
-      api.take(f, picked);
-      if (f.upload) api.say(f, said);
+      // A list answers whether the recording set off; a single field shows it in `upload`.
+      const went = api.take(f, picked);
+      if (went ?? f.upload) api.say(f, said);
     },
     refuse: (sentence) => {
       f.recorder = null;

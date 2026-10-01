@@ -4,6 +4,7 @@
 // code with their own tests, as routing is.
 
 import type { Database } from "bun:sqlite";
+import { DEFAULT_MAX_LIST_FILES } from "../../platform/files/file-cap.ts";
 import {
   insertPendingFile,
   mintFileKey,
@@ -14,6 +15,7 @@ import {
   activeSpecFields,
   type CapabilitySpec,
   type FileFamily,
+  isFileListFieldType,
   type SpecField,
 } from "../../registry/index.ts";
 import {
@@ -23,6 +25,7 @@ import {
   fileClaimScope,
   projectFileLedgerRow,
   resolveSubmittedFiles,
+  storedFileList,
   storedFileReference,
 } from "../../runtime/data/index.ts";
 import type { CapabilityInput, CapabilitySaveInput } from "../../runtime/router/index.ts";
@@ -38,12 +41,14 @@ const SCRATCH_SIZE = 48_213;
 
 /**
  * The key of a field's probe projection, the same in every probe and apart from every other
- * field's. Design lint compares probe records, so a key minted per probe would move a composition
- * that ignores the field under test, and a key fields share hides which file a card draws.
+ * field's and every other entry of a list. Design lint compares probe records, so a key minted per
+ * probe would move a composition that ignores the field under test, and a key fields share hides
+ * which file a card draws.
  */
-function probeKey(spec: CapabilitySpec, field: SpecField): string {
+function probeKey(spec: CapabilitySpec, field: SpecField, entry: number): string {
   const index = spec.schema.fields.findIndex((candidate) => candidate.name === field.name);
-  return `5c7a7c1e-9a4b-4c1d-8e2f-${String(index + 6).padStart(12, "0")}`;
+  const group = (0x8e2f + entry).toString(16);
+  return `5c7a7c1e-9a4b-4c1d-${group}-${String(index + 6).padStart(12, "0")}`;
 }
 
 /** A file admitted to `field`, of its first family and that family's first type unless named. */
@@ -87,6 +92,8 @@ export function mintScratchFile(
 
 /**
  * The column value of a file `recordId` holds, owned in the ledger as a committed save leaves it.
+ * A `file[]` holds several of the name, each its own key, which is the list a template most often
+ * draws as one.
  */
 export function scratchStoredFile(
   database: Database,
@@ -95,7 +102,10 @@ export function scratchStoredFile(
   recordId: string,
   name: string,
 ): string {
-  return storedFileReference(mintScratchFile(database, spec, field, name, recordId));
+  const mint = () => mintScratchFile(database, spec, field, name, recordId);
+  return isFileListFieldType(field.type)
+    ? storedFileList([mint(), mint(), mint()])
+    : storedFileReference(mint());
 }
 
 /** A file as a renderer receives it, for a probe that runs without a database. */
@@ -105,8 +115,9 @@ export function scratchFileProjection(
   name: string,
   family?: FileFamily,
   type?: string,
+  entry = 0,
 ): CapabilityFileProjection {
-  const key = probeKey(spec, field);
+  const key = probeKey(spec, field, entry);
   return projectFileLedgerRow(scratchPendingFile(spec, field, name, key, family, type));
 }
 
@@ -135,11 +146,16 @@ export function scratchSubmission(
   return { input: withFileProjections(input, submitted), binding: { scope, submitted } };
 }
 
-/** Where a scratch save's files are checked and a scratch delete gives its record's files up. */
+/**
+ * Where a scratch save's files are checked and a scratch delete gives its record's files up. A list
+ * holds the default count here whatever the operator configured: the platform refuses a longer one
+ * before generated code runs, so no Handler could be repaired for it.
+ */
 export function scratchFileScope(
   spec: CapabilitySpec,
   database: Database,
   recordId?: string,
 ): FileClaimScope {
-  return fileClaimScope(database, spec, SCRATCH_INCARNATION_ID, recordId);
+  const scope = fileClaimScope(database, spec, SCRATCH_INCARNATION_ID, recordId);
+  return { ...scope, maxListFiles: DEFAULT_MAX_LIST_FILES };
 }

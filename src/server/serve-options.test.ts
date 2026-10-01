@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { DEFAULT_MAX_FILE_BYTES, MAX_FILE_BYTES_ENV_VAR } from "../platform/files/file-cap.ts";
+import {
+  DEFAULT_MAX_FILE_BYTES,
+  MAX_FILE_BYTES_ENV_VAR,
+  MAX_LIST_FILES_ENV_VAR,
+} from "../platform/files/file-cap.ts";
 import { resolveServeOptions } from "./serve-options.ts";
 
 describe("what the server is started with", () => {
@@ -18,6 +22,12 @@ describe("what the server is started with", () => {
   test("a malformed file cap stops it before it is started", () => {
     expect(() => resolveServeOptions({ [MAX_FILE_BYTES_ENV_VAR]: "500MB" })).toThrow(
       MAX_FILE_BYTES_ENV_VAR,
+    );
+  });
+
+  test("a malformed list count stops it too", () => {
+    expect(() => resolveServeOptions({ [MAX_LIST_FILES_ENV_VAR]: "many" })).toThrow(
+      MAX_LIST_FILES_ENV_VAR,
     );
   });
 

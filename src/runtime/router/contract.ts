@@ -28,7 +28,11 @@ export interface CapabilityInput<Value = CapabilityInputValue> {
  * A save's input, the one that can name a file: the projection of what the save will store, or
  * `null` for an empty field or an edit's clear.
  */
-export type CapabilitySaveInputValue = CapabilityInputValue | CapabilityFileProjection | null;
+export type CapabilitySaveInputValue =
+  | CapabilityInputValue
+  | CapabilityFileProjection
+  | readonly CapabilityFileProjection[]
+  | null;
 export type CapabilitySaveInput = CapabilityInput<CapabilitySaveInputValue>;
 
 /**

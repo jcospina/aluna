@@ -9,7 +9,8 @@
  * single field uses, and the form's save waits while any of them is in flight. Removing a row
  * that is still travelling stops its upload. A pick that would take the list past its count
  * is refused whole, in the guidance's place, before anything travels; a file admission refuses
- * is refused by name, because several may be travelling at once.
+ * is refused by name, because several may be travelling at once. A list that takes sound records
+ * too, beside its add well, and what the recorder keeps joins the list as one more file.
  */
 
 import {
@@ -33,6 +34,7 @@ import {
   kindsIn,
   nounFor,
   pctOf,
+  pressOnce,
   progressAttrs,
   rowEnds,
   seed,
@@ -40,6 +42,16 @@ import {
   togglePlayback,
   wirePreview,
 } from "./file-parts.js";
+import {
+  forget,
+  heldBack,
+  keepUnsent,
+  settle as pauseClicks,
+  record,
+  resend,
+} from "./file-recording.js";
+import { browserRecorderEnv, canRecord } from "./recorder-env.js";
+import { recordButton, unsentRow } from "./recorder-parts.js";
 
 /**
  * @typedef {import("./file-parts.js").Kind} Kind
@@ -47,13 +59,15 @@ import {
  * @typedef {import("./file-parts.js").Picked} Picked
  * @typedef {import("./file-parts.js").InFlight} InFlight
  * @typedef {import("./file-field.js").Transfer} Transfer
+ * @typedef {import("./file-field.js").FieldOptions} FieldOptions
  * @typedef {{ id: number, held: Held | null, upload: InFlight | null }} Entry
  * @typedef {{ host: HTMLElement, body: HTMLElement, guidance: HTMLElement | null,
  *             live: HTMLElement, input: HTMLInputElement, kinds: Kind[], cap: number,
  *             guide: string, transfer: Transfer, saved: Entry[], entries: Entry[],
  *             refusals: Array<{ at: number, sentence: string }>, focus: string | null,
  *             seeds: Map<string, number>, wired: AbortController | null,
- *             next: number }} List
+ *             next: number, waiting?: string | null }
+ *           & import("./file-recording.js").Field} List
  */
 
 /**
@@ -91,7 +105,7 @@ export function overCapSentence(count, cap, held) {
     held < cap
       ? "Mind picking fewer?"
       : `Mind removing ${count - cap === 1 ? "one" : "a few"} first?`;
-  return `This field takes up to ${cap} files, and that would make ${count}. ${ask}`;
+  return `This field takes up to ${cap} ${cap === 1 ? "file" : "files"}, and that would make ${count}. ${ask}`;
 }
 
 /**
@@ -147,11 +161,51 @@ const travellingRow = (l, e, u) => `<div class="file__row" data-file-entry="${e.
 /** @param {List} l */
 const addWell = (
   l,
-) => `<div class="file__row"><button class="field__control file__well file__pick file__drop" type="button" data-file-list-add aria-labelledby="${l.host.id}-label ${l.host.id}-cta" aria-describedby="${l.host.id}-guidance"${seed(l, "add")}>
+) => `<div class="file__row"><button class="field__control file__well file__pick file__drop" type="button" data-file-list-add ${FILE_FIELD_HOOKS.focus} aria-labelledby="${l.host.id}-label ${l.host.id}-cta" aria-describedby="${l.host.id}-guidance"${seed(l, "add")}>
   <span class="file__glyph">${glyph(18, ADD_GLYPH)}</span>
   <span class="file__cta" id="${l.host.id}-cta">${addLabel(l)}</span>
   <span class="file__meta file__hint">or drop them here, or paste them</span>
-</button></div>`;
+</button>${records(l) ? recordButton(l) : ""}</div>`;
+
+/**
+ * A list that takes a sound records one too, where the browser can, as a single field does, while
+ * a recording could join it: none is on its way already, and the list has room.
+ *
+ * @param {List} l
+ */
+const records = (l) =>
+  l.kinds.includes("audio") && canRecord(l.env) && !l.unsent && !grows(l, l.entries.length + 1);
+
+/**
+ * Whether holding `count` files takes the list past its count. A list a lowered count already
+ * passes may still change, so long as it holds no more than it was saved holding, as the server
+ * holds it to.
+ *
+ * @param {List} l
+ * @param {number} count
+ */
+const grows = (l, count) => count > l.cap && count > l.saved.length;
+
+/**
+ * A recording whose upload failed or was stopped, waiting on the list to go up again or be thrown
+ * away; while it travels, its row is the entry's.
+ *
+ * @param {List} l
+ */
+const unsentWaits = (l) =>
+  l.unsent != null && !l.entries.some((e) => e.upload?.picked === l.unsent);
+
+/**
+ * What stands at the list's foot: the recorder while it records, a recording still unsent, or the
+ * add well.
+ *
+ * @param {List} l
+ */
+function footOf(l) {
+  if (l.recorder) return l.recorder.markup();
+  if (l.unsent && unsentWaits(l)) return unsentRow(l, l.unsent.name);
+  return addWell(l);
+}
 
 /** @param {List} l */
 function bodyOf(l) {
@@ -159,7 +213,7 @@ function bodyOf(l) {
     if (e.upload) return travellingRow(l, e, e.upload);
     return e.held ? heldRow(l, e, e.held) : "";
   });
-  return `<div class="field-list__values">${rows.join("")}${addWell(l)}</div>`;
+  return `<div class="field-list__values">${rows.join("")}${footOf(l)}</div>`;
 }
 
 /** @param {List} l */
@@ -171,7 +225,7 @@ const travelling = (l) => l.entries.filter((e) => e.upload !== null);
 /**
  * Where the keyboard goes when the control it was on is redrawn away: a Stop whose file
  * landed hands over to that row's Remove, a removed row to its neighbour, and anything else
- * to the add well.
+ * to what stands at the foot, the add well, the recorder or a recording still unsent.
  *
  * @param {List} l
  * @param {string} role
@@ -182,7 +236,7 @@ function successor(l, role) {
     const el = r && l.body.querySelector(`[data-ink-role="${r}"]`);
     if (el instanceof HTMLElement) return el;
   }
-  return l.body.querySelector("[data-file-list-add]");
+  return l.body.querySelector(`[${FILE_FIELD_HOOKS.focus}]`);
 }
 
 /**
@@ -193,10 +247,10 @@ function successor(l, role) {
 function showRefusals(l) {
   const said = refused(l);
   l.host.classList.toggle("is-refused", said !== "");
-  l.host.classList.toggle("is-invalid", said !== "" && l.entries.length === 0);
+  l.host.classList.toggle("is-invalid", said !== "" && !l.quiet && l.entries.length === 0);
   if (!l.guidance) return;
-  l.guidance.textContent = said || l.guide;
-  l.guidance.hidden = (said || l.guide) === "";
+  l.guidance.textContent = said || l.waiting || l.notice || l.guide;
+  l.guidance.hidden = l.guidance.textContent === "";
   l.guidance.classList.toggle("field__guidance--error", said !== "");
 }
 
@@ -206,10 +260,10 @@ function showRefusals(l) {
  * @param {List} l
  */
 const refused = (l) =>
-  [...l.refusals]
-    .sort((a, b) => a.at - b.at)
-    .map((r) => r.sentence)
-    .join(" ");
+  [
+    ...[...l.refusals].sort((a, b) => a.at - b.at).map((r) => r.sentence),
+    ...(l.refusal ? [l.refusal] : []),
+  ].join(" ");
 
 /**
  * The rows are redrawn whole, so a sound that is playing is carried into its new row rather
@@ -229,6 +283,7 @@ function wireRows(l, playing) {
     const heard = (/** @type {string} */ text) => say(l, text);
     wirePreview(row, e.held, kindHeld(l, e.held), heard, l.wired.signal, e.held.name);
   }
+  l.recorder?.wire(l.body, l.wired.signal);
 }
 
 /**
@@ -258,10 +313,28 @@ function underway(l) {
   return kept;
 }
 
+/**
+ * Put the keyboard back where it was, once the rows it was on are redrawn: where a change asked
+ * for it, on the same row's Play, or on the control that took the place of the one it was on.
+ *
+ * @param {List} l
+ * @param {string} role
+ * @param {string | undefined} played the entry whose Play had it
+ */
+function refocus(l, role, played) {
+  const asked = l.focus?.startsWith("[") ? l.body.querySelector(l.focus) : null;
+  const toggle = played && l.body.querySelector(`[data-file-entry="${played}"] [data-file-play]`);
+  const next = asked || toggle || successor(l, role);
+  if (next instanceof HTMLElement) next.focus({ focusVisible: true });
+}
+
 /** @param {List} l */
 function render(l) {
   const active = document.activeElement;
-  const role = l.body.contains(active) ? active?.getAttribute("data-ink-role") : null;
+  const hadFocus = l.body.contains(active);
+  const role = hadFocus ? (active?.getAttribute("data-ink-role") ?? "") : "";
+  const played = hadFocus && active?.matches("[data-file-play]") ? entryOf(active) : undefined;
+  if (!unsentWaits(l) && !l.recorder?.losesAudio()) l.waiting = null;
   harvestSeeds(l);
   const playing = underway(l);
   l.body.innerHTML = bodyOf(l);
@@ -269,8 +342,7 @@ function render(l) {
   showRefusals(l);
   wireRows(l, playing);
   holdSave(scopeOf(l.host));
-  const next = role ? successor(l, role) : null;
-  if (next instanceof HTMLElement) next.focus({ focusVisible: true });
+  if (hadFocus) refocus(l, role, played);
   l.focus = null;
   l.host.dispatchEvent(
     new CustomEvent(FILE_LIST_CHANGE, {
@@ -325,7 +397,12 @@ function failed(l, e, error) {
     error instanceof FileRefusal
       ? error.sentence
       : `I couldn’t take ${name} just now. Mind trying again?`;
+  // A recording its upload refuses is not one to send again; one that failed or stopped waits.
+  if (error instanceof FileRefusal && l.unsent && l.unsent === e.upload?.picked) {
+    keepUnsent(l, null);
+  }
   if (stopped) return render(l);
+  l.quiet = false;
   l.refusals.push({ at: e.id, sentence });
   render(l);
   say(l, refused(l));
@@ -363,6 +440,8 @@ function start(l, picked) {
       if (e.upload !== u || !l.entries.includes(e)) return;
       e.upload = null;
       e.held = held;
+      if (l.unsent === picked) keepUnsent(l, null);
+      l.waiting = null;
       render(l);
       say(l, `${held.name} is in.`);
     },
@@ -373,19 +452,27 @@ function start(l, picked) {
 
 /**
  * Take a pick of one or more files onto the end of the list, or refuse the whole pick when it
- * would pass the list's count.
+ * would pass the list's count, answering whether any set off.
  *
  * @param {List} l
  * @param {Picked[]} picks
  */
 function take(l, picks) {
-  if (picks.length === 0) return;
+  const wait = waitFor(l, picks);
+  if (picks.length === 0 || wait) {
+    if (wait) refuseWith(l, () => (l.waiting = wait), wait);
+    return false;
+  }
+  l.refusal = null;
+  l.waiting = null;
+  // The recorder's own note on how its recording ended stays with the recording it describes.
+  if (!(picks.length === 1 && picks[0] === l.unsent)) l.notice = null;
   const count = l.entries.length + picks.length;
-  if (count > l.cap) {
-    l.refusals = [{ at: -1, sentence: overCapSentence(count, l.cap, l.entries.length) }];
-    render(l);
-    say(l, refused(l));
-    return;
+  if (grows(l, count)) {
+    const sentence = overCapSentence(count, l.cap, l.entries.length);
+    l.quiet = false;
+    refuseWith(l, () => (l.refusals = [{ at: -1, sentence }]), sentence);
+    return false;
   }
   l.refusals = [];
   const started = picks.filter((picked) => start(l, picked));
@@ -397,6 +484,32 @@ function take(l, picks) {
       : `I’m uploading ${only.name}.`
     : "";
   say(l, [going, refused(l)].filter(Boolean).join(" "));
+  return started.length > 0;
+}
+
+/**
+ * Why `picks` must wait, if they must: a recording still being made, or one waiting unsent. A
+ * recording travelling on its way into the list holds nothing back.
+ *
+ * @param {List} l
+ * @param {Picked[]} picks
+ */
+function waitFor(l, picks) {
+  if (!(l.recorder?.losesAudio() || unsentWaits(l))) return null;
+  return picks.map((picked) => heldBack(l, picked)).find(Boolean) ?? null;
+}
+
+/**
+ * A pick the list will not take: what `note` sets is drawn, and `sentence` said.
+ *
+ * @param {List} l
+ * @param {() => unknown} note
+ * @param {string} sentence
+ */
+function refuseWith(l, note, sentence) {
+  note();
+  render(l);
+  say(l, sentence);
 }
 
 /**
@@ -409,6 +522,8 @@ function drop(l, id, how) {
   if (!e) return;
   const name = e.held?.name ?? e.upload?.picked.name ?? "";
   const kept = l.saved.includes(e);
+  // The rows close up under the pointer, so a double click's second press waits out the redraw.
+  pauseClicks(l);
   e.upload?.handle?.abort();
   const at = l.entries.indexOf(e);
   l.entries = l.entries.filter((x) => x !== e);
@@ -417,13 +532,18 @@ function drop(l, id, how) {
   for (const role of ["well", "remove", "stop", "go"]) l.seeds.delete(`${role}:${e.id}`);
   l.refusals = [];
   render(l);
-  say(
-    l,
-    how === "stop"
-      ? `I stopped uploading ${name}.`
-      : `I removed ${name}.${kept ? " Saving makes that final." : ""}`,
-  );
+  say(l, droppedSentence(name, how, kept));
 }
+
+/**
+ * @param {string} name
+ * @param {"remove" | "stop"} how
+ * @param {boolean} kept whether the list was saved holding the file
+ */
+const droppedSentence = (name, how, kept) =>
+  how === "stop"
+    ? `I stopped uploading ${name}.`
+    : `I removed ${name}.${kept ? " Saving makes that final." : ""}`;
 
 /**
  * `entry` names the row the file was opened from, so a way back can land on it.
@@ -447,6 +567,11 @@ function open(l, id) {
  * @param {"keep" | "revert"} how
  */
 function settle(l, how) {
+  l.recorder?.dispose();
+  keepUnsent(l, null);
+  l.notice = null;
+  l.waiting = null;
+  l.refusal = null;
   if (how === "revert") {
     for (const e of travelling(l)) e.upload?.handle?.abort();
     l.entries = [...l.saved];
@@ -466,9 +591,21 @@ const picksOf = (files) => [...(files ?? [])].map(fromFile);
 const entryOf = (el) =>
   el.closest("[data-file-entry]")?.getAttribute("data-file-entry") ?? undefined;
 
+/** What recording draws and takes with (`file-recording.js`): a kept recording is one more pick. */
+const LIST_API = {
+  render: (/** @type {List} */ l) => render(l),
+  take: (/** @type {List} */ l, /** @type {Picked} */ picked) => take(l, [picked]),
+  say: (/** @type {List} */ l, /** @type {string} */ text) => say(l, text),
+  cap: (/** @type {List} */ l) =>
+    Number(l.host.getAttribute(FILE_FIELD_HOOKS.cap)) || Number.POSITIVE_INFINITY,
+};
+
 /** @type {Array<[string, (l: List, hit: Element) => void]>} */
 const ACTIONS = [
   ["[data-file-list-add]", (l) => l.input.click()],
+  ["[data-file-record]", (l) => record(l, LIST_API)],
+  ["[data-file-resend]", (l) => resend(l, LIST_API)],
+  ["[data-file-forget]", (l) => forget(l, LIST_API)],
   ["[data-file-list-remove]", (l, hit) => drop(l, entryOf(hit), "remove")],
   ["[data-file-list-stop]", (l, hit) => drop(l, entryOf(hit), "stop")],
   ["[data-file-list-open]", (l, hit) => open(l, entryOf(hit))],
@@ -487,11 +624,13 @@ function wire(l) {
   const { host } = l;
   host.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : null;
+    if (l.env.now() < (l.settleUntil ?? 0)) return;
     for (const [selector, run] of ACTIONS) {
       const hit = target?.closest(selector);
       if (hit) return run(l, hit);
     }
   });
+  host.addEventListener("keydown", pressOnce, true);
   l.input.addEventListener("change", () => {
     take(l, picksOf(l.input.files));
     l.input.value = "";
@@ -557,8 +696,9 @@ function heldOn(host) {
 /**
  * @param {HTMLElement} host
  * @param {Transfer} transfer
+ * @param {FieldOptions} options
  */
-function mountOne(host, transfer) {
+function mountOne(host, transfer, options) {
   const body = host.querySelector(`[${FILE_FIELD_HOOKS.body}]`);
   if (!(body instanceof HTMLElement) || LISTS.has(host)) return;
   const kinds = kindsIn(host.getAttribute(FILE_FIELD_HOOKS.kind) ?? "");
@@ -582,7 +722,7 @@ function mountOne(host, transfer) {
     live,
     input,
     kinds: kinds.length > 0 ? kinds : ["document"],
-    cap: Number(host.getAttribute(FILE_FIELD_HOOKS.cap)) || Number.POSITIVE_INFINITY,
+    cap: Number(host.getAttribute(FILE_FIELD_HOOKS.count)) || Number.POSITIVE_INFINITY,
     guide: guidance?.textContent?.trim() ?? "",
     transfer,
     saved: [],
@@ -592,12 +732,20 @@ function mountOne(host, transfer) {
     wired: null,
     seeds: new Map(),
     next: 0,
+    env: options.recorder ?? browserRecorderEnv(),
+    recorder: null,
+    hold: options.hold,
+    refusal: null,
   };
   l.saved = heldOn(host).map((held) => ({ id: l.next++, held, upload: null }));
   l.entries = [...l.saved];
   LISTS.set(host, l);
   registerFileControl(host, {
-    uploading: () => travelling(l).map(() => nounFor(l.kinds)),
+    uploading: () => {
+      const going = travelling(l).map(() => nounFor(l.kinds));
+      if (unsentWaits(l)) going.push("unsent recording");
+      return l.recorder?.holds() ? [...going, "recording"] : going;
+    },
     settle: (how) => settle(l, how),
   });
   wire(l);
@@ -605,14 +753,17 @@ function mountOne(host, transfer) {
 }
 
 /**
- * Mount every `[data-file-list]` under `root`, each streaming its picks through `transfer`.
+ * Mount every `[data-file-list]` under `root`, each streaming its picks through `transfer`, with
+ * the options a single field takes: `hold` for a page that owns what its regions hold, and
+ * `recorder` standing in for the browser's media.
  *
  * @param {ParentNode} root
  * @param {Transfer} transfer
+ * @param {FieldOptions} [options]
  */
-export function mountFileLists(root, transfer) {
+export function mountFileLists(root, transfer, options = {}) {
   for (const host of root.querySelectorAll(`[${FILE_FIELD_HOOKS.list}]`)) {
-    if (host instanceof HTMLElement) mountOne(host, transfer);
+    if (host instanceof HTMLElement) mountOne(host, transfer, options);
   }
   mountPage();
 }

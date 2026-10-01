@@ -26,6 +26,7 @@ import {
   type CapabilityTool,
   type FieldType,
   isFileFieldType,
+  isFileListFieldType,
   LOGO_BIRTH_STATUS,
   type ReadDependency,
 } from "../../registry/index.ts";
@@ -298,6 +299,7 @@ export function assertFragment(
 export function fieldValueMatches(type: FieldType, stored: unknown, expected: unknown): boolean {
   if (type === "datetime") return sameInstant(stored, expected);
   if (type === "string[]") return JSON.stringify(stored) === JSON.stringify(expected);
+  if (isFileListFieldType(type)) return sameFiles(stored, expected);
   if (isFileFieldType(type)) return sameFile(stored, expected);
   // A choice stores the exact declared wire value it was admitted as — no canonicalization
   // is possible or permitted — so it compares exactly, like a string.
@@ -316,6 +318,15 @@ function sameFile(stored: unknown, expected: unknown): boolean {
     stored.kind === expected.kind &&
     stored.name === expected.name
   );
+}
+
+/** A list compares file by file, in order; a token of `null` for a list says it holds none. */
+function sameFiles(stored: unknown, expected: unknown): boolean {
+  const wanted = expected === null ? [] : expected;
+  if (!Array.isArray(stored) || !Array.isArray(wanted) || stored.length !== wanted.length) {
+    return false;
+  }
+  return stored.every((file, index) => file !== null && sameFile(file, wanted[index]));
 }
 
 function isFileLike(value: unknown): value is { readonly kind: unknown; readonly name: unknown } {

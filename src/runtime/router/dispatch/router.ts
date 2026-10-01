@@ -47,6 +47,7 @@ import {
   MissingRequiredFieldsError,
   RecordChangedError,
   RecordNotFoundError,
+  TooManyFilesError,
 } from "../../data/index.ts";
 import {
   CapabilityReadAbandonedError,
@@ -81,6 +82,7 @@ import {
   recordChangedFailure,
   recordMutationRefusal,
   recordNotFoundFailure,
+  tooManyFilesFailure,
   WIRE_PROTOCOL_ERROR_FRAGMENT,
 } from "../wire/failure-responses.ts";
 import { answerWithHandlerFragment } from "../wire/handler-response.ts";
@@ -461,6 +463,20 @@ async function executeCapabilityHandler(
   }
 }
 
+/** A save the platform refuses for what a field holds, answered with the field named. */
+function fieldRefusal(c: Context, id: string, error: unknown): Response | undefined {
+  if (error instanceof MissingRequiredFieldsError) {
+    return missingRequiredFieldsFailure(c, id, error);
+  }
+  if (error instanceof InvalidChoiceError) return invalidChoiceFailure(c, id, error);
+  if (error instanceof ChoiceDisabledError) return choiceDisabledFailure(c, id, error);
+  if (error instanceof MaxLengthExceededError) return maxLengthExceededFailure(c, id, error);
+  if (error instanceof InvalidFileReferenceError) return invalidFileReferenceFailure(c, id, error);
+  if (error instanceof RecordChangedError) return recordChangedFailure(c, id, error);
+  if (error instanceof TooManyFilesError) return tooManyFilesFailure(c, id, error);
+  return undefined;
+}
+
 /**
  * One warm, internals-free answer for everything the build-and-run path can throw.
  *
@@ -476,24 +492,8 @@ function capabilityHandlerFailure(
   if (error instanceof WireProtocolError) {
     return c.html(WIRE_PROTOCOL_ERROR_FRAGMENT, 400);
   }
-  if (error instanceof MissingRequiredFieldsError) {
-    return missingRequiredFieldsFailure(c, id, error);
-  }
-  if (error instanceof InvalidChoiceError) {
-    return invalidChoiceFailure(c, id, error);
-  }
-  if (error instanceof ChoiceDisabledError) {
-    return choiceDisabledFailure(c, id, error);
-  }
-  if (error instanceof MaxLengthExceededError) {
-    return maxLengthExceededFailure(c, id, error);
-  }
-  if (error instanceof InvalidFileReferenceError) {
-    return invalidFileReferenceFailure(c, id, error);
-  }
-  if (error instanceof RecordChangedError) {
-    return recordChangedFailure(c, id, error);
-  }
+  const refused = fieldRefusal(c, id, error);
+  if (refused) return refused;
   if (error instanceof RecordNotFoundError) {
     return recordNotFoundFailure(c, id, action, error);
   }

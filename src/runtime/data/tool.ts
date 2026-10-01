@@ -28,7 +28,11 @@ import {
 import { type CapabilityQueryResultType, QUERY_RESULT_TYPES } from "./query-result-types.ts";
 import { assertAdmittedChoiceValues, normalizeChoiceValue } from "./schema/choice-values.ts";
 import { deriveCapabilityTableDdl } from "./schema/ddl.ts";
-import { type CapabilityFileProjection, projectStoredFileReference } from "./schema/file-values.ts";
+import {
+  type CapabilityFileProjection,
+  projectStoredFileList,
+  projectStoredFileReference,
+} from "./schema/file-values.ts";
 import { ownValue } from "./schema/own-value.ts";
 import { assertAdmittedStringLengths } from "./schema/string-lengths.ts";
 
@@ -47,6 +51,7 @@ export {
   MaxLengthExceededError,
   MissingRequiredFieldsError,
   RecordChangedError,
+  TooManyFilesError,
 } from "./internal.ts";
 export type { CapabilityFileProjection };
 export { materializeCapabilityActionRecord };
@@ -57,6 +62,7 @@ export type CapabilityDataColumnValue =
   | boolean
   | readonly string[]
   | CapabilityFileProjection
+  | readonly CapabilityFileProjection[]
   | null;
 
 export interface CapabilityDataRow {
@@ -251,7 +257,7 @@ function normalizeQueryValue(
   type: FieldType,
   value: unknown,
 ): CapabilityDataColumnValue {
-  if (value === null) return null;
+  if (value === null && type !== "file[]") return null;
   if (type === "date") {
     if (typeof value !== "string" || !isValidDate(value)) {
       throw new Error(`Expected date value for column "${alias}".`);
@@ -336,6 +342,7 @@ export function isMissingRequiredValue(field: SpecField, value: unknown): boolea
     case "string[]":
       return !Array.isArray(value) || !value.some(isNonBlankString);
     case "file":
+    case "file[]":
       // Something is there, so nothing is missing; `normalizeFieldValue` refuses it next.
       return false;
   }
@@ -362,6 +369,7 @@ function normalizeFieldValue(
     case "string[]":
       return JSON.stringify(normalizeStringList(name, value));
     case "file":
+    case "file[]":
       throw new FileFieldWriteError(name);
   }
 }
@@ -489,6 +497,8 @@ function normalizeStoredFieldValue(
   type: FieldType,
   value: unknown,
 ): CapabilityDataColumnValue {
+  // A `file[]` evolution added holds `NULL` in older rows; it holds nothing, which is `[]`.
+  if (type === "file[]") return projectStoredFileList(name, value);
   if (value === null) return null;
 
   switch (type) {

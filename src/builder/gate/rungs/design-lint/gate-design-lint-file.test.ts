@@ -320,8 +320,9 @@ describe("a card that names a document's type", () => {
 
   test("reads a field that holds several files as well as one", () => {
     const word = { kind: "document", mime: WORD_DOCUMENT_TYPE, url: "/files/a", name: "a.docx" };
+    // A list that holds nothing is `[]`, so a card reads its length rather than its truth.
     const say = (record: Readonly<Record<string, unknown>>) =>
-      record.manuals ? "<span>PDF</span>" : "<span>None</span>";
+      (record.manuals as unknown[]).length > 0 ? "<span>PDF</span>" : "<span>None</span>";
     const record = { manuals: [word] };
     expect(mislabelledDocument(record, say)).toContain(WORD_DOCUMENT_TYPE);
     const right = (held: Readonly<Record<string, unknown>>) =>

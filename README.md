@@ -85,6 +85,7 @@ Bun loads `.env` automatically. The checked-in [.env.example](.env.example) docu
 | `OMNI_BEHAVIORAL_TIER` | No | `on` | Enables AI-authored behavioral checks. Accepts `on/off`, `true/false`, `yes/no`, or `1/0`. |
 | `PORT` | No | `3030` | Local HTTP port. `0` asks the operating system for an available port. |
 | `OMNI_MAX_FILE_BYTES` | No | `524288000` (500 MiB) | The largest file one upload may carry, in bytes. The server also refuses any request that declares a larger body. A value that is not a positive whole number stops the server at boot. |
+| `OMNI_MAX_LIST_FILES` | No | `20` | How many files one field that holds many files (`file[]`) may hold. A save that grows a list past it is refused with a sentence; a list a lowered count already passes may still be edited, as long as it does not grow. A value that is not a positive whole number stops the server at boot. |
 | `OMNI_CRUD_SQLITE_LIBRARY` | No | Standard Homebrew paths on macOS | Full path to an extension-capable `libsqlite3.dylib` when it is installed elsewhere. |
 | `CC` | No | `cc` | C compiler used for the SQLite search-normalization bridge. |
 

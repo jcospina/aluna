@@ -3,6 +3,7 @@ import {
   activeSpecFields,
   type CapabilitySpec,
   isFileFieldType,
+  isFileListFieldType,
   isListFieldType,
 } from "../../../registry/index.ts";
 import { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from "../../data/index.ts";
@@ -259,6 +260,8 @@ function normalizeRepeatedValue(
   if (field && isListFieldType(field.type)) {
     return normalizeListInputValues(listInputModeForField(form, field.name), repeated);
   }
+  // A `file[]` posts one key per file, in order, kept as posted for the file rule to judge.
+  if (field && isFileListFieldType(field.type)) return [...repeated];
   return normalizeScalarValue(key, repeated);
 }
 
@@ -271,7 +274,7 @@ function normalizeScalarValue(key: string, repeated: readonly string[]): Capabil
   return only;
 }
 
-/** A marked field with no value: an empty list, or a file field that holds nothing. */
+/** A marked field with no value: an empty list, or a file field or `file[]` that holds nothing. */
 function addSubmittedEmptyValues(
   values: Record<string, CapabilityInputValue>,
   activeFields: ReturnType<typeof activeSpecFields>,
@@ -279,7 +282,7 @@ function addSubmittedEmptyValues(
 ): void {
   for (const field of activeFields) {
     if (!submittedFields.has(field.name) || Object.hasOwn(values, field.name)) continue;
-    if (isListFieldType(field.type)) values[field.name] = [];
+    if (isListFieldType(field.type) || isFileListFieldType(field.type)) values[field.name] = [];
     else if (isFileFieldType(field.type)) values[field.name] = "";
   }
 }

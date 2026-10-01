@@ -20,6 +20,7 @@ import {
   type FileFamily,
   hasActiveFileField,
   isFileFieldType,
+  isFileListFieldType,
   isSearchableTextType,
   presentationFieldDescriptors,
   type SpecField,
@@ -189,9 +190,7 @@ export const SEARCH_NORMALIZATION_RULE =
 function inputValueContract(spec: CapabilitySpec, action: HandlerUnitName): string[] {
   const files =
     (action === "create" || action === "update") && hasActiveFileField(spec.schema.fields);
-  const valueType = files
-    ? "string | readonly string[] | CapabilityFileProjection | null"
-    : "string | readonly string[]";
+  const valueType = files ? fileValueType(spec) : "string | readonly string[]";
   const declared = `- \`input.values\` is a \`Readonly<Record<string, ${valueType}>>\`; repeated keys keep arrival order and spec-known list fields are arrays when a value exists.`;
   if (action === "read" || action === "delete") return [declared];
 
@@ -223,13 +222,28 @@ function fileInputRules(action: "create" | "update", spec: CapabilitySpec): stri
       ? "`input.values[name]` is `null` or `undefined`"
       : "`input.submittedFields.has(name)` and `input.values[name]` is `null` or `undefined`";
   return [
-    `- A file field arrives as the projection \`${FILE_PROJECTION_SHAPE}\` of what the save will store, ${arrives}. Pass \`input.values[name]\` to \`mutation.${action}\` unchanged or leave the field out; never run it through the scalar extractor, and never build, edit, replace or \`null\` one yourself.`,
+    `- A \`file\` field arrives as the projection \`${FILE_PROJECTION_SHAPE}\` of what the save will store, ${arrives}. Pass \`input.values[name]\` to \`mutation.${action}\` unchanged or leave the field out; never run it through the scalar extractor, and never build, edit, replace or \`null\` one yourself.`,
+    ...(hasActiveFileList(spec) ? [FILE_LIST_ARRIVES] : []),
     ...(required
       ? [
-          `- A required file field is missing when ${presence}. Test that value itself, never through the scalar extractor, which reads a file that is there as \`""\`.`,
+          `- A required file field is missing when ${presence}, and a required file[] field also when its array is empty. Test that value itself, never through the scalar extractor, which reads a file that is there as \`""\`.`,
         ]
       : []),
   ];
+}
+
+/** How a `file[]` reaches a Handler: the list the save will store, handed back whole or not at all. */
+export const FILE_LIST_ARRIVES =
+  "- A `file[]` field arrives as an array of those projections, in the order the save will store them, and `[]` when it holds none. Pass the array to the mutation unchanged or leave the field out: never drop, add or reorder an entry, never pass a single file or `null` in its place, and never run it through the string[] rule below.";
+
+/** What a save's `input.values` holds in a capability with a file field, and a list of them. */
+function fileValueType(spec: CapabilitySpec): string {
+  const list = hasActiveFileList(spec) ? " | readonly CapabilityFileProjection[]" : "";
+  return `string | readonly string[] | CapabilityFileProjection${list} | null`;
+}
+
+function hasActiveFileList(spec: CapabilitySpec): boolean {
+  return activeSpecFields(spec.schema.fields).some((field) => isFileListFieldType(field.type));
 }
 
 function buildValidationErrorContract(
@@ -402,7 +416,10 @@ function isOptional(spec: CapabilitySpec, name: string): boolean {
 }
 
 /** What the item renderer is told about any file field its card shows. */
-export const ITEM_FILE_FIELD_RULE = `- A file field's record value is \`${FILE_PROJECTION_SHAPE}\`, or \`null\` when the record holds no file. Draw a photo or a video from \`url\` inside a \`media-frame\`, and for a field that may hold one draw the empty frame with a short note when the value is \`null\`. Never build a file address yourself. \`name\` is the file's name as uploaded, often something like IMG_4821.JPG, and describes nothing.`;
+export const ITEM_FILE_FIELD_RULE = `- A \`file\` field's record value is \`${FILE_PROJECTION_SHAPE}\`, or \`null\` when the record holds no file. Draw a photo or a video from \`url\` inside a \`media-frame\`, and for a field that may hold one draw the empty frame with a short note when the value is \`null\`. Never build a file address yourself. \`name\` is the file's name as uploaded. A photo's or a video's, often something like IMG_4821.JPG, describes nothing; a document's is how a person tells it apart, as the document rule says.`;
+
+/** What the item renderer is told about a `file[]` its card shows. */
+export const ITEM_FILE_LIST_RULE = `- A \`file[]\` field's record value is an array of those projections, in the order the person added them, and \`[]\`, never \`null\`, when it holds none. Draw every entry in that order, each by the rule for its kind below, or name the list in words alone, such as how many files it holds; never draw some entries and not the rest. When the array is empty, say so with a short note, in an empty frame when the field may hold a photo or a video.`;
 
 /** How a card draws a photo. */
 export const ITEM_PHOTO_RULE = `- A photo is an \`<img>\`. The card is announced by its own text, so when it also shows the field that describes the picture, such as a title, give the picture \`alt=""\` and a screen reader reads that text once.`;
@@ -413,11 +430,11 @@ export const ITEM_VIDEO_RULE = `- A video is a \`<video muted playsinline>\` wit
 /** How a card shows a sound (Module 7 PLAN decision 29): in words, since a card holds no player. */
 export const ITEM_AUDIO_RULE = `- An audio file is a sound, and a card never draws it: a card is a button, which can hold no player, and the open record plays it. Draw no \`<audio>\` and no \`media-frame\` for it. Say in words that the record holds a sound, such as "Audio", and say so with a short note, such as "No recording yet", when the value is \`null\`.`;
 
-/** How a card shows a document (Module 7 PLAN decision 29): in words, as it shows a sound. */
-export const ITEM_DOCUMENT_RULE = `- A document, such as a PDF, is never drawn on a card: a card is a button, which can hold no link, and the open record opens or downloads it. Draw no \`<a>\`, \`<img>\`, \`<embed>\` or \`media-frame\` for it. Say in words what the record holds: "PDF" when its \`mime\` is "application/pdf" and "Document" for any other, or a short note, such as "No manual yet", when the value is \`null\`.`;
+/** How a card shows a document (Module 7 PLAN decision 29): by its name, never its type alone. */
+export const ITEM_DOCUMENT_RULE = `- A document, such as a PDF, is never drawn on a card: a card is a button, which can hold no link, and the open record opens or downloads it. Draw no \`<a>\`, \`<img>\`, \`<embed>\` or \`media-frame\` for it. Show it by its \`name\`, escaped, with its extension dropped: people tell their documents apart by name and rarely think of the letters after the last dot, so "Kettle manual.pdf" reads "Kettle manual". Drop only a final dot followed by up to five letters or digits, and keep the whole name when nothing would be left. Never label a document by its type alone, such as "PDF" or "DOCX", which says nothing about which document it is; if a type word appears at all, it is "PDF" only when its \`mime\` is "application/pdf". Say so with a short note, such as "No manual yet", when the value is \`null\`.`;
 
 /** How a card draws a field that takes more than one family. */
-export const ITEM_FAMILIES_RULE = `- A file field that takes several families holds one file at a time. Draw it by its \`kind\`: "image" is a photo, "video" is a video, "audio" is a sound and "document" is a document.`;
+export const ITEM_FAMILIES_RULE = `- A file field that takes several families holds one file at a time, and each entry of a file[] is one file. Draw each by its \`kind\`: "image" is a photo, "video" is a video, "audio" is a sound and "document" is a document.`;
 
 function shownFileFields(spec: CapabilitySpec) {
   return spec.schema.fields.filter(
@@ -437,6 +454,7 @@ function itemFileFieldRules(spec: CapabilitySpec): readonly string[] {
   const takes = (family: FileFamily) => shownFileFamilies(spec).includes(family);
   return [
     ITEM_FILE_FIELD_RULE,
+    ...(shown.some((field) => isFileListFieldType(field.type)) ? [ITEM_FILE_LIST_RULE] : []),
     ...(takes("image") ? [ITEM_PHOTO_RULE] : []),
     ...(takes("video") ? [ITEM_VIDEO_RULE] : []),
     ...(takes("audio") ? [ITEM_AUDIO_RULE] : []),

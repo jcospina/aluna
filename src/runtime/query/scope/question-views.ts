@@ -5,8 +5,9 @@
 //
 // A view lists the columns the table bound admits — `id`, `created_at` and the active fields — so
 // a column it refuses is not there to read either. A file column comes as its kind, type, size and
-// name, never its key. The values a person or a Handler can write freely — a `string`, a
-// `string[]` and a file's name — show the withheld phrase where they may hold a file's address.
+// name, never its key, and a `file[]` as an array of those, `[]` where it holds nothing. The
+// values a person or a Handler can write freely — a `string`, a `string[]` and a file's name —
+// show the withheld phrase where they may hold a file's address.
 
 import { FILE_URL_PREFIX } from "../../../platform/files/file-url.ts";
 import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
@@ -27,8 +28,8 @@ import type { QueryShadow } from "../worker/query-worker.ts";
  * on the platform's connection, where no schema is called this. */
 export const QUESTION_DESK_SCHEMA = "question_desk";
 
-/** How a column reaches a statement: as stored, as a file without its key, or withholdable. */
-export type QuestionColumnReading = "value" | "file" | "text" | "list";
+/** How a column reaches a statement: as stored, as files without their keys, or withholdable. */
+export type QuestionColumnReading = "value" | "file" | "files" | "text" | "list";
 
 export interface QuestionViewColumn {
   readonly name: string;
@@ -72,6 +73,20 @@ function mayHoldAnAddress(text: string): string {
   ].join(" OR ");
 }
 
+/** Whether the stored object `value` names its key no more than once. */
+const oneKey = (value: string) => `json_type(json_remove(${value}, '$.key'), '$.key') IS NULL`;
+
+/** The stored object `value` without its key, its name withheld where it may hold an address. */
+function keyless(value: string): string {
+  const field = (key: keyof CapabilityFileProjection) => `json_extract(${value}, '$.${key}')`;
+  const fileName = field("name");
+  const fields = [
+    ...PLATFORM_WRITTEN.map((key) => `'${key}', ${field(key)}`),
+    `'name', CASE WHEN ${mayHoldAnAddress(fileName)} THEN ${WITHHELD} ELSE ${fileName} END`,
+  ];
+  return `json_object(${fields.join(", ")})`;
+}
+
 /**
  * A view column. Every name is qualified, since SQLite reads a double-quoted name no column has as
  * a string instead, and text is cast back to TEXT, since a CASE has no affinity and a number bound
@@ -82,14 +97,14 @@ function columnAs({ name, reading }: QuestionViewColumn): string {
   const as = `AS ${sqlIdentifier(name)}`;
   if (reading === "value") return `${column} ${as}`;
   if (reading === "file") {
-    const field = (key: keyof CapabilityFileProjection) => `json_extract(${column}, '$.${key}')`;
-    const fileName = field("name");
-    const fields = [
-      ...PLATFORM_WRITTEN.map((key) => `'${key}', ${field(key)}`),
-      `'name', CASE WHEN ${mayHoldAnAddress(fileName)} THEN ${WITHHELD} ELSE ${fileName} END`,
-    ];
-    const whole = `json_valid(${column}) AND json_type(${column}) = 'object' AND json_type(json_remove(${column}, '$.key'), '$.key') IS NULL`;
-    return `CASE WHEN ${whole} THEN json_object(${fields.join(", ")}) END ${as}`;
+    const whole = `json_valid(${column}) AND json_type(${column}) = 'object' AND ${oneKey(column)}`;
+    return `CASE WHEN ${whole} THEN ${keyless(column)} END ${as}`;
+  }
+  if (reading === "files") {
+    const each = `FROM json_each(${column}) AS entry`;
+    const whole = `json_valid(${column}) AND json_type(${column}) = 'array' AND NOT EXISTS (SELECT 1 ${each} WHERE entry.type <> 'object' OR NOT (${oneKey("entry.value")}))`;
+    const listed = `(SELECT json_group_array(${keyless("entry.value")} ORDER BY entry.key) ${each})`;
+    return `CASE WHEN ${column} IS NULL THEN json_array() WHEN ${whole} THEN ${listed} END ${as}`;
   }
   const hidden = reading === "list" ? `json_array(${WITHHELD})` : WITHHELD;
   return `CAST(CASE WHEN ${mayHoldAnAddress(column)} THEN ${hidden} ELSE ${column} END AS TEXT) ${as}`;
@@ -114,6 +129,7 @@ const READING_BY_FIELD_TYPE = {
   choice: "value",
   "string[]": "list",
   file: "file",
+  "file[]": "files",
 } as const satisfies Record<FieldType, QuestionColumnReading>;
 
 /** What the worker is told at birth: a view for every capability the catalog snapshot holds. */

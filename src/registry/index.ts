@@ -55,7 +55,9 @@ export {
   hasActiveFileField,
   INVALID_FILE_REFERENCE_ERROR_CODE,
   isFileFieldType,
+  isFileListFieldType,
   RECORD_CHANGED_ERROR_CODE,
+  TOO_MANY_FILES_ERROR_CODE,
 } from "./fields/file.ts";
 export {
   type FieldGuidance,

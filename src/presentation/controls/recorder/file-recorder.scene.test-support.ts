@@ -1,10 +1,11 @@
-// A form holding one file field, mounted with the voice recorder over a stand-in microphone, and
-// the clicks that walk it into a recording, shared by the recorder's suites.
+// A form holding one file field, or one list of files, mounted with the voice recorder over a
+// stand-in microphone, and the clicks that walk it into a recording, shared by the recorder's suites.
 
 import { afterAll } from "bun:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { mountFileFields, type Picked, type Transfer } from "#design/files/file-field.js";
+import { mountFileLists } from "#design/files/file-list.js";
 import { installDomGlobals } from "../double/choice-picker.fixture.test-support.ts";
 import { Doc, type El, parseHtml } from "../double/choice-picker.test-support.ts";
 import { settle, standInMedia } from "./file-recorder.test-support.ts";
@@ -32,9 +33,29 @@ export function scene(
   attributes = "",
   upload?: (picked: Picked) => ReturnType<Transfer>,
 ) {
+  return mounted("data-file-field", media, kind, attributes, upload);
+}
+
+/** A form with one list of files that takes `kind`, mounted over `media`, as {@link scene} is. */
+export function listScene(
+  media = standInMedia(),
+  kind = "audio",
+  attributes = "",
+  upload?: (picked: Picked) => ReturnType<Transfer>,
+) {
+  return mounted("data-file-list", media, kind, attributes, upload);
+}
+
+function mounted(
+  hook: "data-file-field" | "data-file-list",
+  media: ReturnType<typeof standInMedia>,
+  kind: string,
+  attributes: string,
+  upload?: (picked: Picked) => ReturnType<Transfer>,
+) {
   const doc = new Doc();
   parseHtml(
-    `<form class="form"><div class="field file" id="memo" data-file-field data-kind="${kind}" ${attributes}>
+    `<form class="form"><div class="field file" id="memo" ${hook} data-kind="${kind}" ${attributes}>
   <span class="field__label caps" id="memo-label">Recording</span>
   <div data-file-body></div>
   <span class="field__guidance" id="memo-guidance"></span>
@@ -55,7 +76,8 @@ export function scene(
     };
   };
   Object.defineProperty(globalThis, "document", { value: doc, configurable: true });
-  mountFileFields(doc as never, transfer, { recorder: media.env, hold });
+  const mount = hook === "data-file-list" ? mountFileLists : mountFileFields;
+  mount(doc as never, transfer, { recorder: media.env, hold });
   const host = doc.querySelector("#memo") as El;
   const q = (selector: string) => host.querySelector(selector);
   const press = async (selector: string) => {

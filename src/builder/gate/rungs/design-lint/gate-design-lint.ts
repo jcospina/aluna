@@ -48,14 +48,17 @@ import {
 import { checkGeneratedUnit } from "../../../units/safety/unit-checks.ts";
 import type { CapabilityGateInput, DesignLintAttempt, DesignLintGateResult } from "../../gate.ts";
 import { loadItemRenderer } from "../../gate-internal.ts";
-import { scratchFileProjection } from "../../gate-scratch-files.ts";
 import { scratchFileName } from "../../gate-scratch-names.ts";
+import { drawsEmptyMediaFrame, fileKindViolation, mislabelledDocument } from "./gate-file-kinds.ts";
 import {
-  drawsEmptyMediaFrame,
-  fileKindViolation,
-  fileNoun,
-  mislabelledDocument,
-} from "./gate-file-kinds.ts";
+  isFileField,
+  missesAPicture,
+  mixedLists,
+  noFiles,
+  pictureless,
+  probeFiles,
+  shownFileFields,
+} from "./gate-file-probes.ts";
 import { observableItemRecordContent } from "./gate-item-content.ts";
 import { findInlineStyleViolation } from "./inline-style-scan.ts";
 
@@ -379,7 +382,8 @@ function buildProbeRecords(spec: CapabilitySpec): readonly DesignProbe[] {
 /**
  * A record for each further family a shown file field takes, holding a file of it, so a renderer
  * that draws by `kind` is reviewed down every branch rather than the first family's alone. A card
- * names a document's type in words, so each further type admission records a document as has one.
+ * names a document's type in words, so each further type admission records a document as has one,
+ * and a list holds its families and types mixed too.
  */
 function familyProbes(spec: CapabilitySpec): readonly DesignProbe[] {
   const baseline = recordWith(spec, (field) => syntheticValue(spec, field));
@@ -388,15 +392,18 @@ function familyProbes(spec: CapabilitySpec): readonly DesignProbe[] {
     kind: "family",
     record: {
       ...baseline,
-      [field.name]: scratchFileProjection(spec, field, scratchFileName("synthetic"), family, type),
+      [field.name]: probeFiles(spec, field, scratchFileName("synthetic"), family, type),
     },
   });
-  return shownFileFields(spec).flatMap((field) => {
-    const accepts = field.accepts ?? [];
-    const families = accepts.slice(1).map((family) => probe(field, family));
-    const types = accepts.includes("document") ? admittedTypes("document").slice(1) : [];
-    return [...families, ...types.map((type) => probe(field, "document", type))];
-  });
+  const mixed = mixedLists(spec, baseline, scratchFileName("synthetic"));
+  return shownFileFields(spec)
+    .flatMap((field) => {
+      const accepts = field.accepts ?? [];
+      const families = accepts.slice(1).map((family) => probe(field, family));
+      const types = accepts.includes("document") ? admittedTypes("document").slice(1) : [];
+      return [...families, ...types.map((type) => probe(field, "document", type))];
+    })
+    .concat(mixed.map(({ label, record }) => ({ label, kind: "family", record })));
 }
 
 /**
@@ -404,8 +411,7 @@ function familyProbes(spec: CapabilitySpec): readonly DesignProbe[] {
  * holds one named with the payload (PLAN decision 38).
  */
 function hostileValue(spec: CapabilitySpec, field: SpecField, payload: string): unknown {
-  if (isFileFieldType(field.type))
-    return scratchFileProjection(spec, field, scratchFileName(payload));
+  if (isFileFieldType(field.type)) return probeFiles(spec, field, scratchFileName(payload));
   return field.type === "string[]" ? [payload] : payload;
 }
 
@@ -454,7 +460,8 @@ function syntheticValue(spec: CapabilitySpec, field: SpecField): unknown {
     case "string[]":
       return [`Sample ${field.name} first`, `Sample ${field.name} second`];
     case "file":
-      return scratchFileProjection(spec, field, scratchFileName("synthetic"));
+    case "file[]":
+      return probeFiles(spec, field, scratchFileName("synthetic"));
   }
 }
 
@@ -476,7 +483,7 @@ function contrastingChoiceValue(field: SpecField): string {
 /** A second benign value with the same runtime type but different semantic content. The
  * pair proves composition depends on record data without prescribing wording or format. A file
  * field's is none at all: the empty field is the case a template most often forgets. */
-function contrastingValue(field: SpecField): string | number | boolean | readonly string[] | null {
+function contrastingValue(field: SpecField): unknown {
   switch (field.type) {
     case "string":
       return `Different ${field.name}`;
@@ -493,7 +500,8 @@ function contrastingValue(field: SpecField): string | number | boolean | readonl
     case "string[]":
       return [`Different ${field.name} first`, `Different ${field.name} second`];
     case "file":
-      return null;
+    case "file[]":
+      return noFiles(field);
   }
 }
 
@@ -531,7 +539,7 @@ function contrastViolation(
   const fieldName = contrast.probe.contrastFor ?? "unknown";
   if (contrastContent.length === 0 && isFileField(spec, fieldName)) {
     return offContractMessage(
-      `the item renderer drew nothing for a record whose file field "${fieldName}" holds no file. When the value is null, say so with a short note, in the empty frame when the card draws a photo or a video.`,
+      `the item renderer drew nothing for a record whose file field "${fieldName}" holds no file. When the value is null or an empty list, say so with a short note, in the empty frame when the card draws a photo or a video.`,
       contrast.probe,
     );
   }
@@ -542,36 +550,6 @@ function contrastViolation(
     );
   }
   return undefined;
-}
-
-function shownFileFields(spec: CapabilitySpec): SpecField[] {
-  return spec.schema.fields.filter(
-    (field) => isFileFieldType(field.type) && spec.ui_intent.item.shows.includes(field.name),
-  );
-}
-
-/** Whether a shown field that may hold a photo or a video holds none: a frame may stand empty. */
-function missesAPicture(spec: CapabilitySpec, record: PresentableRecord): boolean {
-  return shownFileFields(spec).some(
-    (field) =>
-      field.accepts?.some((family) => family === "image" || family === "video") &&
-      record[field.name] == null,
-  );
-}
-
-/** What to say of an empty frame: the kinds `record` shows that have no picture, if any. */
-function pictureless(spec: CapabilitySpec, record: PresentableRecord): string {
-  const kinds = shownFileFields(spec)
-    .map((field) => (record[field.name] as { kind?: unknown } | null)?.kind)
-    .filter((kind): kind is string => kind === "audio" || kind === "document");
-  const nouns = [...new Set(kinds)].map(fileNoun).join(" or ");
-  if (nouns === "")
-    return "Frame only a photo or a video, and leave a frame empty only for one the record is missing.";
-  return `${nouns[0]?.toUpperCase()}${nouns.slice(1)} has no picture: say in words what the record holds, and draw no frame.`;
-}
-
-function isFileField(spec: CapabilitySpec, name: string): boolean {
-  return spec.schema.fields.some((field) => field.name === name && isFileFieldType(field.type));
 }
 
 /**

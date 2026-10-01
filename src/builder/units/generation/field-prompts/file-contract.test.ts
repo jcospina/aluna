@@ -13,8 +13,10 @@ import {
 import { type CapabilitySpec, FILE_FAMILIES, type FileFamily } from "../../../../registry/index.ts";
 import { notesSpec } from "../../../../registry/spec/spec.test-support.ts";
 import { projectFileLedgerRow } from "../../../../runtime/data/index.ts";
+import { loadItemRenderer } from "../../../gate/gate-internal.ts";
 import { handlerContractDeclarations } from "../../../generated-code-check.ts";
 import { checkGeneratedUnit } from "../../safety/unit-checks.ts";
+import { MANUAL_FEED, MANUAL_TILE } from "../few-shot/few-shot-documents.ts";
 import { FEW_SHOT_DESIGN_EXAMPLES } from "../few-shot/few-shot-gallery.ts";
 import {
   buildUnitPrompt,
@@ -272,6 +274,23 @@ describe("the item renderer's prompt", () => {
   test("tells a card that shows a document it never links to one, and says it in words", () => {
     for (const words of ["<a>", "<embed>", "media-frame"]) {
       expect(ITEM_DOCUMENT_RULE).toContain(words);
+    }
+  });
+
+  test("shows the document exemplars naming each manual without its extension, escaped", () => {
+    const manual = (name: string) => ({
+      id: "m",
+      appliance: "Kettle",
+      manual: { url: "/files/k", name, kind: "document", mime: "text/plain", size: 1 },
+    });
+    for (const example of [MANUAL_FEED, MANUAL_TILE]) {
+      const render = loadItemRenderer(example.rendererSource);
+      expect(render(manual("Garantía del hervidor.docx"))).toContain(">Garantía del hervidor<");
+      expect(render(manual("Kettle manual"))).toContain(">Kettle manual<");
+      expect(render(manual("v1.2 notes"))).toContain(">v1.2 notes<");
+      expect(render(manual(".pdf"))).toContain(">.pdf<");
+      expect(render(manual("<b>x</b>.pdf"))).toContain("&lt;b&gt;x&lt;/b&gt;");
+      expect(render(manual("Kettle manual.pdf"))).not.toMatch(/>PDF</);
     }
   });
 

@@ -59,7 +59,9 @@ key that record's field holds now. **Generated code cannot change a file either.
 Whether the Handler passes the projection back or leaves the field out, the
 router-checked submission is what gets written; any other value, such as a `null`
 the platform control never asked for or a `file[]` with a file dropped, is
-refused. Only the control's explicit clear empties a file field.
+refused. Only the control's explicit clear empties a file field. A `file[]` loses a file
+only where the control names it as removed, so an edit never removes a file another
+window added after its form was drawn.
 
 ## Considered options
 

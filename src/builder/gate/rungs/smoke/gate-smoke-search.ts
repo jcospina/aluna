@@ -364,6 +364,7 @@ function addExclusionCases(state: FixtureState): void {
 
 /** The word the excluded row's file is named with: a name is the only text a file has. */
 const FILE_EXCLUSION_Q = "fileonly";
+const FILE_LIST_EXCLUSION_Q = "filelistonly";
 
 /** One exclusion case per non-searchable type present, each keyed to its fixture value. */
 const NON_TEXT_EXCLUSIONS = [
@@ -372,6 +373,7 @@ const NON_TEXT_EXCLUSIONS = [
   { type: "date", label: "date exclusion", q: "2042-02-03" },
   { type: "datetime", label: "datetime exclusion", q: "2042-02-03T04:05:06.000Z" },
   { type: "file", label: "file exclusion", q: FILE_EXCLUSION_Q },
+  { type: "file[]", label: "file list exclusion", q: FILE_LIST_EXCLUSION_Q },
 ] as const;
 
 function addNonTextExclusionCases(state: FixtureState, nonText: readonly SpecField[]): void {
@@ -440,7 +442,8 @@ function addBehaviorNeutralOrderRows(
 /**
  * One neutral fixture value per pantry type. The return type is concrete, not `unknown`, so a
  * `switch` with no `default` makes the compiler refuse a new field type without a value. A file
- * field's value is the name of the scratch file its row holds, on every other row.
+ * field's value is the name of the scratch file its row holds, on every other row; a `file[]` holds
+ * several of that name there, and `NULL` on the rest, as rows an evolution added it to do.
  */
 export function fixtureFieldValue(
   field: SpecField,
@@ -466,6 +469,7 @@ export function fixtureFieldValue(
     case "datetime":
       return `2025-01-${String((seed % 27) + 1).padStart(2, "0")}T00:00:00.000Z`;
     case "file":
+    case "file[]":
       return seed % 2 === 0 ? scratchFileName(`neutral${seed}`) : null;
   }
 }
@@ -492,6 +496,8 @@ function excludedNonTextValue(
       return fixtureFieldValue(field, 44);
     case "file":
       return scratchFileName(FILE_EXCLUSION_Q);
+    case "file[]":
+      return scratchFileName(FILE_LIST_EXCLUSION_Q);
   }
 }
 

@@ -8,6 +8,16 @@ import type { FileFamily } from "../../../registry/fields/file.ts";
 export const ADD_FILE_AGAIN_SENTENCE =
   "I can’t save that file in this field. Mind adding it here again?";
 
+/**
+ * A save whose list holds more files than its field takes, in the words `design/controls.html`
+ * settles for the save. One over asks for one removal, more ask for a few.
+ */
+export function tooManyFilesSentence(count: number, cap: number): string {
+  const ask = count - cap === 1 ? "one" : "a few";
+  const files = cap === 1 ? "file" : "files";
+  return `This field takes up to ${cap} ${files}, and it has ${count}. Mind removing ${ask}?`;
+}
+
 /** What a field of one family says of a file admission refused. */
 export const NOT_ADMITTED_SENTENCES = {
   image: "That isn’t a photo I can show here. Mind picking a different one?",

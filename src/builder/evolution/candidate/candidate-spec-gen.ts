@@ -97,7 +97,7 @@ export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): str
     `  - ${platformOwnedErrorCodeList()} are platform-owned; never author any of them. Behavior-specific cases beyond the required pair may target any action in tools; keep every "action"/"trigger"/"code" combination unique.`,
     "",
     "Field pantry:",
-    `- a field's type is one of: ${fieldTypes}. string[] is the only list type; there are no relations.`,
+    `- a field's type is one of: ${fieldTypes}. string[] is the only list of typed values, and file[] a list of files; there are no relations.`,
     "- a field declares values and groups only when its type is choice. Every other field omits both keys entirely (send null for them in the structured output).",
     `- a choice field declares values: an ordered array of at least one option. An option is { value, label, group, note, disabled }, and every option sends all five keys — send null for group, note and disabled when it has none. Values are unique within the field. A note is one short qualifying phrase of at most ${MAX_CHOICE_OPTION_NOTE_LENGTH} characters.`,
     `- an option's value and label are each one line of at most ${MAX_CHOICE_OPTION_VALUE_LENGTH} and ${MAX_CHOICE_OPTION_LABEL_LENGTH} characters, and no authored string an option or a group carries may hold a control character.`,
