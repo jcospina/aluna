@@ -81,6 +81,7 @@ describe("a photo that travels in", () => {
       await files.upload(sampleFile("webp"), { name: "tide.webp" }),
     );
     const saved = await files.app().request("/capability/photos/create", createBody("Tide", key));
+    await files.cleaned();
     expect(saved.status).toBe(200);
     expect(files.ledgerRows()).toEqual([expect.objectContaining({ key, state: "owned" })]);
   });

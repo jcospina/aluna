@@ -11,8 +11,10 @@ import {
 } from "../../persistence/scratch-db.test-support.ts";
 import { seedFileLedgerRow } from "./ledger.test-support.ts";
 import {
+  ANY_PENDING_FILE_SQL,
   deleteCleanedFile,
   ENQUEUED_FILES_SQL,
+  enqueueAllPendingFiles,
   enqueueDisplacedFile,
   enqueuePendingFile,
   enqueueRecordFiles,
@@ -25,6 +27,7 @@ import {
   readFileLedgerRow,
   reassignRecordFiles,
   recordFileCleanupFailure,
+  SWEEP_PENDING_FILES_SQL,
 } from "./ledger.ts";
 
 let env: ScratchDbEnv;
@@ -49,19 +52,23 @@ function seed(overrides: Partial<Parameters<typeof seedFileLedgerRow>[1]> = {}):
 }
 
 describe("the file ledger table", () => {
-  test("is indexed by record and by incarnation, and its cleanup queue by its enqueued keys", () => {
+  test("is indexed by record and incarnation, and its pending and enqueued keys by state", () => {
     const indexes = pragma(`PRAGMA index_list(${FILE_LEDGER_TABLE})`).filter(
       (index) => index.origin === "c",
     );
     const indexed = indexes.map((index) =>
       pragma(`PRAGMA index_info(${String(index.name)})`).map((c) => c.name),
     );
-    expect(indexed.sort()).toEqual([["incarnation_id"], ["key"], ["record_id"]]);
-    expect(indexes.filter((index) => index.partial === 1)).toHaveLength(1);
-    const plan = pragma(`EXPLAIN QUERY PLAN ${ENQUEUED_FILES_SQL}`);
-    expect(plan.map((step) => String(step.detail)).join(" ")).toContain(
-      `INDEX ${FILE_LEDGER_TABLE}_cleanup`,
-    );
+    expect(indexed.sort()).toEqual([["incarnation_id"], ["key"], ["key"], ["record_id"]]);
+    expect(indexes.filter((index) => index.partial === 1)).toHaveLength(2);
+    const planOf = (sql: string) =>
+      pragma(`EXPLAIN QUERY PLAN ${sql}`)
+        .map((step) => String(step.detail))
+        .join(" ");
+    expect(planOf(ENQUEUED_FILES_SQL)).toContain(`INDEX ${FILE_LEDGER_TABLE}_cleanup`);
+    for (const sql of [ANY_PENDING_FILE_SQL, SWEEP_PENDING_FILES_SQL]) {
+      expect(planOf(sql)).toContain(`INDEX ${FILE_LEDGER_TABLE}_pending`);
+    }
   });
 
   test("a fresh row is pending, unclaimed, stamped, and has no cleanup history", () => {
@@ -124,6 +131,22 @@ describe("giving up a key", () => {
       "owned",
       "owned",
       "pending",
+    ]);
+  });
+
+  test("a desk load gives up every pending key, in every incarnation, and nothing else", () => {
+    const pending = [seed(), seed({ field: "cover" }), seed({ incarnationId: "another" })];
+    const owned = seed({ state: "owned", recordId: "record-1" });
+    const enqueued = seed({ state: "cleanup_enqueued" });
+
+    expect(enqueueAllPendingFiles(env.conns.readwrite)).toBe(pending.length);
+    expect(enqueueAllPendingFiles(env.conns.readwrite)).toBe(0);
+    expect([...pending, owned, enqueued].map(stateOf)).toEqual([
+      "cleanup_enqueued",
+      "cleanup_enqueued",
+      "cleanup_enqueued",
+      "owned",
+      "cleanup_enqueued",
     ]);
   });
 

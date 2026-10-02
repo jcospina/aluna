@@ -18,7 +18,11 @@ import {
 import { insertCapability, REGISTRY_TABLE } from "../../registry/store/store.ts";
 import { notesRow } from "../../runtime/router/dispatch/router.test-support.ts";
 import { waitForLog } from "../async.test-support.ts";
-import { FILE_LEDGER_TABLE } from "../files/store/ledger.ts";
+import {
+  createFileCleanupIndex,
+  createFilePendingIndex,
+  FILE_LEDGER_TABLE,
+} from "../files/store/ledger.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,
@@ -98,6 +102,33 @@ describe("platform migrations runner", () => {
       .query(`SELECT id, applied_at FROM ${MIGRATIONS_TABLE} ORDER BY id`)
       .all() as { id: string; applied_at: string }[];
     expect(after).toEqual(before);
+  });
+
+  test("adds the ledger's cleanup and pending indexes to a ledger built before them", () => {
+    runMigrations(conns.readwrite);
+    const indexMigrations = MIGRATIONS.filter(
+      (migration) =>
+        migration.up === createFileCleanupIndex || migration.up === createFilePendingIndex,
+    ).map((migration) => migration.id);
+    const partialIndexes = () =>
+      (
+        conns.readwrite.query(`PRAGMA index_list(${FILE_LEDGER_TABLE})`).all() as {
+          name: string;
+          partial: number;
+        }[]
+      )
+        .filter((index) => index.partial === 1)
+        .map((index) => index.name)
+        .sort();
+    const built = partialIndexes();
+    expect(built).toHaveLength(2);
+    for (const name of built) conns.readwrite.exec(`DROP INDEX ${name}`);
+    for (const id of indexMigrations) {
+      conns.readwrite.run(`DELETE FROM ${MIGRATIONS_TABLE} WHERE id = ?`, [id]);
+    }
+
+    expect(runMigrations(conns.readwrite)).toEqual(indexMigrations);
+    expect(partialIndexes()).toEqual(built);
   });
 
   test("a later boot reconciles an abandoned running generation", () => {
