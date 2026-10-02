@@ -545,12 +545,16 @@ _Avoid_: file id, attachment, blob, upload
 **Pending upload**:
 A file already streamed in and admitted, held under durable pending ownership
 while the person is still filling the form. It is refusable before the save and
-belongs to nobody until one commits it. Leaving a record whose form holds one
+belongs to nobody until one commits it. The pending-only route takes one back as
+soon as the form lets it go unsaved: a later pick replaced it, the person cleared
+it or dropped it from a list, or its window or record left the desk. A save whose
+Handler never stored one gives it up in its own transaction. The route moves only
+keys still pending, so a save that got there first keeps its file. Leaving a record whose form holds one
 asks first, through the same question that guards a running build, and a
-confirmed leave deletes it. Anything a crash, a kill or a closed tab leaves
-behind is taken by the **desk-load sweep**, since a reload destroys an open form;
-a second tab's form loses its upload that way, and its save is refused with a
-sentence asking for the file again. Nothing waits on a timer.
+confirmed leave deletes it. Anything a crash, a kill or a closed tab leaves behind
+is taken by the **desk-load sweep**, since a reload destroys an open form; a
+second tab's form loses its upload that way, and its save is refused with a
+sentence asking for the file again. No pending upload expires on a timer.
 _Avoid_: staged file, temp file, draft upload
 
 **File ledger**:

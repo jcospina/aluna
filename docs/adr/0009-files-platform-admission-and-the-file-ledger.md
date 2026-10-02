@@ -92,8 +92,12 @@ add nothing but a refusal for a Handler that copied the projection.
 ## Consequences
 
 **Uploading ahead of the save creates an abandoned pending upload** — bytes with
-no record, when someone picks a file and never saves. Two paths discharge it and
-neither is a timer. Leaving a record whose form holds an upload asks first, on
+no record, when someone picks a file and never saves. Three paths discharge it and
+none is a timer. A form that lets an upload go unsaved hands its key to the
+pending-only route at once: a file a later pick replaced, one the person cleared
+or dropped, or one held by a form whose window or record left the desk. A save
+whose Handler never stored a key it carried gives that key up in its own
+transaction. Leaving a record whose form holds an upload asks first, on
 every in-desk exit, through the inline question that already guards a running
 build, and a confirmed leave deletes the held files; a form with nothing uploaded
 still dies silently, and there is no `beforeunload` dialog for an upload (a voice

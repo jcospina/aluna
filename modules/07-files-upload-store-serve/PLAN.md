@@ -409,6 +409,10 @@ in ADR-0009, and in the architecture and design documents.
       nowhere but the tab until its upload lands, so while one is being made, uploaded or kept
       unsent the page asks the browser's own question before it unloads, and asks nothing once
       it lands or is thrown away *(7.2/04)*.
+    - *A save that never stores its upload.* A Handler can answer ok without writing a
+      file the save carried. The form then counts that upload saved and never sends it
+      again, so the save gives up each key it carried that is still `pending` once the
+      Handler answers, inside its own transaction *(7.3/02)*.
     - *The desk-load sweep.* A reload destroys an open form, so every `pending` key
       standing when the desk loads is taken as an orphan and enqueued for cleanup. The
       sweep is queued on the coordinator when the load request arrives, and the render
@@ -508,7 +512,7 @@ The tracer bullet, through every layer a photo touches.
 - **The control:** the platform upload control's empty, filled and progress states for an
   image, and its preview; the save held while an upload is in flight, and a replacement
   that aborts the upload it displaced. A finished upload the form displaced or abandoned
-  stays `pending` until the pending-only route arrives in 7.3.
+  stayed `pending` until 7.3/02's pending-only route took it.
 
 Done when "keep track of my photos" typed into the prompt bar builds a capability with a
 `file` field, a photo uploads with a visible progress line, the card shows it, editing the

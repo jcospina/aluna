@@ -519,3 +519,21 @@ describe("what generated code hands back is the list the router checked, or noth
     }
   });
 });
+
+describe("an edit whose Handler never writes the list", () => {
+  const albums = useAlbumsRouter();
+
+  test("keeps the files the record holds and gives up the ones it added", async () => {
+    const kept = albums.mint();
+    const id = await albums.saved([kept]);
+    const added = albums.mint();
+    const answersWithoutWriting: HandlerLoader = async () => async () => "<p>card</p>";
+
+    const response = await albums.edit(id, [kept, added], answersWithoutWriting);
+
+    expect(response.status).toBe(200);
+    expect(albums.albumOf(id)).toEqual([kept]);
+    expect(albums.state(kept)).toBe("owned");
+    expect(albums.state(added)).toBe("gone");
+  });
+});

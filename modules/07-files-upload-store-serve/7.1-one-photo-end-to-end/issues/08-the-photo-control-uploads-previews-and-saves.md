@@ -7,7 +7,9 @@ control matches the drawing.
 
 Superseded in part by 7.3/01: a replaced or cleared photo's bytes and row now go once the save
 commits, and a replace or clear posted from a stale form answers `record_changed` and gives
-nothing up. The text below records this issue as it landed.
+nothing up. Since 7.3/02, a finished upload the form displaced or abandoned goes to the
+pending-only route at once instead of staying `pending`. The text below records this issue as it
+landed.
 
 ## Epic
 

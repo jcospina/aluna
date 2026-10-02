@@ -45,14 +45,15 @@ const UNNAMED_REGION = "—";
  */
 
 /**
- * `contains` is declared against the DOM's own signature, so asking it about a scope
- * anchor is the one place this file has to insist the two are the same thing. An element is asked
- * through its prototype: a form answers to its fields' names first, and one may be `contains`.
+ * Whether `node` is `other` or holds it. `contains` is declared against the DOM's own signature, so
+ * asking it about a scope anchor is the one place this file has to insist the two are the same
+ * thing. An element is asked through its prototype: a form answers to its fields' names first, and
+ * one may be `contains`.
  *
- * @param {ScopeAnchor} node
- * @param {ScopeAnchor} other
+ * @param {Pick<ScopeAnchor, "contains">} node
+ * @param {unknown} other
  */
-function holds(node, other) {
+export function holds(node, other) {
   const asked =
     typeof Element !== "undefined" && node instanceof Element ? Element.prototype : node;
   return (

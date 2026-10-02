@@ -5,6 +5,7 @@ export {
   FILE_REMOVE_PREFIX,
   type FileClaimScope,
   fileClaimScope,
+  releaseUnclaimedFiles,
   resolveSubmittedFiles,
   type SubmittedFiles,
   submittedFileProjection,

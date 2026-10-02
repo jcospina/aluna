@@ -314,7 +314,7 @@ describe("a replace whose save never commits wakes no cleanup", () => {
     expect(photos.onDisk(old)).toBe(true);
   });
 
-  test("an update that fails gives both keys back, even to a Handler that answers anyway", async () => {
+  test("an update that fails keeps the old key, and the new one it never stored is given up", async () => {
     const old = photos.mint();
     const id = await photos.save(old);
     const next = photos.mint();
@@ -341,7 +341,7 @@ describe("a replace whose save never commits wakes no cleanup", () => {
     expect(response.status).toBe(200);
     expect(photos.photoOf(id)).toMatchObject({ key: old });
     expect(photos.ledger(old)).toMatchObject({ state: "owned", record_id: id });
-    expect(photos.ledger(next)).toMatchObject({ state: "pending", record_id: null });
+    expect(photos.gone(next)).toBe(true);
     expect(photos.onDisk(old)).toBe(true);
   });
 });

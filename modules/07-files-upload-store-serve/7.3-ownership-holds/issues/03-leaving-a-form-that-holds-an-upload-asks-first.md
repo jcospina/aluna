@@ -39,6 +39,18 @@ files the server deletes, and hands the held keys to 7.3/02's pending-only route
 out leaves the form and its upload untouched. A form with nothing uploaded still closes
 without asking.
 
+**What 7.3/02 left for this issue.** `holdsUpload(scope)` in
+`public/controls/held-uploads.js` answers whether any file control under `scope` holds an
+upload no save claimed or is still sending one; that is the question's trigger. The
+discard half already runs: a control that leaves the page aborts its in-flight upload
+(7.1/08) and hands its held keys to the pending-only route once it is off the page. A
+confirmed leave that takes the form away therefore needs no call of its own, and until
+this issue lands every such leave discards without asking. A leave while a save is out
+aborts that save's request too, and its keys still go to the route, which leaves them
+alone if the save committed first. Back and Cancel are disabled during a save, but
+putting the window away and pressing another logo are not; what those exits do while a
+save is out is this issue's to decide.
+
 **No `beforeunload` dialog.** iOS Safari ignores it, a request sent after one is
 unreliable, and a killed tab, a dead battery or a restarted server sends nothing at all.
 A reload is 7.3/04's desk-load sweep's to handle.

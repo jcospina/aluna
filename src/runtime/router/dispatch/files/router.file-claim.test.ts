@@ -298,7 +298,7 @@ describe("a save that does not finish gives its key back", () => {
     expect(photos.ledger(key)).toMatchObject({ state: "pending", record_id: null });
   });
 
-  test("an insert that fails gives the key back, even to a Handler that answers anyway", async () => {
+  test("an insert that fails stores nothing, and the key a Handler answered anyway over is given up", async () => {
     const key = photos.mint();
     photos.conns().readwrite.exec(
       `CREATE TRIGGER "refuse_photos" BEFORE INSERT ON "cap_photos"
@@ -319,6 +319,6 @@ describe("a save that does not finish gives its key back", () => {
 
     expect(response.status).toBe(200);
     expect(photos.stored()).toEqual([]);
-    expect(photos.ledger(key)).toMatchObject({ state: "pending", record_id: null });
+    expect(photos.gone(key)).toBe(true);
   });
 });

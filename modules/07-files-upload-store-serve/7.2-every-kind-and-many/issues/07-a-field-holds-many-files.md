@@ -3,8 +3,9 @@
 Status: ready-for-agent — built and verified; waiting on the owner's sign-off
 
 Superseded in part by 7.3/01: a removed entry's bytes and row now go once the save commits, and
-a list keeping a file it was drawn with that it no longer holds answers `record_changed`. The
-text below records this issue as it landed.
+a list keeping a file it was drawn with that it no longer holds answers `record_changed`. Since
+7.3/02, an unsaved file a list drops goes to the pending-only route at once instead of staying
+`pending`. The text below records this issue as it landed.
 
 ## Epic
 

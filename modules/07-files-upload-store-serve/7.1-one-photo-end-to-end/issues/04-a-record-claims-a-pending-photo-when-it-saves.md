@@ -3,7 +3,9 @@
 Status: done
 
 Superseded in part by 7.3/01: an enqueued key's bytes and row now go once the save that
-displaced it commits. The text below records this issue as it landed.
+displaced it commits. Since 7.3/02, a pending key a committed save carried but never stored,
+as when a Handler catches a failed insert and answers anyway, is given up in that save's
+transaction. The text below records this issue as it landed.
 
 ## Epic
 

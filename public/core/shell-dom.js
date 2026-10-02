@@ -47,6 +47,9 @@ export const IDLE_LABEL_ATTRIBUTE = "data-idle-label";
 /** The header an upload names its file in, percent-encoded: a header cannot carry `日本.jpg`. */
 export const FILE_NAME_HEADER = "x-file-name";
 
+/** Where a form hands back the uploads it let go of that no save claimed: the pending-only route. */
+export const FILE_DISCARD_PATH = "/files/discard";
+
 /**
  * What the server draws on a file field for `file-field.js`: where its upload goes, the cap and its
  * sentence, the one input it posts with the key it was drawn holding, the clear, and whether it may
@@ -100,12 +103,12 @@ export const RECORD_CREATED_EVENT = "aluna:record-created";
 export const CREATE_CANCELLED_EVENT = "aluna:create-cancelled";
 
 /**
- * Hand `reset` the create form each time one finishes, saved or put down. Cancel is said by the
- * control that was pressed, so both are read up to the form; the prototype's `closest`, because a
- * form's own is clobbered by a control named `closest`.
+ * Hand `reset` the create form each time one finishes, and whether it was saved or put down.
+ * Cancel is said by the control that was pressed, so both are read up to the form; the prototype's
+ * `closest`, because a form's own is clobbered by a control named `closest`.
  *
  * @param {{ addEventListener(type: string, listener: (event: Event) => void): void }} root
- * @param {(form: HTMLFormElement) => void} reset
+ * @param {(form: HTMLFormElement, saved: boolean) => void} reset
  */
 export function onCreateFinished(root, reset) {
   for (const finished of [RECORD_CREATED_EVENT, CREATE_CANCELLED_EVENT]) {
@@ -113,7 +116,7 @@ export function onCreateFinished(root, reset) {
       const { target } = event;
       const form =
         target instanceof Element ? Element.prototype.closest.call(target, "form") : null;
-      if (form instanceof HTMLFormElement) reset(form);
+      if (form instanceof HTMLFormElement) reset(form, finished === RECORD_CREATED_EVENT);
     });
   }
 }

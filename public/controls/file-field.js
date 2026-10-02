@@ -26,6 +26,7 @@ import {
   onCreateFinished,
   FILE_FIELD_ATTRIBUTES as WIRE,
 } from "../core/shell-dom.js";
+import { heldUploads } from "./held-uploads.js";
 
 /**
  * @typedef {import("../../design/scripts/files/file-field.js").Held} Held
@@ -53,6 +54,9 @@ const KEYS = new WeakMap();
 
 /** @param {Held} held @returns {string | undefined} */
 export const admittedKey = (held) => KEYS.get(held);
+
+/** @param {readonly (Held | null)[]} helds @returns {string[]} */
+const admittedKeys = (helds) => helds.flatMap((held) => (held && KEYS.get(held)) || []);
 
 /**
  * What a field posts for what it holds now: the key an upload answered a file it took with, the
@@ -244,6 +248,7 @@ export function uploadTransfer(open) {
         try {
           const admitted = settleUpload(request.status, request.responseText, limits);
           KEYS.set(admitted.held, admitted.key);
+          heldUploads.arrived(host, admitted.key);
           resolve(admitted.held);
         } catch (error) {
           reject(error);
@@ -261,7 +266,12 @@ export function uploadTransfer(open) {
     if (picked.type !== "") request.setRequestHeader("Content-Type", picked.type);
     request.send(picked.file);
     const release = registerRegionRelease(host, "file upload", () => request.abort());
-    done.then(release, release);
+    const landed = heldUploads.travelling(host);
+    const settled = () => {
+      release();
+      landed();
+    };
+    done.then(settled, settled);
     return { done, abort: () => request.abort() };
   };
 }
@@ -270,9 +280,10 @@ export function uploadTransfer(open) {
 function keepValueInStep(event) {
   const host = event.target;
   if (!(host instanceof HTMLElement)) return;
+  const change = /** @type {CustomEvent<FileFieldChange>} */ (event).detail;
+  heldUploads.heard(host, admittedKeys([change.current]), admittedKeys([change.saved]));
   const input = host.querySelector(VALUE);
   if (!(input instanceof HTMLInputElement)) return;
-  const change = /** @type {CustomEvent<FileFieldChange>} */ (event).detail;
   const drawn = {
     held: input.getAttribute(WIRE.heldKey) ?? "",
     clear: input.getAttribute(WIRE.clearValue) ?? "",
@@ -284,12 +295,13 @@ function keepValueInStep(event) {
 function keepListInStep(event) {
   const host = event.target;
   if (!(host instanceof HTMLElement)) return;
-  const holder = host.querySelector(KEY_HOLDER);
-  if (!(holder instanceof HTMLElement)) return;
   const change =
     /** @type {CustomEvent<import("../../design/scripts/files/file-list.js").FileListChange>} */ (
       event
     ).detail;
+  heldUploads.heard(host, admittedKeys(change.current), admittedKeys(change.saved));
+  const holder = host.querySelector(KEY_HOLDER);
+  if (!(holder instanceof HTMLElement)) return;
   // What the list holds as saved is the baseline its removals are counted from: what it was
   // drawn holding, until a save keeps what it holds then.
   const drawn = {
@@ -316,7 +328,11 @@ function keepListInStep(event) {
 export function wireFileFields(root, settle = settleFileFields) {
   root.addEventListener(FILE_FIELD_CHANGE, keepValueInStep);
   root.addEventListener(FILE_LIST_CHANGE, keepListInStep);
-  onCreateFinished(root, (form) => settle(form, "revert"));
+  onCreateFinished(root, (form, saved) => {
+    // Before the put-back, which would otherwise give back what the create just saved.
+    if (saved) heldUploads.claimed(form);
+    settle(form, "revert");
+  });
   root.addEventListener(
     "submit",
     (event) => {

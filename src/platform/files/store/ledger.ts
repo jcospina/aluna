@@ -171,6 +171,16 @@ export function enqueuePendingFile(database: Database, key: string): boolean {
 }
 
 /**
+ * Give up each of `keys` still `pending`, in one transaction: a form let go of them unsaved. A key
+ * already owned, enqueued or gone is left as it is. Answers how many moved.
+ */
+export function enqueuePendingFiles(database: Database, keys: readonly string[]): number {
+  return database.transaction(
+    () => keys.filter((key) => enqueuePendingFile(database, key)).length,
+  )();
+}
+
+/**
  * Move a `pending` key to `owned` by `recordId`. False when the row is no longer `pending`, which
  * the caller refuses: the check it made before this ran is what a sweep or another save outran.
  */
