@@ -28,7 +28,11 @@ import {
   setMaximised,
 } from "../../../design/scripts/window/window-gestures.js";
 import { RELEASE_REGION_EVENT } from "../../core/region-scope.js";
-import { ACTIVE_CAPABILITY_ATTRIBUTE, WINDOW_CONTENT_ID } from "../../core/shell-dom.js";
+import {
+  ACTIVE_CAPABILITY_ATTRIBUTE,
+  PROMPT_FORM_ID,
+  WINDOW_CONTENT_ID,
+} from "../../core/shell-dom.js";
 import {
   capabilityAddress,
   capabilityIdFromAddress,
@@ -69,14 +73,13 @@ export const WINDOW_LAYER_SELECTOR = ".desk__windows";
 /** A capability's logo, the one way a capability's collection reaches the window. */
 export const CAPABILITY_LOGO_SELECTOR = "[data-capability-logo]";
 
-/** The prompt bar's form. A build needs a window to narrate into. */
-export const PROMPT_FORM_ID = "spec-build-form";
-
 /**
  * The window's content region. The id is the temporary shell's and every existing
  * swap still addresses it; what changed is where it lives and who makes it.
  */
 export { WINDOW_CONTENT_ID } from "../../core/shell-dom.js";
+/** The prompt bar's form. A build needs a window to narrate into. */
+export { PROMPT_FORM_ID };
 
 /**
  * What `region-scope.js` reports this region as when it releases it. Named for the content, never
@@ -541,7 +544,8 @@ function addLamps(entry) {
         pushAddress(DESK_ADDRESS, deskHistory());
       };
       /* Not silent when there is something to lose (design D3, as decision 17 amends it): the
-       * lamp still means put away, and simply asks first when it would take a run with it. */
+       * lamp still means put away, and simply asks first when it would take a run or unsaved
+       * changes with it (Module 7 PLAN decision 32). */
       if (!askBeforeLeaving(entry.el, away)) away();
     }
   });
@@ -939,8 +943,8 @@ function openPressedCapability(root, logo) {
  */
 function answerPress(root, logo) {
   if (pressWouldOpen(logo, settledCapabilityInWindow(mounted))) {
-    /* A switch that would replace a live run asks first, and a yes replays the press itself, so
-     * there is no second opener to keep in step with this one. */
+    /* A switch that would replace a live run or unsaved changes asks first, and a yes replays
+     * the press itself, so there is no second opener to keep in step with this one. */
     if (askBeforeLeaving(mounted?.el ?? null, () => pressAgain(logo))) return;
     openPressedCapability(root, logo);
     return;
@@ -1091,8 +1095,8 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
 
   startDeskHistory({
     render: (landed) => renderAddress(root, landed),
-    /* A traversal that would take a live run asks first, and the answer is what moves. A desk
-     * with nothing running answers `false`, and the traversal is taken as it always was. */
+    /* A traversal that would take a live run or unsaved changes asks first, and the answer is
+     * what moves. A desk with nothing to lose answers `false`, and the traversal is taken. */
     hold: (go) => askBeforeLeaving(mounted?.el ?? null, go),
   });
   renderAddress(root, pathname);

@@ -92,7 +92,7 @@ describe("the shell and the server agree on the question", () => {
   test("the question and both answers stand on one drawn panel that claims no role", () => {
     // The panel is what the ink draws around and what the window's shadow falls from.
     const { warning, back, go } = subscriberParts();
-    const panel = warning.querySelector(".build-stream__leaving-panel") as El;
+    const panel = warning.querySelector(".window__leaving-panel") as El;
     const question = warning.querySelector("p") as El;
     expect([question, back, go].map((part) => panel.contains(part))).toEqual([true, true, true]);
     expect(panel.hasAttribute("role")).toBe(false);

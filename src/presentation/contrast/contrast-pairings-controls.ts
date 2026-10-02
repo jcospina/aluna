@@ -114,7 +114,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     ],
   },
   {
-    what: "the scrim over a build you are about to leave",
+    what: "the veil over a window you are about to leave",
     foreground: ink,
     background: surface,
     threshold: "exempt",
@@ -122,7 +122,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "A dimming layer that carries no text: the question is asked on a `--surface` " +
       "panel standing on it, which is the pairing measured above. Mixed `in srgb` " +
       "because `transparent` is transparent black and carries no hue to interpolate.",
-    sites: ["public/css/demo.css § .build-stream__leaving [background]"],
+    sites: ["design/styles/components/window.css § .window__leaving [background]"],
   },
   {
     what: "the focus ring inside a window",

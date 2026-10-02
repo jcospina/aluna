@@ -302,9 +302,11 @@ carried it, the desk puts none anywhere else, and only the name is left.
     put-away/logo/history continuation without flashing restoration or duplicating
     history; ordinary Cancel still restores. This is an amendment to D3: close still means put away and
     still changes nothing in storage, but it is no longer silent when there is
-    running work to cancel. It does not create draft persistence or dirty-form
-    tracking: idle search/record/draft state remains deliberately DOM-only under
-    decision 6 and is discarded when put away.
+    running work to cancel. It does not create draft persistence: idle
+    search/record/draft state remains deliberately DOM-only under decision 6 and is
+    discarded when put away. *Amended by Module 7 (7.3/03, at the owner's direction):* a
+    record form with unsaved changes, typed or uploaded, now asks the same question
+    before any exit takes it; nothing is stored, and a reload still asks nothing.
 
 18. **Maximised is stored as a flag and recomputed against the current screen.**
     The capability-window record keeps one normal box, which is also the

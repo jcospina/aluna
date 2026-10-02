@@ -2386,6 +2386,97 @@
           control above was designed against. The earlier benches were testing a stack that never
           occurs: three greens deep, with the wallpaper underneath.
         </p>
+
+        <h3 class="kicker" style="margin-top: 28px">Leaving with unsaved changes</h3>
+        <div class="cols">
+          <div class="stage">
+            <div class="window window--specimen" data-window data-title="Expenses">
+              <div class="form" style="min-height: 15rem">
+                <label class="field">
+                  <span class="field__label">Merchant</span>
+                  <span class="field__control"
+                    ><input
+                      class="field__input"
+                      type="text"
+                      value="Corner Café"
+                      tabindex="-1"
+                    ></span
+                  >
+                </label>
+                <p class="field__label">Receipt</p>
+                <p class="sm">receipt-march.jpg · 2.4 MB</p>
+              </div>
+              <div class="window__leaving">
+                <div class="window__leaving-panel">
+                  <p id="leaving-unsaved-drawn">
+                    You have unsaved changes, are you sure you want to leave?
+                  </p>
+                  <div class="window__leaving-actions">
+                    <button
+                      class="btn btn--warm"
+                      type="button"
+                      aria-describedby="leaving-unsaved-drawn"
+                    >
+                      Keep editing
+                    </button>
+                    <button
+                      class="btn btn--outline"
+                      type="button"
+                      aria-describedby="leaving-unsaved-drawn"
+                    >
+                      Leave without saving
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="stage">
+            <div class="window window--specimen" data-window data-title="Building…">
+              <div style="min-height: 15rem">
+                <p class="sm">Setting up a place for your expenses.</p>
+                <p class="sm">Adding a field for the receipt.</p>
+              </div>
+              <div class="window__leaving">
+                <div class="window__leaving-panel">
+                  <p id="leaving-run-drawn">
+                    If you leave now, I’ll stop making this. Nothing you already have will change.
+                  </p>
+                  <div class="window__leaving-actions">
+                    <button
+                      class="btn btn--warm"
+                      type="button"
+                      aria-describedby="leaving-run-drawn"
+                    >
+                      Keep making it
+                    </button>
+                    <button
+                      class="btn btn--outline"
+                      type="button"
+                      aria-describedby="leaving-run-drawn"
+                    >
+                      Stop and leave
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="xs" style="margin-top: 14px">
+          A record form with unsaved changes asks before anything takes it away: putting the window
+          away, another logo, Back and Forward, a prompt, Delete on a logo's menu, the form's own
+          Back and Cancel, another record. A change is a field that differs from what it held when
+          you started on the form, or a file still uploading or uploaded and not yet saved. It is
+          the question a running build asks, on the right, over the window it is about. Focus lands
+          on <strong>Keep editing</strong>, which changes nothing.
+          <strong>Leave without saving</strong>
+          lets the changes go, files included, and then does what was pressed. A form nobody
+          changed, or one changed back to what it held, closes without asking, and so does one whose
+          save is already on its way. The new-record panel's back link asks like its Cancel, and
+          <strong>Leave without saving</strong>
+          puts the form down the same way.
+        </p>
       </section>
 
       <!-- ══ Decisions ═════════════════════════════════════════════════ -->

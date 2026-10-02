@@ -2,13 +2,20 @@
 
 /**
  * Leaving a run, and the question that comes first: putting the window away, pressing another
- * logo, and Back or Forward each take a run away (PLAN decision 17, amending design D3).
+ * logo, and Back or Forward each take a run away (PLAN decision 17, amending design D3). A form
+ * with unsaved changes asks the same way (Module 7 PLAN decision 32, `leaving-unsaved-changes.js`).
  */
 
 import { releaseRegionContent } from "../core/region-scope.js";
 import { buildCancelUrl } from "../core/routes.js";
 import { BUILD_JOB_ID_ATTRIBUTE, PROMPT_FIELD_ID } from "../core/shell-dom.js";
+import {
+  UNSAVED_LEAVING_BACK_SELECTOR,
+  UNSAVED_LEAVING_GO_SELECTOR,
+  unsavedQuestionIn,
+} from "./leaving-unsaved-changes.js";
 import { PROMPT_BAR_MESSAGE_EVENT } from "./prompt-bar.js";
+import { raiseWindow } from "./window/desk-stack.js";
 
 /**
  * What the desk says when a confirmed leave could not be carried out: a run whose story cannot be
@@ -56,6 +63,7 @@ const BUILD_ENDING_SELECTOR = "[data-build-ending]";
 /* The commit lands one event before the stream closes, and in that gap the run still carries a job
    id while `demo.css` has taken the question out of the page — a question nobody can see. */
 const BUILD_COMMIT_SELECTOR = ".build-stream__commit";
+const RUN_NARRATION_SELECTOR = ".build-stream__narration";
 
 /** The run's own control, whose place the question takes while it stands. */
 const RUN_CONTROL_SELECTOR = ".build-stream__cancel";
@@ -131,6 +139,34 @@ export function buildRunIn(el) {
 export function runIsUsingWindow(el) {
   const run = buildRunIn(el);
   return run !== null && run.querySelector(BUILD_ENDING_SELECTOR) === null;
+}
+
+/**
+ * Whether the prompt bar refuses a sentence for the run in this window: one going that has not
+ * turned out to be a question, read the way `runIsUsingTheWindow` in `public/app.js` reads it. A
+ * run marked to hand the window back still counts here until its stream closes.
+ *
+ * @param {WindowNode} el
+ * @returns {boolean}
+ */
+export function runRefusesThePrompt(el) {
+  const run = el.querySelector(`[${RUN_ID_ATTRIBUTE}]:not([${QUESTION_RUN_ATTRIBUTE}])`);
+  return run !== null && run.querySelector(BUILD_ENDING_SELECTOR) === null;
+}
+
+/**
+ * Whether a run going in this window has drawn anything yet. Until it has, the sentence is still
+ * being worked out and the form it was sent over is still on screen, live, under nothing.
+ *
+ * @param {WindowNode} el
+ * @returns {boolean}
+ */
+export function runHasDrawn(el) {
+  const run = buildRunIn(el);
+  if (run === null || run.querySelector(BUILD_ENDING_SELECTOR) !== null) return false;
+  return [RUN_NARRATION_SELECTOR, BUILD_COMMIT_SELECTOR].some((part) =>
+    holdsSomething(run.querySelector(part)),
+  );
 }
 
 /**
@@ -365,42 +401,114 @@ function setQuestion(run, asking) {
 }
 
 /**
+ * One question, a run's or a form's: how it shows and hides, whether it is still on the page, where
+ * its back-out is, and what ending what it asks about takes. `run` is the run it stands for, which
+ * a stream's end voids.
+ *
+ * @typedef {{ api?: Htmx | undefined, post?: (url: string) => void, release?: (run: never) => void }} EndHow
+ * @typedef {{ keep?: boolean, pressed?: unknown }} LeaveHow
+ * @typedef {{
+ *   run: unknown,
+ *   show: (asking: boolean) => void,
+ *   stands: () => boolean,
+ *   backOut: () => Answerable | null,
+ *   end: (how?: EndHow) => boolean,
+ * }} Question
+ */
+
+/**
+ * The run's question, standing in its own surface.
+ *
+ * @param {WindowNode} el @param {RunNode} run
+ * @returns {Question}
+ */
+function runQuestion(el, run) {
+  const warning = () => run.querySelector(LEAVING_WARNING_SELECTOR);
+  return {
+    run,
+    show: (asking) => void setQuestion(run, asking),
+    stands: () => buildRunIn(el) === run,
+    backOut: () => warning()?.querySelector?.(LEAVING_BACK_SELECTOR) ?? null,
+    end: (how) => endRunIn(el, how),
+  };
+}
+
+/**
+ * The question a navigation that takes `scope` out of `el` owes, already showing, or null when it
+ * costs nothing. A run that has drawn comes first, since the form under it is hidden. One still
+ * working out its sentence has left the form on screen: a form with changes asks its own question,
+ * and a yes ends the run as well, which the navigation would otherwise take with it.
+ *
+ * @param {WindowNode} el @param {unknown} scope @param {LeaveHow} how
+ * @returns {Question | null}
+ */
+function questionFor(el, scope, { keep = false, pressed = null }) {
+  if (buildJobIdIn(el) !== null && !runHasDrawn(el)) {
+    const ending = () => buildJobIdIn(el) === null || endRunIn(el);
+    const unsaved = unsavedQuestionIn(el, /** @type {never} */ (scope), {
+      keep,
+      pressed,
+      alsoEnd: ending,
+    });
+    if (unsaved !== null) {
+      unsaved.show(true);
+      return unsaved;
+    }
+  }
+  if (buildJobIdIn(el) !== null) {
+    const run = buildRunIn(el);
+    /* No row to ask with is not a reason to trap the person in the window: swallowing their
+     * navigation would hide the shell's bug behind a control that looks broken. */
+    if (run === null || !setQuestion(run, true)) return null;
+    // A question in a window behind another, or off the page on a phone, cannot be answered.
+    raiseWindow(el);
+    return runQuestion(el, run);
+  }
+  const unsaved = unsavedQuestionIn(el, /** @type {never} */ (scope), { keep, pressed });
+  unsaved?.show(true);
+  return unsaved;
+}
+
+/**
  * The navigation the desk is holding while the person answers, or nothing. One at a time: the
  * person is being asked one thing, and answering it is what moves.
  *
- * @type {{ el: WindowNode, run: RunNode, go: () => void } | null}
+ * @type {{ question: Question, go: () => void } | null}
  */
 let asking = null;
 
-/** Whether a navigation is being held. @returns {boolean} */
+/**
+ * Whether a navigation is being held. A question whose window went from under it, put away by
+ * the desk itself, holds nothing: left standing, it would swallow every navigation after it.
+ *
+ * @returns {boolean}
+ */
 export function leavingIsBeingAsked() {
+  if (asking !== null && !asking.question.stands()) asking = null;
   return asking !== null;
 }
 
 /**
- * Ask before leaving, if there is a run to lose.
+ * Ask before leaving, if there is a run or an unsaved change to lose.
  *
  * @param {WindowNode | null} el the window the navigation would take
  * @param {() => void} go what to do once the person says to leave
+ * @param {unknown} [scope] what in the window it takes, when that is one form and not all of it
+ * @param {LeaveHow} [how] whether a yes gives nothing up, the navigation perhaps not taking the
+ *   form, and what was pressed, for focus to go back to when the person stays
  * @returns {boolean} whether the navigation is being held — the caller goes ahead itself
- *   when it is not, so a desk with nothing running behaves exactly as it always has
+ *   when it is not, so a desk with nothing to lose behaves exactly as it always has
  */
-export function askBeforeLeaving(el, go) {
-  if (asking !== null) {
+export function askBeforeLeaving(el, go, scope = el, how = {}) {
+  if (leavingIsBeingAsked() && asking !== null) {
     /* A second navigation while the question stands is dropped rather than queued. Focus goes
      * back to the question, so the press is answered rather than looking broken. */
-    asking.run
-      .querySelector(LEAVING_WARNING_SELECTOR)
-      ?.querySelector?.(LEAVING_BACK_SELECTOR)
-      ?.focus?.();
+    asking.question.backOut()?.focus?.();
     return true;
   }
-  if (el === null || buildJobIdIn(el) === null) return false;
-  const run = buildRunIn(el);
-  /* No row to ask with is not a reason to trap the person in the window: swallowing their
-   * navigation would hide the shell's bug behind a control that looks broken. */
-  if (run === null || !setQuestion(run, true)) return false;
-  asking = { el, run, go };
+  const question = el === null ? null : questionFor(el, scope, how);
+  if (question === null) return false;
+  asking = { question, go };
   return true;
 }
 
@@ -411,16 +519,16 @@ export function askBeforeLeaving(el, go) {
  * @returns {boolean} whether there was a question to back out of
  */
 export function backOutOfLeaving() {
-  const held = asking;
+  const held = leavingIsBeingAsked() ? asking : null;
   if (held === null) return false;
   asking = null;
-  setQuestion(held.run, false);
+  held.question.show(false);
   return true;
 }
 
 /**
- * The person said to leave. The run ends once, here, and then what they asked for
- * happens — with nothing of the run's own left to arrive in between.
+ * The person said to leave. The run ends once, here, or the form is given up, and then what
+ * they asked for happens — with nothing of the run's own left to arrive in between.
  *
  * @param {{ activeElement?: unknown, body?: unknown, getElementById?: (id: string) => Answerable | null }} root
  * @param {{
@@ -432,14 +540,14 @@ export function backOutOfLeaving() {
  * @returns {boolean} whether there was a question to answer
  */
 export function goAheadAndLeave(root, how) {
-  const held = asking;
+  const held = leavingIsBeingAsked() ? asking : null;
   if (held === null) return false;
   asking = null;
   /* The navigation happens only where the run actually ended: a detach that could not run leaves
    * the job id intact, so continuing would re-ask for as long as the person said yes. */
-  if (!endRunIn(held.el, how)) {
+  if (!held.question.end(how)) {
     // The question comes down: clearing `asking` alone left it on screen with both answers dead.
-    setQuestion(held.run, false);
+    held.question.show(false);
     (how?.say ?? tellThePromptBar)(LEAVING_A_RUN_UNAVAILABLE);
     return false;
   }
@@ -456,10 +564,10 @@ export function goAheadAndLeave(root, how) {
  * @returns {boolean} whether a question was standing for that run
  */
 export function standDownWith(run) {
-  if (asking === null || asking.run !== run) return false;
+  if (asking === null || asking.question.run !== run) return false;
   const held = asking;
   asking = null;
-  setQuestion(held.run, false);
+  held.question.show(false);
   return true;
 }
 
@@ -474,6 +582,12 @@ function settleFocus(root) {
   if (active !== null && active !== undefined && active !== root.body) return;
   root.getElementById?.(PROMPT_FIELD_ID)?.focus?.();
 }
+
+/** Both questions' two answers. */
+const ANSWERS = {
+  back: [LEAVING_BACK_SELECTOR, UNSAVED_LEAVING_BACK_SELECTOR],
+  go: [LEAVING_GO_SELECTOR, UNSAVED_LEAVING_GO_SELECTOR],
+};
 
 /** Every root whose answers are already wired. */
 const guarded = new WeakSet();
@@ -492,8 +606,9 @@ export function startLeavingGuard(root) {
   root.addEventListener("click", (event) => {
     const pressed = /** @type {{ closest?: (selector: string) => unknown }} */ (event.target);
     if (typeof pressed?.closest !== "function") return;
-    if (pressed.closest(LEAVING_BACK_SELECTOR) !== null) backOutOfLeaving();
-    else if (pressed.closest(LEAVING_GO_SELECTOR) !== null) goAheadAndLeave(root);
+    const on = (/** @type {string[]} */ answer) => answer.some((s) => pressed.closest?.(s));
+    if (on(ANSWERS.back)) backOutOfLeaving();
+    else if (on(ANSWERS.go)) goAheadAndLeave(root);
   });
 
   /* Escape is the back-out, the exit a modal would have given for free. Asked of the document

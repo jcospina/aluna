@@ -5,9 +5,9 @@
  * (Module 7 PLAN decisions 19 and 32). A key an upload answered with is the form's to give back:
  * once its control holds it no longer, or the control leaves the page, the key goes to the
  * pending-only route at once instead of waiting for a desk load's sweep. A key a committed save
- * holds is forgotten here. One whose save the page never heard back from still goes, and the route
- * leaves it alone if that save committed. The leave warning (7.3/03) asks `holdsUpload` whether a
- * form has anything to lose.
+ * holds is forgotten here. A key a save is still carrying is the save's: a leave neither asks about
+ * it nor sends it, so a save the server committed keeps its file, and one it never did leaves the
+ * key to the desk-load sweep. The leave question (7.3/03) asks `uploadsIn` what a form would lose.
  */
 
 import { holds, registerRegionRelease } from "../core/region-scope.js";
@@ -20,10 +20,12 @@ import { FILE_DISCARD_PATH } from "../core/shell-dom.js";
  * @typedef {Pick<Host, "contains">} Scope
  * @typedef {{
  *   held: Set<string>,
+ *   carried: Set<string>,
  *   arriving: Set<string>,
- *   travelling: Set<object>,
+ *   travelling: Map<object, () => void>,
  *   unwatch: (() => void) | null,
  * }} Holding
+ * @typedef {"saved" | "refused" | "unknown"} SaveOutcome
  * @typedef {{ ok: boolean, status: number }} Answer
  * @typedef {{
  *   send?: (keys: string[]) => Promise<Answer>,
@@ -67,6 +69,30 @@ function settleHolding(holding, current, saved) {
   return gone;
 }
 
+/** @param {Holding} holding */
+const lossOf = (holding) => holding.held.size + holding.arriving.size + holding.travelling.size;
+
+/** @returns {Holding} */
+const emptyHolding = () => ({
+  held: new Set(),
+  carried: new Set(),
+  arriving: new Set(),
+  travelling: new Map(),
+  unwatch: null,
+});
+
+/** What `holding` holds goes out with a save. @param {Holding} holding */
+function carry(holding) {
+  for (const key of holding.held) holding.carried.add(key);
+  holding.held.clear();
+}
+
+/** A save ended: what it carried is the form's again, or no longer anything of the form's. */
+function landCarried(/** @type {Holding} */ holding, /** @type {boolean} */ handBack) {
+  if (handBack) for (const key of holding.carried) holding.held.add(key);
+  holding.carried.clear();
+}
+
 /** @param {HeldUploadsOptions} [options] */
 export function createHeldUploads(options = {}) {
   const send = options.send ?? sendDiscard;
@@ -76,21 +102,20 @@ export function createHeldUploads(options = {}) {
   const holdings = new Map();
   /** @type {Set<string>} */
   let batch = new Set();
+  /** @type {Map<Scope, { gone: boolean, unwatch: () => void }>} the forms a save is out from */
+  const saves = new Map();
 
   /** @param {Host} host */
   function holdingOf(host) {
-    let holding = holdings.get(host);
-    if (!holding) {
-      holding = { held: new Set(), arriving: new Set(), travelling: new Set(), unwatch: null };
-      holdings.set(host, holding);
-    }
+    const holding = holdings.get(host) ?? emptyHolding();
+    holdings.set(host, holding);
     return holding;
   }
 
   /** @param {Host} host */
   function forgetIfEmpty(host) {
     const holding = holdings.get(host);
-    if (!holding || holding.held.size + holding.arriving.size + holding.travelling.size > 0) return;
+    if (!holding || lossOf(holding) + holding.carried.size > 0) return;
     holding.unwatch?.();
     holdings.delete(host);
   }
@@ -134,8 +159,12 @@ export function createHeldUploads(options = {}) {
     discard([...holding.held, ...holding.arriving]);
     holding.held.clear();
     holding.arriving.clear();
+    holding.carried.clear();
     forgetIfEmpty(host);
   }
+
+  /** @param {Scope} scope @returns {[Host, Holding][]} */
+  const holdingsIn = (scope) => [...holdings].filter(([host]) => holds(scope, host));
 
   /**
    * Give the keys back once the control is off the page. A region asks before it swaps, while the
@@ -155,14 +184,14 @@ export function createHeldUploads(options = {}) {
 
   return {
     /**
-     * An upload set off from `host`: what `holdsUpload` counts until the returned call says it
-     * settled.
+     * An upload set off from `host`: what `uploadsIn` counts until the returned call says it
+     * settled, and what `abort` stops if the form is let go of first.
      *
-     * @param {Host} host
+     * @param {Host} host @param {() => void} [abort]
      */
-    travelling(host) {
+    travelling(host, abort = () => {}) {
       const request = {};
-      holdingOf(host).travelling.add(request);
+      holdingOf(host).travelling.set(request, abort);
       return () => {
         holdings.get(host)?.travelling.delete(request);
         forgetIfEmpty(host);
@@ -206,24 +235,72 @@ export function createHeldUploads(options = {}) {
      * @param {Scope} scope
      */
     claimed(scope) {
-      for (const [host, holding] of holdings) {
-        if (!holds(scope, host)) continue;
+      for (const [host, holding] of holdingsIn(scope)) {
         holding.held.clear();
+        holding.carried.clear();
         forgetIfEmpty(host);
       }
     },
 
     /**
-     * Whether a control in `scope` holds an upload no save has claimed, or is still sending one.
+     * A save of the form `scope` went out carrying what its controls hold, until `sent` says how
+     * it ended. A form the region takes away meanwhile is noted, since its abort reads as unknown.
+     *
+     * @param {Scope & Host} scope
+     */
+    sending(scope) {
+      if (saves.has(scope)) return;
+      for (const [, holding] of holdingsIn(scope)) carry(holding);
+      const save = { gone: false, unwatch: () => {} };
+      save.unwatch = watch(scope, "save carrying uploads", () => {
+        save.gone = true;
+      });
+      saves.set(scope, save);
+    },
+
+    /**
+     * How the save of `scope` ended. A refused one, or one unheard from by a form still standing,
+     * hands its keys back to the form, which gives them to the route once it is off the page. A
+     * committed one keeps them, and so does one cut off by its form going: the sweep decides.
+     *
+     * @param {Scope} scope @param {SaveOutcome} outcome
+     */
+    sent(scope, outcome) {
+      const save = saves.get(scope);
+      saves.delete(scope);
+      save?.unwatch();
+      const handBack = outcome === "refused" || (outcome === "unknown" && !save?.gone);
+      for (const [host, holding] of holdingsIn(scope)) {
+        landCarried(holding, handBack);
+        forgetIfEmpty(host);
+      }
+    },
+
+    /**
+     * Give back everything the controls in `scope` hold and stop what they are still sending, the
+     * moment a leave is confirmed. A key a save is carrying stays the save's.
      *
      * @param {Scope} scope
      */
-    holdsUpload(scope) {
-      for (const [host, holding] of holdings) {
-        const any = holding.held.size + holding.arriving.size + holding.travelling.size > 0;
-        if (any && holds(scope, host)) return true;
+    letGo(scope) {
+      for (const [host, holding] of holdingsIn(scope)) {
+        for (const abort of holding.travelling.values()) abort();
+        holding.travelling.clear();
+        discard([...holding.held, ...holding.arriving]);
+        holding.held.clear();
+        holding.arriving.clear();
+        forgetIfEmpty(host);
       }
-      return false;
+    },
+
+    /**
+     * How many uploads a control in `scope` holds that no save has claimed or is carrying,
+     * counting the ones still on their way.
+     *
+     * @param {Scope} scope
+     */
+    uploadsIn(scope) {
+      return holdingsIn(scope).reduce((sum, [, holding]) => sum + lossOf(holding), 0);
     },
   };
 }
@@ -232,4 +309,4 @@ export function createHeldUploads(options = {}) {
 export const heldUploads = createHeldUploads();
 
 /** @param {Scope} scope */
-export const holdsUpload = (scope) => heldUploads.holdsUpload(scope);
+export const holdsUpload = (scope) => heldUploads.uploadsIn(scope) > 0;

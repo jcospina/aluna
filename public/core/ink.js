@@ -35,9 +35,6 @@ const SHELL_INK = [
   ".capability-item",
   /* What the platform says to the user */
   ".capability-deletion__notice",
-  /* The question a navigation asks before it takes a live run away. It is read over the window
-     it is about, so it is a box, and a box in this product is drawn (PLAN decision 17). */
-  ".build-stream__leaving-panel",
 ].join(",");
 
 drawAlso(SHELL_INK);

@@ -56,11 +56,13 @@ in ADR-0009, and in the architecture and design documents.
    the same places.*
 5. **`CONTEXT.md`.** Four entries added: *file admission*, *file reference*, *pending
    upload*, *file ledger*. *Desk-load sweep* widens from logos to pending uploads, and the
-   leave-run warning under *put away* widens to a form holding an upload.
+   leave-run warning under *put away* widens to a form with unsaved changes.
 6. **Module 5's leave question.** 5.6/03 scoped the question to a running build or
    evolution and let half-typed forms die with the window, with no dirty-form tracker.
-   That still holds for everything a person typed. A form holding an upload is the one
-   addition, because losing it costs a transfer the person has to repeat (decision 32).
+   This plan first added a form holding an upload as the one exception, because losing
+   it costs a transfer the person has to repeat. At 7.3/03 the owner widened it to every
+   unsaved change, typed or uploaded: the same question asks before any exit takes a
+   record form that differs from what it held when the person started on it (decision 32).
 
 ## Decisions
 
@@ -392,8 +394,9 @@ in ADR-0009, and in the architecture and design documents.
     platform write only to delete a row or record a failure, because a lease held across
     an unlink — or a network delete once the store is S3 — stalls every save and upload.
 32. **A pending upload is discharged without a timer.**
-    - *The leave warning.* Leaving a record whose form holds an upload, pending or still
-      streaming, asks first, through the same inline question that guards a running
+    - *The leave warning.* Leaving a record whose form has unsaved changes — a field
+      changed since the person started on it, or an upload pending or still streaming —
+      asks first, through the same question that guards a running
       build, on every in-desk exit: putting the window away, pressing another logo, Back
       and Forward, a prompt that takes the window, Delete from the logo menu, the form's
       own close — the create panel's included — and opening another record. A confirmed
@@ -402,10 +405,15 @@ in ADR-0009, and in the architecture and design documents.
       leaves the bytes to the worker. A key the sweep, a save or a deletion already took
       counts as success, and no byte is unlinked before that write commits, so a leave
       confirmed while a save is in flight can never leave a saved record without its
-      file. A form with nothing uploaded still dies silently, as Module 5 decided. There is
-      no `beforeunload` dialog for an upload: iOS Safari ignores it, the request sent after
-      one is unreliable, and a killed tab, a dead battery or a restarted server sends nothing
-      at all. A recording made in the field is the one exception: it exists
+      file. A save already on its way carries the form's upload, so a leave while it is out
+      neither asks nor sends its keys to the route: a committed save keeps them, a refused
+      one hands them back to the form, and one cut off before its answer leaves them to the
+      desk-load sweep *(7.3/03)*. A prompt asks when it is
+      sent, because only the server learns whether it takes the window, and by then the
+      build has started *(7.3/03)*. A form nobody changed, or one changed back to what it
+      held, closes without asking. There is no `beforeunload` dialog for an upload: iOS Safari ignores
+      it, the request sent after one is unreliable, and a killed tab, a dead battery or a
+      restarted server sends nothing at all. A recording made in the field is the one exception: it exists
       nowhere but the tab until its upload lands, so while one is being made, uploaded or kept
       unsent the page asks the browser's own question before it unloads, and asks nothing once
       it lands or is thrown away *(7.2/04)*.

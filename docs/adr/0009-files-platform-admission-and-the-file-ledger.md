@@ -97,10 +97,10 @@ none is a timer. A form that lets an upload go unsaved hands its key to the
 pending-only route at once: a file a later pick replaced, one the person cleared
 or dropped, or one held by a form whose window or record left the desk. A save
 whose Handler never stored a key it carried gives that key up in its own
-transaction. Leaving a record whose form holds an upload asks first, on
-every in-desk exit, through the inline question that already guards a running
-build, and a confirmed leave deletes the held files; a form with nothing uploaded
-still dies silently, and there is no `beforeunload` dialog for an upload (a voice
+transaction. Leaving a record whose form has unsaved changes, an upload among
+them, asks first, on every in-desk exit, through the question that already guards
+a running build, and a confirmed leave deletes the held files; a form nobody changed
+closes without asking, and there is no `beforeunload` dialog for an upload (a voice
 recording not yet uploaded, which exists only in the tab, is the one thing the page asks the
 browser to guard before unloading; PLAN decision 29a). Anything a crash, a
 kill or a closed tab left behind is swept at the next desk load, since a reload

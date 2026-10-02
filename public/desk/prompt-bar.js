@@ -5,16 +5,13 @@
  * capability (design D5). Callers say what happened; this module places it (ARCH §6.1).
  */
 
-import { PROMPT_FIELD_ID, PROMPT_NOTICE_ID } from "../core/shell-dom.js";
+import { PROMPT_FIELD_ID, PROMPT_FORM_ID, PROMPT_NOTICE_ID } from "../core/shell-dom.js";
 
 /**
  * The bar, and the slot it speaks in: the `aria-live` region `public/index.html` already ships,
- * so the desk gains no notice surface of its own.
+ * so the desk gains no notice surface of its own. Re-exported from their leaf.
  */
-const PROMPT_FORM_ID = "spec-build-form";
-
-// Re-exported from its leaf under the name its callers already use.
-export { PROMPT_NOTICE_ID };
+export { PROMPT_FORM_ID, PROMPT_NOTICE_ID };
 
 /**
  * The marker a refused sentence wears, and the design's `is-refused` cue with it
@@ -43,7 +40,7 @@ const BLANK_PROMPT_NOTICE = "What would you like me to make?";
  * look empty, so they count as nothing here — the reading `hasMeaningfulPromptContent` does.
  * @param {string} prompt
  */
-function hasSomethingToBuild(prompt) {
+export function hasSomethingToBuild(prompt) {
   return prompt.replace(BLANK_PROMPT_CHARACTERS, "").length > 0;
 }
 

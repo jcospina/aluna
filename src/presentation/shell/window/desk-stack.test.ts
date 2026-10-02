@@ -21,6 +21,7 @@ import {
   leaveStack,
   raise,
   raiseFromPress,
+  raiseWindow,
   standingCount,
 } from "#shell/desk/window/desk-stack.js";
 import { stackMember } from "./desk-window.test-support.ts";
@@ -75,6 +76,20 @@ function desk(run: (windows: Record<"behind" | "under" | "front", Standing>) => 
 }
 
 describe("a slot is which window this is, not a number that climbs", () => {
+  test("a window found by what it is drawn as comes to the front, once", () => {
+    const capability = stackMember();
+    const panel = stackMember();
+    joinStack(capability);
+    joinStack(panel);
+    raiseWindow(capability.el);
+    expect(capability.marks.z).toBe(FRONT_Z);
+    expect(panel.marks.z).toBe(BACK_Z);
+    raiseWindow({});
+    expect(capability.marks.z).toBe(FRONT_Z);
+    leaveStack(capability);
+    leaveStack(panel);
+  });
+
   test("a second window takes the front slot and the first steps back one", () => {
     const capability = stackMember();
     const panel = stackMember();

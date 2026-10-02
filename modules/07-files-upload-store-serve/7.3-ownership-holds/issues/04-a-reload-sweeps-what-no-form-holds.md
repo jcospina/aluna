@@ -42,6 +42,12 @@ whose bytes a cleanup took first asks for the file again" in
 `src/server/files/upload/upload-route.concurrency.test.ts` stages that race by hand. The sweep itself,
 and the race run against it, are this issue's.
 
+**What 7.3/03 left for this issue.** A leave while a save is out neither asks nor sends the
+keys that save carries to the pending-only route, so a discard can never reach the coordinator
+before the save. When the leave cuts the save off before its answer, the page never learns the
+outcome. A key that save did not commit stays `pending`, and this sweep is the only thing that
+takes it.
+
 ## Acceptance criteria
 
 - [ ] Every key `pending` when a desk load arrives moves to `cleanup_enqueued`, and the

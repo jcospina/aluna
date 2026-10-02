@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, spyOn, test } from "
 import { FILE_FIELD_HOOKS as HOOKS, mountFileFields, pickInto } from "#design/files/file-field.js";
 import { mountFileLists, pickIntoList } from "#design/files/file-list.js";
 import { keepSavedFileFields, uploadTransfer, wireFileFields } from "#shell/controls/file-field.js";
-import { heldUploads } from "#shell/controls/held-uploads.js";
+import { heldUploads, holdsUpload } from "#shell/controls/held-uploads.js";
 import {
   CREATE_CANCELLED_EVENT,
   FILE_DISCARD_PATH,
@@ -127,7 +127,7 @@ describe("a photo picked and then replaced before the save", () => {
     const kept = await scene.land("dusk.jpg");
     expect(late.aborted).toBe(true);
     expect(await given()).toEqual([]);
-    expect(heldUploads.holdsUpload(scene.form as never)).toBe(true);
+    expect(holdsUpload(scene.form as never)).toBe(true);
     scene.doc.fire("click", scene.host.querySelector("[data-file-clear]") as El);
     expect(await given()).toEqual([kept]);
   });
@@ -153,7 +153,7 @@ describe("an unsaved upload the form stops holding", () => {
     await saved.land("dusk.jpg");
     saved.doc.fire(RECORD_CREATED_EVENT, saved.form);
     expect(await given()).toEqual([dropped]);
-    expect(heldUploads.holdsUpload(saved.form as never)).toBe(false);
+    expect(holdsUpload(saved.form as never)).toBe(false);
   });
 
   test("goes back when a list drops it, and a list's other files stay", async () => {
@@ -172,9 +172,9 @@ describe("a key the record holds", () => {
     const drawn = owned();
     const scene = formScene({ record: { id: "r1", caption: "Dawn", photo: drawn.photo } });
     await scene.land("dusk.jpg");
-    expect(heldUploads.holdsUpload(scene.form as never)).toBe(true);
+    expect(holdsUpload(scene.form as never)).toBe(true);
     keepSavedFileFields(scene.form as never);
-    expect(heldUploads.holdsUpload(scene.form as never)).toBe(false);
+    expect(holdsUpload(scene.form as never)).toBe(false);
     scene.doc.fire("click", scene.host.querySelector("[data-file-clear]") as El);
     expect(await given()).toEqual([]);
   });
@@ -185,7 +185,7 @@ describe("a key the record holds", () => {
     await scene.land("two.jpg");
     scene.doc.fire(RECORD_CREATED_EVENT, scene.form);
     expect(await given()).toEqual([]);
-    expect(heldUploads.holdsUpload(scene.form as never)).toBe(false);
+    expect(holdsUpload(scene.form as never)).toBe(false);
   });
 });
 

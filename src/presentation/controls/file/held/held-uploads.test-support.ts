@@ -1,5 +1,8 @@
-// The upload request the product transfer opens, as a double a case answers by hand. Not a test
-// file itself, so bun never runs it.
+// The upload request the product transfer opens, as a double a case answers by hand, and the
+// page's removal observer, told by a case what the browser would tell it. Not a test file itself,
+// so bun never runs it.
+
+import { afterEach, beforeEach } from "bun:test";
 
 /** One upload request: the route's admission is `admit`, and `aborted` says the page stopped it. */
 export class UploadDouble {
@@ -28,4 +31,33 @@ export class UploadDouble {
   private fire(type: string): void {
     for (const run of this.listeners.get(type) ?? []) run();
   }
+}
+
+/**
+ * Stand a removal observer up for every case of a suite, and hand back what tells it a node left
+ * the document, the one thing the page's region scopes hear a removal by.
+ */
+export function installRemovalObserver(): (node: unknown) => void {
+  let observers: ((records: { removedNodes: unknown[] }[]) => void)[] = [];
+  const had = Reflect.getOwnPropertyDescriptor(globalThis, "MutationObserver");
+  beforeEach(() => {
+    observers = [];
+    class ObserverDouble {
+      constructor(tell: (records: { removedNodes: unknown[] }[]) => void) {
+        observers.push(tell);
+      }
+      observe() {}
+    }
+    Object.defineProperty(globalThis, "MutationObserver", {
+      value: ObserverDouble,
+      configurable: true,
+    });
+  });
+  afterEach(() => {
+    if (had) Object.defineProperty(globalThis, "MutationObserver", had);
+    else Reflect.deleteProperty(globalThis, "MutationObserver");
+  });
+  return (node) => {
+    for (const tell of observers) tell([{ removedNodes: [node] }]);
+  };
 }

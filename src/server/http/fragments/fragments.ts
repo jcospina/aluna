@@ -210,12 +210,12 @@ function renderLeavingWarning(jobId: string): string {
   const questionId = escapeHtml(buildStreamLeavingElementId(jobId));
   const describedBy = `aria-describedby="${questionId}"`;
   return [
-    `  <div class="build-stream__leaving" ${RUN_LEAVING_ATTRIBUTE} hidden>`,
+    `  <div class="window__leaving" ${RUN_LEAVING_ATTRIBUTE} hidden>`,
     // No `role` on the panel: a `group` with no accessible name is ignored by assistive
     // technology, so the description that reaches the person is the one on each answer.
-    `    <div class="build-stream__leaving-panel">`,
+    `    <div class="window__leaving-panel">`,
     `      <p id="${questionId}">${LEAVING_A_RUN_QUESTION}</p>`,
-    `      <div class="build-stream__leaving-actions">`,
+    `      <div class="window__leaving-actions">`,
     `        <button class="btn btn--warm" type="button" ${RUN_LEAVING_BACK_ATTRIBUTE} ${describedBy}>${LEAVING_A_RUN_BACK_OUT}</button>`,
     `        <button class="btn btn--outline" type="button" ${RUN_LEAVING_GO_ATTRIBUTE} ${describedBy}>${LEAVING_A_RUN_GO_AHEAD}</button>`,
     `      </div>`,
