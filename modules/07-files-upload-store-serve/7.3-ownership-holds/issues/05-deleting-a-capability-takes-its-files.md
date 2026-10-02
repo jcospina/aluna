@@ -56,18 +56,18 @@ retrying.
 
 ## Acceptance criteria
 
-- [ ] A real adapter is registered as `owned_files` and collects active-owned,
+- [x] A real adapter is registered as `owned_files` and collects active-owned,
       inactive-owned, pending and enqueued keys for the incarnation before the table drops
-- [ ] Every collected key's bytes are removed, and already-absent keys are success
-- [ ] The adapter passes the acceptance battery M4's fake models
-- [ ] The incarnation's ledger rows are deleted inside the tombstone transaction by
+- [x] Every collected key's bytes are removed, and already-absent keys are success
+- [x] The adapter passes the acceptance battery M4's fake models
+- [x] The incarnation's ledger rows are deleted inside the tombstone transaction by
       platform SQL
-- [ ] A streaming upload is cancelled by the drain and leaves no staged file; an upload
+- [x] A streaming upload is cancelled by the drain and leaves no staged file; an upload
       finishing as deletion begins is refused and leaves no staged file; a just-committed
       pending row is collected
-- [ ] A deleted capability's `/files/` addresses answer a `no-store` 404, including
+- [x] A deleted capability's `/files/` addresses answer a `no-store` 404, including
       while cleanup retries
-- [ ] `bun run test`, `bun run typecheck`, `bun run lint` clean
+- [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
 ## Living demo
 
@@ -78,3 +78,80 @@ holds none of its rows, and the copied address answers 404.
 ## Blocked by
 
 - modules/07-files-upload-store-serve/7.3-ownership-holds/issues/01-a-displaced-files-bytes-go.md
+
+## What landed
+
+**The files adapter.** `createOwnedFileCleanupAdapter` (`src/lifecycle/deletion/destruction/
+owned-files.ts`) answers to `owned_files`, which now lives there and is re-exported from
+`two-phase-destruction.ts`. `collect` reads every key the incarnation holds in one query,
+`readIncarnationFileKeys` (`src/platform/files/store/ledger.ts`): owned in an active or an
+inactive field, pending, and already enqueued. It refuses a malformed key before anything
+commits, where it would otherwise wedge the tombstone and keep the id reserved. `clean`
+deletes each key through the store's `delete`, staging first and an absent key as success,
+under the 7.3/01 worker's time limit (`deleteObjectWithin`, now shared from
+`src/platform/files/store/timed-delete.ts`). It refuses a key that still has a ledger row once
+the tombstone has committed, since such a key belongs to a live owner, and one that is not a
+file key.
+
+**The inventory.** `createProductionCapabilityDeletionAdapters({ objectStore, ledger },
+artifactsRoot)` returns the version-artifacts adapter and the files adapter. Both call sites in
+`src/server/app.ts` build the object store first. An injected retry supervisor must work on
+the app's store and ledger (`DeletionCleanupSupervisor.cleansFilesThrough`); the app refuses
+one wired elsewhere, as it already refuses a file cleanup worker wired elsewhere.
+
+**The tombstone transaction.** `commitDeletionTombstone` retires the incarnation's ledger rows
+with platform SQL (`deleteIncarnationFiles`) right after `purgeInstalledCapabilityPayloads`,
+with a fault seam `afterFileLedgerPurged`. A failure anywhere in the transaction keeps the rows.
+
+**Already in place.** The drain cancelling a streaming upload, the upload's row write refusing
+a gone incarnation, and `/files/:key` answering a `no-store` 404 without an active incarnation
+came from 7.1. This issue proves each against a real deletion.
+
+**Docs.** PLAN decision 33 (the time limit) and the 7.1 epic text, which now says what an
+earlier deletion left and that `bun run reset` is its remedy; the acceptance fake's header.
+
+## Findings from adversarial review, all fixed
+
+Two passes (Opus): a review of the change, then a review of the fixes.
+
+- A test reaching `cleanup_pending` armed the real supervisor's 1 s retry, which fired into
+  the next file's closed database (MEDIUM). It now injects a supervisor that never schedules,
+  and drives `runOnce()` to prove the retry takes the bytes.
+- Ledger rows and bytes left by deletions made before this issue are never collected (MEDIUM).
+  The live corpus has none (26 rows, 26 blobs, no orphans), and no-back-compat rules out a
+  migration; the 7.1 epic text now names `bun run reset` as the remedy.
+- `clean` trusted the manifest, so the fake's store-side guard had no real counterpart (LOW).
+  It now refuses a key that still has a ledger row, and one that is not a file key; the test
+  uses a spy store and pins no message.
+- An injected supervisor could clean through another store (LOW). The app checks it, and,
+  from the second pass, the ledger connection too (LOW).
+- PLAN 33 said "each unlink" and "rather than holding the lease"; the fake's header overclaimed
+  "the same battery"; the test header split a path; a test hard-coded the registry table (LOW).
+  All rewritten.
+- No test had another capability's row under the same incarnation id, and a malformed ledger
+  key would wedge the tombstone after the commit (LOW/INFO). A filter test, and `collect`
+  refuses the key before the commit.
+- A JSDoc stranded above the wrong method (LOW, second pass). Moved.
+
+## Verification
+
+`bun run typecheck` and `bun run lint` are clean. `bun run test` passes: 4538 tests, 0 failed.
+
+New suites: `src/lifecycle/deletion/destruction/owned-files.test.ts` (the battery, the
+transaction rollback at both fault seams, the guards, the time limit, the inventory) and
+`src/server/files/deletion/capability-deletion.test.ts` (a real deletion through the confirm
+route, the 404 while cleanup is owed and the retry, the three upload races, the supervisor
+check). The adapter's absence from the inventory, the ledger purge, both guards, the capability
+filter and the malformed-key refusal each fail a test when mutated.
+
+Live on `:3030`, with Appliance manuals instead of building Photos, by the owner's instruction:
+the database, the capability's tree (three versions, snapshots, specs, logo) and its five
+files were backed up to `data/backups/appliance_manuals-20261002-135922/`, and the restore was
+rehearsed twice on a scratch copy of the whole corpus booted from its own directory: delete,
+restore, reboot, and every hash matched. Deleted live from its logo menu: the registry row,
+the data table, all five ledger rows and blobs, and `capabilities/appliance_manuals/` went, no
+tombstone stayed, both file addresses answered a `no-store` 404, and the other 16 capabilities
+and their 21 files were untouched. Restored and restarted: the registry row, table, ledger,
+metrics, blobs and tree match the pre-deletion hashes, both records read through the generated
+handler, every file serves its original bytes, and the logo is still `present`.
+

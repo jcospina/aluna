@@ -21,11 +21,9 @@ import {
   recordFileCleanupFailure,
 } from "../../../platform/files/store/ledger.ts";
 import type { ObjectStore } from "../../../platform/files/store/object-store.ts";
+import { deleteObjectWithin } from "../../../platform/files/store/timed-delete.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { MutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
-
-/** Long enough for any local unlink; a store that hangs past it counts as a failed attempt. */
-export const DEFAULT_FILE_DELETE_TIMEOUT_MS = 60_000;
 
 export interface FileCleanupOptions {
   /** The queue is read on `readonly`, so a save still open on `readwrite` is never seen. */
@@ -180,21 +178,8 @@ export class FileCleanupWorker {
     return outcomes;
   }
 
-  private async deleteBytes(key: string): Promise<void> {
-    const limit = this.options.deleteTimeoutMs ?? DEFAULT_FILE_DELETE_TIMEOUT_MS;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(
-        () => reject(new Error(`The delete took longer than ${limit} ms.`)),
-        limit,
-      );
-      timer.unref?.();
-    });
-    try {
-      await Promise.race([this.options.objectStore.delete(key), timeout]);
-    } finally {
-      clearTimeout(timer);
-    }
+  private deleteBytes(key: string): Promise<void> {
+    return deleteObjectWithin(this.options.objectStore, key, this.options.deleteTimeoutMs);
   }
 
   private record(outcomes: readonly FileCleanupOutcome[]): Promise<void> {

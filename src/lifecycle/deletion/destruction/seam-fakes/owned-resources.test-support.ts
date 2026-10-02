@@ -7,9 +7,10 @@
 // it out of the server's module graph.
 //
 // M4 owns the seam: collect a deduplicated, incarnation-bound manifest while the capability's table
-// still exists, then discharge it idempotently after the point of no return. M7 will own the real
-// object store; this fake models every state the manifest must absorb before the drop, including
-// `cleanup_enqueued`, which deletion must absorb or the store's queue outlives the capability.
+// still exists, then discharge it idempotently after the point of no return. M7 owns the real
+// object store (`../owned-files.ts`, whose suite runs a battery shaped like this one); this fake
+// models every state the manifest must absorb before the drop, including `cleanup_enqueued`,
+// which deletion must absorb or the store's queue outlives the capability.
 
 import type { Database } from "bun:sqlite";
 import { sqlIdentifier } from "../../../../platform/persistence/sql-identifier.ts";
@@ -25,7 +26,7 @@ import {
   type OwnedResourceCleanupAdapter,
 } from "../two-phase-destruction.ts";
 
-/** The fake claims the name M7 will install for real, so the manifest shape matches. */
+/** The fake claims the name the real files adapter answers to, so the manifest shape matches. */
 export const FAKE_OWNED_RESOURCE_ADAPTER = OWNED_RESOURCE_ADAPTER;
 
 /**

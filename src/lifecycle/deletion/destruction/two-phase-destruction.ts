@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import { lstatSync, readdirSync, realpathSync, rmdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { resolveArtifactsRoot } from "../../../builder/index.ts";
+import { deleteIncarnationFiles } from "../../../platform/files/store/ledger.ts";
 import { isPathContained } from "../../../platform/path-containment.ts";
 import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import {
@@ -25,6 +26,7 @@ import {
   NO_INSTALLED_PAYLOADS,
   purgeInstalledCapabilityPayloads,
 } from "../installed-payloads.ts";
+import { createOwnedFileCleanupAdapter, type OwnedFileCleanupWiring } from "./owned-files.ts";
 
 export interface OwnedResourceCollectionContext {
   readonly target: CapabilityRow;
@@ -43,6 +45,7 @@ export interface CapabilityDestructionFaults {
   /** The registry row *becoming* the tombstone is one UPDATE, so this is that seam. */
   readonly afterTombstoneInserted?: () => void;
   readonly afterEventPayloadsPurged?: () => void;
+  readonly afterFileLedgerPurged?: () => void;
   readonly afterTableDropped?: () => void;
   /** A throw here simulates a process loss after SQLite's point of no return. */
   readonly afterCommit?: () => void | Promise<void>;
@@ -156,6 +159,13 @@ function commitDeletionTombstone(
 
     payloads = purgeInstalledCapabilityPayloads(target, database);
     input.faults?.afterEventPayloadsPurged?.();
+
+    // Platform SQL for the reason `installed-payloads.ts` gives; the manifest keeps the bytes' duty.
+    deleteIncarnationFiles(database, {
+      capabilityId: target.id,
+      incarnationId: target.incarnation_id,
+    });
+    input.faults?.afterFileLedgerPurged?.();
 
     // `IF EXISTS` so registry/table drift is a repair rather than a wedge: a row whose
     // table is already gone must still be deletable, not permanently undeletable.
@@ -299,17 +309,14 @@ export function createArtifactCleanupAdapter(
   };
 }
 
-/**
- * The adapter name the object store will answer to when Module 7 installs it; nothing registers it
- * yet. An unknown adapter fails hard, so no real M7 obligation is ever discharged by accident.
- */
-export const OWNED_RESOURCE_ADAPTER = "owned_files";
+export { OWNED_RESOURCE_ADAPTER } from "./owned-files.ts";
 
 /** The one production adapter inventory shared by live deletion and boot recovery. */
 export function createProductionCapabilityDeletionAdapters(
+  files: OwnedFileCleanupWiring,
   artifactsRoot = resolveArtifactsRoot(),
 ): readonly OwnedResourceCleanupAdapter[] {
-  return [createArtifactCleanupAdapter(artifactsRoot)];
+  return [createArtifactCleanupAdapter(artifactsRoot), createOwnedFileCleanupAdapter(files)];
 }
 
 /**

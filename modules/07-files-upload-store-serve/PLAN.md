@@ -456,7 +456,9 @@ in ADR-0009, and in the architecture and design documents.
     cleans a tombstone inline under the deletion lease and retries it under a platform
     write, so the adapter's unlinks hold saves and uploads while they run, against
     decision 31's rule for the worker. That is acceptable for the local store, and a cloud
-    adapter batches its deletes. No second deletion path.
+    adapter batches its deletes. Each delete has the worker's time limit, so a store that
+    hangs costs one attempt and leaves the tombstone owing the key *(7.3/05)*. No second
+    deletion path.
 34. **Hiding a file field keeps its bytes.** Evolution never destroys; those keys are
     absorbed at capability deletion. A form still holding a pending key for a field that
     evolution just hid is refused with a sentence rather than a wire error.
@@ -538,8 +540,9 @@ Done when "keep track of my photos" typed into the prompt bar builds a capabilit
 title keeps it, replacing it enqueues the old key, and the ledger says `owned`.
 
 Until 7.3/01, nothing drained the queue: an enqueued key kept its bytes. Until 7.3/05,
-deleting a capability leaves its ledger rows and files behind. `bun run reset` clears both,
-which is enough for a tracer bullet.
+deleting a capability left its ledger rows and files behind. Nothing collects what such a
+deletion left: the files adapter takes only the incarnation it deletes, and `bun run reset`
+is the remedy.
 
 ### 7.2 — Every kind, and many
 

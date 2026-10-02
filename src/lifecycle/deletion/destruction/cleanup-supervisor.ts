@@ -18,6 +18,7 @@ import {
   recordCapabilityDeletionCleanupFailure,
 } from "../../../registry/index.ts";
 import type { MutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
+import { cleansFilesThrough, type OwnedFileCleanupWiring } from "./owned-files.ts";
 import {
   type CapabilityDeletionRecoveryResult,
   type OwnedResourceCleanupAdapter,
@@ -74,6 +75,11 @@ export class DeletionCleanupSupervisor {
     this.options = options;
     this.retryDelaysMs = options.retryDelaysMs ?? DEFAULT_DELETION_CLEANUP_RETRY_DELAYS_MS;
     this.schedule = options.schedule ?? scheduleUnrefTimer;
+  }
+
+  /** Whether its files adapter works on `wiring`'s store and ledger, as live deletion does. */
+  cleansFilesThrough(wiring: Pick<OwnedFileCleanupWiring, "objectStore" | "ledger">): boolean {
+    return cleansFilesThrough(this.options.adapters, wiring);
   }
 
   /** Every deletion whose durable cleanup is still owed, with why it has not landed. */
