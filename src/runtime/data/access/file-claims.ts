@@ -12,6 +12,7 @@
 import type { Database } from "bun:sqlite";
 import { resolveMaxListFiles } from "../../../platform/files/file-cap.ts";
 import {
+  enqueuePendingFiles,
   type FileLedgerRow,
   isFileKey,
   promotePendingFile,
@@ -140,6 +141,19 @@ export function submittedFileKeys(file: SubmittedFile): readonly string[] {
 
 function entryKey(entry: SubmittedEntry): string {
   return entry.write === "claim" ? entry.row.key : (fileKeyFromProjection(entry.held) ?? "");
+}
+
+/**
+ * Give up each pending key a save carried that its Handler never claimed, inside the save's
+ * transaction: the form that sent it counts it saved, so nothing would claim it again.
+ */
+export function releaseUnclaimedFiles(database: Database, submitted: SubmittedFiles): void {
+  const claims = (entry: SubmittedEntry | SubmittedFile) =>
+    entry.write === "claim" ? [entry.row.key] : [];
+  const carried = [...submitted.values()].flatMap((file) =>
+    file.write === "list" ? file.entries.flatMap(claims) : claims(file),
+  );
+  enqueuePendingFiles(database, carried);
 }
 
 /** What generated code is handed for a submitted file field: what the save will store. */

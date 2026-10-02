@@ -27,6 +27,7 @@ import {
   createCapabilityUpdateMutationPort,
   type FileSubmissionBinding,
   fileClaimScope,
+  releaseUnclaimedFiles,
   resolveSubmittedFiles,
 } from "../../data/index.ts";
 import type {
@@ -88,6 +89,7 @@ export async function invokeCapabilityHandler(
       call(handler, { input: withFileProjections(input, submitted), mutation, query, present }),
     );
     assertReadOwnership(signal);
+    releaseUnclaimedFiles(scope.database, submitted);
     return fragment;
   };
 

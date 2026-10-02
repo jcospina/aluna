@@ -1086,11 +1086,16 @@ local filesystem and built so an R2, S3 or Garage adapter can take its place.
   ownership is asserted. Update replacement/removal, confirmed record deletion,
   and capability deletion (including inactive file fields) enqueue idempotent
   cleanup; capability deletion goes through M4's owned-resource manifest rather
-  than a second path. Leaving a record whose form holds an upload asks first, as
-  a running build does, and a confirmed leave deletes it. A reload destroys an
-  open form, so any pending key still standing at desk load is swept there; a second tab's form loses its upload to that sweep, and its save
-  is refused with a sentence rather than failing silently. Nothing waits on a
-  timer. A key is not silently shared between records in the PoC. External
+  than a second path. The pending-only route takes back a pending key as soon as
+  the form lets it go unsaved: a later pick replaced it, the person cleared or
+  dropped it, or its window or record left the desk. A save whose Handler
+  never stored a key it carried gives that key up in its own transaction. The
+  route moves only keys still pending, so a discard racing a save never strips
+  the record. Leaving a record whose form holds an upload asks first, as a
+  running build does, and a confirmed leave deletes it. A reload destroys an
+  open form, so any pending key still standing at desk load is swept there; a
+  second tab's form loses its upload to that sweep, and its save is refused with
+  a sentence rather than failing silently. No pending upload expires on a timer. A key is not silently shared between records in the PoC. External
   cleanup failure leaves durable retry work, never an untracked orphan.
 
 ADR-0009 is the contract.
