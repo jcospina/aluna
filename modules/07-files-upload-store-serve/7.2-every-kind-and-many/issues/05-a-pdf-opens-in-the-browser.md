@@ -1,6 +1,6 @@
 # A PDF opens in the browser
 
-Status: ready-for-agent — built and verified; the sign-off gate is the only box left
+Status: done — signed off by the owner on 2026-10-02
 
 Type: HITL — the app's security headers can blank a browser's PDF viewer, and only a
 real browser shows that. A human opens a PDF in Chrome, Safari and Firefox.
@@ -40,7 +40,7 @@ and item-renderer guidance land here, and 7.2/06 reuses them. Behavioral tokens 
 - [x] The open link in the record carries `rel="noopener"`
 - [x] A document few-shot example and item-renderer guidance exist; behavioral tokens
       accept `document`
-- [ ] **Sign-off gate:** the human has opened a PDF from a record in Chrome, Safari and
+- [x] **Sign-off gate:** the human has opened a PDF from a record in Chrome, Safari and
       Firefox, and each viewer drew the document
 - [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 

@@ -1,6 +1,6 @@
 # A field holds many files
 
-Status: ready-for-agent — built and verified; waiting on the owner's sign-off
+Status: done — signed off by the owner on 2026-10-02
 
 Superseded in part by 7.3/01: a removed entry's bytes and row now go once the save commits, and
 a list keeping a file it was drawn with that it no longer holds answers `record_changed`. Since

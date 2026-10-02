@@ -1,6 +1,6 @@
 # Dual SQLite connections (read-write + read-only)
 
-Status: ready-for-agent
+Status: done — signed off by the owner on 2026-10-02
 
 ## Epic
 

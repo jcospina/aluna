@@ -1,6 +1,6 @@
 # The photo control is drawn
 
-Status: ready-for-agent
+Status: done — signed off by the owner on 2026-10-02
 
 Type: HITL — `design/` is the product requirement, and the file control has never been
 drawn. A human signs off the drawn states before 7.1/08 builds them.

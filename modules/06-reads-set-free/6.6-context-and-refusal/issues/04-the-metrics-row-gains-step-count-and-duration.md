@@ -1,6 +1,6 @@
 # The content-free metrics row gains step count and duration
 
-Status: ready-for-agent — the work below is complete and waiting on sign-off
+Status: done — signed off by the owner on 2026-10-02
 
 ## Epic
 

@@ -1,6 +1,6 @@
 # Leaving a form with unsaved changes asks first
 
-Status: ready-for-agent — built and verified; waiting on the owner's sign-off
+Status: done — signed off by the owner on 2026-10-02
 
 Type: HITL — the question appears on every exit from the desk, and its wording is new
 copy. A human walks each exit and approves the drawn question.
@@ -71,7 +71,7 @@ what it held, still closes without asking. The criteria below are amended to mat
 - [x] A form nobody changed, or one changed back, closes without asking on every exit
       *(was: a form holding only typed text; reversed by the owner)*
 - [x] No `beforeunload` handler is added
-- [ ] **Sign-off gate:** the human has tried every exit with changes made and with none,
+- [x] **Sign-off gate:** the human has tried every exit with changes made and with none,
       and approved the question's wording
 - [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 

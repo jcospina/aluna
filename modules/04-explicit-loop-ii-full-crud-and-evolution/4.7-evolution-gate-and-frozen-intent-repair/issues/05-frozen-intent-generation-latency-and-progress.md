@@ -1,6 +1,6 @@
 # Frozen-intent generation latency and progress
 
-Status: ready-for-human
+Status: done — signed off by the owner on 2026-10-02
 
 ## Epic
 

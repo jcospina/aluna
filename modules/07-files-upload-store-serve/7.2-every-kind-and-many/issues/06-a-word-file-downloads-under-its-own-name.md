@@ -1,6 +1,6 @@
 # A Word file downloads under its own name
 
-Status: ready-for-agent — built and verified; waiting on the owner's sign-off
+Status: done — signed off by the owner on 2026-10-02
 
 ## Epic
 

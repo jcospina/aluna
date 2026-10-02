@@ -1,6 +1,6 @@
 # Provider interface & BYO-key config (single global model)
 
-Status: ready-for-agent
+Status: done — signed off by the owner on 2026-10-02
 
 ## Epic
 
@@ -17,11 +17,11 @@ This issue defines the contract + config only; the concrete provider call lands 
 
 ## Acceptance criteria
 
-- [ ] A `generate(prompt, schema)` streaming contract is defined, provider-agnostic (no SDK types leak through it)
-- [ ] The contract's return is a structured object validated against the provided schema
-- [ ] BYO-key config reads the API key from the environment, with a clear error when it is missing
-- [ ] A single global model is configured in exactly one place (no per-call model selection)
-- [ ] The interface is demonstrably implementable by more than one provider (verified with a fake/stub in a test)
+- [x] A `generate(prompt, schema)` streaming contract is defined, provider-agnostic (no SDK types leak through it)
+- [x] The contract's return is a structured object validated against the provided schema
+- [x] BYO-key config reads the API key from the environment, with a clear error when it is missing
+- [x] A single global model is configured in exactly one place (no per-call model selection)
+- [x] The interface is demonstrably implementable by more than one provider (verified with a fake/stub in a test)
 
 ## Blocked by
 

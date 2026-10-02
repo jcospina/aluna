@@ -1,6 +1,6 @@
 # A video uploads, plays and seeks
 
-Status: ready-for-agent — built and verified; the sign-off gate is the only box left
+Status: done — signed off by the owner on 2026-10-02
 
 Type: HITL — whether a player plays depends on the browser. A human confirms a video
 plays in its own tab in Chrome, Safari and Firefox, and that the video card holds up on
@@ -112,7 +112,7 @@ checks before it answers is the only guard.
 - [x] A video few-shot example and item-renderer guidance exist, and the card doesn't
       depend on a first frame
 - [x] Behavioral tokens accept `video`, and the digest covers it
-- [ ] **Sign-off gate:** the human has played a video in its own tab in Chrome, Safari
+- [x] **Sign-off gate:** the human has played a video in its own tab in Chrome, Safari
       and Firefox, seeked it inside the record, and seen the video card on iOS Safari
 - [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
@@ -130,7 +130,7 @@ and check the video card without a first frame.
 
 ## What landed
 
-Waiting on the sign-off gate; everything else is done.
+Signed off by the owner on 2026-10-02.
 
 - **`video` is a family.** `FILE_FAMILIES` is `["image", "video"]`. Candidate validation refuses a
   candidate that drops a committed family, whatever the lifecycle (`fileFamilyIssues`, beside

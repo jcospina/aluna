@@ -1,6 +1,6 @@
 # A refusal reuses the resolver's `reject` bucket and speaks where it lands
 
-Status: ready-for-agent — the work below is complete and waiting on sign-off
+Status: done — signed off by the owner on 2026-10-02
 
 ## Epic
 

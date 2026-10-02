@@ -1,6 +1,6 @@
 # An audio file uploads and plays
 
-Status: ready-for-agent — built and verified; the sign-off gate is the only box left
+Status: done — signed off by the owner on 2026-10-02
 
 Type: HITL — whether a player plays depends on the browser. A human confirms an audio
 file plays in its own tab in Chrome, Safari and Firefox.
@@ -48,7 +48,7 @@ An audio few-shot example and item-renderer guidance land here. Behavioral token
       browser won't play it
 - [x] An audio few-shot example and item-renderer guidance exist; behavioral tokens
       accept `audio`
-- [ ] **Sign-off gate:** the human has played an audio file in its own tab in Chrome,
+- [x] **Sign-off gate:** the human has played an audio file in its own tab in Chrome,
       Safari and Firefox and seeked it inside the record
 - [x] `bun run test`, `bun run typecheck`, `bun run lint` clean
 
@@ -64,7 +64,7 @@ play and seek, then open each file in a tab of its own in Chrome, Safari and Fir
 
 ## What landed
 
-Waiting on the sign-off gate; everything else is done.
+Signed off by the owner on 2026-10-02.
 
 - **`audio` is a family.** `FILE_FAMILIES` is `["image", "video", "audio"]`. Widening, the Diff's
   `file_families` fact, candidate validation and the behavioral tokens all took it with no change
