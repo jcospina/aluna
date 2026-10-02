@@ -251,6 +251,30 @@ export function enqueueDisplacedFile(
 }
 
 /**
+ * Every key an incarnation holds, in any state and any field, inactive ones included: what its
+ * capability's deletion must clean. One read on the incarnation index.
+ */
+export function readIncarnationFileKeys(database: Database, owner: FileLedgerOwner): string[] {
+  return database
+    .query<{ key: string }, [string, string]>(
+      `SELECT "key" FROM ${FILE_LEDGER_TABLE}
+       WHERE "incarnation_id" = ? AND "capability_id" = ? ORDER BY "key"`,
+    )
+    .all(owner.incarnationId, owner.capabilityId)
+    .map((row) => row.key);
+}
+
+/**
+ * Retire every row an incarnation holds, inside its deletion's tombstone transaction; the deletion
+ * manifest keeps the duty to delete the bytes. Answers how many rows went.
+ */
+export function deleteIncarnationFiles(database: Database, owner: FileLedgerOwner): number {
+  return database
+    .query(`DELETE FROM ${FILE_LEDGER_TABLE} WHERE "incarnation_id" = ? AND "capability_id" = ?`)
+    .run(owner.incarnationId, owner.capabilityId).changes;
+}
+
+/**
  * Give up every key `recordId` owns, in every field, hidden ones included, as its delete commits.
  * One update on the record column, which is indexed for this.
  */

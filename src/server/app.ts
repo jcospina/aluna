@@ -193,12 +193,15 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
   // The capability router and the on-load shell rehydration read the same registry: a `GET /`
   // logo click hits `/capability/:id` on this connection, so resolving it once keeps them agreed.
   const capabilityRouter = deps.capabilityRouter ?? {};
-  const capabilityDeletionAdapters = createProductionCapabilityDeletionAdapters(artifactsRoot);
+  const objectStore = resolveObjectStore(deps);
   const registryDatabases = resolveRegistryDatabases(capabilityRouter, {
     readwrite: db,
     readonly: dbReadonly,
   });
-  const objectStore = resolveObjectStore(deps);
+  const capabilityDeletionAdapters = createProductionCapabilityDeletionAdapters(
+    { objectStore, ledger: registryDatabases.readonly },
+    artifactsRoot,
+  );
   return {
     getProvider,
     sseHeartbeatMs,
@@ -219,14 +222,30 @@ function resolveAppDeps(deps: AppDeps): ResolvedAppDeps {
     maxFileBytes: resolveFileCap(deps),
     objectStore,
     fileCleanup: resolveFileCleanup(deps, registryDatabases, objectStore, mutationCoordinator),
-    deletionCleanup:
-      deps.deletionCleanup ??
-      createDeletionCleanupSupervisor({
-        database: registryDatabases.readwrite,
-        adapters: capabilityDeletionAdapters,
-        mutationCoordinator,
-      }),
+    deletionCleanup: resolveDeletionCleanup(
+      deps,
+      { objectStore, ledger: registryDatabases.readonly },
+      () =>
+        createDeletionCleanupSupervisor({
+          database: registryDatabases.readwrite,
+          adapters: capabilityDeletionAdapters,
+          mutationCoordinator,
+        }),
+    ),
   };
+}
+
+function resolveDeletionCleanup(
+  deps: AppDeps,
+  files: { readonly objectStore: ObjectStore; readonly ledger: PlatformDatabase["readonly"] },
+  create: () => DeletionCleanupSupervisor,
+): DeletionCleanupSupervisor {
+  if (!deps.deletionCleanup) return create();
+  // A retry through another store or ledger would judge and delete the wrong files.
+  if (!deps.deletionCleanup.cleansFilesThrough(files)) {
+    throw new Error("The deletion cleanup supervisor must clean the app's store and ledger.");
+  }
+  return deps.deletionCleanup;
 }
 
 function resolveFileCap(deps: AppDeps): number {
@@ -636,11 +655,6 @@ export function createApp(deps: AppDeps = {}): Hono {
  */
 export const platformReadGates = createReadGateCoordinator();
 export const platformMutationCoordinator = createMutationCoordinator();
-export const platformDeletionCleanup = createDeletionCleanupSupervisor({
-  database: db,
-  adapters: createProductionCapabilityDeletionAdapters(resolveArtifactsRoot()),
-  mutationCoordinator: platformMutationCoordinator,
-});
 /**
  * The attempts running in this process. Exported so boot reconciles the logo lifecycle against
  * the same registry the desk load consults; a boot pass with its own set would always be empty.
@@ -648,6 +662,14 @@ export const platformDeletionCleanup = createDeletionCleanupSupervisor({
 export const platformLogoClaims = createRunningLogoClaims();
 /** Exported so boot empties the staging of the store the upload route writes. */
 export const platformObjectStore = createLocalObjectStore();
+export const platformDeletionCleanup = createDeletionCleanupSupervisor({
+  database: db,
+  adapters: createProductionCapabilityDeletionAdapters(
+    { objectStore: platformObjectStore, ledger: dbReadonly },
+    resolveArtifactsRoot(),
+  ),
+  mutationCoordinator: platformMutationCoordinator,
+});
 /** Exported so boot drains what a previous process left enqueued, before the server listens. */
 export const platformFileCleanup = createFileCleanupWorker({
   databases: { readwrite: db, readonly: dbReadonly },
