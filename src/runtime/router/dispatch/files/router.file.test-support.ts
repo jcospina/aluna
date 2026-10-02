@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, expect } from "bun:test";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-
+import { wait } from "../../../../platform/async.test-support.ts";
 import {
   type FileLedgerSeed,
   requireFileLedgerRow,
@@ -27,7 +27,10 @@ import {
   isFileFieldType,
   type SpecField,
 } from "../../../../registry/index.ts";
-import { createFileCleanupWorker } from "../../../../server/files/cleanup/file-cleanup.ts";
+import {
+  createFileCleanupWorker,
+  type FileCleanupWorker,
+} from "../../../../server/files/cleanup/file-cleanup.ts";
 import { createTestApp } from "../../../../server/isolated-app.test-support.ts";
 import {
   createMutationCoordinator,
@@ -204,7 +207,8 @@ export function usePhotosRouter(row: () => CapabilityRow = photosRow) {
     conns?: PlatformDatabase;
     coordinator?: MutationCoordinator;
     wakes: number;
-  } = { wakes: 0 };
+    retries: { run: () => void; delayMs: number; worker: FileCleanupWorker }[];
+  } = { wakes: 0, retries: [] };
   beforeEach(() => {
     const env = setupRouterTest();
     Object.assign(scratch, {
@@ -212,6 +216,7 @@ export function usePhotosRouter(row: () => CapabilityRow = photosRow) {
       conns: env.conns,
       coordinator: createMutationCoordinator(),
       wakes: 0,
+      retries: [],
     });
     install(env.conns, row());
   });
@@ -223,7 +228,10 @@ export function usePhotosRouter(row: () => CapabilityRow = photosRow) {
     if (!scratch.conns) throw new Error("the photos router is used outside a test");
     return scratch.conns;
   };
-  const storage = () => join(scratch.dir ?? "", "storage");
+  const storage = () => {
+    if (!scratch.dir) throw new Error("the photos router is used outside a test");
+    return join(scratch.dir, "storage");
+  };
   const request = async (
     path: string,
     init?: RequestInit,
@@ -239,7 +247,7 @@ export function usePhotosRouter(row: () => CapabilityRow = photosRow) {
       databases: conns(),
       objectStore,
       mutationCoordinator,
-      schedule: () => {},
+      schedule: (run, delayMs) => scratch.retries.push({ run, delayMs, worker: fileCleanup }),
     });
     const wake = fileCleanup.wake.bind(fileCleanup);
     fileCleanup.wake = () => {
@@ -263,6 +271,7 @@ export function usePhotosRouter(row: () => CapabilityRow = photosRow) {
     }[];
   return {
     conns,
+    storage,
     mint: (overrides: Partial<FileLedgerSeed> = {}) =>
       seedFileLedgerRow(conns().readwrite, {
         capabilityId: "photos",
@@ -290,6 +299,13 @@ export function usePhotosRouter(row: () => CapabilityRow = photosRow) {
     ledger: (key: string) => requireFileLedgerRow(conns().readwrite, key),
     /** How many times a committed request has woken the cleanup worker in this case. */
     wakes: () => scratch.wakes,
+    /** Waits out every retry a request's cleanup scheduled and runs it, as its timer would. */
+    retry: async () => {
+      const due = scratch.retries.splice(0);
+      await wait(Math.max(0, ...due.map((retry) => retry.delayMs)));
+      for (const retry of due) retry.run();
+      for (const retry of due) await retry.worker.idle();
+    },
     /** Whether `key` has no ledger row left. */
     gone: (key: string) => readFileLedgerRow(conns().readwrite, key) === null,
     /** Write bytes for `key` where a stored file and, with `staged`, an unplaced one sit. */

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import {
   existsSync,
   mkdirSync,
@@ -10,6 +10,7 @@ import {
   truncateSync,
   writeFileSync,
 } from "node:fs";
+import * as fsPromises from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openRegularFiles, sampleFile } from "../admission/sample-files.test-support.ts";
@@ -269,6 +270,25 @@ describe("the local object store's keys", () => {
     expect(staging()).toEqual([]);
   });
 
+  test("leaves no bytes behind when a rename lands between a delete's two unlinks", async () => {
+    const staged = await store.put(mintFileKey(), chunksOf(sampleFile("jpeg")));
+    const rm = fsPromises.rm;
+    let placed: Promise<boolean> | undefined;
+    const unlinks = spyOn(fsPromises, "rm").mockImplementation(async (...args) => {
+      await rm(...args);
+      placed ??= staged.place();
+      await placed;
+    });
+    try {
+      await store.delete(staged.key);
+    } finally {
+      unlinks.mockRestore();
+    }
+    expect(await placed).toBe(false);
+    expect(readdirSync(root)).toEqual([STAGING_DIRECTORY]);
+    expect(staging()).toEqual([]);
+  });
+
   test("answers a missing file, a directory, a planted link or a pipe under a key as gone", async () => {
     const outside = join(root, "..", `outside-${mintFileKey()}`);
     writeFileSync(outside, "not the store's");
@@ -313,6 +333,12 @@ describe("the local object store's keys", () => {
     await store.clearStaging();
     expect(staging()).toEqual([]);
     expect(existsSync(join(root, placed.key))).toBe(true);
+  });
+
+  test("empties staging in a store nothing was ever written to, as a first boot does", async () => {
+    const fresh = join(root, "never-written", "storage");
+    await createLocalObjectStore(fresh).clearStaging();
+    expect(readdirSync(join(fresh, STAGING_DIRECTORY))).toEqual([]);
   });
 
   test("refuses anything that is not a key it mints, before touching the disk", async () => {

@@ -17,6 +17,7 @@ import {
 } from "../../registry/store/deletion-tombstones.ts";
 import { insertCapability, REGISTRY_TABLE } from "../../registry/store/store.ts";
 import { notesRow } from "../../runtime/router/dispatch/router.test-support.ts";
+import { LISTENING_LOG } from "../../server/serve-options.ts";
 import { waitForLog } from "../async.test-support.ts";
 import {
   createFileCleanupIndex,
@@ -198,7 +199,7 @@ describe("migrations run on app boot", () => {
     try {
       // The "listening" line is logged only after runMigrations returns, so
       // seeing it means migrations have run.
-      await waitForLog(proc.stdout, "listening", 15000);
+      await waitForLog(proc.stdout, LISTENING_LOG, 15000);
 
       const dbPath = join(dir, "data", "omni-crud.db");
       expect(existsSync(dbPath)).toBe(true);
@@ -262,7 +263,7 @@ describe("migrations run on app boot", () => {
       stderr: "pipe",
     });
     try {
-      await waitForLog(proc.stdout, "listening", 15000);
+      await waitForLog(proc.stdout, LISTENING_LOG, 15000);
       expect(existsSync(incarnationDirectory)).toBe(false);
       const booted = new Database(dbPath, { readonly: true });
       try {

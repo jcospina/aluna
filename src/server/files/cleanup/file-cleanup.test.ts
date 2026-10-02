@@ -230,6 +230,17 @@ describe("a pass over the ledger's queue", () => {
     expect(recordWrites).toEqual([true]);
     expect(row(key)).toBeNull();
   });
+
+  test("with nothing to clean takes no platform write, so a running build never holds it up", async () => {
+    const lease = await coordinator.acquireBuild(coordinator.reserveBuild());
+    try {
+      const drained = worker().drain();
+      expect(coordinator.snapshot().queuedTickets).toEqual([]);
+      expect(await drained).toEqual([]);
+    } finally {
+      coordinator.release(lease);
+    }
+  });
 });
 
 describe("a pass asked for while one runs", () => {
@@ -298,6 +309,7 @@ describe("a key whose cleanup fails", () => {
     }
 
     expect(row(key)).toMatchObject({ cleanup_attempts: 1 });
+    expect(clock.delays).toEqual(DEFAULT_DELETION_CLEANUP_RETRY_DELAYS_MS.slice(0, 1));
   });
 
   test("a fresh failure is retried at its own first delay, not behind a longer one", async () => {
@@ -316,33 +328,6 @@ describe("a key whose cleanup fails", () => {
 
     expect(clock.delays.at(-1)).toBe(first);
     expect(row(fresh)).toMatchObject({ cleanup_attempts: 1 });
-  });
-
-  test("past its last retry waits for a pass that includes it, as a desk load asks", async () => {
-    const tired = enqueued(EXHAUSTED_ATTEMPTS);
-    const fresh = enqueued();
-    const clock = fakeClock();
-    const cleanup = worker(clock.options);
-
-    cleanup.wake();
-    await cleanup.idle();
-    expect([row(tired)?.state, row(fresh)]).toEqual(["cleanup_enqueued", null]);
-    expect(clock.pending()).toBe(0);
-
-    await cleanup.drain();
-    expect(row(tired)).toBeNull();
-  });
-
-  test("says so once, as its retries are spent, and not on every desk load after", async () => {
-    const key = enqueued(EXHAUSTED_ATTEMPTS - 1);
-    const { store } = failingStore();
-    const cleanup = worker({ objectStore: store });
-    const said = await logged(async () => {
-      await cleanup.drain();
-      await cleanup.drain();
-    });
-    expect(row(key)).toMatchObject({ cleanup_attempts: EXHAUSTED_ATTEMPTS + 1 });
-    expect(said.filter((line) => line.includes(key))).toHaveLength(1);
   });
 
   test("a desk load leaves a key still waiting out its delay alone", async () => {
@@ -392,6 +377,56 @@ describe("a key whose cleanup fails", () => {
     const { store } = failingStore("x".repeat(CLEANUP_ERROR_MAX_LENGTH * 2));
     await worker({ objectStore: store }).drain();
     expect(row(key)?.cleanup_error).toHaveLength(CLEANUP_ERROR_MAX_LENGTH);
+  });
+});
+
+describe("a key at the end of its retries", () => {
+  test("waits past its last retry for a pass that includes it, as a desk load asks", async () => {
+    const tired = enqueued(EXHAUSTED_ATTEMPTS);
+    const fresh = enqueued();
+    const clock = fakeClock();
+    const cleanup = worker(clock.options);
+
+    cleanup.wake();
+    await cleanup.idle();
+    expect([row(tired)?.state, row(fresh)]).toEqual(["cleanup_enqueued", null]);
+    expect(clock.pending()).toBe(0);
+
+    await cleanup.drain();
+    expect(row(tired)).toBeNull();
+  });
+
+  test("says so once, as its retries are spent, and not on every desk load after", async () => {
+    const key = enqueued(EXHAUSTED_ATTEMPTS - 1);
+    const { store } = failingStore();
+    const cleanup = worker({ objectStore: store });
+    const spent = await logged(() => cleanup.drain());
+    const after = await logged(() => cleanup.drain());
+    expect(row(key)).toMatchObject({ cleanup_attempts: EXHAUSTED_ATTEMPTS + 1 });
+    expect(spent.filter((line) => line.includes(key))).toHaveLength(1);
+    expect(after.filter((line) => line.includes(key))).toEqual([]);
+  });
+
+  test("that goes on its last retry says nothing", async () => {
+    const key = enqueued(EXHAUSTED_ATTEMPTS - 1);
+    const said = await logged(() => worker().drain());
+    expect(row(key)).toBeNull();
+    expect(said).toEqual([]);
+  });
+
+  test("past its last retry is left alone by a retry due for another key", async () => {
+    const tired = enqueued(EXHAUSTED_ATTEMPTS);
+    const fresh = enqueued();
+    const clock = fakeClock();
+    const { store } = failingStore();
+    const cleanup = worker({ objectStore: store, ...clock.options });
+
+    cleanup.wake();
+    await cleanup.idle();
+    await clock.fire(cleanup);
+
+    expect(row(fresh)).toMatchObject({ cleanup_attempts: 2 });
+    expect(row(tired)).toMatchObject({ cleanup_attempts: EXHAUSTED_ATTEMPTS });
   });
 });
 

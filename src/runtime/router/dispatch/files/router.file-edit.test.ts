@@ -2,9 +2,11 @@
 // photos fixture. Each case mints its ledger rows directly, as the upload route would.
 
 import { describe, expect, test } from "bun:test";
+import { chmodSync } from "node:fs";
 
 import { fileUrl } from "../../../../platform/files/file-url.ts";
 import { FILE_LEDGER_TABLE } from "../../../../platform/files/store/ledger.ts";
+import { expectStoreAtRest } from "../../../../platform/files/store/store-at-rest.test-support.ts";
 import { capabilityEditErrorId } from "../../../../presentation/index.ts";
 import {
   INVALID_FILE_REFERENCE_ERROR_CODE,
@@ -283,6 +285,39 @@ describe("replacing a photo", () => {
       `data-error-code="${INVALID_FILE_REFERENCE_ERROR_CODE}"`,
     );
     expect(spy.calls).toEqual([]);
+  });
+
+  test("whose old bytes cannot go after it commits keeps the new photo, and its scheduled retry takes them", async () => {
+    const old = photos.mint();
+    const id = await photos.save(old);
+    const next = photos.mint();
+    photos.place(old);
+    photos.place(next);
+
+    chmodSync(photos.storage(), 0o555);
+    let response: Response;
+    try {
+      response = await photos.request("/capability/photos/update", editBody(id, { [PHOTO]: next }));
+    } finally {
+      chmodSync(photos.storage(), 0o755);
+    }
+
+    expect(response.status).toBe(200);
+    expect(photos.ledger(old)).toMatchObject({
+      state: "cleanup_enqueued",
+      cleanup_attempts: 1,
+      cleanup_error: expect.any(String),
+    });
+    expect(photos.photoOf(id)).toMatchObject({ key: next });
+    expect([photos.onDisk(old), photos.onDisk(next)]).toEqual([true, true]);
+    expectStoreAtRest(photos.conns().readonly, photos.storage());
+
+    await photos.retry();
+
+    expect(photos.gone(old)).toBe(true);
+    expect(photos.ledger(next)).toMatchObject({ state: "owned", record_id: id });
+    expect([photos.onDisk(old), photos.onDisk(next)]).toEqual([false, true]);
+    expectStoreAtRest(photos.conns().readonly, photos.storage());
   });
 });
 

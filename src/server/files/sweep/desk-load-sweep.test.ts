@@ -170,21 +170,26 @@ describe("a desk load", () => {
 });
 
 describe("a desk load made again while its sweep waits", () => {
-  test("while that sweep is still last in the queue queues one sweep for both", async () => {
+  test("while that sweep is still last in the queue queues one sweep for both, and logs nothing", async () => {
     const { mutationCoordinator, finish } = await runningBuild();
     const first = seeded();
     const app = files.app({ mutationCoordinator });
+    const logged = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await app.request("/", pageNavigation());
+      const second = seeded();
+      await app.request("/", pageNavigation());
+      await app.request(`/capability/${PHOTOS.capabilityId}`, pageNavigation());
+      expect(queuedPlatformWrites(mutationCoordinator)).toBe(1);
 
-    await app.request("/", pageNavigation());
-    const second = seeded();
-    await app.request("/", pageNavigation());
-    await app.request(`/capability/${PHOTOS.capabilityId}`, pageNavigation());
-    expect(queuedPlatformWrites(mutationCoordinator)).toBe(1);
-
-    finish();
-    await until(() => pendingKeys().length === 0);
-    await files.cleaned();
-    expect([first, second].map(stateOf)).toEqual([undefined, undefined]);
+      finish();
+      await until(() => pendingKeys().length === 0);
+      await files.cleaned();
+      expect([first, second].map(stateOf)).toEqual([undefined, undefined]);
+      expect(logged).not.toHaveBeenCalled();
+    } finally {
+      logged.mockRestore();
+    }
   });
 
   test("after a build queued behind that sweep keeps it ahead of the build", async () => {
