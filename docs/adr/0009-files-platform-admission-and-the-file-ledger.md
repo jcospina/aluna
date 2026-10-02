@@ -107,7 +107,9 @@ kill or a closed tab left behind is swept at the next desk load, since a reload
 destroys an open form, so every `pending` key standing at that moment is treated
 as an orphan. A second tab's open form loses its upload to that sweep, and its
 save is refused with a sentence asking for the file again. Staging holds no rows,
-so the sweep never races an upload that is still streaming.
+so the sweep never races an upload that is still streaming. An upload whose row the
+sweep took before its rename answers with that same sentence and leaves no bytes,
+unless its field or capability has gone since, which answers 404 as a fresh upload would.
 
 **Uploads take no long lease.** An upload writes only the store and the ledger,
 never capability data, so a 400 MB video blocks no save and no running build

@@ -209,7 +209,11 @@ in ADR-0009, and in the architecture and design documents.
     finds its source gone or lands where the second unlink removes it. The ledger never
     holds a row for bytes still streaming, so the sweep cannot race one. It can take a row
     whose upload has not yet answered, and a rename that then finds its source gone answers
-    with the sentence the second tab's save gets, asking for the file again. A cloud
+    with the sentence the second tab's save gets, asking for the file again. A rename that
+    beats the cleanup reads its row once more and answers the same sentence when the row
+    is no longer `pending`, and the second unlink removes the bytes it placed. Either way,
+    an upload whose field or capability has gone since answers 404, as a fresh upload
+    would *(7.3/04)*. A cloud
     adapter stages locally the same way and uploads at the rename step, so no multipart
     upload outlives its request. That upload is not atomic and unlinking its source does
     not stop it, so once it completes the adapter reads the row again and deletes the
@@ -425,7 +429,14 @@ in ADR-0009, and in the architecture and design documents.
       standing when the desk loads is taken as an orphan and enqueued for cleanup. The
       sweep is queued on the coordinator when the load request arrives, and the render
       does not wait for it. The queue's order is the cutoff: a sweep waiting behind a
-      build never takes an upload recorded after the load.
+      build never takes an upload recorded after the load. Only a browser loading the page
+      into a tab sweeps (Fetch Metadata: a GET navigation of a document, no `Sec-Purpose`).
+      A speculative fetch of a desk address is declined with 503, so a prerendered desk
+      never opens without its sweep. That holds for browsers that mark speculation with
+      `Sec-Purpose`; a preload a browser does not mark looks like a load and sweeps. A
+      load that finds no `pending` key queues nothing. A later load takes over a sweep
+      still last in the queue, and its own sweep takes everything that one would have. A
+      sweep with anything queued behind it keeps its place *(7.3/04)*.
     - *A second tab.* Its open form loses its upload to another tab's desk load. Its save
       then names a key that is no longer pending and is refused before generated code runs,
       with a platform sentence asking the person to add the file again. The sweep and the

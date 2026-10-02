@@ -41,6 +41,12 @@ invariant against the real store:
 The kill cases run the server as a real process that the test kills, not a simulated
 exception.
 
+**What 7.3/04 left for this issue.** Only a browser loading the page into a tab sweeps, so
+a test's desk load must send what a browser sends for one: `Sec-Fetch-Mode: navigate` and
+`Sec-Fetch-Dest: document`, as `pageNavigation()` in
+`src/server/files/sweep/desk-load.test-support.ts` does. A plain `fetch` or `curl` sends
+neither and sweeps nothing. The demo's desk loads happen in a browser.
+
 ## Acceptance criteria
 
 - [ ] Each fault in the battery has a test, and each test ends by asserting the ledger

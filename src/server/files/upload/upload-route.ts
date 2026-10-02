@@ -26,6 +26,7 @@ import {
   insertPendingFile,
   mintFileKey,
   type PendingFile,
+  readFileLedgerRow,
 } from "../../../platform/files/store/ledger.ts";
 import type { ObjectStore, StagedObject } from "../../../platform/files/store/object-store.ts";
 import { FILE_UPLOAD_ROUTE } from "../../../platform/files/upload-path.ts";
@@ -216,6 +217,18 @@ async function abandon(deps: FileUploadDeps, key: string): Promise<void> {
   if (enqueued) deps.wakeFileCleanup();
 }
 
+/**
+ * An upload whose bytes or row were taken before it answered: a field still taking files asks for
+ * the file again, and one whose capability or field went since answers as one never there.
+ */
+function gone(c: Context, deps: FileUploadDeps, file: AdmittedFile): Response {
+  const incarnation = { capabilityId: file.capability_id, incarnationId: file.incarnation_id };
+  if (!findUploadField(deps.databases.readonly, incarnation, file.field)) {
+    return c.body(null, 404, NO_STORE);
+  }
+  return refuse(c, 409, "gone", ADD_FILE_AGAIN_SENTENCE);
+}
+
 async function recordAndPlace(
   c: Context,
   deps: FileUploadDeps,
@@ -236,7 +249,12 @@ async function recordAndPlace(
   }
   if (!placed) {
     await abandon(deps, file.key);
-    return refuse(c, 409, "gone", ADD_FILE_AGAIN_SENTENCE);
+    return gone(c, deps, file);
+  }
+  // A desk-load sweep took the row before the rename, and its cleanup has yet to run. Its unlink of
+  // `storage/<key>` removes the bytes where the rename just put them.
+  if (readFileLedgerRow(deps.databases.readonly, file.key)?.state !== "pending") {
+    return gone(c, deps, file);
   }
   if (c.req.raw.signal.aborted) {
     await abandon(deps, file.key);

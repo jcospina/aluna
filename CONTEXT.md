@@ -342,7 +342,10 @@ face, a fresh render arms one load-triggered attempt on every `absent` tile, and
 that is the whole self-healing mechanism — no scheduler. From Module 7 it also
 takes every **pending upload** still standing, since a reload has destroyed any
 form that held one, and hands it to the file ledger's cleanup without holding up
-the render.
+the render. Only a browser loading the page into a tab sweeps. An htmx swap, an
+image, a HEAD or a request from outside a browser is not a desk load. A browser's
+prefetch of the desk is declined, so the load itself arrives. A load that finds no
+pending upload queues nothing.
 It is not a background job and holds no queue of its own.
 _Avoid_: retry job, logo worker, background sweep, cron
 

@@ -58,6 +58,7 @@ import {
 import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../runtime/router/index.ts";
 import { createFileCleanupWorker, type FileCleanupWorker } from "./files/cleanup/file-cleanup.ts";
 import { registerFileRoutes } from "./files/index.ts";
+import { createDeskLoadSweep, isPageNavigation } from "./files/sweep/desk-load-sweep.ts";
 import {
   BLANK_PROMPT_NOTICE,
   guardWritingRoute,
@@ -303,17 +304,14 @@ function registerSecurityHeaders(app: Hono): void {
  * The fixed shell at `/`, rendered from the registry alone, so the provider is never called on
  * page load. The logo sweep runs one step before the markup: it moves rows and never draws.
  */
-function registerShellRoute(
-  app: Hono,
-  ctx: ResolvedAppDeps,
-  recoverLogos: () => Promise<void>,
-): void {
+function registerShellRoute(app: Hono, ctx: ResolvedAppDeps, recover: DeskLoadRecovery): void {
   const { registryReadonly } = ctx;
 
   // Read per request, so a reload picks up an edit; content-type is explicit because Hono drops
   // Bun's inferred one. Never stored: a stale desk names a deleted lifetime's picture (ADR-0007).
-  app.get("/", async () => {
-    await recoverLogos();
+  app.get("/", async (c) => {
+    if (c.req.method === "GET" && isSpeculative(c)) return declineSpeculation(c);
+    await recover(c);
     return new Response(renderRehydratedShellPage(registryReadonly), {
       headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
     });
@@ -324,11 +322,10 @@ function registerShellRoute(
  * Direct navigation to `/capability/:id` draws the whole desk, so it owes the same reconciliation
  * `/` does. Middleware, not a router hook: the view handler holds read tokens and would deadlock.
  */
-function registerCapabilityPageRecovery(app: Hono, recoverLogos: () => Promise<void>): void {
+function registerCapabilityPageRecovery(app: Hono, recoverOnDeskLoad: DeskLoadRecovery): void {
   const recover = async (c: Context, next: () => Promise<void>) => {
-    if (c.req.method === "GET" && c.req.header("HX-Request") !== "true") {
-      await recoverLogos();
-    }
+    if (c.req.method === "GET" && isSpeculative(c)) return declineSpeculation(c);
+    if (c.req.method === "GET" && !isInPageRequest(c)) await recoverOnDeskLoad(c);
     await next();
   };
   // Both spellings of the one address (`CAPABILITY_VIEW_TRAILING_SLASH_ROUTE`): a desk drawn
@@ -337,14 +334,41 @@ function registerCapabilityPageRecovery(app: Hono, recoverLogos: () => Promise<v
   app.get("/capability/:id/", recover);
 }
 
+/** A browser fetching a desk address ahead of a navigation that may never come (`Sec-Purpose`). */
+function isSpeculative(c: Context): boolean {
+  return c.req.header("Sec-Purpose") !== undefined;
+}
+
+/**
+ * Declined, so the browser drops the speculation (a link preview of the desk included) and the real
+ * load reaches the server: a prerendered desk would open with no request, and so with no sweep.
+ */
+function declineSpeculation(c: Context): Response {
+  return c.body(null, 503, { "cache-control": "no-store" });
+}
+
+/** An htmx request swaps part of a page that stays open, so it is never a desk load. */
+function isInPageRequest(c: Context): boolean {
+  return c.req.header("HX-Request") === "true";
+}
+
+type DeskLoadRecovery = (c: Context) => Promise<void>;
+
 /**
  * What a desk load discharges before the tiles are drawn, never at the cost of the desk rendering.
- * One sweep pass at a time, and a forced cleanup retry: a stranded tombstone reserves its id, and
- * a file whose retries ran out gets another try, which the render does not wait for.
+ * One logo sweep pass at a time, and a forced cleanup retry: a stranded tombstone reserves its id,
+ * and a file whose retries ran out gets another try. A page navigation also queues the pending
+ * upload sweep first, so its place in the queue is the load's. The render waits for neither.
  */
-function createDeskLoadRecovery(ctx: ResolvedAppDeps): () => Promise<void> {
+function createDeskLoadRecovery(ctx: ResolvedAppDeps, wakeFileCleanup: () => void) {
   const recoverLogos = createPlatformLogoRecovery(ctx);
-  return () => {
+  const sweepPendingFiles = createDeskLoadSweep({
+    databases: { readwrite: ctx.registryReadwrite, readonly: ctx.registryReadonly },
+    mutationCoordinator: ctx.mutationCoordinator,
+    wakeFileCleanup,
+  });
+  return (c: Context) => {
+    if (isPageNavigation(c.req.raw)) void sweepPendingFiles();
     ctx.deletionCleanup.forceRetry();
     void ctx.fileCleanup.drain();
     return recoverLogos();
@@ -536,8 +560,8 @@ export function createApp(deps: AppDeps = {}): Hono {
 
   registerSecurityHeaders(app);
 
-  const recoverOnDeskLoad = createDeskLoadRecovery(ctx);
   const wakeFileCleanup = () => ctx.fileCleanup.wake();
+  const recoverOnDeskLoad = createDeskLoadRecovery(ctx, wakeFileCleanup);
   registerShellRoute(app, ctx, recoverOnDeskLoad);
   registerCapabilityPageRecovery(app, recoverOnDeskLoad);
   registerBuildJobRoutes(app, ctx);

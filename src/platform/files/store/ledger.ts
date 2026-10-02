@@ -71,6 +71,7 @@ export function createFileLedgerSchema(database: Database): void {
      ON ${FILE_LEDGER_TABLE} (incarnation_id);`,
   );
   createFileCleanupIndex(database);
+  createFilePendingIndex(database);
 }
 
 /**
@@ -81,6 +82,17 @@ export function createFileCleanupIndex(database: Database): void {
   database.exec(
     `CREATE INDEX IF NOT EXISTS ${FILE_LEDGER_TABLE}_cleanup
      ON ${FILE_LEDGER_TABLE} (key) WHERE state = 'cleanup_enqueued';`,
+  );
+}
+
+/**
+ * The desk-load sweep reads only pending rows, through this index, while it holds the platform
+ * write. Migration `0019_file_ledger_pending_index` adds it to an older ledger.
+ */
+export function createFilePendingIndex(database: Database): void {
+  database.exec(
+    `CREATE INDEX IF NOT EXISTS ${FILE_LEDGER_TABLE}_pending
+     ON ${FILE_LEDGER_TABLE} (key) WHERE state = 'pending';`,
   );
 }
 
@@ -179,6 +191,26 @@ export function enqueuePendingFiles(database: Database, keys: readonly string[])
     () => keys.filter((key) => enqueuePendingFile(database, key)).length,
   )();
 }
+
+/**
+ * Give up every key still `pending`: a desk load destroyed any form that held one (Module 7 PLAN
+ * decision 32). Answers how many moved.
+ */
+export function enqueueAllPendingFiles(database: Database): number {
+  return database.query(SWEEP_PENDING_FILES_SQL).run().changes;
+}
+
+/** The desk-load sweep's check, made before it queues its platform write. */
+export const ANY_PENDING_FILE_SQL = `SELECT 1 FROM ${FILE_LEDGER_TABLE} WHERE "state" = 'pending' LIMIT 1`;
+
+/** Whether any key is `pending`. */
+export function hasPendingFile(database: Database): boolean {
+  return database.query(ANY_PENDING_FILE_SQL).get() !== null;
+}
+
+/** The desk-load sweep's one statement, which walks only the pending index. */
+export const SWEEP_PENDING_FILES_SQL = `UPDATE ${FILE_LEDGER_TABLE}
+  SET "state" = 'cleanup_enqueued' WHERE "state" = 'pending'`;
 
 /**
  * Move a `pending` key to `owned` by `recordId`. False when the row is no longer `pending`, which
