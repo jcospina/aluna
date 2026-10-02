@@ -18,12 +18,12 @@ export async function until(condition: () => boolean, timeoutMs = 10_000): Promi
   }
 }
 
-/** Reads a piped stream until `needle` appears, or rejects once `timeoutMs` elapses. */
+/** The stream read until a line holding `needle` has ended; rejects once `timeoutMs` elapses. */
 export async function waitForLog(
   stream: ReadableStream<Uint8Array>,
   needle: string,
   timeoutMs: number,
-): Promise<void> {
+): Promise<string> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let seen = "";
@@ -37,12 +37,14 @@ export async function waitForLog(
       const { done, value } = await reader.read();
       if (done) throw new Error(`stream ended before "${needle}" appeared`);
       seen += decoder.decode(value, { stream: true });
-      if (seen.includes(needle)) return;
+      const at = seen.indexOf(needle);
+      if (at >= 0 && seen.includes("\n", at)) return;
     }
   })();
 
   try {
     await Promise.race([scan, deadline]);
+    return seen;
   } finally {
     reader.releaseLock();
   }

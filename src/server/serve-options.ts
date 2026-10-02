@@ -7,6 +7,9 @@ import { parseWholeNumber } from "../platform/whole-number.ts";
 /** Loopback only: the platform runs locally for one person, and no other machine may write to it. */
 const LOOPBACK_HOSTNAME = "127.0.0.1";
 
+/** What the boot logs once it listens, followed by the address; a spawned server is read for it. */
+export const LISTENING_LOG = "omni-crud listening on";
+
 const DEFAULT_PORT = 3030;
 const MAX_PORT = 65535;
 

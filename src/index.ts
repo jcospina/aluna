@@ -24,7 +24,7 @@ import {
   platformObjectStore,
   platformReadGates,
 } from "./server/app.ts";
-import { resolveServeOptions } from "./server/serve-options.ts";
+import { LISTENING_LOG, resolveServeOptions } from "./server/serve-options.ts";
 
 // Generated Handlers execute in this process (ADR-0004: no process sandbox) and the static
 // isolation checks cannot see a property access, so `process.env` is reachable in principle.
@@ -117,4 +117,4 @@ const server = Bun.serve({ ...resolveServeOptions(), fetch: app.fetch });
 
 // Log the actual bound port (server.port), which differs from the requested one when an
 // ephemeral port (0) was asked for.
-console.log(`omni-crud listening on http://localhost:${server.port}`);
+console.log(`${LISTENING_LOG} http://localhost:${server.port}`);

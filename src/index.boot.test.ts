@@ -16,6 +16,7 @@ import {
   EXHAUSTED_ATTEMPTS,
   seedEnqueuedFile,
 } from "./server/files/cleanup/file-cleanup.test-support.ts";
+import { LISTENING_LOG } from "./server/serve-options.ts";
 
 let dir: string;
 
@@ -40,7 +41,7 @@ test("boot empties the upload staging directory before the server listens", asyn
     stderr: "pipe",
   });
   try {
-    await waitForLog(proc.stdout, "listening", 15_000);
+    await waitForLog(proc.stdout, LISTENING_LOG, 15_000);
     expect(readdirSync(staging)).toEqual([]);
   } finally {
     proc.kill();
@@ -78,7 +79,7 @@ test("boot deletes every enqueued key's bytes and row before the server listens"
     stderr: "pipe",
   });
   try {
-    await waitForLog(proc.stdout, "listening", 15_000);
+    await waitForLog(proc.stdout, LISTENING_LOG, 15_000);
     expect(keys.map((key) => existsSync(join(root, key)))).toEqual([false, false]);
     const after = openDatabase(dbPath);
     try {

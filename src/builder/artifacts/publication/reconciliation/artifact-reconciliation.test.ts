@@ -22,6 +22,7 @@ import {
   THIRD_INCARNATION_ID,
 } from "../../../../registry/incarnations.test-support.ts";
 import { insertCapability } from "../../../../registry/index.ts";
+import { LISTENING_LOG } from "../../../../server/serve-options.ts";
 import { generatedUnitsFor, notesFixtureGate, notesSpec } from "../../../gate/gate.test-support.ts";
 import type { CapabilityGateResult } from "../../../gate/gate.ts";
 import { publishCapabilitySnapshot, verifyCapabilitySnapshot } from "../artifact-lifecycle.ts";
@@ -246,7 +247,7 @@ describe("reconcileCapabilityArtifacts", () => {
       stderr: "pipe",
     });
     try {
-      await waitForLog(proc.stdout, "listening", 15_000);
+      await waitForLog(proc.stdout, LISTENING_LOG, 15_000);
       expect(existsSync(versionPath(bootRoot, INCARNATION_ID, 1))).toBe(true);
       expect(existsSync(failedV2.directory)).toBe(false);
     } finally {

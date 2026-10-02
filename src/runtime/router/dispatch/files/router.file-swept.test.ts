@@ -5,6 +5,7 @@
 import { describe, expect, test } from "bun:test";
 import { until } from "../../../../platform/async.test-support.ts";
 import { ADD_FILE_AGAIN_SENTENCE } from "../../../../platform/files/admission/refusal-copy.ts";
+import { expectStoreAtRest } from "../../../../platform/files/store/store-at-rest.test-support.ts";
 import { INVALID_FILE_REFERENCE_ERROR_CODE } from "../../../../registry/index.ts";
 import { pageNavigation } from "../../../../server/files/sweep/desk-load.test-support.ts";
 import { createDeskLoadSweep } from "../../../../server/files/sweep/desk-load-sweep.ts";
@@ -26,12 +27,8 @@ import {
 
 const photos = usePhotosRouter();
 
-const sweepOn = (mutationCoordinator: MutationCoordinator) =>
-  createDeskLoadSweep({
-    databases: photos.conns(),
-    mutationCoordinator,
-    wakeFileCleanup: () => {},
-  });
+const sweepOn = (mutationCoordinator: MutationCoordinator, wakeFileCleanup = () => {}) =>
+  createDeskLoadSweep({ databases: photos.conns(), mutationCoordinator, wakeFileCleanup });
 
 const queuedPlatformWrites = (coordinator: MutationCoordinator) =>
   coordinator.snapshot().queuedTickets.filter((ticket) => ticket.kind === "platform").length;
@@ -65,11 +62,13 @@ describe("a key a desk load swept", () => {
     await expectAskedForAgain(response);
     expect(spy.calls).toEqual([]);
     expect(photos.stored()).toEqual([]);
+    expectStoreAtRest(photos.conns().readonly, photos.storage());
   });
 
   test("refuses the edit that replaces a photo with it, and the record keeps its photo", async () => {
     const held = photos.mint();
     const id = await photos.save(held);
+    photos.place(held);
     const key = await sweptByAnotherTab();
     const spy = makeSpyLoader();
 
@@ -83,14 +82,18 @@ describe("a key a desk load swept", () => {
     expect(spy.calls).toEqual([]);
     expect(photos.photoOf(id)).toMatchObject({ key: held });
     expect(photos.ledger(held)).toMatchObject({ state: "owned", record_id: id });
+    expectStoreAtRest(photos.conns().readonly, photos.storage());
   });
 });
 
 describe("a sweep and a save racing on one key", () => {
-  test("a save holding its write wins the key, and the sweep queued behind it moves nothing", async () => {
+  test("a save holding its write wins the key, and the sweep queued behind it moves nothing and wakes no cleanup", async () => {
     const key = photos.mint();
     const mutationCoordinator = createMutationCoordinator();
-    const sweep = sweepOn(mutationCoordinator);
+    let wakes = 0;
+    const sweep = sweepOn(mutationCoordinator, () => {
+      wakes += 1;
+    });
     let swept: Promise<void> | undefined;
     let queuedDuringSave = 0;
     const loadHandler = createHandler(({ input, mutation }) => {
@@ -109,6 +112,7 @@ describe("a sweep and a save racing on one key", () => {
     expect(queuedDuringSave).toBe(1);
     const [record] = photos.stored();
     expect(photos.ledger(key)).toMatchObject({ state: "owned", record_id: record?.id });
+    expect(wakes).toBe(0);
   });
 
   test("a save arriving while the sweep holds the write is refused as busy, then asks for the file", async () => {
