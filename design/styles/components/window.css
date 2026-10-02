@@ -147,6 +147,61 @@
   opacity: 0.72;
 }
 
+/* ── Leaving with something to lose ───────────────────────────────────── */
+/*
+ * The one thing read over a window rather than inside it: the question a
+ * navigation asks before it takes a running build, or a form with unsaved
+ * changes. The veil fills the body, which is already the positioned ground below
+ * the title bar, so the lamps stay pressable and nothing past the window is
+ * touched. It is not a modal: focus is not trapped, and only what the veil covers
+ * inside the window is inert while a form's question stands.
+ */
+.window__leaving {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: var(--space-4);
+  /* `in srgb`: `transparent` carries no hue, and an `oklch` mix with it comes out pink. */
+  background: color-mix(in srgb, var(--ink) 38%, transparent);
+}
+
+.window__leaving[hidden] {
+  display: none;
+}
+
+.window__leaving-panel {
+  --ink-shadow: var(--shadow-window);
+
+  display: flex;
+  width: min(30rem, 100%);
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  text-align: center;
+  background: var(--surface);
+  border: var(--line) solid var(--ink-hair);
+}
+
+.window__leaving-panel p {
+  max-width: 34ch;
+  margin: 0;
+  font-size: var(--type-md);
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.window__leaving-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
 /* ── Stacking ─────────────────────────────────────────────────────────── */
 /*
  * Section windows in the document flow need room for the shadow and for the

@@ -85,7 +85,8 @@ window except the developer panel's. Everything a capability shows happens
 inside it — the collection, one record, a confirmation, the narration of a build
 — so opening a record swaps what the frame holds and opening another capability
 swaps the contents without the frame moving. Nothing in Aluna opens over anything
-else. Below the 720px breakpoint the window is the screen, and it neither drags,
+else, except the one question a navigation asks before it takes a running build or a
+form's unsaved changes, read over that window's own body (see **Put away**). Below the 720px breakpoint the window is the screen, and it neither drags,
 resizes nor maximises; desktop geometry is ignored rather than overwritten, and
 only the frontmost window is exposed if the developer panel is also open (design
 D1, D2, D12; M5 plan 47, 48).
@@ -113,16 +114,17 @@ What the clay lamp does. The window disappears, the logo stays where it was, the
 address falls back to `/`, and nothing in storage changes; the same click on the
 same logo brings the window back. Putting the window away while a build or an
 evolution is running warns first, because it kills the run, and proceeds only on
-confirmation through an inline row that leaves the run mounted. Deleting a
+confirmation through a question read over the window that leaves the run mounted. Deleting a
 capability is a different action and is deliberately
 unreachable from window chrome, which is why no lamp is signal red (design D3;
 M5 plan 17, 19).
 The same leave-run warning guards switching to another capability logo and
 Back/Forward while a build or evolution is mounted; confirmation uses the one
 cancel teardown and then completes the requested navigation. From Module 7 it also
-guards every in-desk exit from a form that holds an upload, pending or still
-streaming, and a confirmed leave deletes it; a form holding only typed text still
-closes without asking.
+guards every in-desk exit from a record form with unsaved changes — a field changed
+since the person started on it, or an upload pending or still streaming — and a
+confirmed leave deletes any upload it held. A form nobody changed, or one whose save
+is already on its way, closes without asking.
 _Avoid_: minimise, hide, exit; "close" names the gesture, "put away" is what it
 does. **Dismiss** is not a synonym for it either — it is the word for ending a
 held ending and getting back whatever it covered (see **Ending**), which leaves

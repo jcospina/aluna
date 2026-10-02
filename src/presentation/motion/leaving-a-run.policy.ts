@@ -21,10 +21,17 @@ describe("the one way a run ends", () => {
     expect(desk).not.toContain("fetch(");
   });
 
-  test("no draft persistence and no dirty-form tracker came with it", () => {
-    // The contract is explicit: search, record subviews and half-typed forms are DOM-only
-    // and die with the window. The question is scoped to a running build or an evolution.
-    for (const path of ["public/desk/leaving-a-run.js", "public/desk/desk-address.js"]) {
+  test("no draft is kept and no unload question is asked", () => {
+    // Half-typed forms are DOM-only and die with the window; a form with unsaved changes now
+    // asks first on every in-desk exit, and still nothing is stored and a reload asks nothing.
+    for (const path of [
+      "public/desk/leaving-a-run.js",
+      "public/desk/desk-address.js",
+      "public/desk/leaving-a-form.js",
+      "public/desk/leaving-unsaved-changes.js",
+      "public/records/unsaved-changes.js",
+      "public/controls/held-uploads.js",
+    ]) {
       const source = code(path);
       for (const store of ["localStorage", "sessionStorage", "beforeunload", "onbeforeunload"]) {
         expect(source, `${path} must not reach for ${store}`).not.toContain(store);

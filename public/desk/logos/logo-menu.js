@@ -8,6 +8,7 @@
 import {
   BUSY_LABEL_ATTRIBUTE,
   IDLE_LABEL_ATTRIBUTE,
+  PROMPT_FORM_ID,
   PROMPT_NOTICE_ID,
 } from "../../core/shell-dom.js";
 import { isCapabilityNameLabel, isMarkupShapedName } from "./capability-name.js";
@@ -52,12 +53,6 @@ export const LONG_PRESS_SLOP_PX = 10;
 
 /** How close to the edge of the screen a menu may be placed before it is pulled back. */
 const MENU_VIEWPORT_MARGIN_PX = 8;
-
-/**
- * The prompt bar's form, whose top edge is the floor a floating panel stops at (design D5): a
- * panel over that sentence would cover the answer to itself. Restated and pinned by a test.
- */
-const PROMPT_FORM_ID = "spec-build-form";
 
 /**
  * The slot the bar speaks in. It stands above the rail and is as tall as the sentence it holds,

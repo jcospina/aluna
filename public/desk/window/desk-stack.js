@@ -53,6 +53,18 @@ export function raise(member) {
 }
 
 /**
+ * Bring the standing window drawn as `el` to the front, as a press on it would: a question asked
+ * in a window behind another, or off the page on a phone, could be neither seen nor answered.
+ *
+ * @param {unknown} el
+ */
+export function raiseWindow(el) {
+  // Found first: raising re-adds the member to the set, which a loop over it would meet again.
+  const member = [...standing].find((one) => one.el === el);
+  if (member) raise(member);
+}
+
+/**
  * Raise from a press, and let the press be only that. A press on the window behind is a person
  * reaching for it, not choosing text in it, and `window-press.js` refuses the selection the
  * browser would have started. `design/styles/components/desk.css` answers this for a logo with

@@ -1091,8 +1091,9 @@ local filesystem and built so an R2, S3 or Garage adapter can take its place.
   dropped it, or its window or record left the desk. A save whose Handler
   never stored a key it carried gives that key up in its own transaction. The
   route moves only keys still pending, so a discard racing a save never strips
-  the record. Leaving a record whose form holds an upload asks first, as a
-  running build does, and a confirmed leave deletes it. A reload destroys an
+  the record. Leaving a record whose form has unsaved changes, typed or
+  uploaded, asks first, as a running build does, and a confirmed leave deletes
+  any upload it held. A reload destroys an
   open form, so any pending key still standing at desk load is swept there; a
   second tab's form loses its upload to that sweep, and its save is refused with
   a sentence rather than failing silently. No pending upload expires on a timer. A key is not silently shared between records in the PoC. External

@@ -437,6 +437,11 @@ export class El extends LaidOut implements EventNode {
     this.listeners.remove(type, run, options);
   }
 
+  /** A script's own press: one click at this node, travelling as a click the person made does. */
+  click(): void {
+    this.ownerDoc?.fire("click", this);
+  }
+
   /** The target, then every ancestor up to the document, in the phases the event travels. */
   dispatchEvent(event: DispatchedEvent): boolean {
     const path: El[] = [];

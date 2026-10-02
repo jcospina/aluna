@@ -68,6 +68,8 @@ export interface DeskOptions {
   readonly answer?: (asked: Asked) => Promise<unknown>;
   readonly modules?: readonly string[];
   readonly capabilityId?: string;
+  /** Stand the region inside a window's frame and body, as the desk mounts it. */
+  readonly framed?: boolean;
 }
 
 /** Stand the window up around `collectionHtml` and start the modules on it. */
@@ -77,6 +79,7 @@ export async function recordDesk(
     answer = () => Promise.resolve(),
     modules = ["records/record-view.js"],
     capabilityId = "tasks",
+    framed = false,
   }: DeskOptions = {},
 ) {
   const doc = new Doc();
@@ -84,8 +87,9 @@ export async function recordDesk(
     { id: capabilityId, incarnation_id: "incarnation-1", version: 1 },
     collectionHtml,
   );
+  const region = `<div id="${WINDOW_CONTENT_ID}" data-content-region="${WINDOW_CONTENT_REGION}">${surface}</div>`;
   parseHtml(
-    `<div id="${WINDOW_CONTENT_ID}" data-content-region="${WINDOW_CONTENT_REGION}">${surface}</div>`,
+    framed ? `<section class="window"><div class="window__body">${region}</div></section>` : region,
     doc,
   );
   const asked: Asked = { processed: [], requests: [] };

@@ -746,6 +746,7 @@ function mountOne(host, transfer, options) {
       if (unsentWaits(l)) going.push("unsent recording");
       return l.recorder?.holds() ? [...going, "recording"] : going;
     },
+    loses: () => travelling(l).length > 0 || unsentWaits(l) || l.recorder?.losesAudio() === true,
     settle: (how) => settle(l, how),
   });
   wire(l);

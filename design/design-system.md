@@ -242,12 +242,15 @@ dismissed rather than put away, because closing it destroys the answer.
 One confirmation is read *over* the window rather than inside it: the question a
 navigation asks before it takes a live build or evolution away dims that window's
 own body and centres the question on it. It is still not a modal, and the
-distinction is the whole of what makes it allowed — the markup is already in the
-run's surface and is unhidden rather than swapped in, it reaches no further than
-that window's body, nothing outside the window is covered or made inert, focus is
-not trapped, and the frame's two lamps stay pressable. Nothing else on this
-surface may be read over anything (module 5, PLAN decision 17, amended
-2026-09-02).
+distinction is the whole of what makes it allowed — nothing is fetched or swapped
+in to show it, it reaches no further than that window's body, nothing outside the
+window is covered or made inert, focus is not trapped, and the frame's two lamps
+stay pressable (module 5, PLAN decision 17, amended 2026-09-02). A record form
+with unsaved changes asks the same question in its own words before any exit takes
+it, and is drawn beside the run's in `controls.html`, "A record, assembled" (module 7,
+PLAN decision 32). A run's copy ships hidden in its own surface; a form has no such
+surface, so the shell builds the form's in the window's body when it asks.
+Nothing else on this surface may be read over anything.
 
 A record is a `<button>`. Opening one is the only thing you can do with it, and a
 button is what the keyboard already reaches, so a record carries no `role`, no

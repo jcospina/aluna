@@ -24,6 +24,7 @@ import { registerRegionRelease } from "../core/region-scope.js";
 import {
   FILE_NAME_HEADER,
   onCreateFinished,
+  RECORD_FORM_SELECTOR,
   FILE_FIELD_ATTRIBUTES as WIRE,
 } from "../core/shell-dom.js";
 import { heldUploads } from "./held-uploads.js";
@@ -266,7 +267,7 @@ export function uploadTransfer(open) {
     if (picked.type !== "") request.setRequestHeader("Content-Type", picked.type);
     request.send(picked.file);
     const release = registerRegionRelease(host, "file upload", () => request.abort());
-    const landed = heldUploads.travelling(host);
+    const landed = heldUploads.travelling(host, () => request.abort());
     const settled = () => {
       release();
       landed();
@@ -318,9 +319,31 @@ function keepListInStep(event) {
 }
 
 /**
+ * The record form a save went out from, if this request is one. A read made on a region's behalf
+ * is not, though the region holds the same controls, and neither is any other form's request.
+ *
+ * @param {Event} event
+ */
+function savingForm(event) {
+  const elt = /** @type {CustomEvent<{ elt?: unknown }>} */ (event).detail?.elt;
+  const form = typeof HTMLFormElement !== "undefined" && elt instanceof HTMLFormElement;
+  return form && elt.matches(RECORD_FORM_SELECTOR) ? elt : null;
+}
+
+/** @param {Event} event @returns {import("./held-uploads.js").SaveOutcome} */
+function saveOutcome(event) {
+  const detail = /** @type {CustomEvent<{ successful?: boolean, xhr?: { status?: number } }>} */ (
+    event
+  ).detail;
+  if (detail?.successful === true) return "saved";
+  return (detail?.xhr?.status ?? 0) === 0 ? "unknown" : "refused";
+}
+
+/**
  * The fields' listeners, apart from their mounting so the rules run in Bun: their value kept in
- * step, put back when a create finishes or is put down, and a form refusing to send while a file
- * is travelling, which moves the person to the save that says what it waits on.
+ * step, put back when a create finishes or is put down, carried by a save while it is out, and a
+ * form refusing to send while a file is travelling, which moves the person to the save that says
+ * what it waits on.
  *
  * @param {Pick<Document, "addEventListener">} root
  * @param {typeof settleFileFields} settle
@@ -328,6 +351,14 @@ function keepListInStep(event) {
 export function wireFileFields(root, settle = settleFileFields) {
   root.addEventListener(FILE_FIELD_CHANGE, keepValueInStep);
   root.addEventListener(FILE_LIST_CHANGE, keepListInStep);
+  root.addEventListener("htmx:beforeSend", (event) => {
+    const form = savingForm(event);
+    if (form) heldUploads.sending(form);
+  });
+  root.addEventListener("htmx:afterRequest", (event) => {
+    const form = savingForm(event);
+    if (form) heldUploads.sent(form, saveOutcome(event));
+  });
   onCreateFinished(root, (form, saved) => {
     // Before the put-back, which would otherwise give back what the create just saved.
     if (saved) heldUploads.claimed(form);

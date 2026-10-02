@@ -69,6 +69,7 @@ export const INK_SELECTOR = [
   ".swatch",
   ".specimen",
   ".stage",
+  ".window__leaving-panel",
   /* Anything asking for it by name */
   "[data-ink]",
 ].join(",");

@@ -116,7 +116,7 @@ describe("a key the form let go of", () => {
     book.timersRun();
     await flush();
     expect(book.sent).toEqual([["late"]]);
-    expect(book.held.holdsUpload(scope(field))).toBe(true);
+    expect(book.held.uploadsIn(scope(field))).toBe(1);
   });
 
   test("whose request the network or the server fails is sent again after each delay", async () => {
@@ -190,7 +190,7 @@ describe("a key a save took", () => {
     book.timersRun();
     await flush();
     expect(book.sent).toEqual([]);
-    expect(book.held.holdsUpload(scope(field))).toBe(false);
+    expect(book.held.uploadsIn(scope(field))).toBe(0);
     expect(book.live()).toBe(0);
   });
 
@@ -236,7 +236,7 @@ describe("a form leaving the page", () => {
     book.timersRun();
     await flush();
     expect(book.sent).toEqual([["k1", "k2"]]);
-    expect(book.held.holdsUpload(scope(field))).toBe(false);
+    expect(book.held.uploadsIn(scope(field))).toBe(0);
     expect(book.live()).toBe(0);
   });
 
@@ -250,22 +250,106 @@ describe("a form leaving the page", () => {
   });
 });
 
-describe("whether a form holds an upload", () => {
+describe("how many uploads a form would lose", () => {
   test("counts a file still travelling, a key arriving and a key held, in that form only", () => {
     const book = bookkeeping();
     const [field, other] = [host(), host()];
     const form = scope(field);
-    expect(book.held.holdsUpload(form)).toBe(false);
+    expect(book.held.uploadsIn(form)).toBe(0);
 
     const landed = book.held.travelling(field as never);
-    expect(book.held.holdsUpload(form)).toBe(true);
-    expect(book.held.holdsUpload(scope(other))).toBe(false);
+    expect(book.held.uploadsIn(form)).toBe(1);
+    expect(book.held.uploadsIn(scope(other))).toBe(0);
     book.held.arrived(field as never, "k1");
     landed();
-    expect(book.held.holdsUpload(form)).toBe(true);
+    expect(book.held.uploadsIn(form)).toBe(1);
     book.held.heard(field as never, ["k1"], []);
-    expect(book.held.holdsUpload(form)).toBe(true);
+    expect(book.held.uploadsIn(form)).toBe(1);
     book.held.heard(field as never, [], []);
-    expect(book.held.holdsUpload(form)).toBe(false);
+    expect(book.held.uploadsIn(form)).toBe(0);
+  });
+});
+
+describe("a save that goes out carrying what a form holds", () => {
+  const form = (field: Host) => ({ ...host(), contains: (other: unknown) => other === field });
+
+  test("is not counted as something a leave would lose while it is out", () => {
+    const book = bookkeeping();
+    const field = host();
+    const saving = form(field);
+    took(book, field, "k1");
+    book.held.sending(saving as never);
+    expect(book.held.uploadsIn(saving)).toBe(0);
+    book.held.sent(saving, "refused");
+    expect(book.held.uploadsIn(saving)).toBe(1);
+  });
+
+  test("keeps its key from the route when its form goes before any answer", async () => {
+    const book = bookkeeping();
+    const field = host();
+    const saving = form(field);
+    took(book, field, "k1");
+    book.held.sending(saving as never);
+    book.release(saving as never);
+    book.held.sent(saving, "unknown");
+    field.isConnected = false;
+    book.release(field);
+    await flush();
+    expect(book.sent).toEqual([]);
+    expect(book.live()).toBe(0);
+  });
+
+  test("hands its key back to a refused form, which gives it to the route once it goes", async () => {
+    const book = bookkeeping();
+    const field = host();
+    const saving = form(field);
+    took(book, field, "k1");
+    book.held.sending(saving as never);
+    book.release(saving as never);
+    book.held.sent(saving, "refused");
+    field.isConnected = false;
+    book.release(field);
+    await flush();
+    expect(book.sent).toEqual([["k1"]]);
+  });
+
+  test("hands its key back to a form still standing when no answer came", () => {
+    const book = bookkeeping();
+    const field = host();
+    const saving = form(field);
+    took(book, field, "k1");
+    book.held.sending(saving as never);
+    book.held.sent(saving, "unknown");
+    expect(book.held.uploadsIn(saving)).toBe(1);
+  });
+
+  test("leaves its key the record's once it is saved", async () => {
+    const book = bookkeeping();
+    const field = host();
+    const saving = form(field);
+    took(book, field, "k1");
+    book.held.sending(saving as never);
+    book.held.sent(saving, "saved");
+    expect(book.held.uploadsIn(saving)).toBe(0);
+    book.held.letGo(saving);
+    await flush();
+    expect(book.sent).toEqual([]);
+  });
+});
+
+describe("a form let go of on a confirmed leave", () => {
+  test("stops what is travelling and gives back what it held, in that form only", async () => {
+    const book = bookkeeping();
+    const [field, other] = [host(), host()];
+    let stopped = 0;
+    book.held.travelling(field as never, () => (stopped += 1));
+    took(book, field, "k1");
+    took(book, other, "k2");
+    book.held.letGo(scope(field));
+    await flush();
+    expect(stopped).toBe(1);
+    expect(book.sent).toEqual([["k1"]]);
+    expect(book.held.uploadsIn(scope(field))).toBe(0);
+    expect(book.held.uploadsIn(scope(other))).toBe(1);
   });
 });

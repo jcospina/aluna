@@ -5,7 +5,7 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { FILE_FIELD_HOOKS as HOOKS, mountFileFields, pickInto } from "#design/files/file-field.js";
 import { uploadTransfer, wireFileFields } from "#shell/controls/file-field.js";
-import { heldUploads } from "#shell/controls/held-uploads.js";
+import { heldUploads, holdsUpload } from "#shell/controls/held-uploads.js";
 import { releaseRegionContent, startRegionScopes } from "#shell/core/region-scope.js";
 import { capabilityActionUrl } from "#shell/core/routes.js";
 import { mintFileKey } from "../../../../platform/files/store/ledger.ts";
@@ -28,7 +28,7 @@ import {
 import { installDomGlobals } from "../../double/choice-picker.fixture.test-support.ts";
 import { Doc, type El, parseHtml } from "../../double/choice-picker.test-support.ts";
 import { hooked } from "../file-field.test-support.ts";
-import { UploadDouble } from "./held-uploads.test-support.ts";
+import { installRemovalObserver, UploadDouble } from "./held-uploads.test-support.ts";
 
 const CAPABILITY = { ...renderableFromSpec(photoSpec()), incarnationId: "inc" };
 const RECORD = {
@@ -47,31 +47,8 @@ const COLLECTION = renderCollection({
 
 installDomGlobals();
 
-/** What the page's removal observer is told; a case tells it what the browser would. */
-let observers: ((records: { removedNodes: unknown[] }[]) => void)[] = [];
-const hadObserver = Reflect.getOwnPropertyDescriptor(globalThis, "MutationObserver");
-beforeEach(() => {
-  observers = [];
-  class ObserverDouble {
-    constructor(tell: (records: { removedNodes: unknown[] }[]) => void) {
-      observers.push(tell);
-    }
-    observe() {}
-  }
-  Object.defineProperty(globalThis, "MutationObserver", {
-    value: ObserverDouble,
-    configurable: true,
-  });
-});
-afterEach(() => {
-  if (hadObserver) Object.defineProperty(globalThis, "MutationObserver", hadObserver);
-  else Reflect.deleteProperty(globalThis, "MutationObserver");
-});
-
 /** The browser telling the page that `removed` left the document. */
-const removed = (node: unknown) => {
-  for (const tell of observers) tell([{ removedNodes: [node] }]);
-};
+const removed = installRemovalObserver();
 
 let given: string[][] = [];
 let fetchSpy: ReturnType<typeof spyOn>;
@@ -142,7 +119,7 @@ describe("deleting a record whose form holds an upload", () => {
   test("hands the upload back once the deleted record's view leaves the page", async () => {
     const scene = await holdingAnUpload();
     desk = scene.desk;
-    expect(heldUploads.holdsUpload(scene.view as never)).toBe(true);
+    expect(holdsUpload(scene.view as never)).toBe(true);
 
     scene.answered(true, 200);
     expect(await discarded()).toEqual([]);
@@ -150,7 +127,7 @@ describe("deleting a record whose form holds an upload", () => {
     scene.desk.region.replaceChildren(...parseHtml(COLLECTION, new Doc()).children);
     removed(scene.view);
     expect(await discarded()).toEqual([scene.key]);
-    expect(heldUploads.holdsUpload(scene.view as never)).toBe(false);
+    expect(holdsUpload(scene.view as never)).toBe(false);
   });
 
   test("keeps the upload while a refused delete leaves the record standing", async () => {
@@ -160,6 +137,6 @@ describe("deleting a record whose form holds an upload", () => {
     releaseRegionContent(scene.view as never);
     removed(scene.question);
     expect(await discarded()).toEqual([]);
-    expect(heldUploads.holdsUpload(scene.view as never)).toBe(true);
+    expect(holdsUpload(scene.view as never)).toBe(true);
   });
 });

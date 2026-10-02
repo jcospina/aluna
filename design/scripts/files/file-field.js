@@ -280,9 +280,14 @@ const FIELDS = new WeakMap();
 
 /**
  * What a form asks of every file control in it, a single field or a list: which kinds are
- * travelling, and how to settle when the form saves or cancels.
+ * travelling, whether leaving would lose a file or a recording, and how to settle when the form
+ * saves or cancels. A recorder still asking for the microphone holds a save but loses nothing.
  *
- * @typedef {{ uploading: () => string[], settle: (how: "keep" | "revert") => void }} FileControl
+ * @typedef {{
+ *   uploading: () => string[],
+ *   loses?: () => boolean,
+ *   settle: (how: "keep" | "revert") => void,
+ * }} FileControl
  * @type {WeakMap<Element, FileControl>}
  */
 const CONTROLS = new WeakMap();
@@ -646,6 +651,7 @@ function mountOne(host, transfer, options) {
       if (f.unsent) return ["unsent recording"];
       return f.recorder?.holds() ? ["recording"] : [];
     },
+    loses: () => Boolean(f.upload || f.unsent) || f.recorder?.losesAudio() === true,
     settle: (how) => settleOne(f, how),
   });
   host.addEventListener("click", (event) => {
@@ -753,6 +759,13 @@ export function pickInto(host, picked) {
  * @param {Element} scope
  */
 export const uploadingIn = (scope) => controlsIn(scope).some((c) => c.uploading().length > 0);
+
+/**
+ * Whether leaving `scope` would lose a file still travelling or a recording made or kept unsent.
+ *
+ * @param {Element} scope
+ */
+export const losesIn = (scope) => controlsIn(scope).some((c) => c.loses?.() === true);
 
 /**
  * What a form's save and cancel do to the file fields in it: a save keeps what each field

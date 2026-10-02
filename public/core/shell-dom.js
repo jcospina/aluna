@@ -22,6 +22,13 @@ export const BUILD_JOB_ID_ATTRIBUTE = "data-build-job-id";
 /** The field a sentence is typed into, which the bar guards and the desk gives focus back to. */
 export const PROMPT_FIELD_ID = "spec-build-prompt";
 
+/** The prompt bar's form, which a sentence is sent from. */
+export const PROMPT_FORM_ID = "spec-build-form";
+
+/** The forms a record is created and edited in. */
+export const RECORD_FORM_SELECTOR =
+  'form[data-record-edit-form], form[data-post-mutation-refresh][data-mutation-kind="create"]';
+
 /** The bar's own submit button, whose label says the shell is working while a build has it. */
 export const PROMPT_TRIGGER_ID = "spec-build-trigger";
 
