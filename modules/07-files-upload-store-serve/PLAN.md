@@ -6,6 +6,8 @@ draft broke every edit of a record holding a file, let a crash or an open transa
 an upload, and kept serving a deleted capability's files. Its findings and the eight
 decisions they forced are folded in below, and a second review of the result settled the
 order an upload writes its bytes and its row (decision 13). Converting to issues.
+*Amended 2026-10-03:* epic 7.5 and decisions 40 to 49 give every record an address and
+let an answer link the records it names (ADR-0010).
 
 This refines [docs/modules.md](../../docs/modules.md) §Module 7 with the decisions that
 module ownership left open, and it does not leave that section's text intact: two things
@@ -489,6 +491,9 @@ in ADR-0009, and in the architecture and design documents.
     disguise any value it reads, so the question's worker reads every table through
     views that show a file column without its key and withhold text holding a key or
     an address before any statement sees it (ADR-0008, ADR-0009).
+    *Amended 2026-10-03 (7.5):* the answer window stays prose, and a record it names may
+    be a link the platform built (decisions 45 to 48). It still shows no file, image or
+    file address.
 
 ### The Gate
 
@@ -506,10 +511,92 @@ in ADR-0009, and in the architecture and design documents.
     tokens into scratch references, rows compare by `kind` and `name` and never by key,
     and the behavioral input digest covers the new shape.
 
+### Records with addresses
+
+*Added 2026-10-03.* Once a capability holds files, a question about them can only count
+them. To find the record itself, the person reads a name in the answer and then hunts
+for its card. These decisions give every record an address, and let the answer link the
+records it names. They reverse Module 5's decision 6 (the address names the capability
+and nothing below it), ADR-0005's rejected read-single route, and this plan's decision 37
+(the answer window stays text). [ADR-0010](../../docs/adr/0010-record-addresses-and-record-links-in-answers.md)
+records the reversal, and 7.5/01 writes it.
+
+40. **The address has three shapes.** `/` is the bare desk, `/capability/:id` is a
+    capability's collection, and `/capability/:id/:record` is one record open in its
+    record view. `:record` is the record's `id`, a UUID from `randomUUID()`, compared in
+    lower case. The search term and a half-typed edit still stay out of the address. The
+    record view is the form in edit mode, as it is today, and there is no read-only
+    details surface.
+41. **The record address is a platform route, not an Action.** `GET
+    /capability/:id/:record` is registered ahead of `/capability/:id/:action`. The five
+    Action names keep their route, and a segment shaped like a UUID is a record. Anything
+    else answers 404 as it does today, so no Action can collide and the fixed set of
+    Actions does not change. The route takes a read token and closes with the read gate,
+    exactly as the collection view does, and its full-page load runs the desk-load
+    recovery.
+42. **The server draws the record.** The platform reads one row by `id` from the active
+    incarnation's table and narrows it as the collection does: `item.shows`, the record
+    target, the active detail and edit fields, and `created_at`, with no inactive field
+    and no `extra` (ARCH §7). It renders the record view through the same presentation
+    adapter that writes a card's `<template>`. No generated Handler runs. With
+    `HX-Request` the route answers the record view fragment for the window. Without it,
+    the route answers the whole desk with that record open, so a reload, a pasted link
+    and a new tab all land on the record.
+43. **An absent record leaves its capability open.** An address whose record was
+    deleted, never existed or lives in another capability opens that capability's
+    collection, speaks the not-found notice on the prompt bar, answers 404, and corrects
+    the address to `/capability/:id`. An absent capability still gives the bare desk
+    (Module 5 decision 21). A capability that declares no `update` has no record view,
+    so its record address opens the collection without a notice. Record ids are random,
+    so a capability deleted and built again under the same id finds none of the old
+    records, and the address needs no incarnation.
+44. **Opening a record moves the address.** A card press pushes the record address.
+    The back control, a save and a delete all leave the record view the same way: when
+    the entry before is this capability's collection, they step back; when the person
+    arrived by link, they replace the entry with the collection's address. Back and
+    Forward render a record or a collection without pushing. The leave question for
+    unsaved changes and the hold on a running build cover a record address like any
+    other traversal. `desk-address.js` keeps its single `pushState` and its single
+    `replaceState`. A build's restoration descriptor stays capability-only, so a build
+    that ends shows the collection.
+45. **The model nominates records, and the platform vouches for them.** When a
+    question asks about particular records rather than a figure, the turn prompt asks the
+    model to select `id` with them. The answer schema becomes `{ answer, records }`, with
+    `records` a required array, possibly empty, of `{ says, id }`: the words in the
+    answer that name a record, and the id it read. Both are required, which keeps the
+    schema strict-mode safe. The platform keeps a nomination only when four things hold.
+    The id came back as a cell in a row some step returned. Exactly one capability that
+    step read holds a record with that id, checked inside the same read scope. That
+    capability has a record view. And `says` occurs in the answer outside any other
+    link. It then links the first free occurrence of `says`. It drops any other
+    nomination without a word, and the answer is still spoken. The nothing-found,
+    nowhere-for-it, nothing-worked and budget-spent endings carry no links.
+46. **The prose never carries an id.** The prompt says so, and the platform removes any
+    record id the steps returned from the spoken text before it is shown.
+47. **The platform builds every link.** The answer fragment holds escaped text runs and
+    `<a data-answer-record href="/capability/:id/:record">` elements whose text is the
+    escaped `says`. The client builds each anchor itself, with `createElement` and
+    `textContent`, from a capability id and a record id it validates, through one
+    `recordAddress()` builder in `routes.js`. It never parses markup out of the answer.
+    Generated item markup still cannot emit `<a>` or `href`, and the card stays a
+    `<button>`.
+48. **A link press opens the record in the capability window.** A plain press takes the
+    same path as a record address: push, then open, under the same leave question and
+    run hold. The answer window stays where it is, and on a phone the capability window
+    comes forward. A modified or middle press is the browser's own, and opens the record
+    address in a new tab. The answer still has no address and nothing about it survives
+    a reload. `intent_resolution_metrics` records no record id.
+49. **A record address is what a linked record will point at.** Module 8's link
+    projection hands generated code a `url` beside a name, as a file reference does. For
+    a linked record, that `url` is the record address, so this epic is its groundwork and
+    Module 8 does not need a second scheme.
+
 ## Epics
 
-Vertical: 7.1 is a photo end to end, and each epic after it widens or hardens something
-already running. Issue numbering starts at `01` inside each epic.
+Vertical: 7.1 is a photo end to end, and each epic after it up to 7.4 widens or hardens
+something already running. 7.5 is the exception: it gives every record an address, which
+files made necessary but which reaches every capability. Issue numbering starts at `01`
+inside each epic.
 
 ### 7.1 — One photo, end to end
 
@@ -596,6 +683,24 @@ Done when a capability built from a cold prompt chooses a file field, declares s
 families and renders all four kinds without a Gate rejection, and evolving Notes to add a
 `file[]` keeps every existing record.
 
+### 7.5 — Every record has an address
+
+The record address and its platform route, ahead of the Action route; the server drawing
+one record's view, for the window and for a whole-page load; the absent-record notice;
+the desk's address learning the third shape, with a card press pushing it and every way
+out of the record view leaving it the same way; the question loop selecting `id` for
+questions about particular records, the answer schema's nominations and the platform's
+check of each one; the answer fragment's platform-built links, and the answer window
+drawing them and opening a record when pressed. ADR-0010 and the amendments to
+`design/`, `CONTEXT.md`, `docs/architecture.md`, ADR-0005, ADR-0008 and
+`docs/modules.md` land first, because `design/` is the requirement (decisions 40 to 49).
+
+Done when a record's address opens it from a reload, a pasted link and a new tab; Back
+and Forward move between a collection and its records; a deleted record's address opens
+its capability with a notice; and "which teas did I rate five?" answers with each tea's
+name linked to its record, no id on screen, and a press on a name opening that record.
+7.5/06 closes Module 7 and takes over that role from 7.4/03.
+
 ## Design work this module owes
 
 `design/controls.html` carries the note that a file field "is the one absence left, and it
@@ -604,7 +709,9 @@ filled state for each kind, the progress line, the `file[]` list, a refusal in t
 the open and download links inside the record, the full player in the record's render view
 (decision 29), and the leave question for a held upload. Shape follows the existing field structure and the drawn line. `design/` is
 the product requirement, so the image states land with or before 7.1's control, and the
-rest with or before the epic that builds them.
+rest with or before the epic that builds them. 7.5 owes two drawings: D14 gains the
+record address and the absent-record notice, and the answer window gains a linked record
+name inside a sentence, in its rest, hover, focus and pressed states.
 
 ## Left for Module 9
 

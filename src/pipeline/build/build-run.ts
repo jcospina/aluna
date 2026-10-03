@@ -123,6 +123,7 @@ async function authorInitialSpec(input: {
   readonly provider: Provider;
   readonly prompt: string;
   readonly intent: IntentClassification;
+  readonly incarnationId: string;
   readonly acc: DemoBuildAccumulator;
   readonly database: PlatformDatabase;
 }): Promise<Awaited<ReturnType<typeof generateSpec>>> {
@@ -144,6 +145,7 @@ async function authorInitialSpec(input: {
       prompt: input.prompt,
       intent: input.intent,
       send: input.send,
+      incarnationId: input.incarnationId,
     });
     input.acc.timings.specGenMs = generated.durationMs;
     input.acc.usages.push(generated.usage);
@@ -157,6 +159,8 @@ async function authorInitialSpec(input: {
   } finally {
     await flushPreviews();
   }
+  // The stream showed the model's answer; the spec that builds may carry a drawn layout instead.
+  await input.send("spec-preview", JSON.stringify(generated.spec));
   return generated;
 }
 
@@ -197,6 +201,7 @@ export async function runSpecBuildStages(
     provider,
     prompt,
     intent,
+    incarnationId,
     acc,
     database: buildDatabases,
   });

@@ -728,8 +728,8 @@ a field type — finally holds something real.
 
 ### Epics
 
-Sliced vertically: 7.1 is a photo end to end, and everything after it widens or
-hardens something already running.
+Sliced vertically: 7.1 is a photo end to end, and 7.2 to 7.4 widen or harden
+something already running. 7.5 gives every record an address.
 
 - **7.1 — One photo, end to end.** The object store (streaming `put / get /
   delete / url`, opaque UUID keys under a configurable root, a local adapter,
@@ -766,6 +766,18 @@ hardens something already running.
   regenerates the renderer, `file` ↔ `file[]` is refused by the existing type
   rule), and the query loop's catalog guidance: a file column may be counted,
   grouped and filtered by `kind`.
+- **7.5 — Every record has an address.** `/capability/:id/:record` opens one
+  record in its record view, from a press, a reload, a pasted link or a new tab.
+  It is a platform route registered ahead of the Action route, so no Action
+  collides, and the server draws the record through the same presentation
+  adapter a card's template uses. A deleted record's address opens its
+  capability with a notice. The question loop selects `id` when a question is
+  about particular records, the model names which words in its answer mean which
+  record, and the platform links those words only for records a step returned.
+  No id reaches the screen. Files made this necessary, because a question about
+  photos can only count them, but it reaches every capability, and Module 8's
+  linked records point at the same address. (ADR-0010; Module 7 plan decisions
+  40 to 49)
 
 ### Verify by running it
 Build Photos from the prompt bar, upload a photo, edit the record's title and
@@ -777,12 +789,15 @@ load sweeps what each left. Hold an upload in one tab, load the desk in a second
 and confirm the first tab's save is refused with a sentence. Then evolve an
 existing Notes capability to add `file` and `file[]`, hide one file field, delete
 Notes through M4's capability action, and confirm active + inactive owned keys and
-version artifacts disappear idempotently.
+version artifacts disappear idempotently. Finally open a record, reload, copy its
+address into a new tab, step Back and Forward, delete it and open its address again;
+then ask which records match something and press a linked name in the answer.
 
 ### Exit criteria
 New and evolved capabilities hold files end to end through platform tooling, with
 recoverable ownership across create/update/record-delete/capability-delete.
-The explicit prompting feature is complete.
+Every record has an address that survives a reload, and an answer that names
+records links each one. The explicit prompting feature is complete.
 
 ## Module 8 — Composition: Linked Capabilities
 

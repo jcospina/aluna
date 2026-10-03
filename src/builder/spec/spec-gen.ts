@@ -39,7 +39,8 @@ import {
   promptCapabilitySpecSchema,
   uiCollectionLayoutSchema,
 } from "../../registry/index.ts";
-import { FILE_FIELD_PROMPT_LINES } from "./file-field-guidance.ts";
+import { FILE_FIELD_CARD_LINE, FILE_FIELD_PROMPT_LINES } from "./file-field-guidance.ts";
+import { drawFileCardLayout, drawnFileCardLayout } from "./layout-draw.ts";
 
 export interface GenerateSpecInput {
   readonly provider: Provider;
@@ -50,6 +51,8 @@ export interface GenerateSpecInput {
   readonly intent: IntentClassification;
   // The job's stream. Narration rides it in product voice while the spec generates.
   readonly send: SendBuildEvent;
+  // The capability's incarnation, which draws the layout of a card that shows a file.
+  readonly incarnationId: string;
 }
 
 /**
@@ -94,6 +97,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     `- a choice field also declares groups: an ordered array of { id, heading }, where heading is at most ${MAX_CHOICE_GROUP_HEADING_LENGTH} characters. Declare groups only when the options fall into named sets a person would look for by heading — currencies by continent, statuses by open and closed. A short flat list needs none, and [] is the ordinary answer. Every declared group must be named by at least one option, and every option's group must be an id declared on its own field.`,
     `- a field declares max_length only when its type is string. It is a positive integer between ${MIN_DECLARED_MAX_LENGTH} and ${MAX_DECLARED_MAX_LENGTH}, and it is the number of characters that field holds — it drives the character counter under the control, the browser's own stop on typing, and Aluna's own refusal of anything longer. Declare it where a real bound is part of what the field is (a summary that must stay short, a headline, a one-line note); omit it (send null) everywhere else, including on every non-string field.`,
     ...FILE_FIELD_PROMPT_LINES,
+    FILE_FIELD_CARD_LINE,
     "- field names and the capability id are lowercase letters, digits, and underscores, starting with a letter.",
     `- ${platformColumns} are platform-owned columns Aluna adds automatically. Never include them as fields.`,
     `- Never name a field ${FORM_SHADOWING_FIELD_NAMES.join(" or ")}: the browser's form uses those names itself.`,
@@ -112,7 +116,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     "- radio stands every option in a column, each with room for a note under its label. Choose it for a short set of roughly two to five where seeing all the options at once is the point, such as payment terms or a delivery speed. It shows groups and notes as the picker does, at the cost of a column of space.",
     "- segmented is one joined row of buttons, read at a glance and switched between. Choose it only for two or three mutually exclusive states whose labels are one or two words — feed and grid, draft and published, day and week and month. It is a row of bare buttons with nowhere to put a heading or a second line, so a field drawn as segmented must declare no groups and no option notes; declaring either is refused. A set that wants a heading or a note is one the picker or the radio group should draw instead.",
     "- ui_intent.item.shows is the ordered list of active schema field names the item renderer may receive; it may also include created_at.",
-    `- ui_intent.collection.layout is one of: ${collectionLayouts}. Use feed for text-forward lists and grid for visually dominant collections.`,
+    `- ui_intent.collection.layout is one of: ${collectionLayouts}. Use feed for text-forward lists and grid for visually dominant collections. When ui_intent.item.shows names a file field, Aluna lays the collection out as "${drawnFileCardLayout(input.incarnationId)}" whatever you answer, so answer "${drawnFileCardLayout(input.incarnationId)}" and write item.direction for that layout.`,
     "- Do not include ui_intent.views. Do not author how a record opens; opening one swaps the collection for its form inside the window, and that is the platform's, not authored state.",
     "",
     "Identity:",
@@ -169,7 +173,10 @@ export async function generateSpec(input: GenerateSpecInput): Promise<SpecGenRes
   const result = input.provider.generate(buildSpecPrompt(input), promptCapabilitySpecSchema);
   // The gate. `await result.object` already rejects non-conformance; re-parsing makes the
   // refusal this stage's own, whatever the provider does.
-  const spec = capabilitySpecSchema.parse(await result.object);
+  const spec = drawFileCardLayout(
+    capabilitySpecSchema.parse(await result.object),
+    input.incarnationId,
+  );
   const usage = await result.usage;
 
   const durationMs = performance.now() - startedAt;

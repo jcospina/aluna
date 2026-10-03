@@ -3,28 +3,56 @@
 
 import { describe, expect, test } from "bun:test";
 
-import { linesNaming } from "../../platform/provider/prompt-lines.test-support.ts";
+import { addedLines, linesNaming } from "../../platform/provider/prompt-lines.test-support.ts";
 
 import { CAPTION_FIELD, PHOTO_FIELD, photoSpec } from "../../registry/fields/file.test-support.ts";
-import { fieldTypeSchema } from "../../registry/index.ts";
-import { FILE_FIELD_PROMPT_LINES } from "./file-field-guidance.ts";
-import { makeSpecProvider, notesIntent, recordingSend } from "./spec-gen.test-support.ts";
+import {
+  type CapabilitySpec,
+  fieldTypeSchema,
+  type UiCollectionLayout,
+  uiCollectionLayoutSchema,
+} from "../../registry/index.ts";
+import { FILE_FIELD_CARD_LINE, FILE_FIELD_PROMPT_LINES } from "./file-field-guidance.ts";
+import { drawFileCardLayout, drawnFileCardLayout } from "./layout-draw.ts";
+import {
+  makeSpecProvider,
+  notesIntent,
+  notesSpec,
+  recordingSend,
+} from "./spec-gen.test-support.ts";
 import { buildSpecPrompt, generateSpec } from "./spec-gen.ts";
 
-function stageInput(spec: unknown) {
+function stageInput(spec: unknown, incarnationId = "inc_spec_test") {
   return {
     provider: makeSpecProvider(spec),
     prompt: "keep track of my photos",
     intent: notesIntent(),
     send: recordingSend().send,
+    incarnationId,
   };
 }
+
+const INCARNATIONS = Array.from({ length: 16 }, (_, index) => `inc_${index}`);
+
+const drawsOtherThan = (id: string) => (candidate: string) =>
+  drawnFileCardLayout(candidate) !== drawnFileCardLayout(id);
 
 describe("the spec prompt", () => {
   test("offers the file type, says what it accepts, and says search never reads it", () => {
     const prompt = buildSpecPrompt(stageInput(photoSpec()));
     expect(linesNaming(prompt, fieldTypeSchema.options)).not.toEqual([]);
     for (const line of FILE_FIELD_PROMPT_LINES) expect(prompt).toContain(line);
+    expect(prompt).toContain(FILE_FIELD_CARD_LINE);
+  });
+
+  test("names the layout its incarnation draws for a card that shows a file", () => {
+    const [first] = INCARNATIONS;
+    const other = INCARNATIONS.find(drawsOtherThan(first ?? ""));
+    if (!first || !other) throw new Error("Expected incarnations that draw both layouts.");
+    const prompt = (id: string) => buildSpecPrompt(stageInput(photoSpec(), id));
+    const named = addedLines(prompt(other), prompt(first));
+    expect(named).not.toEqual([]);
+    for (const line of named) expect(line).toContain(drawnFileCardLayout(first));
   });
 });
 
@@ -89,5 +117,50 @@ describe("a generated spec carrying a file field", () => {
     const required = photoSpec([CAPTION_FIELD, { ...PHOTO_FIELD, required: true }]);
     const { spec } = await generateSpec(stageInput(required));
     expect(spec.schema.fields.find((field) => field.type === "file")?.required).toBe(true);
+  });
+});
+
+describe("the layout of a capability that keeps files", () => {
+  function laidOut(spec: CapabilitySpec, layout: UiCollectionLayout, shows: string[]) {
+    const ui_intent = {
+      ...spec.ui_intent,
+      collection: { layout },
+      item: { ...spec.ui_intent.item, shows },
+    };
+    return { ...spec, ui_intent };
+  }
+
+  async function layoutsOf(spec: CapabilitySpec): Promise<Set<UiCollectionLayout>> {
+    const built = await Promise.all(
+      INCARNATIONS.map((incarnation) => generateSpec(stageInput(spec, incarnation))),
+    );
+    return new Set(built.map(({ spec: { ui_intent } }) => ui_intent.collection.layout));
+  }
+
+  test("is drawn from the incarnation when the card shows a file, whatever the model chose", async () => {
+    for (const shows of [["caption", "photo"], ["photo"]]) {
+      for (const chosen of uiCollectionLayoutSchema.options) {
+        const spec = laidOut(photoSpec(), chosen, shows);
+        expect(await layoutsOf(spec)).toEqual(new Set(uiCollectionLayoutSchema.options));
+      }
+    }
+  });
+
+  test("is the same for every build of one incarnation", async () => {
+    const spec = laidOut(photoSpec(), "feed", ["caption", "photo"]);
+    for (const incarnation of INCARNATIONS) {
+      const first = await generateSpec(stageInput(spec, incarnation));
+      const again = drawFileCardLayout(laidOut(spec, "grid", ["caption", "photo"]), incarnation);
+      expect(again.ui_intent.collection).toEqual(first.spec.ui_intent.collection);
+    }
+  });
+
+  test("is the model's own when the card shows no file", async () => {
+    for (const chosen of uiCollectionLayoutSchema.options) {
+      const hidden = laidOut(photoSpec(), chosen, ["caption"]);
+      expect(await layoutsOf(hidden)).toEqual(new Set([chosen]));
+      const notes = laidOut(notesSpec(), chosen, notesSpec().ui_intent.item.shows);
+      expect(await layoutsOf(notes)).toEqual(new Set([chosen]));
+    }
   });
 });

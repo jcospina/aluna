@@ -7,11 +7,21 @@ import { describe, expect, spyOn, test } from "bun:test";
 import * as admission from "../../../../platform/files/admission/admission.ts";
 import { WORD_DOCUMENT_TYPE } from "../../../../platform/files/admission/documents/word-package.ts";
 import { enforceItemMarkup } from "../../../../presentation/index.ts";
-import { PHOTO_FIELD, photoSpec } from "../../../../registry/fields/file.test-support.ts";
-import type { CapabilitySpec } from "../../../../registry/index.ts";
+import { PHOTO_FIELD, photoSpec, subsets } from "../../../../registry/fields/file.test-support.ts";
+import {
+  type CapabilitySpec,
+  FILE_FAMILIES,
+  type FileFamily,
+  isFileFieldType,
+} from "../../../../registry/index.ts";
 import { validSpec } from "../../../../registry/spec/spec.test-support.ts";
-import { FEW_SHOT_DESIGN_EXAMPLES } from "../../../units/generation/few-shot/few-shot-gallery.ts";
+import {
+  FEW_SHOT_DESIGN_EXAMPLES,
+  type FewShotDesignExample,
+  fewShotExamplesFor,
+} from "../../../units/generation/few-shot/few-shot-gallery.ts";
 import { ESCAPE_HELPER } from "../../../units/generation/unit-fixtures.test-support.ts";
+import { checkGeneratedUnit } from "../../../units/safety/unit-checks.ts";
 import { loadItemRenderer } from "../../gate-internal.ts";
 import { scratchFileType, tokenFileName } from "../../gate-scratch-names.ts";
 import { findDesignViolation } from "./gate-design-lint.ts";
@@ -484,35 +494,58 @@ describe("a card's PDF labels, read against the same card for a PDF and for none
   });
 });
 
-describe.each([
-  "photo_grid_tile",
-  "walk_media_feed",
-  "voice_memo_feed",
-  "voice_memo_tile",
-  "appliance_manual_feed",
-  "appliance_manual_tile",
-])("the %s exemplar", (id) => {
+/** The exemplar's own capability as a spec, its file fields narrowed to `accepts` when given. */
+function exemplarSpec(
+  example: FewShotDesignExample,
+  accepts?: readonly FileFamily[],
+): CapabilitySpec {
+  const base = validSpec();
+  const fields = example.capability.schema.fields.map((field) =>
+    accepts && isFileFieldType(field.type) ? { ...field, accepts: [...accepts] } : { ...field },
+  );
+  return validSpec({
+    id: example.capability.id,
+    label: example.capability.label,
+    noun: example.capability.noun,
+    schema: { fields },
+    ui_intent: {
+      ...base.ui_intent,
+      collection: { ...base.ui_intent.collection, layout: example.layout },
+      item: { ...base.ui_intent.item, shows: fields.map((field) => field.name) },
+    },
+  });
+}
+
+const holdsAFile = ({ capability }: FewShotDesignExample) =>
+  capability.schema.fields.some(({ type }) => isFileFieldType(type));
+
+describe("every exemplar a card holding files is shown", () => {
+  test("clears design lint when its file can only be what the card's field takes", () => {
+    for (const accepts of subsets(FILE_FAMILIES)) {
+      for (const list of [false, true]) {
+        for (const example of fewShotExamplesFor([{ accepts, list }]).filter(holdsAFile)) {
+          const violation = findDesignViolation(
+            exemplarSpec(example, accepts),
+            example.rendererSource,
+          );
+          expect(violation, `${example.id} for ${accepts}, list ${list}`).toBeUndefined();
+        }
+      }
+    }
+  });
+});
+
+describe.each(FEW_SHOT_DESIGN_EXAMPLES.map(({ id }) => id))("the %s exemplar", (id) => {
   const example = FEW_SHOT_DESIGN_EXAMPLES.find((candidate) => candidate.id === id);
   if (!example) throw new Error(`Expected the ${id} exemplar.`);
 
-  function exemplarSpec(): CapabilitySpec {
-    const base = validSpec();
-    const fields = example?.capability.schema.fields ?? [];
-    return validSpec({
-      id: example?.capability.id,
-      label: example?.capability.label,
-      noun: example?.capability.noun,
-      schema: { fields: fields.map((field) => ({ ...field })) },
-      ui_intent: {
-        ...base.ui_intent,
-        collection: { ...base.ui_intent.collection, layout: example?.layout ?? "grid" },
-        item: { ...base.ui_intent.item, shows: fields.map((field) => field.name) },
-      },
-    });
-  }
+  test("passes the Gate's type check over its own capability", () => {
+    const unit = { kind: "item-renderer", name: "item" } as const;
+    expect(checkGeneratedUnit(exemplarSpec(example), unit, example.rendererSource)).toBeUndefined();
+  });
 
   test("clears design lint over its own capability", () => {
-    expect(findDesignViolation(exemplarSpec(), example.rendererSource)).toBeUndefined();
+    expect(findDesignViolation(exemplarSpec(example), example.rendererSource)).toBeUndefined();
   });
 
   test("renders each preview as drawn", () => {

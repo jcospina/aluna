@@ -80,6 +80,11 @@ export const AUDITED_SHEETS: readonly string[] = [
   // the item-renderer prompt as approved examples, so a failure here is one the platform teaches.
   "src/builder/units/generation/few-shot/few-shot-gallery.ts",
   "src/builder/units/generation/few-shot/few-shot-media.ts",
+  "src/builder/units/generation/few-shot/few-shot-clips.ts",
+  "src/builder/units/generation/few-shot/few-shot-documents.ts",
+  "src/builder/units/generation/few-shot/few-shot-lists.ts",
+  "src/builder/units/generation/few-shot/few-shot-mixed.ts",
+  "src/builder/units/generation/few-shot/few-shot-strips.ts",
 ];
 
 /**

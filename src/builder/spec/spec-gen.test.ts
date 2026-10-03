@@ -61,6 +61,7 @@ function specPrompt(request = "track my notes", intent: IntentClassification = n
     prompt: request,
     intent,
     send: recordingSend().send,
+    incarnationId: "inc_spec_test",
   });
 }
 
@@ -72,6 +73,7 @@ async function issuePathsOf(raw: unknown): Promise<string[]> {
       prompt: "track my notes",
       intent: notesIntent(),
       send: recordingSend().send,
+      incarnationId: "inc_spec_test",
     });
     return [];
   } catch (error) {
@@ -110,6 +112,7 @@ describe("spec generation stage — schema contract, generation, and prompt", ()
       prompt: "I want to keep track of my notes",
       intent: notesIntent(),
       send,
+      incarnationId: "inc_spec_test",
     });
 
     expect(result.spec).toEqual(spec);
@@ -136,6 +139,7 @@ describe("spec generation stage — required-field errors", () => {
       prompt: "track notes",
       intent: notesIntent(),
       send,
+      incarnationId: "inc_spec_test",
     });
     expect(generated.spec.behavioral_errors.map((errorCase) => errorCase.action)).toEqual([
       "create",
@@ -160,6 +164,7 @@ describe("spec generation stage — required-field errors", () => {
         prompt: "track optional notes",
         intent: notesIntent(),
         send,
+        incarnationId: "inc_spec_test",
       }),
     ).resolves.toMatchObject({ spec: { behavioral_errors: [] } });
 
@@ -172,6 +177,7 @@ describe("spec generation stage — required-field errors", () => {
         prompt: "track notes",
         intent: notesIntent(),
         send,
+        incarnationId: "inc_spec_test",
       }),
     ).rejects.toThrow("exact missing_required_fields cases");
   });
@@ -183,11 +189,23 @@ describe("spec generation stage — authored prompt", () => {
     const { send } = recordingSend();
     const intent = notesIntent();
 
-    await generateSpec({ provider, prompt: "track my notes", intent, send });
+    await generateSpec({
+      provider,
+      prompt: "track my notes",
+      intent,
+      send,
+      incarnationId: "inc_spec_test",
+    });
 
     expect(provider.calls).toHaveLength(1);
     expect(provider.calls[0]?.prompt).toBe(
-      buildSpecPrompt({ provider, prompt: "track my notes", intent, send }),
+      buildSpecPrompt({
+        provider,
+        prompt: "track my notes",
+        intent,
+        send,
+        incarnationId: "inc_spec_test",
+      }),
     );
   });
 
@@ -313,7 +331,13 @@ describe("spec generation stage — authored modes, narration, and identity", ()
     const { events, send } = recordingSend();
     const intent = notesIntent();
 
-    await generateSpec({ provider, prompt: "track my notes", intent, send });
+    await generateSpec({
+      provider,
+      prompt: "track my notes",
+      intent,
+      send,
+      incarnationId: "inc_spec_test",
+    });
 
     const narration = events.filter((event) => event.event === "narration");
     expect(narration).toHaveLength(1);

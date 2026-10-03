@@ -36,9 +36,11 @@ export function probeFiles(
 }
 
 /**
- * A record for each shown list that takes several families or documents, its files mixed: the
- * families in turn, and a PDF either side of another document type. A card that draws every file
- * by its first one's kind or type is read drawing the others wrong.
+ * Records for each shown list: one file of each family and document type, and shorter lists of
+ * every length, the families in turn, so a card that draws a short list and names a long one is read
+ * drawing; then, for several families or for documents, a mixed list and a PDF either side of
+ * another document type, so a card that draws every file by its first one's kind or type is read
+ * drawing the others wrong.
  */
 export function mixedLists(
   spec: CapabilitySpec,
@@ -49,26 +51,36 @@ export function mixedLists(
     .filter((field) => isFileListFieldType(field.type))
     .flatMap((field) => {
       const families = field.accepts ?? [];
-      const [pdf, other] = admittedTypes("document");
-      const mixed = (label: string, entries: readonly [FileFamily, string?][]) => ({
-        label: `synthetic mixed list (${label})`,
-        record: {
-          ...baseline,
-          [field.name]: entries.map(([family, type], entry) =>
-            scratchFileProjection(spec, field, name, family, type, entry),
-          ),
-        },
-      });
+      const [pdf, ...others] = admittedTypes("document");
+      const list = (entries: readonly [FileFamily, string?][]) => {
+        const held = [...new Set(entries.map(([family, type]) => type ?? family))];
+        const count = `${entries.length} ${entries.length === 1 ? "file" : "files"}`;
+        return {
+          label: `synthetic list "${field.name}" (${count}: ${held.join(", ")})`,
+          record: {
+            ...baseline,
+            [field.name]: entries.map(([family, type], entry) =>
+              scratchFileProjection(spec, field, name, family, type, entry),
+            ),
+          },
+        };
+      };
       const byFamily = Array.from({ length: Math.max(LISTED, families.length) }, (_, entry) => [
         families[entry % families.length] as FileFamily,
       ]) as [FileFamily][];
+      const documents = families.includes("document");
       return [
-        ...(families.length > 1 ? [mixed(families.join(", "), byFamily)] : []),
-        ...(families.includes("document") && other
+        ...families.map((family) => list([[family]])),
+        ...(documents ? others.map((type) => list([["document", type]])) : []),
+        ...(families.length > 0
+          ? Array.from({ length: LISTED - 2 }, (_, index) => list(byFamily.slice(0, index + 2)))
+          : []),
+        ...(families.length > 1 ? [list(byFamily)] : []),
+        ...(documents && others[0]
           ? [
-              mixed(`${pdf}, ${other}`, [
+              list([
                 ["document", pdf],
-                ["document", other],
+                ["document", others[0]],
                 ["document", pdf],
               ]),
             ]
