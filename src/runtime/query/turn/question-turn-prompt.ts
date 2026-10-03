@@ -13,11 +13,14 @@
 // The collections block and the one line naming the open window are the parts neither budget
 // weighs: they measure steps, and these are re-sent whole with every one of them. What bounds
 // them is the spec gate — `MAX_SPEC_FIELDS`, `MAX_CHOICE_OPTIONS`, and a capability name's own
-// 48 characters — rather than anything here.
+// 48 characters — and, for a file field, admission's closed table of types.
 
+import { admittedTypes } from "../../../platform/files/admission/admission.ts";
 import {
   type CapabilitySpec,
   choiceFieldOptions,
+  FILE_FAMILIES,
+  hasActiveFileField,
   isChoiceFieldType,
   isFileFieldType,
   isFileListFieldType,
@@ -56,7 +59,7 @@ export const QUESTION_TURN_PROMPT_PREFIX = "You are Aluna, answering a question 
  * reason the prefix above is: a suite pins these words rather than retyping them.
  */
 export const QUESTION_VOCABULARY_RULES = Object.freeze([
-  "- Only a choice field lists its values below.",
+  "- Only a choice field, and a file field's kind and mime, list their values below.",
   "- Read another field's values from the data before matching the question's words against them.",
 ]);
 
@@ -87,6 +90,51 @@ export const QUESTION_NO_HOME_RULES = Object.freeze([
   '- When nothing listed below could hold what they asked about, set next to "no_home" and leave read null.',
   "- Having read what these collections hold, say no_home rather than answering out of a",
   "  collection about something else.",
+]);
+
+/** Where the statements below name a table and its file columns; the model writes the real names in. */
+export const QUESTION_FILE_TABLE = "<table>";
+export const QUESTION_FILE_COLUMN = "<column>";
+export const QUESTION_FILE_LIST = "<list>";
+
+/**
+ * How a statement reads a file column by kind (Module 7 decisions 20 and 37): SQLite's JSON
+ * functions over the column, with no mapping of types in SQL. Exported so a suite runs these very
+ * statements against a real desk.
+ */
+export const QUESTION_FILE_SQL = Object.freeze({
+  countByKind: `SELECT json_extract(${QUESTION_FILE_COLUMN}, '$.kind') AS kind, count(*) AS files FROM ${QUESTION_FILE_TABLE} WHERE ${QUESTION_FILE_COLUMN} IS NOT NULL GROUP BY 1`,
+  countListByKind: `SELECT json_extract(file.value, '$.kind') AS kind, count(*) AS files FROM ${QUESTION_FILE_TABLE} AS t, json_each(t.${QUESTION_FILE_LIST}) AS file GROUP BY 1`,
+  countBothByKind: `SELECT kind AS kind, count(*) AS files FROM (SELECT json_extract(t.${QUESTION_FILE_COLUMN}, '$.kind') AS kind FROM ${QUESTION_FILE_TABLE} AS t WHERE t.${QUESTION_FILE_COLUMN} IS NOT NULL UNION ALL SELECT json_extract(file.value, '$.kind') FROM ${QUESTION_FILE_TABLE} AS t, json_each(t.${QUESTION_FILE_LIST}) AS file) GROUP BY 1`,
+  holdsKind: `json_extract(t.${QUESTION_FILE_COLUMN}, '$.kind') = ?`,
+  listHoldsKind: `EXISTS (SELECT 1 FROM json_each(t.${QUESTION_FILE_LIST}) AS file WHERE json_extract(file.value, '$.kind') = ?)`,
+  listCountsKind: `FROM ${QUESTION_FILE_TABLE} AS t, json_each(t.${QUESTION_FILE_LIST}) AS file WHERE json_extract(file.value, '$.kind') = ? GROUP BY t.id HAVING count(*) > CAST(? AS INTEGER)`,
+});
+
+/** What the model is told about file columns, sent only when a listed collection has one. */
+export const QUESTION_FILE_RULES = Object.freeze([
+  `- A file's kind is one of: ${FILE_FAMILIES.join(", ")}. Filter on those words alone: a film is a`,
+  "  video, a song or a recording is audio, and a PDF, Word, Markdown or text file is a document.",
+  "- Count, group and filter files in the SQL with SQLite's JSON functions over the file column.",
+  "  Group and filter on kind itself. Read mime only to tell files of one kind apart, such as a PDF",
+  `  from a Word file. In the statements below, write the table for ${QUESTION_FILE_TABLE}, a file column for`,
+  `  ${QUESTION_FILE_COLUMN} and a file[] column for ${QUESTION_FILE_LIST}.`,
+  "- Files by kind group by 1, the position of the kind, because a field may be called kind too.",
+  `  In a file column: ${QUESTION_FILE_SQL.countByKind}`,
+  `  In a file[] column: ${QUESTION_FILE_SQL.countListByKind}`,
+  `  In both at once, grouped over one UNION ALL of the two: ${QUESTION_FILE_SQL.countBothByKind}`,
+  "  For one kind, read the row that kind names.",
+  `- Records holding a kind, with the table read as ${QUESTION_FILE_TABLE} AS t and the kind bound:`,
+  `  WHERE ${QUESTION_FILE_SQL.holdsKind} for a file column, and`,
+  `  WHERE ${QUESTION_FILE_SQL.listHoldsKind} for a file[] column.`,
+  "- Records holding more than some number of a kind in a file[] column, the kind bound first and",
+  "  the number second. Show each column as t.<name> AS <label>, in words this person would use:",
+  `  SELECT t.<name> AS <label> ${QUESTION_FILE_SQL.listCountsKind}`,
+  "- Never read a count out of a subquery, whether to compare it, add it to another or show it",
+  "  beside one. Filter on how many with GROUP BY and HAVING, and count two file columns together",
+  "  with the UNION ALL statement above.",
+  "- Count files with count(*) over the files, never count(DISTINCT ...): two different files can",
+  "  read alike. Count records holding a kind with count(*) over the records, filtered as above.",
 ]);
 
 /** What the catalog below is headed with, and what the block under it sends the model to weigh. */
@@ -153,14 +201,15 @@ function formatChoiceValues(field: SpecField): string {
 
 /**
  * What a file field's column holds as the question's worker reads it: the reference without its
- * key (Module 7 decision 37). How to count or group by it is 7.4/02's.
+ * key (Module 7 decision 37), its kind and mime named from the closed sets admission records.
  */
 function formatFileReference(field: SpecField): string {
-  const kinds = field.accepts ? ` (one of: ${field.accepts.join("; ")})` : "";
+  const accepts = field.accepts ?? [];
+  const types = accepts.flatMap((kind) => admittedTypes(kind));
   const shape = isFileListFieldType(field.type)
     ? "as a JSON array, [] when it holds none, of files in the order they were added, each"
     : "as JSON:";
-  return `      ${shape} kind${kinds}, mime (its media type, such as image/png), size (in bytes) and name (the name it was uploaded under)`;
+  return `      ${shape} kind (one of: ${accepts.join("; ")}), mime (one of: ${types.join("; ")}), size (in bytes) and name (the name it was uploaded under)`;
 }
 
 /** Whether a column may read as null; a `file[]` that holds nothing reads as `[]` instead. */
@@ -271,6 +320,9 @@ export function buildQuestionTurnPrompt(context: QuestionPromptContext): string 
     "- Name each table exactly as it is listed, with no schema before it, and read id, not rowid.",
     QUESTION_FILE_WITHHELD_RULE,
     ...QUESTION_VOCABULARY_RULES,
+    ...(context.specs.some((spec) => hasActiveFileField(spec.schema.fields))
+      ? QUESTION_FILE_RULES
+      : []),
     ...QUESTION_COMPUTATION_RULES,
     ...QUESTION_NAMING_RULES,
     ...QUESTION_OPEN_WINDOW_RULES,

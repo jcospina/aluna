@@ -191,6 +191,7 @@ interface ExplainOpcode {
   readonly p1: number;
   readonly opcode: string;
   readonly p2: number;
+  readonly p4: unknown;
 }
 
 interface SchemaRoot {
@@ -229,7 +230,7 @@ export function assertScopedQuery(
   const allowedTables = new Set(capabilityQueryScopeTableNames(scope));
   // One snapshot over both: a `CREATE` committing between the schema read and the plan would
   // leave the rootpage map stale, and the names read off it are a sentence a person reads.
-  const { sourceByRoot, opcodes } = withReadSnapshot(database, () => {
+  const { sourceByRoot, opcodes, jsonTables } = withReadSnapshot(database, () => {
     const roots = database
       .query(
         "SELECT type, name, rootpage, tbl_name FROM sqlite_master WHERE rootpage > 0 AND type IN ('table', 'index')",
@@ -237,6 +238,7 @@ export function assertScopedQuery(
       .all() as SchemaRoot[];
     return {
       sourceByRoot: new Map(roots.map((root) => [root.rootpage, root] as const)),
+      jsonTables: options.wholeCatalog ? jsonTableFunctions(database) : new Set(),
       opcodes: explainOpcodes(database, sql, parameters),
     };
   });
@@ -252,7 +254,7 @@ export function assertScopedQuery(
       `Query accesses undeclared capability table${forbidden.length === 1 ? "" : "s"}: ${forbidden.join(", ")}.`,
     );
   }
-  assertTargetColumnAccess(database, scope, opcodes, sourceByRoot, options);
+  assertTargetColumnAccess(database, scope, opcodes, sourceByRoot, jsonTables, options);
   return [...accessed];
 }
 
@@ -271,6 +273,17 @@ function explainOpcodes(
   } finally {
     statement.finalize();
   }
+}
+
+/**
+ * The virtual tables `json_each` and `json_tree` open on this connection, as `EXPLAIN` names them:
+ * by address, which SQLite keeps for an eponymous table until the connection closes. They read
+ * only their argument, so a question may group a `file[]` column by kind (Module 7 decision 20).
+ * Only a `vtab:` address counts, so a build that printed none would admit no virtual table.
+ */
+function jsonTableFunctions(database: Database): ReadonlySet<unknown> {
+  const opcodes = explainOpcodes(database, "SELECT 1 FROM json_each(NULL), json_tree(NULL)", []);
+  return new Set(opcodes.map(({ p4 }) => p4).filter((p4) => String(p4).startsWith("vtab:")));
 }
 
 /** The canonical physical tables admitted by one Action's target/dependency scope. */
@@ -293,9 +306,11 @@ function assertTargetColumnAccess(
   scope: CapabilityQueryScope,
   opcodes: readonly ExplainOpcode[],
   sourceByRoot: ReadonlyMap<number, SchemaRoot>,
+  jsonTables: ReadonlySet<unknown>,
   options: QueryScopeOptions,
 ): void {
-  if (options.wholeCatalog && opcodes.some(({ opcode }) => opcode === "VOpen")) {
+  const virtual = opcodes.filter(({ opcode, p4 }) => opcode === "VOpen" && !jsonTables.has(p4));
+  if (options.wholeCatalog && virtual.length > 0) {
     throw new CapabilityDataValidationError("Query access to virtual tables is not available.");
   }
   const bounded = options.wholeCatalog
