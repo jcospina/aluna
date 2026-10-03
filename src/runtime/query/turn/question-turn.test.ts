@@ -339,12 +339,12 @@ describe("the platform's own columns", () => {
     });
   });
 
-  test("a virtual table is refused outright", async () => {
-    // The table bound counts `OpenRead`, and a virtual table opens with `VOpen` instead. Nothing
-    // is virtual today, so this guard stands before the first one is added rather than after.
-    const { step } = await desk().run(call("SELECT * FROM pragma_function_list"));
+  test("a virtual table other than json_each and json_tree is refused outright", async () => {
+    // The table bound counts `OpenRead`; a virtual table opens with `VOpen`, which this one shows.
+    const refused = await desk().run(call("SELECT value AS v FROM jsonb_each('[1]')"));
+    const twin = await desk().run(call("SELECT value AS v FROM json_each('[1]')"));
 
-    expect(step.result.outcome).toBe("failed");
+    expect([refused.step.result.outcome, twin.step.result.outcome]).toEqual(["failed", "rows"]);
   });
 });
 

@@ -164,6 +164,54 @@ describe("the platform reads the plan, so no step's classification is the model'
 
     expect(planOf(desk, having)).toEqual({ empty: "no rows" });
   });
+
+  test("and so does one grouped off the key's index, which sorts nothing", () => {
+    const byKey = `SELECT text AS what FROM ${EXPENSES_TABLE} GROUP BY id HAVING count(*) > 0`;
+
+    expect(planOf(refundDesk(), byKey)).toEqual({ empty: "no rows" });
+  });
+
+  test("while one opened inside a table's loop, however it is entered, reads its rows", () => {
+    const desk = refundDesk();
+    const each = `SELECT j.value AS what FROM ${EXPENSES_TABLE} AS t, json_each(json_array(t.text)) AS j`;
+    for (const sql of [
+      `${each} ORDER BY t.id DESC`,
+      `${each} WHERE t.id = 'refund-0'`,
+      `${each} WHERE t.id > 'a'`,
+      `${each} WHERE t.id < 'z' ORDER BY t.id DESC`,
+      `${each} WHERE t.id <= 'z' ORDER BY t.id DESC`,
+      `SELECT t.text AS what FROM json_each(json_array('refund-0', 'refund-1')) AS k JOIN ${EXPENSES_TABLE} AS t ON t.id = k.value`,
+      `SELECT t.text AS what FROM ${EXPENSES_TABLE} AS t WHERE t.id IN (SELECT value FROM json_each(json_array('refund-0')))`,
+      `SELECT t.text AS what FROM json_each(json_array(1, 2)) AS k JOIN ${EXPENSES_TABLE} AS t ON t.rowid = k.value`,
+      `SELECT t.text AS what, n.id AS note FROM json_each(json_array('refund-0')) AS k JOIN ${EXPENSES_TABLE} AS t ON t.id = k.value LEFT JOIN ${NOTES_TABLE} AS n ON n.text = t.text`,
+    ]) {
+      const step = stepOf(readRows(desk, sql), planOf(desk, sql));
+      expect([sql, questionStepMatchedRows(step)]).toEqual([sql, true]);
+    }
+  });
+
+  test("and a count beside scanned rows, or over groups, is no group of the result's", async () => {
+    const empty = questionDesk(platforms, (database) => database.run(`DELETE FROM ${NOTES_TABLE}`));
+    for (const sql of [
+      `SELECT t.text AS what, a.n AS how_many FROM ${EXPENSES_TABLE} AS t CROSS JOIN (SELECT count(*) AS n FROM ${NOTES_TABLE}) AS a`,
+      `SELECT count(*) AS how_many, (SELECT count(*) FROM ${NOTES_TABLE} GROUP BY id LIMIT 1) AS per_note FROM ${EXPENSES_TABLE} WHERE text = 'cheese'`,
+      `SELECT id AS what, (SELECT count(*) FROM ${NOTES_TABLE}) AS how_many FROM ${EXPENSES_TABLE} GROUP BY id`,
+      `SELECT b.c AS spent, a.n AS how_many FROM (SELECT count(*) AS c FROM ${EXPENSES_TABLE} WHERE text = 'cheese') AS b LEFT JOIN (SELECT count(*) AS n FROM ${NOTES_TABLE} GROUP BY id) AS a`,
+    ]) {
+      expect([sql, (await askUnder(empty, sql, [])).result.ending]).toEqual([sql, "nothing_found"]);
+    }
+  });
+
+  test("but rows a json_each makes of the statement's own text promise nothing", async () => {
+    // Its rows and groups exist whether or not a row of the person's matched.
+    const desk = refundDesk();
+    for (const sql of [
+      "SELECT value AS what FROM json_each(json_array(?))",
+      `SELECT j.value AS what, count(e.id) AS how_many FROM json_each(json_array(?)) AS j LEFT JOIN ${EXPENSES_TABLE} AS e ON e.text = j.value GROUP BY 1`,
+    ]) {
+      expect([sql, (await askUnder(desk, sql)).result.ending]).toEqual([sql, "nothing_found"]);
+    }
+  });
 });
 
 describe("NULL from a sum over no rows", () => {

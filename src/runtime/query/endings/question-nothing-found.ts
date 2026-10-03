@@ -202,15 +202,81 @@ function answersSurviveTheTail(
 }
 
 /**
- * Whether this plan sorts its rows into groups. SQLite compiles a `GROUP BY` it cannot satisfy
- * from an index into a sorter plus a comparison at each group boundary, and a capability's table
- * carries no index but its key. A plain `ORDER BY` has the sorter and no comparison.
+ * Whether this plan sorts its rows into groups: a sorter plus a comparison at each boundary, as
+ * SQLite compiles a `GROUP BY` an index cannot satisfy (a plain `ORDER BY` has no comparison). By
+ * the key there is no sorter, and the boundary calls a subroutine that finalizes the aggregate and
+ * hands back the result row — read so only where no subquery aggregates inside that subroutine.
  */
-function groupsItsRows(opcodes: readonly PlannedOpcode[]): boolean {
-  return (
+function groupsItsRows(
+  opcodes: readonly PlannedOpcode[],
+  last: PlannedOpcode,
+  resultRow: PlannedOpcode,
+): boolean {
+  const sorted =
     opcodes.some((op) => op.opcode === "SorterData") &&
-    opcodes.some((op) => op.opcode === "Compare")
+    opcodes.some((op) => op.opcode === "Compare");
+  if (sorted) return true;
+  if (opcodes.some((op) => finalizedAggregate(op) && inASubquery(opcodes, op))) return false;
+  return opcodes.some((_, index) => callsAtABoundary(opcodes, index, [last, resultRow]));
+}
+
+/** Whether `op` lies between a subquery's `BeginSubrtn` and the `Return` that closes it. */
+function inASubquery(opcodes: readonly PlannedOpcode[], op: PlannedOpcode): boolean {
+  return opcodes.some(
+    (open) =>
+      open.opcode === "BeginSubrtn" &&
+      open.addr < op.addr &&
+      opcodes.some(
+        (close) => close.opcode === "Return" && close.p1 === open.p2 && close.addr > op.addr,
+      ),
   );
+}
+
+/** Whether the `Gosub` at `index` follows a group boundary into a subroutine holding `held`. */
+function callsAtABoundary(
+  opcodes: readonly PlannedOpcode[],
+  index: number,
+  held: readonly PlannedOpcode[],
+): boolean {
+  const call = opcodes[index];
+  if (call?.opcode !== "Gosub") return false;
+  if (opcodes[index - 1]?.opcode !== "Jump" || opcodes[index - 2]?.opcode !== "Compare") {
+    return false;
+  }
+  const returns = opcodes.filter(
+    (op) => op.opcode === "Return" && op.p1 === call.p1 && op.addr >= call.p2,
+  );
+  return held.every((op) => op.addr >= call.p2 && returns.some((close) => close.addr > op.addr));
+}
+
+/** The opcodes that open a loop over a source; the plan's first is its outermost. */
+const OPENS_A_LOOP = new Set([
+  "Rewind",
+  "Last",
+  "SeekGE",
+  "SeekGT",
+  "SeekLE",
+  "SeekLT",
+  "SeekRowid",
+  "NotExists",
+  "VFilter",
+]);
+
+/**
+ * Whether a `json_each` or `json_tree` of the statement's own text drives the plan and can hand
+ * back its rows whatever this person saved: one over a column opens inside its table's loop, so
+ * an outermost one reads the statement's text, and the table loop it drives either never comes
+ * or is the side of an outer join that is padded with nulls where nothing matched.
+ */
+function drivenByItsOwnText(opcodes: readonly PlannedOpcode[]): boolean {
+  const driver = opcodes.find((op) => OPENS_A_LOOP.has(op.opcode));
+  if (driver?.opcode !== "VFilter") return false;
+  const tables = new Set(opcodes.filter((op) => op.opcode === "OpenRead").map((op) => op.p1));
+  const driven = opcodes.find(
+    (op) => op.addr > driver.addr && OPENS_A_LOOP.has(op.opcode) && tables.has(op.p1),
+  );
+  if (driven === undefined) return true;
+  return opcodes.some((op) => op.opcode === "NullRow" && op.p1 === driven.p1);
 }
 
 /** What each register holds by the time the result row is read. */
@@ -256,9 +322,8 @@ export function readQuestionPlan(opcodes: readonly PlannedOpcode[]): QuestionSte
   );
   if (resultRow === undefined) return { empty: "no rows" };
   const holds = resultHolds(opcodes, resultRow);
-  if (last === undefined) {
-    return rowsComeFromRows(opcodes, resultRow, holds) ? { empty: "no rows" } : NO_PLAN;
-  }
+  const fromRows = drivenByItsOwnText(opcodes) ? NO_PLAN : { empty: "no rows" as const };
+  if (last === undefined) return rowsComeFromRows(opcodes, resultRow, holds) ? fromRows : NO_PLAN;
   // More than one place a row is handed back is more than one arm of a compound select, and the
   // answers below describe one arm. Both arms' empty rows arrive and only one set is ever spent.
   // Weighed before the grouping below, since one arm of a compound may group and the other not.
@@ -266,7 +331,7 @@ export function readQuestionPlan(opcodes: readonly PlannedOpcode[]): QuestionSte
   // A group exists only because a row was scanned, so a grouped plan hands back nothing at all
   // over nothing — whatever the ordering and limiting between the aggregate and the result row
   // does, which the register trace below cannot follow through a sorter.
-  if (groupsItsRows(opcodes)) return { empty: "no rows" };
+  if (groupsItsRows(opcodes, last, resultRow)) return fromRows;
   const between = opcodes.filter((op) => op.addr > last.addr && op.addr < resultRow.addr);
   if (between.some((op) => !READABLE.has(op.opcode))) return NO_PLAN;
   if (!answersSurviveTheTail(finalized, between)) return NO_PLAN;
