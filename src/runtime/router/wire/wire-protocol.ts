@@ -1,13 +1,18 @@
 import { isFileKey } from "../../../platform/files/store/ledger.ts";
 import {
   ALUNA_RESERVED_FIELD_PREFIX,
-  activeSpecFields,
   type CapabilitySpec,
+  FORM_CHANGED_ERROR_CODE,
   isFileFieldType,
   isFileListFieldType,
   isListFieldType,
+  type SpecField,
 } from "../../../registry/index.ts";
-import { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from "../../data/index.ts";
+import {
+  MAX_SEARCH_QUERY_LENGTH,
+  MAX_SEARCH_TERMS,
+  MissingRequiredFieldsError,
+} from "../../data/index.ts";
 import { listInputModeForField, normalizeListInputValues } from "../../field-types/list-input.ts";
 import type { CapabilityInput, CapabilityInputValue } from "../contract.ts";
 
@@ -38,6 +43,34 @@ export class WireProtocolError extends Error {
 }
 
 /**
+ * A create or an edit from a form drawn before an evolution: it names a field since hidden, a
+ * pending upload in it included, or leaves out one the form never drew (Module 7 PLAN decision
+ * 34). The person is asked to open the form again rather than shown a protocol failure.
+ */
+export class FormChangedError extends Error {
+  override readonly name = "FormChangedError";
+  readonly code = FORM_CHANGED_ERROR_CODE;
+  readonly action: "create" | "update";
+  readonly fields: readonly string[];
+
+  constructor(action: "create" | "update", fields: readonly string[]) {
+    super(`The ${action} form was drawn before these fields changed: ${fields.join(", ")}.`);
+    this.action = action;
+    this.fields = [...fields];
+  }
+}
+
+/**
+ * A save refused for a required field its submission never marked: the form was drawn before it
+ * was added or made required, so no control in it can fill that field (Module 7 PLAN decision 35a).
+ */
+export function asFormChanged(error: unknown, input: CapabilityInput): unknown {
+  if (!(error instanceof MissingRequiredFieldsError)) return error;
+  if (error.fields.every((field) => input.submittedFields.has(field))) return error;
+  return new FormChangedError(error.action, error.fields);
+}
+
+/**
  * Parse and validate the closed capability HTTP protocol before generated code loads, binding the
  * record target an update or a delete acts on.
  */
@@ -52,17 +85,14 @@ export async function parseCapabilityRequest(
   const presentMarkers = take(grouped, ALUNA_PRESENT_MARKER);
   const targetMarkers = take(grouped, ALUNA_RECORD_ID_MARKER);
   const drawnMarkers = take(grouped, ALUNA_DRAWN_MARKER);
-  const activeFields = activeSpecFields(spec.schema.fields);
-  const submittedFields = validatePresenceMarkers(action, presentMarkers, activeFields);
+  // A form drawn at an earlier version may name a field since hidden: it is parsed as any field
+  // is, so a malformed request stays a protocol error, and only then refused as stale.
+  const formFields = spec.schema.fields;
   const recordTarget = validateRecordTarget(action, targetMarkers);
-  const drawnFiles = validateDrawnMarkers(action, drawnMarkers, activeFields, submittedFields);
-  const values = normalizeValues(
-    action,
-    grouped,
-    activeFields,
-    submittedFields,
-    spec.ui_intent.form,
-  );
+  const submittedFields = validatePresenceMarkers(action, presentMarkers, formFields);
+  const drawnFiles = validateDrawnMarkers(action, drawnMarkers, formFields, submittedFields);
+  const values = normalizeValues(action, grouped, formFields, submittedFields, spec.ui_intent.form);
+  refuseStaleForm(action, spec, submittedFields);
 
   return {
     input: { values: Object.freeze(values), submittedFields },
@@ -102,6 +132,26 @@ function rejectUnknownReservedKeys(grouped: ReadonlyMap<string, readonly string[
   }
 }
 
+/**
+ * A form that names a hidden field, or a create that leaves out an active field its form would
+ * have drawn, was drawn before an evolution changed the capability.
+ */
+function refuseStaleForm(
+  action: WireProtocolAction,
+  spec: CapabilitySpec,
+  submitted: ReadonlySet<string>,
+): void {
+  if (action !== "create" && action !== "update") return;
+  const stale = spec.schema.fields
+    .filter((field) =>
+      field.lifecycle === "active"
+        ? action === "create" && !isFileFieldType(field.type) && !submitted.has(field.name)
+        : submitted.has(field.name),
+    )
+    .map((field) => field.name);
+  if (stale.length > 0) throw new FormChangedError(action, stale);
+}
+
 function take(grouped: Map<string, string[]>, key: string): readonly string[] {
   const values = grouped.get(key) ?? [];
   grouped.delete(key);
@@ -111,15 +161,18 @@ function take(grouped: Map<string, string[]>, key: string): readonly string[] {
 function validatePresenceMarkers(
   action: WireProtocolAction,
   markers: readonly string[],
-  activeFields: ReturnType<typeof activeSpecFields>,
+  formFields: readonly SpecField[],
 ): ReadonlySet<string> {
   if (action !== "create" && action !== "update") {
     return rejectUnexpectedPresenceMarkers(action, markers);
   }
-
-  const submitted = collectSubmittedFields(markers, activeFields);
-  if (action === "create") requireAllCreateFields(activeFields, submitted);
-  return submitted;
+  // Every control a form draws posts its marker, so a create with none came from no form, unless
+  // evolution hid every field and the form draws no control at all.
+  const drawsControls = formFields.some((field) => field.lifecycle === "active");
+  if (action === "create" && markers.length === 0 && drawsControls) {
+    throw new WireProtocolError("Create carries no submitted field markers.");
+  }
+  return collectSubmittedFields(markers, formFields);
 }
 
 function rejectUnexpectedPresenceMarkers(
@@ -134,12 +187,12 @@ function rejectUnexpectedPresenceMarkers(
 
 function collectSubmittedFields(
   markers: readonly string[],
-  activeFields: ReturnType<typeof activeSpecFields>,
+  formFields: readonly SpecField[],
 ): ReadonlySet<string> {
-  const activeNames = new Set(activeFields.map((field) => field.name));
+  const formNames = new Set(formFields.map((field) => field.name));
   const submitted = new Set<string>();
   for (const fieldName of markers) {
-    if (fieldName.trim().length === 0 || !activeNames.has(fieldName)) {
+    if (fieldName.trim().length === 0 || !formNames.has(fieldName)) {
       throw new WireProtocolError(`Invalid submitted field marker "${fieldName}".`);
     }
     if (submitted.has(fieldName)) {
@@ -148,21 +201,6 @@ function collectSubmittedFields(
     submitted.add(fieldName);
   }
   return submitted;
-}
-
-function requireAllCreateFields(
-  activeFields: ReturnType<typeof activeSpecFields>,
-  submitted: ReadonlySet<string>,
-): void {
-  const missing = activeFields
-    .filter((field) => !isFileFieldType(field.type))
-    .map((field) => field.name)
-    .filter((fieldName) => !submitted.has(fieldName));
-  if (missing.length > 0) {
-    throw new WireProtocolError(
-      `Create is missing submitted field markers: ${missing.join(", ")}.`,
-    );
-  }
 }
 
 function validateRecordTarget(
@@ -191,7 +229,7 @@ function validateRecordTarget(
 function validateDrawnMarkers(
   action: WireProtocolAction,
   markers: readonly string[],
-  activeFields: ReturnType<typeof activeSpecFields>,
+  formFields: readonly SpecField[],
   submittedFields: ReadonlySet<string>,
 ): ReadonlyMap<string, readonly string[]> | undefined {
   if (action !== "update") {
@@ -201,7 +239,7 @@ function validateDrawnMarkers(
     return undefined;
   }
   const fileFields = new Map(
-    activeFields
+    formFields
       .filter((field) => isFileFieldType(field.type) && submittedFields.has(field.name))
       .map((field) => [field.name, isFileListFieldType(field.type)]),
   );
@@ -234,7 +272,7 @@ function parseDrawnMarker(
 function normalizeValues(
   action: WireProtocolAction,
   grouped: ReadonlyMap<string, readonly string[]>,
-  activeFields: ReturnType<typeof activeSpecFields>,
+  formFields: readonly SpecField[],
   submittedFields: ReadonlySet<string>,
   form: CapabilitySpec["ui_intent"]["form"],
 ): Record<string, CapabilityInputValue> {
@@ -242,7 +280,7 @@ function normalizeValues(
     return rejectUnexpectedValues(action, grouped);
   }
   if (action === "search") return normalizeSearchValues(grouped);
-  return normalizeMutationValues(grouped, activeFields, submittedFields, form);
+  return normalizeMutationValues(grouped, formFields, submittedFields, form);
 }
 
 function rejectUnexpectedValues(
@@ -288,41 +326,43 @@ function boundedSearchQuery(value: CapabilityInputValue): CapabilityInputValue {
 
 function normalizeMutationValues(
   grouped: ReadonlyMap<string, readonly string[]>,
-  activeFields: ReturnType<typeof activeSpecFields>,
+  formFields: readonly SpecField[],
   submittedFields: ReadonlySet<string>,
   form: CapabilitySpec["ui_intent"]["form"],
 ): Record<string, CapabilityInputValue> {
-  const activeByName = new Map(activeFields.map((field) => [field.name, field]));
+  const formByName = new Map(formFields.map((field) => [field.name, field]));
   const values: Record<string, CapabilityInputValue> = {};
 
   for (const [key, repeated] of grouped) {
-    const field = activeByName.get(key);
+    const field = formByName.get(key);
     validateMutationValueKey(key, field, submittedFields);
     values[key] = normalizeRepeatedValue(key, repeated, field, form);
   }
 
-  addSubmittedEmptyValues(values, activeFields, submittedFields);
+  addSubmittedEmptyValues(values, formFields, submittedFields);
   return values;
 }
 
 function validateMutationValueKey(
   key: string,
-  field: ReturnType<typeof activeSpecFields>[number] | undefined,
+  field: SpecField | undefined,
   submittedFields: ReadonlySet<string>,
 ): void {
   if (!submittedFields.has(key)) {
     throw new WireProtocolError(`Value "${key}" has no submitted field marker.`);
   }
-  if (!field) throw new WireProtocolError(`Value "${key}" is not an active field.`);
+  if (!field) throw new WireProtocolError(`Value "${key}" is not a field.`);
 }
 
 function normalizeRepeatedValue(
   key: string,
   repeated: readonly string[],
-  field: ReturnType<typeof activeSpecFields>[number] | undefined,
+  field: SpecField | undefined,
   form: CapabilitySpec["ui_intent"]["form"],
 ): CapabilityInputValue {
+  // A hidden list has no input mode left; its form is stale and refused once parsed.
   if (field && isListFieldType(field.type)) {
+    if (field.lifecycle !== "active") return [...repeated];
     return normalizeListInputValues(listInputModeForField(form, field.name), repeated);
   }
   // A `file[]` posts one key per file, in order, kept as posted for the file rule to judge.
@@ -342,10 +382,10 @@ function normalizeScalarValue(key: string, repeated: readonly string[]): Capabil
 /** A marked field with no value: an empty list, or a file field or `file[]` that holds nothing. */
 function addSubmittedEmptyValues(
   values: Record<string, CapabilityInputValue>,
-  activeFields: ReturnType<typeof activeSpecFields>,
+  formFields: readonly SpecField[],
   submittedFields: ReadonlySet<string>,
 ): void {
-  for (const field of activeFields) {
+  for (const field of formFields) {
     if (!submittedFields.has(field.name) || Object.hasOwn(values, field.name)) continue;
     if (isListFieldType(field.type) || isFileListFieldType(field.type)) values[field.name] = [];
     else if (isFileFieldType(field.type)) values[field.name] = "";

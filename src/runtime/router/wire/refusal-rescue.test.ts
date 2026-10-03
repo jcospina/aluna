@@ -30,6 +30,7 @@ import {
 import { setupRouterTest, teardownRouterTest } from "../dispatch/router.test-support.ts";
 import {
   choiceDisabledFailure,
+  formChangedFailure,
   INTERNAL_ERROR_FRAGMENT,
   internalFailure,
   invalidChoiceFailure,
@@ -44,6 +45,7 @@ import {
   WIRE_PROTOCOL_ERROR_FRAGMENT,
 } from "./failure-responses.ts";
 import { answerWithHandlerFragment } from "./handler-response.ts";
+import { FormChangedError } from "./wire-protocol.ts";
 
 const { code_attribute, role_attribute, role, fields_attribute } = BEHAVIORAL_ERROR_MARKERS;
 const OWN_CODE = "duplicate_entry";
@@ -115,6 +117,9 @@ async function everyShownRefusal(databases: PlatformDatabase): Promise<readonly 
         ),
       ),
       answered((c) => recordChangedFailure(c, "notes", new RecordChangedError("notes", ["photo"]))),
+      answered((c) =>
+        formChangedFailure(c, "notes", "Notes", new FormChangedError("update", ["photo"])),
+      ),
       answered((c) =>
         tooManyFilesFailure(
           c,

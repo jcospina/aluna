@@ -16,6 +16,8 @@ import { MAX_LENGTH_EXCEEDED_ERROR_CODE } from "./max-length.ts";
 
 export const MISSING_REQUIRED_FIELDS_ERROR_CODE = "missing_required_fields";
 export const RECORD_NOT_FOUND_ERROR_CODE = "record_not_found";
+/** A save from a form drawn before evolution hid a field it still names. */
+export const FORM_CHANGED_ERROR_CODE = "form_changed";
 export const MAX_BEHAVIORAL_ERRORS = 8;
 export const BEHAVIORAL_ERROR_MARKERS = {
   role_attribute: "data-role",
@@ -79,6 +81,7 @@ export const PLATFORM_OWNED_ERROR_CODES = [
   INVALID_FILE_REFERENCE_ERROR_CODE,
   RECORD_CHANGED_ERROR_CODE,
   TOO_MANY_FILES_ERROR_CODE,
+  FORM_CHANGED_ERROR_CODE,
 ] as const;
 
 /** {@link PLATFORM_OWNED_ERROR_CODES} as a prompt names them, so a new one reaches every prompt. */

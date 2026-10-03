@@ -461,9 +461,19 @@ in ADR-0009, and in the architecture and design documents.
     deletion path.
 34. **Hiding a file field keeps its bytes.** Evolution never destroys; those keys are
     absorbed at capability deletion. A form still holding a pending key for a field that
-    evolution just hid is refused with a sentence rather than a wire error.
+    evolution just hid is refused with a sentence rather than a wire error. The refusal is
+    the platform-owned `form_changed`, which asks the person to close the capability and open
+    it again, since a create form is drawn only with its window. It answers any form drawn
+    before an evolution: one naming a hidden field, file or not, one whose create leaves out
+    a field added since, and one refused only for a required field it never drew *(7.4/01)*.
 35. **`file` ↔ `file[]` is a type change and is refused.** The existing rule that a
     committed field's type never changes already refuses it; this module adds the test.
+35a. **An evolution may require a file field that older records hold nothing in.** Module 4
+    decision 3 governs it as it governs any required field: the column arrives nullable, an
+    older record reads `null` or `[]`, and every save of that record is refused, naming the
+    field, until a file is added. A form drawn before the requirement has no control for that
+    file, so its save is answered `form_changed` instead (decision 34). Aluna never invents a
+    file, never weakens the requirement and never refuses the evolution for it *(7.4/01)*.
 
 ### Reading and asking
 

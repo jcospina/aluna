@@ -788,7 +788,9 @@ committed physical value already exceeds a new or lower limit. Generated Handler
 receive admitted values rather than reimplementing these structural constraints;
 crafted overflow returns typed 422 `max_length_exceeded` with the same field
 marker. These three structural codes, the file field's `invalid_file_reference`,
-`record_changed` and `too_many_files` (ADR-0009), and their authored platform sentences do not enter
+`record_changed` and `too_many_files` (ADR-0009), `form_changed` for a save from a
+form drawn before an evolution (it names a hidden field, or never drew an added or
+newly required one), and their authored platform sentences do not enter
 model-authored `behavioral_errors`. Older active rows may omit Module 5's new form
 collections; omission canonicalizes to empty without rewriting historical
 snapshots, while new specs emit the complete form shape.

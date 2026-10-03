@@ -19,6 +19,7 @@ import {
   type CapabilityRow,
   type CapabilitySpec,
   capabilitySpecFromRow,
+  effectiveCapabilityLabel,
   readActiveRegistryCatalog,
 } from "../../../registry/index.ts";
 import {
@@ -72,6 +73,7 @@ import { collectionCountSidecar } from "../wire/collection-count.ts";
 import {
   assertReadOwnership,
   choiceDisabledFailure,
+  formChangedFailure,
   internalFailure,
   invalidChoiceFailure,
   invalidFileReferenceFailure,
@@ -87,6 +89,8 @@ import {
 } from "../wire/failure-responses.ts";
 import { answerWithHandlerFragment } from "../wire/handler-response.ts";
 import {
+  asFormChanged,
+  FormChangedError,
   type ParsedCapabilityRequest,
   parseCapabilityRequest,
   type WireProtocolAction,
@@ -291,7 +295,7 @@ async function handleCapabilityRequest(
   try {
     parsedRequest = await parseCapabilityRequest(c.req.raw, action, spec);
   } catch (error) {
-    return capabilityHandlerFailure(c, row.id, action, error);
+    return capabilityHandlerFailure(c, row, action, error);
   }
 
   const tokens = readGates.tryAcquire({
@@ -368,7 +372,7 @@ function platformRefusal(
     );
     return undefined;
   } catch (error) {
-    return capabilityHandlerFailure(c, row.id, action, error);
+    return capabilityHandlerFailure(c, row, action, asFormChanged(error, parsedRequest.input));
   }
 }
 
@@ -476,7 +480,7 @@ async function executeCapabilityHandler(
       }),
     );
   } catch (error) {
-    return capabilityHandlerFailure(c, id, action, error);
+    return capabilityHandlerFailure(c, row, action, asFormChanged(error, parsedRequest.input));
   }
 }
 
@@ -502,10 +506,14 @@ function fieldRefusal(c: Context, id: string, error: unknown): Response | undefi
  */
 function capabilityHandlerFailure(
   c: Context,
-  id: string,
+  row: CapabilityRow,
   action: WireProtocolAction,
   error: unknown,
 ): Response {
+  const { id } = row;
+  if (error instanceof FormChangedError) {
+    return formChangedFailure(c, id, effectiveCapabilityLabel(row), error);
+  }
   if (error instanceof WireProtocolError) {
     return c.html(WIRE_PROTOCOL_ERROR_FRAGMENT, 400);
   }

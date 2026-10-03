@@ -11,6 +11,7 @@ export {
   behavioralErrorCaseSchema,
   behavioralErrorMarkersSchema,
   defaultBehavioralErrorsForSchema,
+  FORM_CHANGED_ERROR_CODE,
   MAX_BEHAVIORAL_ERRORS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   PLATFORM_OWNED_ERROR_CODES,
