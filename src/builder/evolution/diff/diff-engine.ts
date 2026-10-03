@@ -409,7 +409,8 @@ type FieldScopedFact = Extract<
       | "field_label"
       | "field_lifecycle"
       | "choice_values"
-      | "choice_option_labels";
+      | "choice_option_labels"
+      | "file_families";
   }
 >;
 type GlobalScopedFact = Exclude<ChangeFact, FieldScopedFact>;
@@ -424,6 +425,7 @@ function contributeFact(fact: ChangeFact, candidate: CapabilitySpec, sink: WorkS
     case "field_lifecycle":
     case "choice_values":
     case "choice_option_labels":
+    case "file_families":
       contributeFieldFact(fact, candidate, sink);
       return;
     default:
@@ -448,25 +450,41 @@ function contributeFieldFact(
       sink.platform.add("resulting_record_validation");
       selectWrites(sink);
       return;
-    case "field_label":
-      sink.platform.add("platform_form_detail");
-      if (candidate.ui_intent.item.shows.includes(fact.field)) sink.units.add("item");
-      return;
-    case "choice_values":
-      // Create/update validation shape (ADR-0006); storage and search are untouched. It
-      // reaches the card too: a copied renderer has no label and shows the raw wire string.
-      sink.platform.add("choice_admitted_values");
-      selectWrites(sink);
-      if (candidate.ui_intent.item.shows.includes(fact.field)) sink.units.add("item");
-      return;
-    case "choice_option_labels":
-      // The control's wording, and the card's where the field is shown: the renderer has the
-      // old option label written into it, exactly as a field relabel leaves it stale.
-      sink.platform.add("choice_option_presentation");
-      if (candidate.ui_intent.item.shows.includes(fact.field)) sink.units.add("item");
-      return;
     case "field_lifecycle":
       contributeLifecycleFact(fact.field, candidate, sink);
+      return;
+    default:
+      contributeDrawnFieldFact(fact, sink);
+      if (candidate.ui_intent.item.shows.includes(fact.field)) sink.units.add("item");
+  }
+}
+
+type DrawnFieldFact = Extract<
+  FieldScopedFact,
+  { kind: "field_label" | "choice_values" | "choice_option_labels" | "file_families" }
+>;
+
+/** A fact that changes what a card showing the field draws, so a shown field moves the item. */
+function contributeDrawnFieldFact(fact: DrawnFieldFact, sink: WorkSink): void {
+  switch (fact.kind) {
+    case "field_label":
+      sink.platform.add("platform_form_detail");
+      return;
+    case "choice_values":
+      // Create/update validation shape (ADR-0006); storage and search are untouched. A copied
+      // renderer has no label for a new value and shows the raw wire string.
+      sink.platform.add("choice_admitted_values");
+      selectWrites(sink);
+      return;
+    case "choice_option_labels":
+      // The control's wording; a renderer has the old option label written into it.
+      sink.platform.add("choice_option_presentation");
+      return;
+    case "file_families":
+      // Admission and the picker read the row; no Handler prompt names a family, so only the
+      // writing suites move. A card written for photos never drew a PDF.
+      sink.platform.add("file_admitted_families");
+      selectWriteTests(sink);
       return;
   }
 }
@@ -512,12 +530,6 @@ function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
       // limit never enters their prompt (`builder/units/generation/unit-prompts.ts`), the
       // proof ADR-0006 wants.
       sink.platform.add("max_length_validation");
-      selectWriteTests(sink);
-      return;
-    case "file_families":
-      // Admission reads the registry row, and the picker and the control's shape read it too.
-      // The families never enter a Handler's prompt, so only the writing suites' inputs move.
-      sink.platform.add("file_admitted_families");
       selectWriteTests(sink);
       return;
     case "long_text_input":

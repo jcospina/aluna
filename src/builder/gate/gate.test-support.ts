@@ -334,7 +334,7 @@ export const ARTICLE_HANDLERS: Readonly<Record<HandlerUnitName, string>> = fullH
 
 type FixtureScalar = string | number | boolean | string[] | null;
 
-interface FullBehavioralFixture {
+export interface FullBehavioralFixture {
   readonly createValues: Readonly<Record<string, FixtureScalar>>;
   readonly updateValues: Readonly<Record<string, FixtureScalar>>;
   readonly readValues: Readonly<Record<string, FixtureScalar>>;

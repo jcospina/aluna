@@ -161,13 +161,30 @@ describe("candidate validation holds accepts to its rules", () => {
 
 describe("a committed file field's accepts", () => {
   const widen = (draft: CandidateDraft) =>
-    Object.assign(photoOf(draft), { accepts: ["image", "video"] });
+    Object.assign(photoOf(draft), { accepts: ["image", "document"] });
 
-  test("widens through the fact that moves admission and the writing suites, not the Handlers", () => {
+  test("widens off the card through the fact that moves admission and the writing suites only", () => {
     const diff = workFor(journalWithPhoto(), widen);
     expect(diff.facts).toEqual([{ kind: "file_families", field: "photo" }]);
     expect(diff.workPlan.platformWork).toEqual(["file_admitted_families"]);
     expect(diff.workPlan.regeneratedUnits).toEqual([]);
+    expect(diff.workPlan.gate.behavioral.actions).toEqual(["create", "update"]);
+    expect(diff.workPlan.gate.designLint).toBe(false);
+  });
+
+  test("widens on the card by regenerating the item renderer, which drew only photos", () => {
+    const committed = journalWithPhoto();
+    const shown = journalCapabilityRow({
+      schema: committed.schema,
+      ui_intent: {
+        ...committed.ui_intent,
+        item: { ...committed.ui_intent.item, shows: ["title", "photo"] },
+      },
+    });
+    const diff = workFor(shown, widen);
+    expect(diff.facts).toEqual([{ kind: "file_families", field: "photo" }]);
+    expect(diff.workPlan.regeneratedUnits).toEqual(["item"]);
+    expect(diff.workPlan.gate.designLint).toBe(true);
     expect(diff.workPlan.gate.behavioral.actions).toEqual(["create", "update"]);
   });
 

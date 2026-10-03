@@ -37,7 +37,7 @@ import type {
   RecordNotFoundError,
   TooManyFilesError,
 } from "../../data/index.ts";
-import type { WireProtocolAction } from "./wire-protocol.ts";
+import type { FormChangedError, WireProtocolAction } from "./wire-protocol.ts";
 
 type MutationAction = "create" | "update" | "delete";
 
@@ -273,6 +273,28 @@ export function recordChangedFailure(
       error.code,
       "This entry changed in another window. Mind opening it again?",
       error.fields,
+    ),
+    422,
+  );
+}
+
+/**
+ * A form drawn before an evolution changed the capability. Nothing was written. An edit form is
+ * drawn per record but a create form only with its window, so closing the window is the remedy
+ * that works for both. No field is named: the whole form is stale, not one control in it.
+ */
+export function formChangedFailure(
+  c: Context,
+  capabilityId: string,
+  label: string,
+  error: FormChangedError,
+): Response {
+  retargetMutationError(c, capabilityId, error.action);
+  const name = escapeHtml(label);
+  return c.html(
+    refusalFragment(
+      error.code,
+      `I changed ${name} while this form was open. Mind closing ${name} and opening it again?`,
     ),
     422,
   );

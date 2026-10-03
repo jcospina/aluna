@@ -10,6 +10,7 @@ import { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from "../../data/index.ts";
 import {
   ALUNA_PRESENT_MARKER,
   ALUNA_RECORD_ID_MARKER,
+  FormChangedError,
   parseCapabilityRequest,
   WireProtocolError,
 } from "./wire-protocol.ts";
@@ -328,7 +329,7 @@ describe("reserved capability wire protocol — marker and record-target validat
         "create",
         spec(),
       ),
-    ).rejects.toThrow(/missing submitted field markers/i);
+    ).rejects.toBeInstanceOf(FormChangedError);
 
     await expect(
       parseCapabilityRequest(
