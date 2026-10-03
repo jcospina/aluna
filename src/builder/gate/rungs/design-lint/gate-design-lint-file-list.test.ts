@@ -35,8 +35,9 @@ const renderer = (drawn: string) =>
     ESCAPE_HELPER,
   ].join("\n");
 
-const EACH_PICTURE =
-  'files.length === 0 ? "<span>No photos yet</span>" : files.map((file) => `<img src="${escapeHtml(file.url)}" alt="">`).join("")';
+const EACH_PICTURE_DRAWN =
+  'files.map((file) => `<img src="${escapeHtml(file.url)}" alt="">`).join("")';
+const EACH_PICTURE = `files.length === 0 ? "<span>No photos yet</span>" : ${EACH_PICTURE_DRAWN}`;
 
 describe("a probe's file list", () => {
   test("holds several files, each at an address of its own", () => {
@@ -44,6 +45,57 @@ describe("a probe's file list", () => {
     const files = probeFiles(spec, ALBUM_FIELD, "a.jpg") as { url: string }[];
     expect(files.length).toBeGreaterThan(1);
     expect(new Set(files.map((file) => file.url)).size).toBe(files.length);
+  });
+});
+
+describe("a card that draws a short list and names a long one", () => {
+  const BY_KIND =
+    'files.map((file) => file.kind === "video" ? `<video src="${escapeHtml(file.url)}" muted playsinline></video>` : `<img src="${escapeHtml(file.url)}" alt="">`).join("")';
+  const short = (drawn: string) =>
+    `files.length === 0 ? "<span>No photos yet</span>" : files.length <= 3 ? ${drawn} : \`<span>\${files.length} files</span>\``;
+
+  test("passes when its short lists draw every file by its kind", () => {
+    const spec = showingTheAlbum(["image", "video"]);
+    expect(findDesignViolation(spec, renderer(short(BY_KIND)))).toBeUndefined();
+  });
+
+  test("fails when its short lists draw a video as a photo", () => {
+    const spec = showingTheAlbum(["image", "video"]);
+    expect(findDesignViolation(spec, renderer(short(EACH_PICTURE_DRAWN)))).toBeDefined();
+  });
+
+  test("fails when its short lists draw some files and drop the rest", () => {
+    const some =
+      'files.slice(0, 1).map((file) => `<img src="${escapeHtml(file.url)}" alt="">`).join("")';
+    expect(findDesignViolation(showingTheAlbum(), renderer(short(some)))).toBeDefined();
+  });
+});
+
+describe("a card that draws a list of one file its own way", () => {
+  const NAMED =
+    'files.map((file) => file.kind === "image" ? `<img src="${escapeHtml(file.url)}" alt="">` : `<span>${escapeHtml(file.name)}</span>`).join("")';
+  const lone = (one: string) =>
+    `files.length === 0 ? "<span>Nothing yet</span>" : files.length === 1 ? ${one} : ${NAMED}`;
+
+  test("passes when its lone file is drawn by its kind", () => {
+    const one =
+      'files[0]?.kind === "image" ? `<img src="${escapeHtml(files[0].url)}" alt="">` : `<span>${escapeHtml(files[0]?.name)}</span>`';
+    expect(
+      findDesignViolation(showingTheAlbum(["image", "audio"]), renderer(lone(one))),
+    ).toBeUndefined();
+  });
+
+  test("fails when its lone file is drawn as a photo whatever its kind", () => {
+    const one = '`<img src="${escapeHtml(files[0]?.url)}" alt="">`';
+    expect(
+      findDesignViolation(showingTheAlbum(["image", "audio"]), renderer(lone(one))),
+    ).toBeDefined();
+  });
+
+  test("fails when its lone document is called a PDF whatever its type", () => {
+    expect(
+      findDesignViolation(showingTheAlbum(["document"]), renderer(lone('"<span>PDF</span>"'))),
+    ).toBeDefined();
   });
 });
 

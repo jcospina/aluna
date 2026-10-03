@@ -32,6 +32,7 @@ function choicePrompt(): string {
     prompt: "track my notes",
     intent: notesIntent(),
     send,
+    incarnationId: "inc_spec_test",
   });
 }
 

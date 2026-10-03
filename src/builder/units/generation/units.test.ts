@@ -36,6 +36,7 @@ import {
   type CapabilitySpec,
   defaultBehavioralErrorsForSchema,
   FULL_CAPABILITY_TOOLS,
+  isFileFieldType,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../../registry/index.ts";
 import {
@@ -890,7 +891,9 @@ describe("unit generation with bounded fix loop — item-renderer prompt", () =>
         ),
       ).not.toEqual([]);
     }
-    for (const example of FEW_SHOT_DESIGN_EXAMPLES.filter(({ onlyFor }) => !onlyFor)) {
+    for (const example of FEW_SHOT_DESIGN_EXAMPLES.filter(
+      ({ capability }) => !capability.schema.fields.some(({ type }) => isFileFieldType(type)),
+    )) {
       expect(feedPrompt).toContain(example.title);
       expect(feedPrompt).toContain(example.rendererSource);
     }

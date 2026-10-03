@@ -7,7 +7,7 @@ import { linesNaming } from "../../../platform/provider/prompt-lines.test-suppor
 
 import { PHOTO_FIELD } from "../../../registry/fields/file.test-support.ts";
 import { fieldTypeSchema } from "../../../registry/index.ts";
-import { FILE_FIELD_PROMPT_LINES } from "../../spec/file-field-guidance.ts";
+import { FILE_FIELD_CARD_LINE, FILE_FIELD_PROMPT_LINES } from "../../spec/file-field-guidance.ts";
 import { recordingSend } from "../../spec/spec-gen.test-support.ts";
 import {
   type CandidateDraft,
@@ -41,6 +41,11 @@ describe("the candidate prompt", () => {
     const prompt = buildCandidateSpecPrompt(stageInput(candidateFrom(journalCapabilityRow())));
     expect(linesNaming(prompt, fieldTypeSchema.options)).not.toEqual([]);
     for (const line of FILE_FIELD_PROMPT_LINES) expect(prompt).toContain(line);
+  });
+
+  test("never asks an evolution to put a file on the card it was not asked to change", () => {
+    const prompt = buildCandidateSpecPrompt(stageInput(candidateFrom(journalCapabilityRow())));
+    expect(prompt).not.toContain(FILE_FIELD_CARD_LINE);
   });
 });
 

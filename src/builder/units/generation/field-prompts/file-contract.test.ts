@@ -17,7 +17,6 @@ import { loadItemRenderer } from "../../../gate/gate-internal.ts";
 import { handlerContractDeclarations } from "../../../generated-code-check.ts";
 import { checkGeneratedUnit } from "../../safety/unit-checks.ts";
 import { MANUAL_FEED, MANUAL_TILE } from "../few-shot/few-shot-documents.ts";
-import { FEW_SHOT_DESIGN_EXAMPLES } from "../few-shot/few-shot-gallery.ts";
 import {
   buildUnitPrompt,
   ITEM_AUDIO_RULE,
@@ -232,42 +231,6 @@ describe("the item renderer's prompt", () => {
   test("tells a card that shows a video it never plays one, and reads without a first frame", () => {
     for (const words of ["controls", "autoplay", "poster", "first frame", "muted playsinline"]) {
       expect(ITEM_VIDEO_RULE).toContain(words);
-    }
-  });
-
-  test("shows the exemplars that draw a file only to a card that shows a family they draw", () => {
-    const files = FEW_SHOT_DESIGN_EXAMPLES.filter(({ onlyFor }) => onlyFor);
-    expect(files).not.toEqual([]);
-    for (const example of files) {
-      for (const family of FILE_FAMILIES) {
-        const prompt = buildUnitPrompt(showing(["photo"], [family]), item);
-        const drawn = example.onlyFor?.includes(family) ?? false;
-        expect(prompt.includes(example.rendererSource)).toBe(drawn);
-      }
-      expect(buildUnitPrompt(showing(["caption"]), item)).not.toContain(example.rendererSource);
-    }
-  });
-
-  test("keeps the photo tile from a card that holds no picture, which gets a tile of its own", () => {
-    const tile = FEW_SHOT_DESIGN_EXAMPLES.find(({ notForOnly }) => notForOnly);
-    if (!tile) throw new Error("Expected an exemplar kept from pictureless cards.");
-    for (const pictureless of [["audio"], ["document"], ["audio", "document"]] as const) {
-      const prompt = buildUnitPrompt(showing(["photo"], [...pictureless]), item);
-      expect(prompt, pictureless.join()).not.toContain(tile.rendererSource);
-      for (const family of pictureless) {
-        const grids = FEW_SHOT_DESIGN_EXAMPLES.filter(
-          ({ layout, onlyFor }) => layout === "grid" && onlyFor?.includes(family),
-        );
-        expect(grids, family).not.toEqual([]);
-        expect(grids.every(({ rendererSource }) => prompt.includes(rendererSource))).toBe(true);
-      }
-    }
-    for (const mixed of [
-      ["image", "audio"],
-      ["image", "document"],
-    ] as const) {
-      const prompt = buildUnitPrompt(showing(["photo"], [...mixed]), item);
-      expect(prompt).toContain(tile.rendererSource);
     }
   });
 

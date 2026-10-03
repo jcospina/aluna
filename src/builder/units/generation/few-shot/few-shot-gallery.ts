@@ -15,20 +15,26 @@ import {
   TYPE_SIZE_TOKENS,
   tokenList,
 } from "../../../../presentation/tokens/design-tokens.ts";
-import type {
-  FileFamily,
-  SpecField,
-  UiCollectionLayout,
-  UiFormIntent,
+import {
+  type FileFamily,
+  isFileFieldType,
+  isFileListFieldType,
+  type SpecField,
+  type UiCollectionLayout,
+  type UiFormIntent,
 } from "../../../../registry/index.ts";
+import { CLIP_TILE } from "./few-shot-clips.ts";
 import { MANUAL_FEED, MANUAL_TILE } from "./few-shot-documents.ts";
+import { MEETING_FILES_FEED, MEETING_FILES_TILE } from "./few-shot-lists.ts";
 import {
   PHOTO_GRID_TILE,
   VOICE_MEMO_FEED,
   VOICE_MEMO_TILE,
   WALK_MEDIA_FEED,
 } from "./few-shot-media.ts";
+import { INTERVIEW_FEED, INTERVIEW_TILE, KEEPSAKE_FEED, KEEPSAKE_TILE } from "./few-shot-mixed.ts";
 import { ESCAPE_HELPER_SOURCE, fields } from "./few-shot-parts.ts";
+import { FILE_STRIP_FEED, FILE_STRIP_TILE } from "./few-shot-strips.ts";
 
 export interface FewShotPreviewCapability {
   readonly id: string;
@@ -48,14 +54,6 @@ export interface FewShotDesignExample {
   readonly capability: FewShotPreviewCapability;
   readonly previewSamples: readonly FewShotPreviewSample[];
   readonly rendererSource: string;
-  /**
-   * Shown only to a card that shows a file of one of these families, so a card isn't taught to
-   * draw a kind it never holds. The photo tile has none: every grid card needs a grid
-   * composition, and only a card holding just sounds or documents is kept from it, by `notForOnly`.
-   */
-  readonly onlyFor?: readonly FileFamily[];
-  /** Kept from a card whose shown files can only be of these families, which it would draw wrong. */
-  readonly notForOnly?: readonly FileFamily[];
 }
 
 export interface FewShotPreviewSample {
@@ -135,17 +133,24 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
     rendererSource: [
       "export default function renderItem(record: Record<string, unknown>): string {",
       "  const title = escapeHtml(record.title);",
-      '  const source = escapeHtml(record.source ?? "Unlabeled source");',
-      '  const excerpt = escapeHtml(record.excerpt ?? "");',
-      '  const tag = escapeHtml(record.tag ?? "note");',
+      "  const source =",
+      "    record.source === null",
+      '      ? ""',
+      '      : `<span class="text-bold truncate" style="background-color: var(--sun); color: var(--ink); padding: var(--space-1) var(--space-1);">${escapeHtml(record.source)}</span>`;',
+      "  const tag =",
+      "    record.tag === null",
+      '      ? ""',
+      '      : `<span class="text-bold" style="background-color: var(--clay); color: var(--ink); padding: var(--space-1) var(--space-1);">${escapeHtml(record.tag)}</span>`;',
+      "  const excerpt =",
+      "    record.excerpt === null",
+      '      ? ""',
+      '      : `<p class="line-clamp-3 text-sm text-subtle">${escapeHtml(record.excerpt)}</p>`;',
+      '  const meta = source + tag ? `<div class="cluster gap-1 text-xs">${source}${tag}</div>` : "";',
       "",
       '  return `<div class="stack gap-1">',
       '    <span class="text-xl text-bold line-clamp-2">${title}</span>',
-      '    <div class="cluster gap-1 text-xs">',
-      '      <span class="text-bold truncate" style="background-color: var(--sun); color: var(--ink); padding: var(--space-1) var(--space-1);">${source}</span>',
-      '      <span class="text-bold" style="background-color: var(--clay); color: var(--ink); padding: var(--space-1) var(--space-1);">${tag}</span>',
-      "    </div>",
-      '    <p class="line-clamp-3 text-sm text-subtle">${excerpt}</p>',
+      "    ${meta}",
+      "    ${excerpt}",
       "  </div>`;",
       "}",
       "",
@@ -154,10 +159,19 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
   },
   PHOTO_GRID_TILE,
   WALK_MEDIA_FEED,
+  CLIP_TILE,
   VOICE_MEMO_FEED,
   VOICE_MEMO_TILE,
   MANUAL_FEED,
   MANUAL_TILE,
+  FILE_STRIP_FEED,
+  FILE_STRIP_TILE,
+  MEETING_FILES_FEED,
+  MEETING_FILES_TILE,
+  KEEPSAKE_FEED,
+  KEEPSAKE_TILE,
+  INTERVIEW_FEED,
+  INTERVIEW_TILE,
   {
     id: "saved_link_metadata_feed",
     title: "Compact metadata row",
@@ -168,6 +182,7 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
     notes: [
       "Demonstrates style for arrangement that the primitive classes do not cover.",
       "Owned axes stay on tokens: gap, padding and colour all use var(), and no boundary is declared — the platform draws the record's own.",
+      "Leaves out the topic and the priority when the record holds neither, rather than inventing one.",
     ],
     capability: {
       id: "saved_links",
@@ -208,17 +223,15 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
           id: "link-2",
           title: "Token discipline for generated interfaces",
           url: "https://example.com/token-discipline",
-          topic: "design system",
-          priority: "next",
+          topic: null,
+          priority: null,
         },
         previewInnerHtml: [
           '<div class="grid" style="grid-template-columns: minmax(0, 1fr) max-content; gap: var(--space-2); align-items: center;">',
           '<div class="stack gap-0_5">',
           '<span class="text-lg text-bold truncate">Token discipline for generated interfaces</span>',
           '<span class="text-sm text-muted truncate">https://example.com/token-discipline</span>',
-          '<span class="text-xs text-bold" style="align-self: flex-start; background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">design system</span>',
           "</div>",
-          '<span class="text-sm text-bold" style="background-color: var(--shade); color: var(--surface); padding: var(--space-1) var(--space-1);">next</span>',
           "</div>",
         ].join(""),
       },
@@ -227,16 +240,98 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
       "export default function renderItem(record: Record<string, unknown>): string {",
       "  const title = escapeHtml(record.title);",
       "  const url = escapeHtml(record.url);",
-      '  const topic = escapeHtml(record.topic ?? "reference");',
-      '  const priority = escapeHtml(record.priority ?? "later");',
+      "  const topic =",
+      "    record.topic === null",
+      '      ? ""',
+      '      : `<span class="text-xs text-bold" style="align-self: flex-start; background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">${escapeHtml(record.topic)}</span>`;',
+      "  const priority =",
+      "    record.priority === null",
+      '      ? ""',
+      '      : `<span class="text-sm text-bold" style="background-color: var(--shade); color: var(--surface); padding: var(--space-1) var(--space-1);">${escapeHtml(record.priority)}</span>`;',
       "",
       '  return `<div class="grid" style="grid-template-columns: minmax(0, 1fr) max-content; gap: var(--space-2); align-items: center;">',
       '    <div class="stack gap-0_5">',
       '      <span class="text-lg text-bold truncate">${title}</span>',
       '      <span class="text-sm text-muted truncate">${url}</span>',
-      '      <span class="text-xs text-bold" style="align-self: flex-start; background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">${topic}</span>',
+      "      ${topic}",
       "    </div>",
-      '    <span class="text-sm text-bold" style="background-color: var(--shade); color: var(--surface); padding: var(--space-1) var(--space-1);">${priority}</span>',
+      "    ${priority}",
+      "  </div>`;",
+      "}",
+      "",
+      ESCAPE_HELPER_SOURCE,
+    ].join("\n"),
+  },
+  {
+    id: "quote_tile",
+    title: "Text grid tile",
+    layout: "grid",
+    suitedFor:
+      "Short text records laid out as tiles that scan side by side, with no picture to lead.",
+    composition:
+      "The words lead at a larger size, clamped so the tiles keep a rhythm, then a tinted chip naming who said it beside the year. A tile with nothing optional filled is just its words.",
+    notes: [
+      "Lets the type carry the tile: a text record needs no frame to hold a grid cell.",
+      "Leaves out the chip and the year when the record holds neither, rather than inventing a placeholder.",
+    ],
+    capability: {
+      id: "quotes",
+      noun: "quote",
+      label: "Quotes",
+      schema: {
+        fields: fields([
+          ["words", "string", true],
+          ["who", "string", false],
+          ["year", "number", false],
+        ]),
+      },
+      form: { list_inputs: [], choice_inputs: [], long_text: [], guidance: [] },
+    },
+    previewSamples: [
+      {
+        record: {
+          id: "quote-1",
+          words: "The map is not the territory.",
+          who: "Alfred Korzybski",
+          year: 1931,
+        },
+        previewInnerHtml: [
+          '<div class="stack gap-2">',
+          '<span class="text-lg text-bold line-clamp-3">The map is not the territory.</span>',
+          '<div class="cluster gap-1 text-xs">',
+          '<span class="text-bold truncate" style="background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">Alfred Korzybski</span>',
+          '<span class="text-muted">1931</span>',
+          "</div>",
+          "</div>",
+        ].join(""),
+      },
+      {
+        record: {
+          id: "quote-2",
+          words: "Make the easy thing the right thing.",
+          who: null,
+          year: null,
+        },
+        previewInnerHtml: [
+          '<div class="stack gap-2">',
+          '<span class="text-lg text-bold line-clamp-3">Make the easy thing the right thing.</span>',
+          "</div>",
+        ].join(""),
+      },
+    ],
+    rendererSource: [
+      "export default function renderItem(record: Record<string, unknown>): string {",
+      "  const words = escapeHtml(record.words);",
+      "  const who =",
+      "    record.who === null",
+      '      ? ""',
+      '      : `<span class="text-bold truncate" style="background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">${escapeHtml(record.who)}</span>`;',
+      '  const year = record.year === null ? "" : `<span class="text-muted">${escapeHtml(record.year)}</span>`;',
+      '  const meta = who + year ? `<div class="cluster gap-1 text-xs">${who}${year}</div>` : "";',
+      "",
+      '  return `<div class="stack gap-2">',
+      '    <span class="text-lg text-bold line-clamp-3">${words}</span>',
+      "    ${meta}",
       "  </div>`;",
       "}",
       "",
@@ -245,16 +340,41 @@ export const FEW_SHOT_DESIGN_EXAMPLES: readonly FewShotDesignExample[] = [
   },
 ];
 
-/** @param shown the families the card's shown file fields take */
+/** One file field a card shows: the families it takes, and whether it holds a list. */
+export interface ShownFile {
+  readonly accepts: readonly FileFamily[];
+  readonly list: boolean;
+}
+
+const takesAPicture = (families: readonly FileFamily[]) =>
+  families.some((family) => family === "image" || family === "video");
+
+/**
+ * The exemplars a card is shown: every one without a file, and each one whose file can be any
+ * file a shown field holds. Its families cover the field's, it takes a picture exactly when the
+ * field does, so an empty frame means the same thing in both, and it holds a list exactly when
+ * the field does.
+ */
+export function fewShotExamplesFor(shown: readonly ShownFile[]): readonly FewShotDesignExample[] {
+  return FEW_SHOT_DESIGN_EXAMPLES.filter((example) => {
+    const file = example.capability.schema.fields.find((field) => isFileFieldType(field.type));
+    if (!file) return true;
+    const accepts = file.accepts ?? [];
+    return shown.some(
+      (field) =>
+        field.accepts.every((family) => accepts.includes(family)) &&
+        takesAPicture(field.accepts) === takesAPicture(accepts) &&
+        field.list === isFileListFieldType(file.type),
+    );
+  });
+}
+
+/** @param shown the file fields the card shows */
 export function buildItemRendererDesignInjection(
   layout: UiCollectionLayout,
-  shown: readonly FileFamily[] = [],
+  shown: readonly ShownFile[] = [],
 ): string {
-  const examples = FEW_SHOT_DESIGN_EXAMPLES.filter(
-    ({ onlyFor, notForOnly }) =>
-      (!onlyFor || onlyFor.some((family) => shown.includes(family))) &&
-      !(notForOnly && shown.length > 0 && shown.every((family) => notForOnly.includes(family))),
-  );
+  const examples = fewShotExamplesFor(shown);
   return [
     "Injected design contract and few-shot gallery:",
     "",

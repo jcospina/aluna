@@ -17,9 +17,6 @@ const MANUAL = {
   size: 1_842_310,
 };
 
-const CHIP =
-  'class="text-xs text-bold truncate" style="background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);"';
-
 const WHAT_SOURCE = [
   "  const manual = record.manual as { name?: unknown } | null;",
   '  const named = String(manual?.name ?? "");',
@@ -27,7 +24,6 @@ const WHAT_SOURCE = [
 ];
 
 export const MANUAL_FEED: FewShotDesignExample = {
-  onlyFor: ["document"],
   id: "appliance_manual_feed",
   title: "Document feed card",
   layout: "feed",
@@ -70,7 +66,7 @@ export const MANUAL_FEED: FewShotDesignExample = {
         '<span class="text-sm text-muted truncate">KT-2200</span>',
         "</div>",
         '<div class="cluster gap-1 text-xs">',
-        `<span ${CHIP}>Kettle manual</span>`,
+        '<span class="text-xs text-bold truncate" style="background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">Kettle manual</span>',
         '<time class="text-muted" datetime="2026-03-02">2026-03-02</time>',
         "</div>",
         "</div>",
@@ -90,7 +86,7 @@ export const MANUAL_FEED: FewShotDesignExample = {
         '<span class="text-xl text-bold line-clamp-2">Dishwasher</span>',
         "</div>",
         '<div class="cluster gap-1 text-xs">',
-        `<span ${CHIP}>No manual yet</span>`,
+        '<span class="text-xs text-bold truncate" style="background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">No manual yet</span>',
         '<time class="text-muted" datetime="2025-11-20">2025-11-20</time>',
         "</div>",
         "</div>",
@@ -100,11 +96,15 @@ export const MANUAL_FEED: FewShotDesignExample = {
   rendererSource: [
     "export default function renderItem(record: Record<string, unknown>): string {",
     "  const appliance = escapeHtml(record.appliance);",
-    '  const boughtOn = escapeHtml(record.bought_on ?? "");',
+    "  const boughtOn =",
+    "    record.bought_on === null",
+    '      ? ""',
+    '      : `<time class="text-muted" datetime="${escapeHtml(record.bought_on)}">${escapeHtml(record.bought_on)}</time>`;',
     ...WHAT_SOURCE,
-    "  const model = record.model",
-    '    ? `<span class="text-sm text-muted truncate">${escapeHtml(record.model)}</span>`',
-    '    : "";',
+    "  const model =",
+    "    record.model === null",
+    '      ? ""',
+    '      : `<span class="text-sm text-muted truncate">${escapeHtml(record.model)}</span>`;',
     "",
     '  return `<div class="stack gap-2">',
     '    <div class="stack gap-0_5">',
@@ -112,8 +112,8 @@ export const MANUAL_FEED: FewShotDesignExample = {
     "      ${model}",
     "    </div>",
     '    <div class="cluster gap-1 text-xs">',
-    `      <span ${CHIP}>\${escapeHtml(what)}</span>`,
-    '      <time class="text-muted" datetime="${boughtOn}">${boughtOn}</time>',
+    '      <span class="text-xs text-bold truncate" style="background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">${escapeHtml(what)}</span>',
+    "      ${boughtOn}",
     "    </div>",
     "  </div>`;",
     "}",
@@ -123,7 +123,6 @@ export const MANUAL_FEED: FewShotDesignExample = {
 };
 
 export const MANUAL_TILE: FewShotDesignExample = {
-  onlyFor: ["document"],
   id: "appliance_manual_tile",
   title: "Document grid tile",
   layout: "grid",
@@ -149,17 +148,17 @@ export const MANUAL_TILE: FewShotDesignExample = {
       record: { id: "manual-3", manual: MANUAL, appliance: "Electric kettle", model: "KT-2200" },
       previewInnerHtml: [
         '<div class="stack gap-2">',
-        `<span ${CHIP}>Kettle manual</span>`,
+        '<span class="text-xs text-bold truncate" style="background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">Kettle manual</span>',
         '<span class="text-xl text-bold line-clamp-3">Electric kettle</span>',
         '<span class="text-sm text-muted truncate">KT-2200</span>',
         "</div>",
       ].join(""),
     },
     {
-      record: { id: "manual-4", manual: null, appliance: "Dishwasher", model: "" },
+      record: { id: "manual-4", manual: null, appliance: "Dishwasher", model: null },
       previewInnerHtml: [
         '<div class="stack gap-2">',
-        `<span ${CHIP}>No manual yet</span>`,
+        '<span class="text-xs text-bold truncate" style="background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">No manual yet</span>',
         '<span class="text-xl text-bold line-clamp-3">Dishwasher</span>',
         "</div>",
       ].join(""),
@@ -168,13 +167,14 @@ export const MANUAL_TILE: FewShotDesignExample = {
   rendererSource: [
     "export default function renderItem(record: Record<string, unknown>): string {",
     "  const appliance = escapeHtml(record.appliance);",
-    "  const model = record.model",
-    '    ? `<span class="text-sm text-muted truncate">${escapeHtml(record.model)}</span>`',
-    '    : "";',
+    "  const model =",
+    "    record.model === null",
+    '      ? ""',
+    '      : `<span class="text-sm text-muted truncate">${escapeHtml(record.model)}</span>`;',
     ...WHAT_SOURCE,
     "",
     '  return `<div class="stack gap-2">',
-    `    <span ${CHIP}>\${escapeHtml(what)}</span>`,
+    '    <span class="text-xs text-bold truncate" style="background-color: var(--sky); color: var(--ink); padding: var(--space-1) var(--space-1);">${escapeHtml(what)}</span>',
     '    <span class="text-xl text-bold line-clamp-3">${appliance}</span>',
     "    ${model}",
     "  </div>`;",

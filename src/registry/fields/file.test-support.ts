@@ -54,3 +54,10 @@ export function orderings<T>(values: readonly T[]): T[][] {
   }
   return result;
 }
+
+/** Every non-empty set of `values`, each in `values`' own order. */
+export function subsets<T>(values: readonly T[]): T[][] {
+  return Array.from({ length: 2 ** values.length - 1 }, (_, index) =>
+    values.filter((_, bit) => ((index + 1) >> bit) & 1),
+  );
+}

@@ -385,7 +385,13 @@ function buildItemRendererPrompt(spec: CapabilitySpec): string {
     "- Any URL you emit must be same-origin — a path — or an inline `data:image/*`. Never point at another host: a record does not fetch from anywhere else, which is the same rule that forbids `url(...)` in a style.",
     "- For string[] fields, narrow with Array.isArray, preserve element order, and escape each element independently. Do not stringify or comma-split the list as one scalar.",
     "",
-    buildItemRendererDesignInjection(layout, shownFileFamilies(spec)),
+    buildItemRendererDesignInjection(
+      layout,
+      shownFileFields(spec).map((field) => ({
+        accepts: field.accepts ?? [],
+        list: isFileListFieldType(field.type),
+      })),
+    ),
     "",
     `Design direction (ui_intent.item.direction): ${spec.ui_intent.item.direction}`,
     "",
