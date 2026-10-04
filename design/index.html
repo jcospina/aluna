@@ -1001,12 +1001,34 @@
                   <td>
                     <strong>The address bar addresses the window.</strong>
                     <code>/capability/:id</code>
-                    opens the desk with that capability in the window; putting the window away
-                    returns to <code>/</code>. One window is exactly what makes a single path enough
-                    to describe the whole desk, and it is why reload, deep links, history and
-                    sharing all keep working unchanged
+                    opens the desk with that capability in the window, and
+                    <code>/capability/:id/:record</code>
+                    opens it with that record in its record view; putting the window away returns to
+                    <code>/</code>. One window is exactly what makes a single path enough to
+                    describe the whole desk, and it is why reload, a pasted address, history and
+                    sharing all keep working unchanged. Opening a record moves the address, and the
+                    record's back control, a save and a delete all leave it on the collection's.
+                    <br><br>
+                    <strong>A record that is gone leaves its capability open.</strong>
+                    When a record address names a record that was deleted, never existed or belongs
+                    to another capability, the desk opens the addressed capability's collection, the
+                    address becomes
+                    <code>/capability/:id</code>, and the prompt bar says the notice it already has
+                    for something missing: <q>Hmm — I can’t find that one.</q> A capability that is
+                    gone still leaves the bare desk.
+                    <br><br>
+                    <strong>An answer links the records it names.</strong>
+                    The answer window stays prose, and a record named in it is a link to that
+                    record's address, built by the platform and never by the model. A press opens
+                    the record in the capability window and the answer stays where it is. The link
+                    is ink and an underline like every other link and takes the one focus ring, so
+                    it needs no states of its own
                   </td>
-                  <td class="sm">The address readout under the desk</td>
+                  <td class="sm">
+                    The address readout under the desk, for the bare desk and a capability. The
+                    desk's fixture records have no ids, so the record address is stated here and not
+                    drawn
+                  </td>
                 </tr>
               </tbody>
             </table>

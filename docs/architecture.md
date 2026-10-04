@@ -253,8 +253,10 @@ stale copy when the user edits, and never stacks or times away competing message
 
 **Logo layer** — empty for a fresh user, otherwise rehydrated from the registry on
 load. Clicking a logo opens that capability's View in the window, and clicking
-another swaps what is inside the same window. This is the only navigation. There
-is no toolbar and no taskbar, and an empty desk is a wallpaper and a prompt bar,
+another swaps what is inside the same window. A card press opens a record inside the
+window. A record address, or a record linked in the answer window, opens that
+record's capability with the record open in it (ADR-0010). There is no toolbar and no
+taskbar, and an empty desk is a wallpaper and a prompt bar,
 which needs no special case. After resolution admits a new-capability build, the
 server may put a presentation-only, build-id-keyed provisional tile on the ground
 out-of-band (`hx-swap-oob`). Activation replaces it with the registry-backed tile;
@@ -314,17 +316,26 @@ Forget remembered boxes clears the layout storage entry and resets mounted
 geometry without replacing content, changing the capability address or cancelling
 work; it resets only the developer panel's next-load open preference.
 
-Logo open/switch and put-away push `/capability/:id` or `/` into browser history;
-`popstate` renders that identity without pushing another entry, and focusing the
-already-open capability adds none. Every entry the desk writes carries its place in the
-run of them, which is what lets a traversal that would take a running build or evolution
-be held: it is stepped back off while the question stands and taken again exactly once on
-confirmation, so the stack is neither an entry wider for the asking nor an entry shorter
-for the answering. Search, record subview and draft remain
-DOM-only and are not encoded in history. During a build the address stays on the
-displaced identity; successful v1 activation pushes the new capability only when
-its canonical collection takes the window, while evolution and non-activation do
-not add a route entry.
+The address has three shapes: `/` is the bare desk, `/capability/:id` a capability's
+collection, and `/capability/:id/:record` the record address, one record open in its
+record view (ADR-0010). Logo open/switch and put-away push `/capability/:id` or `/`
+into browser history, and a card press pushes the record address. The record view's
+back control, a save and a delete leave it the same way: they step back when the
+entry before is this capability's collection, and replace the entry with the
+collection's address when the person arrived by link. `popstate` renders the
+addressed record or capability without pushing another entry, and focusing the
+already-open capability adds none. Every entry the desk writes carries its place in
+the run of them, which is what lets a traversal that would take a running build or
+evolution be held: it is stepped back off while the question stands and taken again
+exactly once on confirmation, so the stack is neither an entry wider for the asking
+nor an entry shorter for the answering. This hold and the leave question for a
+form's unsaved changes cover a record address like any other traversal. Search and
+draft remain DOM-only and are not encoded in history. During a build the address
+stays on the displaced identity; successful v1 activation pushes the new capability
+only when its canonical collection takes the window, while evolution and
+non-activation do not add a route entry. A build that displaced a record address
+gives that capability back as its collection, restored or shown evolved, and the
+address is replaced with `/capability/:id` (ADR-0010).
 
 A logo action refused before it may take the capability window speaks on the
 prompt bar. In particular, Delete cannot replace a build or evolution that is
@@ -356,7 +367,9 @@ wrapper (a record is a `<button>`, so it carries no role, tabindex or key handli
 of its own), the in-window record view, which a list item and the create action both
 open into, the deletion confirmation that replaces that form's action row in place — so
 deleting a record starts by opening it and no list row carries a delete of its own —
-spec-rendered fields, and safe composition of generated item output.
+spec-rendered fields, and safe composition of generated item output. For a record
+address the platform route renders the record view on the server through the adapter
+that writes each card, and no Handler runs (ADR-0010).
 It may read structural spec facts — field type, required state, the collection
 layout (`ui_intent.collection.layout`, a closed value selecting how the list
 container arranges items), and the closed per-`string[]` list input mode — but it
@@ -385,16 +398,32 @@ guessing from text.
 ### 6.2 Orchestrator — the brain (server-side)
 
 A deterministic router fronts everything: the UI only ever calls
-`/capability/:id/:action`. M4 fixes `GET read`, `GET search`, `POST create`,
-`POST update`, and `POST delete`; every other method/Action pairing fails before
-generated code loads. Spec field names cannot use the reserved `__aluna_` prefix.
-The router validates and strips repeated `__aluna_present` markers and exactly one
-nonblank `__aluna_record_id` for update and delete; missing, duplicate, or
-unexpected target markers fail before generated code. The target reaches the
-Handler and mutation context separately from writable values, and only as an opaque
-platform handle. The router binds update/delete mutation authority to that exact
-target before generated code runs, so the Handler has no record selector. Generated
-UI never invents routes or touches raw requests. Routing is never an AI concern.
+`/capability/:id/:action`, or reads one record through the record address. M4 fixes
+`GET read`, `GET search`, `POST create`, `POST update`, and `POST delete`; every
+other method/Action pairing fails before generated code loads. Spec field names
+cannot use the reserved `__aluna_` prefix. The router validates and strips repeated
+`__aluna_present` markers and exactly one nonblank `__aluna_record_id` for update
+and delete; missing, duplicate, or unexpected target markers fail before generated
+code. The target reaches the Handler and mutation context separately from writable
+values, and only as an opaque platform handle. The router binds update/delete
+mutation authority to that exact target before generated code runs, so the Handler
+has no record selector. Generated UI never invents routes or touches raw requests.
+Routing is never an AI concern.
+
+`GET /capability/:id/:record` is a platform route registered ahead of the Action
+route, not a sixth Action. A segment shaped like a UUID is a record, the five Action
+names keep their route, and anything else answers 404 as before. The route takes a
+read token and closes with the read gate, as the collection view does. It reads one
+row by `id` from the active incarnation's table, narrows it as the collection does,
+and renders the record view through the presentation adapter that writes a card's
+`<template>`. With `HX-Request` it answers that fragment for the window; without it,
+the whole desk with the record open, after the desk-load recovery. A record that was
+deleted, never existed or belongs to another capability opens the addressed
+capability's collection, says the not-found notice on the prompt bar, answers 404
+and corrects the address to `/capability/:id`. Every capability declares all five
+Actions, so every capability has a record view; the record view's guard against a
+capability without `update` would leave its record address on the collection with no
+notice (ADR-0010).
 
 Behind the router, three cooperating modules:
 
@@ -456,7 +485,9 @@ foreground product-voice story, and a later confirmed implicit proposal can reus
 the same Builder without being reclassified or forced into that presenter. Before
 the build takes the window, the explicit presenter records only a restoration
 descriptor — the open capability's id and incarnation, or the bare desk — never
-user data or a pinned artifact path.
+user data or a pinned artifact path. It never names a record, so restoring after a
+build that displaced a record address gives back that capability's collection
+(ADR-0010).
 
 ADR-0002's contract survives the window. `commit` and `fragment` keep addressing
 one stable id, and the client guarantees that id exists whenever a swap can be in
@@ -858,7 +889,8 @@ Ingestion uses a short coordinator write and atomically validates and appends th
 derived set only while every pair is still active and current, so a late
 pre-deletion batch is rejected after closing or tombstoning and cannot resurrect
 purged content. That lets M10 extend M4's cleanup seam without guessing from free
-text.
+text. M10 must admit the record address as a route context, as it admits the
+collection's (ADR-0010).
 
 #### Data Tables — additive-only, generated DDL
 
@@ -1133,12 +1165,28 @@ registry's declared options plus an ordinary read of a field's distinct values �
 and semantic indexes are declined, because they would put an AI call and a fourth
 derived artifact on the write path (ADR-0008).
 
+**An answer links the records it names.** When a question asks about particular
+records rather than a figure, the model selects `id` with them and returns
+`{ answer, records }`, where each `{ says, id }` names the words in the answer that
+mean a record and the id it read. The platform keeps a nomination only when the id
+came back as a cell in a row some step returned, exactly one capability that step read
+holds a record with that id, that capability has a record view, and `says` occurs in
+the answer outside any other link. It links the first free occurrence of `says` and
+drops the rest without a word. The prose never carries an id: the platform removes
+any record id the steps returned from the answer before it is shown. The answer
+fragment holds escaped text runs and `<a data-answer-record>` elements, and the client
+builds each anchor itself from ids it validates, through one `recordAddress()`
+builder; it never parses markup out of the answer. A plain press opens the record in
+the capability window, under the same leave question and run hold as a record address,
+and the answer window stays where it is (ADR-0010).
+
 The answer opens in its own window — a third window beside the capability window and
 the developer panel, displacing neither, so a capability stays open while it is asked
 about. One answer window: a new question replaces its content in place rather than closing and
 reopening it, the same swap the one window already performs between capabilities. There
 is no route back to an answer once it is gone — no logo, no tile, no address, nothing
-surviving a reload — so it is dismissed rather than put away. A refusal opens nothing, but
+surviving a reload — so it is dismissed rather than put away. Its links lead to
+records, never back to the answer. A refusal opens nothing, but
 where it speaks depends on what the desk is holding: the prompt bar's notice slot when no
 answer window stands, and the window itself when one does, re-titled to the refused words
 and brought forward. An answer left standing beside a refusal goes on answering a question
@@ -1271,7 +1319,8 @@ release in `finally`.
 
 Cross-capability reads need no invalidation channel. A capability may read another
 capability's table and can never write to it, one capability window means one visible
-capability — the answer window holds a computed answer, never a capability's records —
+capability — the answer window holds a computed answer, never a capability's records,
+only links to them —
 and every open is a fresh read, so nothing has to be kept in step. A
 second browser tab is the only remaining route to a stale view, and it is an
 accepted edge rather than a reason to build a bus, a version stamp, or the refresh
