@@ -123,6 +123,16 @@ person actually asks is answered by a sentence, with bullets where a sentence wo
 list. A one-cell table headed `count(*)` is an engineering artifact, and ARCH §9.7
 forbids the product from being one.
 
+*Amended 2026-10-03 — an answer links the records it names (ADR-0010).* The answer is
+still prose, and it may now carry links. The model returns `{ answer, records }`, where
+each `{ says, id }` nominates the words that name a record and the id it says it read.
+The platform links a nomination only after four checks, the first being that a step
+returned that id. It removes from the spoken text every record id the steps returned,
+and it builds each anchor itself, so no anchor reaches the screen unchecked and no
+markup the model wrote reaches it at all. Only an answered question carries links: the
+platform's own sentences for **nothing matched**, **nowhere for it**, every statement
+failing and a spent step budget link nothing.
+
 **Amended 2026-09-11 — rule 1 is withdrawn by the owner.** The restatement shipped, was read
 on a real desk, and was rejected: *"THE USER KNOWS WHICH CAPABILITIES IT HAS THERE IS NO NEED
 FOR ALUNA TO SAY OH I LOOKED FOR COFFEES UNDER COFFEE."* Naming what she read before every
@@ -203,6 +213,9 @@ has, and the developer tile is already drawn unlike a capability so nothing conf
 two. An answer icon would have muddied that for something there is no reason to return
 to. Future persistence — a history of answers, a reopen, recent questions — is out of
 scope and no groundwork for it is laid.
+
+*Amended 2026-10-03 (ADR-0010):* a link in an answer leads to a record's address, never
+back to the answer, and `intent_resolution_metrics` records no record id.
 
 **A refusal opens no window.** The classification says which it is, so the window opens
 only once the resolver returns `data_query`; `reject` speaks in the prompt bar's notice

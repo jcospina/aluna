@@ -33,7 +33,7 @@ desk, with `cache-control: no-store`.
 whose last segment is not a UUID, is still not an address the desk knows.
 
 **An absent record.** A record that was deleted, never existed or belongs to another
-capability opens the capability's collection, speaks `NOT_FOUND_NOTICE` on the prompt bar,
+capability opens the capability's collection, says `NOT_FOUND_NOTICE` on the prompt bar,
 answers 404, and corrects the address to `/capability/:id`. A capability without `update`
 opens its collection with no notice.
 

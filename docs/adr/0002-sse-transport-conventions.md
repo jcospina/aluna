@@ -25,8 +25,9 @@ deletion of the throwaway demo that established it.
   exist to keep the TCP/SSE connection active while a builder stage generates or
   checks without producing user-visible output.
 - **Route namespacing.** `/demo/*` is throwaway and freely removable. The
-  production SSE channel, the capability router `/capability/:id/:action`, and
-  `/files/:key` are reserved real routes (see `src/app/app.ts`). The demo must
+  production SSE channel, the capability router `/capability/:id/:action`, the
+  record address `/capability/:id/:record` (ADR-0010) and `/files/:key` are reserved
+  real routes (see `src/server/app.ts`). The demo must
   never colonize a reserved path.
 
 **Historical questions from the Module 1 seed (all resolved by the updates below):**

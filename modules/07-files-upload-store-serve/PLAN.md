@@ -517,7 +517,7 @@ in ADR-0009, and in the architecture and design documents.
 them. To find the record itself, the person reads a name in the answer and then hunts
 for its card. These decisions give every record an address, and let the answer link the
 records it names. They reverse Module 5's decision 6 (the address names the capability
-and nothing below it), ADR-0005's rejected read-single route, and this plan's decision 37
+and nothing below it), ADR-0005's deferred read-single route, and this plan's decision 37
 (the answer window stays text). [ADR-0010](../../docs/adr/0010-record-addresses-and-record-links-in-answers.md)
 records the reversal, and 7.5/01 writes it.
 
@@ -544,7 +544,7 @@ records the reversal, and 7.5/01 writes it.
     and a new tab all land on the record.
 43. **An absent record leaves its capability open.** An address whose record was
     deleted, never existed or lives in another capability opens that capability's
-    collection, speaks the not-found notice on the prompt bar, answers 404, and corrects
+    collection, says the not-found notice on the prompt bar, answers 404, and corrects
     the address to `/capability/:id`. An absent capability still gives the bare desk
     (Module 5 decision 21). A capability that declares no `update` has no record view,
     so its record address opens the collection without a notice. Record ids are random,
@@ -559,6 +559,10 @@ records the reversal, and 7.5/01 writes it.
     other traversal. `desk-address.js` keeps its single `pushState` and its single
     `replaceState`. A build's restoration descriptor stays capability-only, so a build
     that ends shows the collection.
+    *Amended 2026-10-03 (7.5/01):* the address follows. A build started from a record
+    address keeps that address while it runs. When it gives the window back to that
+    capability, restored or shown evolved, the address is replaced with
+    `/capability/:id`, adding no entry. A successful first build still pushes.
 45. **The model nominates records, and the platform vouches for them.** When a
     question asks about particular records rather than a figure, the turn prompt asks the
     model to select `id` with them. The answer schema becomes `{ answer, records }`, with
@@ -709,9 +713,10 @@ filled state for each kind, the progress line, the `file[]` list, a refusal in t
 the open and download links inside the record, the full player in the record's render view
 (decision 29), and the leave question for a held upload. Shape follows the existing field structure and the drawn line. `design/` is
 the product requirement, so the image states land with or before 7.1's control, and the
-rest with or before the epic that builds them. 7.5 owes two drawings: D14 gains the
-record address and the absent-record notice, and the answer window gains a linked record
-name inside a sentence, in its rest, hover, focus and pressed states.
+rest with or before the epic that builds them. 7.5 owes one amendment: D14 gains the
+record address, the absent-record notice, and a sentence saying an answer links the
+records it names, with the link states `design/` already has. The owner ruled on
+2026-10-03 that D14's prose is the whole of it, with no drawn example.
 
 ## Left for Module 9
 

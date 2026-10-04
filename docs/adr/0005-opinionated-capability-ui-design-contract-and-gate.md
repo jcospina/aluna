@@ -7,6 +7,14 @@ Settled in the Module 3 grilling session (2026-06-26). Exact class names, token
 names, module interfaces, and the exemplar set remain implementation detail, decided
 inside Module 3.
 
+**Amended 2026-10-03 (ADR-0010).** A record now has an address,
+`/capability/:id/:record`, and a platform route reads that one record. It is the
+read-single route this ADR deferred under "Considered options", except that the platform
+reads the row and renders the record view through the same presentation adapter. No
+generated Handler runs, the fixed Action set is unchanged, and the item vocabulary stays
+closed. A card is still a `<button>`, and generated item markup still cannot emit `<a>`
+or `href`.
+
 **Amended 2026-09-03 (ADR-0008).** The `data_query` auto-table is gone: Aluna speaks
 her answers. Two sentences below rest on it and are restated rather than retired. The
 precedent that *presentational platform code is allowed* stands and is now carried by
@@ -230,6 +238,9 @@ presentational platform code is allowed.
    capabilities make materializing the list expensive, prefill can move behind the
    same adapter to read-single-on-open after M4 adds the per-item action; the item
    payload shrinks to an id without changing committed item composition.
+   *Amended 2026-10-03 (ADR-0010):* no per-item Action came. The record address reads
+   one record through a platform route, and a card still carries its prefilled
+   projection.
 
 4. **A closed-value design contract, enforced by a new gate rung.** (Amended
    2026-07-01. **The axis list in this paragraph is superseded**: the desktop-design
@@ -376,7 +387,9 @@ presentational platform code is allowed.
 - **A read-single route for prefill, up front.** Expands the fixed `create + read`
   route contract and adds a generated handler to feed a modal that is *read-only*
   until M4 — premature for single-user PoC list sizes. Deferred behind the modal
-  abstraction as the documented escape hatch (§3).
+  abstraction as the documented escape hatch (§3). *Amended 2026-10-03 (ADR-0010):*
+  the route exists now as a platform route for the record address, with no generated
+  handler and no change to the Action set.
 - **Fully declarative SDUI (model emits JSON, platform renders the view).** Already
   rejected in ADR-0004 as platform business logic; that line is **kept**. The
   platform owns presentation mechanics; the model still authors the item renderer

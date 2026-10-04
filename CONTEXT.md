@@ -71,9 +71,10 @@ and neither displaces it. Logos
 fill down a column and wrap to the next, taking as many columns as the desk
 holds. There is no taskbar, so the logos are the only standing list of what
 exists, and a fresh user sees a wallpaper and a prompt bar with nothing withheld
-until a first capability arrives. The address `/` is the bare desk and
-`/capability/:id` is the desk with that capability in the window
-([design/index.html](design/index.html) D4, D14; M5 plan 3, 4, 6).
+until a first capability arrives. The address `/` is the bare desk,
+`/capability/:id` is the desk with that capability in the window, and its
+**record address** is the desk with one record open in that window
+([design/index.html](design/index.html) D4, D14; M5 plan 3, 4, 6; ADR-0010).
 _Avoid_: capability toolbar, sidebar, header row (all three superseded), nav,
 menu, drawer, taskbar, dock
 
@@ -94,20 +95,39 @@ _Avoid_: content area and detail modal (both superseded), modal, dialog, popup,
 main panel, canvas, workspace, body
 
 **Address**:
-What the browser bar says, and it says one of exactly two things: `/` is the bare
-desk, and `/capability/:id` is the desk with that capability in the window.
-Nothing below capability identity is ever in it — the search term, the open record
-and a half-typed edit live in the DOM and die with the tab, so a reload comes back
-to the capability's canonical collection and loses them. Logo open/switch and
-put-away push; `popstate` renders the addressed identity without pushing again, and
-focusing the already-open capability adds no duplicate. A traversal that would take a
-running build or evolution is held instead of taken: it is stepped back off while the
-question stands and taken again exactly once if the person confirms, so asking costs no
-entry and answering costs no more than the one move. During a build the address
-keeps naming what the build displaced; a successful v1 activation pushes the new
+What the browser bar says, and it says one of exactly three things: `/` is the bare
+desk, `/capability/:id` is the desk with that capability in the window, and
+`/capability/:id/:record` is the **record address**, the desk with that record open
+in its record view. Nothing else is ever in it: the search term and a half-typed
+edit live in the DOM and die with the tab, so a reload comes back to the collection
+or the record without them. Logo open/switch and put-away push, and so does a card
+press. The record view's back control, a save and a delete step back to the
+collection when it is the entry before, and replace the entry with the collection's
+address when the person arrived by link. `popstate` renders the addressed record or
+capability without pushing again, and focusing the already-open capability adds no
+duplicate. A traversal that would take a running build or evolution is held instead
+of taken: it is stepped back off while the question stands and taken again exactly
+once if the person confirms, so asking costs no entry and answering costs no more
+than the one move. That hold and the leave question for a form's unsaved changes
+cover a record address like any other traversal. During a build the address keeps
+naming what the build displaced; a successful v1 activation pushes the new
 capability only when its canonical collection takes the window, and evolution and
-every non-activating terminal add no entry (design D14; M5 plan 6; ARCH §6.1).
+every non-activating terminal add no entry. A build that displaced a record gives
+back the collection, and the address is replaced with `/capability/:id` when it does
+(design D14; M5 plan 6; ARCH §6.1; ADR-0010).
 _Avoid_: url, route, path, location, deep link, query string
+
+**Record address**:
+The third shape of the address, `/capability/:id/:record`, where `:record` is the
+record's `id`. A platform route registered ahead of the Action route draws it, as a
+fragment for the window or as the whole desk with the record open, so a reload, a
+pasted address and a new tab all land on the record. When the record was deleted,
+never existed or belongs to another capability, the addressed capability's collection
+opens, the prompt bar says the not-found notice, and the address becomes
+`/capability/:id`. A record named in an answer links to its record address, and
+Module 8's linked records point at the same one (ADR-0010; M7 plan 40 to
+49).
+_Avoid_: deep link, permalink, record URL, record route
 
 **Put away**:
 What the clay lamp does. The window disappears, the logo stays where it was, the
@@ -286,11 +306,15 @@ _Avoid_: step type, action kind, phase, progress message, status
 
 **Answer window**:
 The third window, and the second exception to there being one. It opens when a question
-is classified `data_query`, carries the loop's narration and then Aluna's spoken answer,
-and displaces nothing — a capability stays open while it is asked about. One of them: a
+is classified `data_query` and displaces nothing — a capability stays open while it is
+asked about. It carries the loop's narration and then Aluna's spoken answer, which may
+link the records it names to their record addresses. One of them: a
 new question replaces its content in place, never closing and reopening the frame. It
 carries **no logo, tile or address**, so it is *dismissed* rather than *put away* —
-closing it destroys the answer and nothing survives a reload (ADR-0008). A refusal never
+closing it destroys the answer and nothing survives a reload (ADR-0008). The platform
+builds each link from a record the steps returned, and the model never writes one;
+a press opens the record in the capability window and leaves the answer standing
+(ADR-0010). A refusal never
 opens it. When one is already standing the refusal takes it — re-titled to the words that
 were refused, brought forward, and said there rather than on the bar — so the window can
 be left holding something that is not an answer. The prompt bar speaks a refusal only

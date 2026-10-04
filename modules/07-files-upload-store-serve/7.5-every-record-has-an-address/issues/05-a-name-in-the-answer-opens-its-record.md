@@ -30,9 +30,10 @@ other element and sink still banned.
 address, then open it in the capability window, under the leave question and the run
 hold. The answer window stays open, and on a phone the capability window comes forward.
 A modified or middle press is left to the browser, so the record opens in a new tab
-through 7.5/02. A record deleted since the answer gives 7.5/02's notice.
+through 7.5/02. When a record was deleted after the answer, the prompt bar says 7.5/02's notice.
 
-**It looks like `design/`.** The link states are the ones 7.5/01 drew, in the answer
+**It looks like `design/`.** The link is ink and an underline and takes the one focus
+ring, as D14 says (7.5/01 drew no states of its own). Any rule it needs goes in the answer
 window's existing stylesheet, because `public/css` is full.
 
 ## Acceptance criteria
