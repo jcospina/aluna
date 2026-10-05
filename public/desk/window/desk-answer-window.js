@@ -28,14 +28,16 @@ import { recordAddress } from "../../core/routes.js";
 import { focusLanded, WINDOW_CONTENT_ID } from "../../core/shell-dom.js";
 import { OPEN_THE_RECORD_EVENT } from "../desk-address.js";
 import {
+  buildRunIn,
   cancelQuestionIn,
   detachQuestionIn,
+  leavingIsBeingAsked,
   QUESTION_IN_THE_WINDOW_SELECTOR,
 } from "../leaving-a-run.js";
 import { PROMPT_BAR_MESSAGE_EVENT } from "../prompt-bar.js";
 import { recordInWindow } from "./addressed-window.js";
 import { answerRuns, isAnswerName } from "./answer-runs.js";
-import { joinStack, leaveStack, raise, raiseFromPress } from "./desk-stack.js";
+import { joinStack, leaveStack, raise, raiseFromPress, raiseWindow } from "./desk-stack.js";
 import { fitBox, openingGeometry, PROMPT_FORM_ID, windowLayer } from "./desk-window.js";
 import {
   centredBox,
@@ -203,6 +205,20 @@ function openPressedRecord(press) {
    * here where the record was already open and nothing will land. */
   const active = /** @type {HTMLElement | null} */ (document.activeElement);
   if (active !== null && active !== document.body) active.blur?.();
+  const region = /** @type {Element | null} */ (windowRegion());
+  const standing = /** @type {never} */ (region?.closest(".window") ?? null);
+  /* The record already open, with no run in its window and no question standing, leaves nothing
+   * behind: its window comes forward and its first field takes the focus, changes and all. */
+  if (
+    region !== null &&
+    recordInWindow(region) === named.record &&
+    buildRunIn(standing) === null &&
+    !leavingIsBeingAsked()
+  ) {
+    raiseWindow(standing);
+    focusLanded(region);
+    return;
+  }
   const landed = () => {
     const region = /** @type {Element | null} */ (windowRegion());
     if (region !== null && recordInWindow(region) === named.record) focusLanded(region);

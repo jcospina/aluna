@@ -713,6 +713,11 @@ turning the query into a capability.
 
 ## Module 7 — Files: Upload, Store & Serve
 
+**Status:** built and verified, waiting on the owner's sign-off at 7.5/06. On 2026-10-05,
+7.5/06 ran the verify script below: the record address and answer links against the
+owner's corpus, and every step that writes against a copy of it, with Personal photos
+standing in for Photos and Hypomnemata for Notes.
+
 **Goal:** apply the same constrained-write / free-read split to bytes (ARCH §7 "Files"). A capability can now hold files: upload is a constrained write the platform performs, serving is a free read through a platform route. With this the explicit loop is complete.
 
 **Why seventh:** files are the last user-facing surface one capability needs on

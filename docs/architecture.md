@@ -417,10 +417,10 @@ read token and closes with the read gate, as the collection view does. It reads 
 row by `id` from the active incarnation's table, narrows it as the collection does,
 and renders the record view through the presentation adapter that writes a card's
 `<template>`. With `HX-Request` it answers that fragment for the window; without it,
-the whole desk with the record open, after the desk-load recovery. A record that was
-deleted, never existed or belongs to another capability opens the addressed
-capability's collection, says the not-found notice on the prompt bar, answers 404
-and corrects the address to `/capability/:id`. Every capability declares all five
+the whole desk, which opens the record from its address, after the desk-load recovery.
+A record that was deleted, never existed or belongs to another capability opens the
+addressed capability's collection, says the not-found notice on the prompt bar, answers
+404 and corrects the address to `/capability/:id`. Every capability declares all five
 Actions, so every capability has a record view; the record view's guard against a
 capability without `update` would leave its record address on the collection with no
 notice (ADR-0010).

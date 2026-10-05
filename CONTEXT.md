@@ -120,7 +120,7 @@ _Avoid_: url, route, path, location, deep link, query string
 **Record address**:
 The third shape of the address, `/capability/:id/:record`, where `:record` is the
 record's `id`. A platform route registered ahead of the Action route draws it, as a
-fragment for the window or as the whole desk with the record open, so a reload, a
+fragment for the window or as the whole desk, which opens the record, so a reload, a
 pasted address and a new tab all land on the record. When the record was deleted,
 never existed or belongs to another capability, the addressed capability's collection
 opens, the prompt bar says the not-found notice, and the address becomes

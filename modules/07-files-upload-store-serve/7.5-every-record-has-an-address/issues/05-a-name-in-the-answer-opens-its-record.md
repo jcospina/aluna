@@ -102,9 +102,11 @@ capability window forward (`bring`). The outcome goes back on the event:
   go: the link, or the bar or a field of the record being left, which a browser like Safari leaves
   focused. The record's first field takes focus as it lands. Where the record was already open and
   nothing will land, the answer's `landed` callback focuses it. `focusLanded`, now shared from
-  `shell-dom.js`, focuses only inside the window in front.
+  `shell-dom.js`, focuses only inside the window in front. *Since 7.5/06:* a record already open,
+  with no run in its window and no question standing, is brought forward and focused before any
+  event goes out, so its unsaved changes are kept and nothing is asked.
 - `held`. The window holding the question comes forward, and `landed` runs once a yes opens the
-  record.
+  record. *Since 7.5/06:* the record's first field takes focus as it lands.
 - `gone`. The capability has left the desk (`knows`). Nothing is pushed or put away. The name turns
   into words, and the bar says 7.5/02's not-found sentence, restated as `RECORD_NOT_THERE` and
   pinned to the server's `NOT_FOUND_NOTICE`.
@@ -180,7 +182,9 @@ the bar, and the address corrected to its collection.
     other names are out of reach until it is moved or the answer is pressed forward.
 - **Choices recorded.**
   - After a yes on the leave question, focus lands on the prompt bar on every desk, as after every
-    confirmed navigation (`settleFocus`, pinned in `leaving-a-run.wiring.test.ts`).
+    confirmed navigation (`settleFocus`, pinned in `leaving-a-run.wiring.test.ts`). *Reversed by
+    the owner on 2026-10-05 in 7.5/06:* a yes on a pressed name now leaves focus to the opened
+    record's first field, as decision 48 says.
   - A gone capability speaks the not-found sentence rather than new copy.
 
 ## Verification

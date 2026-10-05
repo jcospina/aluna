@@ -128,6 +128,13 @@ export function focusFirstField(view) {
 }
 
 /**
+ * What a navigation held behind the leave question answers when what it opens places the focus
+ * itself, so a yes leaves the focus to it rather than to the prompt bar: a pressed name (PLAN
+ * decision 48) and a confirmed Back or Forward onto a record.
+ */
+export const PLACES_ITS_OWN_FOCUS = Symbol("places its own focus");
+
+/**
  * The first field of what `region` holds, once what a swap brought has mounted, as a press
  * focuses it. Only where the person has not since put focus somewhere else, and only while its
  * window is the one in front: a caret in a window behind types into something nobody can see.

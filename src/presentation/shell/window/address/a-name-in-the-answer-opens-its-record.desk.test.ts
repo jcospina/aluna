@@ -4,15 +4,25 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
+import { CONTENT_REGION_SELECTOR } from "#shell/core/region-scope.js";
 import { recordAddress } from "#shell/core/routes.js";
+import { PLACES_ITS_OWN_FOCUS } from "#shell/core/shell-dom.js";
 import { takeRecordAddress } from "#shell/desk/desk-address.js";
 import { backOutOfLeaving, goAheadAndLeave } from "#shell/desk/leaving-a-run.js";
-import { UNSAVED_LEAVING_SELECTOR } from "#shell/desk/leaving-unsaved-changes.js";
+import {
+  UNSAVED_LEAVING_BACK_SELECTOR,
+  UNSAVED_LEAVING_SELECTOR,
+} from "#shell/desk/leaving-unsaved-changes.js";
 import { ANSWER_WINDOW_SELECTOR } from "#shell/desk/window/desk-answer-window.js";
 import { capabilityAddress, DESK_ADDRESS } from "#shell/desk/window/desk-window.js";
 import { startUnsavedChanges } from "#shell/records/unsaved-changes.js";
+import {
+  RUN_LEAVING_ATTRIBUTE,
+  renderBuildSubscriber,
+} from "../../../../server/http/fragments/fragments.ts";
 import { startedOn } from "../../../controls/double/started-module.test-support.ts";
-import type { El } from "../standing-desk.test-support.ts";
+import { type El, pressLamp } from "../standing-desk.test-support.ts";
+import { deskNodes } from "../viewport-desk.test-support.ts";
 import {
   askedFrom,
   deskAnswering,
@@ -235,6 +245,104 @@ describe("where focus goes", () => {
     expect(desk.desk.doc.activeElement).toBe(field);
     expect(desk.written()).toEqual([]);
   });
+
+  test("into the pressed record after a yes, as when there was nothing to ask", async () => {
+    const other = randomUUID();
+    const desk = await answeredDesk(recordAddress("notes", other), [200, 200]);
+    startUnsavedChanges(desk.desk.doc as never);
+    const left = desk.recordField();
+    left.dispatchEvent({ type: "focusin", target: left } as never);
+    (left as El & { value: string }).value = "Buy plums";
+    await desk.press();
+    goAheadAndLeave(desk.desk.doc as never);
+    await settled();
+    expect(desk.desk.doc.activeElement).toBe(desk.recordField());
+    expect(desk.recordField()).not.toBe(left);
+  });
+
+  test("into the pressed record after a yes that ends a run, the run's question asked", async () => {
+    const other = randomUUID();
+    const desk = await answeredDesk(recordAddress("notes", other), [200, 200]);
+    const region = desk.capabilityWindow()?.querySelector(CONTENT_REGION_SELECTOR) as El;
+    region.append(...(deskNodes(renderBuildSubscriber("build-9")) as El[]));
+    await desk.press();
+    expect(desk.written()).toEqual([]);
+    const swap = (node: El) => node.remove();
+    goAheadAndLeave(desk.desk.doc as never, { api: { swap } as never, post: () => {} });
+    await settled();
+    expect(desk.written()).toEqual([`push ${recordAddress("notes", RECORD)}`]);
+    expect(desk.desk.doc.activeElement).toBe(desk.recordField());
+  });
+});
+
+describe("where focus goes when nothing new lands", () => {
+  test("onto the bar beside its notice, on a name whose record was deleted since", async () => {
+    const desk = await answeredDesk(DESK_ADDRESS, [404, 200], randomUUID());
+    await desk.press();
+    expect(desk.desk.doc.activeElement).toBe(desk.desk.bar.querySelector("input") as El);
+  });
+
+  test("onto the bar, where a refused record leaves the collection the person was reading", async () => {
+    const desk = await answeredDesk(capabilityAddress("notes"), [200, 500]);
+    await desk.press();
+    expect(
+      desk.capabilityWindow()?.querySelector('[data-active-capability-id="notes"]'),
+    ).not.toBeNull();
+    expect(desk.desk.doc.activeElement).toBe(desk.desk.bar.querySelector("input") as El);
+  });
+
+  test("onto the bar too, when a yes leads to a record deleted since", async () => {
+    const other = randomUUID();
+    const desk = await answeredDesk(recordAddress("notes", other), [200, 404, 200], randomUUID());
+    startUnsavedChanges(desk.desk.doc as never);
+    const left = desk.recordField();
+    left.dispatchEvent({ type: "focusin", target: left } as never);
+    (left as El & { value: string }).value = "Buy plums";
+    await desk.press();
+    goAheadAndLeave(desk.desk.doc as never);
+    await settled();
+    expect(desk.desk.doc.activeElement).toBe(desk.desk.bar.querySelector("input") as El);
+  });
+
+  test("into the record already open, its changes kept and nothing asked", async () => {
+    const desk = await answeredDesk(recordAddress("notes", RECORD), [200]);
+    startUnsavedChanges(desk.desk.doc as never);
+    const field = desk.recordField();
+    field.dispatchEvent({ type: "focusin", target: field } as never);
+    (field as El & { value: string }).value = "Buy plums";
+    await desk.press();
+    expect(desk.capabilityWindow()?.querySelector(UNSAVED_LEAVING_SELECTOR)).toBeNull();
+    expect(desk.written()).toEqual([]);
+    expect(desk.inFront()).toBe(desk.capabilityWindow());
+    expect(desk.recordField()).toBe(field);
+    expect((field as El & { value: string }).value).toBe("Buy plums");
+    expect(desk.desk.doc.activeElement).toBe(field);
+  });
+
+  test("on the record already open while a question stands, back to the question", async () => {
+    const desk = await answeredDesk(recordAddress("notes", RECORD), [200]);
+    startUnsavedChanges(desk.desk.doc as never);
+    const field = desk.recordField();
+    field.dispatchEvent({ type: "focusin", target: field } as never);
+    (field as El & { value: string }).value = "Buy plums";
+    pressLamp(desk.capabilityWindow() as El, "putaway");
+    const question = desk.capabilityWindow()?.querySelector(UNSAVED_LEAVING_SELECTOR);
+    expect(question).not.toBeNull();
+    await desk.press();
+    expect(desk.capabilityWindow()?.querySelector(UNSAVED_LEAVING_SELECTOR)).toBe(question);
+    const back = desk.capabilityWindow()?.querySelector(UNSAVED_LEAVING_BACK_SELECTOR);
+    expect(desk.desk.doc.activeElement).toBe(back as El);
+  });
+
+  test("on the record already open under a live run, asks about the run", async () => {
+    const desk = await answeredDesk(recordAddress("notes", RECORD), [200, 200]);
+    const region = desk.capabilityWindow()?.querySelector(CONTENT_REGION_SELECTOR) as El;
+    region.append(...(deskNodes(renderBuildSubscriber("build-9")) as El[]));
+    await desk.press();
+    expect(
+      desk.capabilityWindow()?.querySelector(`[${RUN_LEAVING_ATTRIBUTE}]:not([hidden])`),
+    ).not.toBeNull();
+  });
 });
 
 describe("any other press is the browser's", () => {
@@ -263,8 +371,8 @@ describe("the press stands where a Back would", () => {
   function heldDesk() {
     const tab = tabHistory(capabilityAddress("notes"), () => {});
     const rendered: string[] = [];
-    const held: (() => void)[] = [];
-    const hold = (go: () => void) => held.push(go) > 0;
+    const held: (() => unknown)[] = [];
+    const hold = (go: () => unknown) => held.push(go) > 0;
     const brought: string[] = [];
     const desk = {
       render: (at: string) => rendered.push(at),
@@ -281,7 +389,8 @@ describe("the press stands where a Back would", () => {
     // The window holding the question comes forward, and the record's once a yes opens it.
     expect([tab.entries(), rendered]).toEqual([[capabilityAddress("notes")], []]);
     expect(brought).toEqual([capabilityAddress("notes")]);
-    held[0]?.();
+    // A yes leaves the focus to the record, which takes it as it lands.
+    expect(held[0]?.()).toBe(PLACES_ITS_OWN_FOCUS);
     expect(tab.entries()).toEqual([capabilityAddress("notes"), recordAddress("notes", RECORD)]);
     expect(rendered).toEqual([recordAddress("notes", RECORD)]);
     expect(brought).toEqual([capabilityAddress("notes"), recordAddress("notes", RECORD)]);

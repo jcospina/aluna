@@ -2,8 +2,8 @@
 
 Status: done
 
-Type: HITL — this issue closes Module 7. A human runs cold builds across the four kinds
-and the module's whole verify script. 
+Type: HITL — a human runs cold builds across the four kinds and the module's verify script
+as it stood before epic 7.5. 7.5/06 closes Module 7.
 
 ## Epic
 
@@ -37,7 +37,7 @@ generator prompt says how to choose, and never asks for every family by default.
 
 ## Living demo
 
-This is Module 7's full verify script from `docs/modules.md`. Run `bun run reset` and use
+This was Module 7's full verify script from `docs/modules.md` before epic 7.5. Run `bun run reset` and use
 the Aluna running on `:3030`.
 
 1. Build from cold prompts: "keep photos of dishes I cook", "keep my lecture recordings

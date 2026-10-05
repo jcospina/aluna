@@ -11,6 +11,7 @@
 import { recordAddress } from "../../core/routes.js";
 import {
   focusLanded,
+  PROMPT_FIELD_ID,
   RECORD_ID_FIELD,
   WINDOW_TOOK_CAPABILITY_EVENT,
 } from "../../core/shell-dom.js";
@@ -98,16 +99,28 @@ export function fillAddressedWindow(asked, open) {
   void ask(window_, address, fromTheDesk).then((heard) => {
     if (heard.status !== 404 || !heard.current) {
       if (settle(address, window_, heard)) focusLanded(window_.region);
+      else if (heard.current) focusTheBarIfFree();
       return;
     }
     correctUnfilledAddress(address, collection);
     /* Into the same window, asked from inside it as a record view's own way back asks, so the
      * prompt bar keeps the notice the record's answer has just put there. Not opened again: that
      * would raise it over whatever the person has brought forward since. */
-    void ask(window_, collection, window_.region).then((again) =>
-      settle(collection, window_, again),
-    );
+    void ask(window_, collection, window_.region).then((again) => {
+      settle(collection, window_, again);
+      if (again.current) focusTheBarIfFree();
+    });
   });
+}
+
+/**
+ * A record that did not land leaves the focus beside the sentence on the prompt bar that says
+ * why, as a name whose capability has gone does, unless the person has since put it somewhere.
+ */
+function focusTheBarIfFree() {
+  const active = document.activeElement;
+  if (active === null || active === document.body)
+    document.getElementById(PROMPT_FIELD_ID)?.focus();
 }
 
 /**

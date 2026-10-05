@@ -35,8 +35,8 @@ target, the active detail and edit fields, and `created_at`, with no inactive fi
 no `extra`. It renders the record view through the presentation adapter that already
 writes a card's `<template>`, and no generated Handler runs. With `HX-Request` the route
 answers the record view fragment for the window. Without it, the route answers the whole
-desk with that record open, so a reload, a pasted address and a new tab all land on the
-record.
+desk, which opens that record from its address, so a reload, a pasted address and a new
+tab all land on the record.
 
 **An absent record leaves its capability open.** A record address whose record was
 deleted, never existed or lives in another capability opens that capability's

@@ -12,6 +12,7 @@ import {
   RECORD_ID_PATTERN,
   recordAddress,
 } from "../core/routes.js";
+import { PLACES_ITS_OWN_FOCUS } from "../core/shell-dom.js";
 
 /** `/capability/:id`, a capability's collection (design D14). */
 const CAPABILITY_ADDRESS = /^\/capability\/([^/]+)\/?$/;
@@ -314,7 +315,7 @@ export function correctUnfilledAddress(attempted, back) {
  *
  * @typedef {{
  *   render: (pathname: string) => void,
- *   hold: (go: () => void) => boolean,
+ *   hold: (go: () => unknown) => boolean,
  *   follow?: (navigated: boolean) => void,
  *   knows?: (capability: string) => boolean,
  *   bring?: () => void,
@@ -443,7 +444,8 @@ function stepBack(moved, bar, landing = addressIndex) {
 /**
  * Take the traversal the person confirmed, to the entry they asked for, measured from wherever the
  * desk is by then: its own way out of a record may have stepped back while the question stood.
- * It arrives as an ordinary `popstate` and that renders; already there, it renders here.
+ * It arrives as an ordinary `popstate` and that renders; already there, it renders here. A record
+ * it moves to takes the focus as it lands, as on a Back nothing held.
  *
  * @param {number} target @param {string} landed @param {DeskAnswers} desk @param {Bar} bar
  */
@@ -455,6 +457,7 @@ function takeTheTraversal(target, landed, desk, bar) {
   }
   taking = target;
   bar.history.go?.(delta);
+  return recordFromAddress(landed) === null ? undefined : PLACES_ITS_OWN_FOCUS;
 }
 
 /**
@@ -483,7 +486,7 @@ export const OPEN_THE_RECORD_EVENT = "aluna:open-the-record";
 /**
  * Open a record the way its address opens it (PLAN decision 48): under the desk's hold, then an
  * entry of its own, then the desk renders it and brings its window forward. A press the desk holds
- * brings that window forward too, where its question is.
+ * brings that window forward too, where its question is, and a yes leaves the focus to the record.
  *
  * @param {unknown} capability @param {unknown} record
  * @param {DeskAnswers} desk
@@ -501,6 +504,7 @@ export function takeRecordAddress(capability, record, desk, bar = deskHistory(),
     desk.render(address);
     desk.bring?.();
     landed?.();
+    return PLACES_ITS_OWN_FOCUS;
   };
   if (!desk.hold(go)) {
     go();

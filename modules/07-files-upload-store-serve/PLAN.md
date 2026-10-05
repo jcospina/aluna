@@ -163,8 +163,8 @@ in ADR-0009, and in the architecture and design documents.
    `filename="<ASCII fallback>"; filename*=UTF-8''<percent-encoded>` (RFC 6266 and
    RFC 8187), because Bun answers a raw `日本.pdf` in that header with a 500.
 7. **500 MB per file, configurable.** One number for every family. A `file[]` also caps
-   how many files it holds: twenty unless `OMNI_MAX_LIST_FILES` says otherwise (7.2/07,
-   awaiting the owner's sign-off), checked at boot as the byte cap is.
+   how many files it holds: twenty unless `OMNI_MAX_LIST_FILES` says otherwise (7.2/07),
+   checked at boot as the byte cap is.
 
 ### How a file travels
 
@@ -540,8 +540,8 @@ records the reversal, and 7.5/01 writes it.
     and no `extra` (ARCH §7). It renders the record view through the same presentation
     adapter that writes a card's `<template>`. No generated Handler runs. With
     `HX-Request` the route answers the record view fragment for the window. Without it,
-    the route answers the whole desk with that record open, so a reload, a pasted link
-    and a new tab all land on the record.
+    the route answers the whole desk, which opens that record from its address, so a
+    reload, a pasted link and a new tab all land on the record.
 43. **An absent record leaves its capability open.** An address whose record was
     deleted, never existed or lives in another capability opens that capability's
     collection, says the not-found notice on the prompt bar, answers 404, and corrects

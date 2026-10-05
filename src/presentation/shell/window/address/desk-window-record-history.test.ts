@@ -4,6 +4,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { recordAddress } from "#shell/core/routes.js";
+import { PLACES_ITS_OWN_FOCUS } from "#shell/core/shell-dom.js";
 import {
   answerTraversal,
   capabilityAddress,
@@ -61,10 +62,10 @@ function loadPage(
  */
 function tabAt(pathname: string) {
   const rendered: string[] = [];
-  const held: (() => void)[] = [];
+  const held: (() => unknown)[] = [];
   const shows = { window: null as string | null };
   let holding = false;
-  const hold = (go: () => void) => {
+  const hold = (go: () => unknown) => {
     if (!holding) return false;
     held.push(go);
     return true;
@@ -87,6 +88,10 @@ function tabAt(pathname: string) {
 }
 
 /** A card pressed in the collection the tab is on. */
+/** A record a confirmed move lands on takes the focus as it lands; a collection leaves it to the bar. */
+const focusAfterMovingTo = (address = "") =>
+  recordFromAddress(address) === null ? undefined : PLACES_ITS_OWN_FOCUS;
+
 function press(tab: ReturnType<typeof tabHistory>, address = NOTE) {
   pushAddress(address, tab);
 }
@@ -241,7 +246,7 @@ describe("a traversal across record addresses, with something to lose", () => {
       expect(desk.tab.at()).toBe(before);
       expect(desk.rendered.slice(delta === 1 ? 1 : 0)).toEqual([]);
       desk.hold(false);
-      desk.held[0]?.();
+      expect(desk.held[0]?.()).toBe(focusAfterMovingTo(desk.tab.entries()[before + delta]));
       await desk.tab.arrived();
       expect(desk.tab.at()).toBe(before + delta);
       expect(desk.rendered.at(-1)).toBe(desk.tab.entries()[before + delta]);
