@@ -8,7 +8,11 @@
 
 import { releaseRegionContent } from "../core/region-scope.js";
 import { buildCancelUrl } from "../core/routes.js";
-import { BUILD_JOB_ID_ATTRIBUTE, PROMPT_FIELD_ID } from "../core/shell-dom.js";
+import {
+  BUILD_JOB_ID_ATTRIBUTE,
+  PLACES_ITS_OWN_FOCUS,
+  PROMPT_FIELD_ID,
+} from "../core/shell-dom.js";
 import {
   UNSAVED_LEAVING_BACK_SELECTOR,
   UNSAVED_LEAVING_GO_SELECTOR,
@@ -473,7 +477,7 @@ function questionFor(el, scope, { keep = false, pressed = null }) {
  * The navigation the desk is holding while the person answers, or nothing. One at a time: the
  * person is being asked one thing, and answering it is what moves.
  *
- * @type {{ question: Question, go: () => void } | null}
+ * @type {{ question: Question, go: () => unknown } | null}
  */
 let asking = null;
 
@@ -492,7 +496,8 @@ export function leavingIsBeingAsked() {
  * Ask before leaving, if there is a run or an unsaved change to lose.
  *
  * @param {WindowNode | null} el the window the navigation would take
- * @param {() => void} go what to do once the person says to leave
+ * @param {() => unknown} go what to do once the person says to leave, answering
+ *   `PLACES_ITS_OWN_FOCUS` where what it opens places the focus itself
  * @param {unknown} [scope] what in the window it takes, when that is one form and not all of it
  * @param {LeaveHow} [how] whether a yes gives nothing up, the navigation perhaps not taking the
  *   form, and what was pressed, for focus to go back to when the person stays
@@ -551,8 +556,7 @@ export function goAheadAndLeave(root, how) {
     (how?.say ?? tellThePromptBar)(LEAVING_A_RUN_UNAVAILABLE);
     return false;
   }
-  held.go();
-  settleFocus(root);
+  if (held.go() !== PLACES_ITS_OWN_FOCUS) settleFocus(root);
   return true;
 }
 
