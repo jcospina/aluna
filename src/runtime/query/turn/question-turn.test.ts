@@ -363,9 +363,7 @@ describe("the result reaches the model", () => {
   test("a failed step is in it too, in the words the model has to act on", async () => {
     const scratch = desk();
     const { step } = await scratch.run(call(`SELECT nowhere FROM ${NOTES_TABLE}`));
-
-    const specs = registeredSpecs(scratch.database.readonly);
-    const next = nextPrompt("how much did I spend on groceries?", specs, [step]);
+    const next = nextPrompt("groceries?", registeredSpecs(scratch.database.readonly), [step]);
 
     expect(next).toContain("failed: no such column");
   });
@@ -374,6 +372,7 @@ describe("the result reaches the model", () => {
     const first: QuestionStep = {
       call: call(`SELECT DISTINCT text FROM ${NOTES_TABLE}`),
       collections: [NOTES_CAPABILITY.label],
+      capabilities: [NOTES_CAPABILITY.id],
       plan: { empty: "no rows" },
       result: { outcome: "rows", rows: [{ text: "groceries" }] },
     };

@@ -14,6 +14,7 @@ import {
   followWindow,
   isAnotherPlace,
   markRecordExit,
+  OPEN_THE_RECORD_EVENT,
   pushAddress,
   recordFromAddress,
   replaceAddress,
@@ -539,8 +540,10 @@ describe("the page starting its history", () => {
       expect(browser.state()).toEqual({ ...DESK_HISTORY_STATE, index: stamped });
       expect(browser.entries()).toEqual([NOTE]);
     });
-    // Loaded already, so there is no `DOMContentLoaded` left to wait for.
-    expect(Object.keys(listening)).toEqual(["htmx:replacedInHistory"]);
+    // Loaded already, so there is no `DOMContentLoaded` left to wait for; a pressed name is heard.
+    expect(Object.keys(listening).sort()).toEqual(
+      ["htmx:replacedInHistory", OPEN_THE_RECORD_EVENT].sort(),
+    );
   });
 
   test("in a window with no document yet, takes Back and Forward all the same", () => {

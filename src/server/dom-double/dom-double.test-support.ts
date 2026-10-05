@@ -168,6 +168,10 @@ export class El implements EventNode {
     return this.attributes.has(name);
   }
 
+  getAttributeNames(): string[] {
+    return [...this.attributes.keys()];
+  }
+
   setAttribute(name: string, value: string): void {
     assertAttributeName(name);
     this.attributes.set(name, String(value));
@@ -284,6 +288,10 @@ export class El implements EventNode {
 
   get tagName(): string {
     return this.tag.toUpperCase();
+  }
+
+  get localName(): string {
+    return this.tag.toLowerCase();
   }
 
   get parentNode(): El | null {

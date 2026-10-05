@@ -6,7 +6,12 @@
  * window.
  */
 
-import { capabilityUrl, RECORD_ID_PATTERN } from "../core/routes.js";
+import {
+  capabilityUrl,
+  isAddressableRecord,
+  RECORD_ID_PATTERN,
+  recordAddress,
+} from "../core/routes.js";
 
 /** `/capability/:id`, a capability's collection (design D14). */
 const CAPABILITY_ADDRESS = /^\/capability\/([^/]+)\/?$/;
@@ -303,13 +308,16 @@ export function correctUnfilledAddress(attempted, back) {
 /* ── Back and Forward ──────────────────────────────────────────────────────── */
 
 /**
- * What this module is handed rather than reaches for: two answers the desk owns, and this must
- * not have a second opinion about either.
+ * What this module is handed rather than reaches for: the answers the desk owns, and this must
+ * not have a second opinion about any of them. `knows` says whether a capability is on the desk,
+ * and `bring` brings the window forward.
  *
  * @typedef {{
  *   render: (pathname: string) => void,
  *   hold: (go: () => void) => boolean,
  *   follow?: (navigated: boolean) => void,
+ *   knows?: (capability: string) => boolean,
+ *   bring?: () => void,
  * }} DeskAnswers
  */
 
@@ -458,6 +466,71 @@ function takeTheTraversal(target, landed, desk, bar) {
 let taking = null;
 
 /**
+ * A press on a name in an answer, asking for the record it names. The detail carries the record's
+ * `capability` and `record` ids, never an address: `recordAddress()` spells it here. What became
+ * of the ask is written back as the detail's `outcome`, a {@link RecordPress}, and its `landed` is
+ * called once the record has opened, at once or after the desk's question.
+ */
+export const OPEN_THE_RECORD_EVENT = "aluna:open-the-record";
+
+/**
+ * What a press on a record came to: opened now, held by the desk's question, or a capability no
+ * longer on the desk, which is left alone rather than put away under the person.
+ *
+ * @typedef {"opened" | "held" | "gone"} RecordPress
+ */
+
+/**
+ * Open a record the way its address opens it (PLAN decision 48): under the desk's hold, then an
+ * entry of its own, then the desk renders it and brings its window forward. A press the desk holds
+ * brings that window forward too, where its question is.
+ *
+ * @param {unknown} capability @param {unknown} record
+ * @param {DeskAnswers} desk
+ * @param {Bar | null} [bar]
+ * @param {() => void} [landed] what the presser does once the record has opened
+ * @returns {RecordPress | null} null where the ids name no record an address can carry
+ */
+export function takeRecordAddress(capability, record, desk, bar = deskHistory(), landed) {
+  if (bar === null || !isAddressableRecord(capability, record)) return null;
+  const id = /** @type {string} */ (capability);
+  if (desk.knows && !desk.knows(id)) return "gone";
+  const address = recordAddress(id, /** @type {string} */ (record).toLowerCase());
+  const go = () => {
+    pushAddress(address, bar);
+    desk.render(address);
+    desk.bring?.();
+    landed?.();
+  };
+  if (!desk.hold(go)) {
+    go();
+    return "opened";
+  }
+  desk.bring?.();
+  return "held";
+}
+
+/** What the desk answers with, once it has started. @type {DeskAnswers | null} */
+let answering = null;
+/** Every document already listening for a pressed name. */
+const listening = new WeakSet();
+
+/** @param {Event} event */
+function openTheRecordFrom(event) {
+  const { detail } = /** @type {CustomEvent<Record<string, unknown> | null>} */ (event);
+  if (answering === null || typeof detail !== "object" || detail === null) return;
+  const { landed } = detail;
+  const after = typeof landed === "function" ? () => void landed() : undefined;
+  detail.outcome = takeRecordAddress(
+    detail.capability,
+    detail.record,
+    answering,
+    deskHistory(),
+    after,
+  );
+}
+
+/**
  * Back and Forward are the desk's to answer: htmx would answer an `{ htmx: true }` entry by
  * restoring a whole-body snapshot (design D14), so the `onpopstate` property is taken, not added.
  *
@@ -465,6 +538,11 @@ let taking = null;
  */
 export function startDeskHistory(desk) {
   if (typeof window === "undefined") return;
+  if (typeof document !== "undefined" && !listening.has(document)) {
+    listening.add(document);
+    document.addEventListener(OPEN_THE_RECORD_EVENT, openTheRecordFrom);
+  }
+  answering = desk;
   stampThisEntry(deskHistory());
   if (typeof document !== "undefined") restampAfterHtmx(document.body);
   const take = () => {

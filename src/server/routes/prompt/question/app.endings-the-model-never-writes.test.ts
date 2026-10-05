@@ -69,7 +69,7 @@ function askingProvider(overrides: Partial<Parameters<typeof makeQuestionProvide
   return makeQuestionProvider({
     intent: DATA_QUERY_INTENT,
     reads: [OPENS_NOTES],
-    answer: { answer: NEVER_ASKED_FOR },
+    answer: { answer: NEVER_ASKED_FOR, records: [] },
     ...overrides,
   }).provider;
 }

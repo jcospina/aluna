@@ -470,7 +470,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     const { provider } = makeQuestionProvider({
       intent: DATA_QUERY_INTENT,
       reads: [],
-      answer: { answer: "I had a look at your notes — you added four last week." },
+      answer: { answer: "I had a look at your notes — you added four last week.", records: [] },
     });
     const { rows, resolutionRows, recordMetrics } = makeMetricsRecorder();
     const app = defaultPipelineApp(provider, recordMetrics);

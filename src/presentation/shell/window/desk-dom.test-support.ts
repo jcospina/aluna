@@ -260,6 +260,26 @@ export class El implements EventNode {
     this.parent = null;
   }
 
+  /** Reflected, as the browser reflects it: a link with an address is one focus can reach. */
+  get href(): string {
+    return this.attrs.get("href") ?? "";
+  }
+
+  set href(value: string) {
+    this.setAttribute("href", value);
+  }
+
+  /** This node's place, taken by words or another node, as `ChildNode.replaceWith` does. */
+  replaceWith(node: El | string): void {
+    const parent = this.parent;
+    const at = parent?.children.indexOf(this) ?? -1;
+    if (parent === null || at < 0) return;
+    parent.append(node);
+    const added = parent.children.pop() as El;
+    parent.children.splice(at, 1, added);
+    this.parent = null;
+  }
+
   setAttribute(name: string, value: string): void {
     assertAttributeName(name);
     this.attrs.set(name, String(value));

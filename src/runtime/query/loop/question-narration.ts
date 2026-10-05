@@ -16,6 +16,7 @@
 // to a run this person wrote by `question-their-words.ts`. `question-no-home.ts` runs the call.
 
 import { assertNever } from "../../../platform/errors.ts";
+import type { AnswerRecordLink } from "../../../server/http/index.ts";
 import type { QuestionStep } from "../step/question-step.ts";
 import {
   QUESTION_STEP_FALLBACK_LABEL,
@@ -136,6 +137,12 @@ export function questionNoHomeSentence(named: string | null): string {
  */
 export function questionResultSentence(result: QuestionLoopResult): string {
   return result.ending === "budget_spent" ? QUESTION_BUDGET_SPENT_SENTENCE : result.answer;
+}
+
+/** The links that sentence carries. Only an answered question has any: every other ending is the
+ * platform's own sentence, and it names no record (ADR-0010). */
+export function questionResultLinks(result: QuestionLoopResult): readonly AnswerRecordLink[] {
+  return result.ending === "answered" ? result.links : [];
 }
 
 /**

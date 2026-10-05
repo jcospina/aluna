@@ -24,12 +24,17 @@ import {
   addWindowGrip,
   setMaximised,
 } from "../../../design/scripts/window/window-gestures.js";
-import { WINDOW_CONTENT_ID } from "../../core/shell-dom.js";
+import { recordAddress } from "../../core/routes.js";
+import { focusLanded, WINDOW_CONTENT_ID } from "../../core/shell-dom.js";
+import { OPEN_THE_RECORD_EVENT } from "../desk-address.js";
 import {
   cancelQuestionIn,
   detachQuestionIn,
   QUESTION_IN_THE_WINDOW_SELECTOR,
 } from "../leaving-a-run.js";
+import { PROMPT_BAR_MESSAGE_EVENT } from "../prompt-bar.js";
+import { recordInWindow } from "./addressed-window.js";
+import { answerRuns, isAnswerName } from "./answer-runs.js";
 import { joinStack, leaveStack, raise, raiseFromPress } from "./desk-stack.js";
 import { fitBox, openingGeometry, PROMPT_FORM_ID, windowLayer } from "./desk-window.js";
 import {
@@ -50,7 +55,8 @@ export const OPEN_THE_ANSWER_WINDOW_EVENT = "aluna:open-the-answer-window";
 /**
  * One more thing said in the window that already stands: each step as Aluna takes it, and then
  * the answer in place of the last of them. It never opens a window, so a question whose answer
- * the user dismissed mid-flight stays dismissed. Restated in `public/app.js` and pinned.
+ * the user dismissed mid-flight stays dismissed. Restated in `public/app.js` and pinned. Its
+ * detail is the saying as the glue parsed it, inert, and `answer-runs.js` reads it.
  */
 export const SAY_IN_THE_ANSWER_WINDOW_EVENT = "aluna:say-in-the-answer-window";
 
@@ -60,6 +66,12 @@ export const SAY_IN_THE_ANSWER_WINDOW_EVENT = "aluna:say-in-the-answer-window";
  * glue learns which happened from whether this was answered. Restated in `public/app.js`.
  */
 export const REFUSE_IN_THE_ANSWER_WINDOW_EVENT = "aluna:refuse-in-the-answer-window";
+
+/**
+ * What the bar says of a record that is not there, restated from the server's `NOT_FOUND_NOTICE`
+ * and pinned by a test: here it is a name whose capability has left the desk.
+ */
+export const RECORD_NOT_THERE = "Hmm — I can’t find that one.";
 
 /** What the clay lamp is called here. A capability window is put away and comes back; this is not. */
 export const ANSWER_DISMISS_LABEL = "Dismiss";
@@ -84,6 +96,9 @@ const ANSWER_FILL = { w: 0.44, h: 0.4 };
 const NOTHING_REMEMBERED = Object.freeze({ box: null, max: false });
 
 /** @typedef {import("../../../design/scripts/desk/desk-geometry.js").Box} Box */
+/** @typedef {import("./answer-runs.js").AnswerRun} AnswerRun */
+/** @typedef {import("./answer-runs.js").AnswerName} AnswerName */
+/** @typedef {import("./answer-runs.js").ReadNode} ReadNode */
 /** @typedef {import("../../../design/scripts/window/window-gestures.js").StoredBox} StoredBox */
 
 /**
@@ -115,10 +130,101 @@ let titleCount = 0;
  * sentence can overtake it; this is how that task knows it has been overtaken. */
 let written = 0;
 
-/** @param {AnswerWindow} entry @param {string} text */
-function writeBody(entry, text) {
+/**
+ * The record named by each link this window built. The window never reads an `href` back, its
+ * own included: a press is answered from here.
+ *
+ * @type {WeakMap<object, AnswerName>}
+ */
+const linked = new WeakMap();
+
+/**
+ * One run as the window shows it: words as words, and a name as a link built here, its address
+ * spelled by `recordAddress` and nowhere else (ADR-0010, PLAN decision 47).
+ *
+ * @param {AnswerRun} run
+ * @returns {Node | string}
+ */
+function drawn(run) {
+  if (!isAnswerName(run)) return wordsOf(run);
+  const link = document.createElement("a");
+  link.href = recordAddress(run.capability, run.record);
+  link.textContent = run.name;
+  linked.set(link, { name: run.name, capability: run.capability, record: run.record });
+  return link;
+}
+
+/**
+ * The words a run shows when it is not a link the window can build: a name it cannot address is
+ * still the name.
+ *
+ * @param {AnswerRun} run
+ * @returns {string}
+ */
+function wordsOf(run) {
+  const { text, name } = /** @type {{ text?: unknown, name?: unknown }} */ (run);
+  if (typeof text === "string") return text;
+  return typeof name === "string" ? name : "";
+}
+
+/** @param {AnswerWindow} entry @param {string | readonly AnswerRun[]} saying */
+function writeBody(entry, saying) {
   written += 1;
-  entry.body.textContent = text;
+  const runs = typeof saying === "string" ? [{ text: saying }] : saying;
+  entry.body.replaceChildren(...runs.map(drawn));
+}
+
+/**
+ * Whether a press is the desk's to answer: the main button and no key held. Any other press is
+ * the browser's own (PLAN decision 48).
+ *
+ * @param {MouseEvent} press
+ */
+function isPlainPress(press) {
+  const held = press.metaKey || press.ctrlKey || press.shiftKey || press.altKey;
+  return !press.defaultPrevented && press.button === 0 && !held;
+}
+
+/**
+ * A press on a name opens its record in the capability window, the way its address would. The
+ * record is what the press asked to see, so its window comes forward and takes the focus; the
+ * answer stays where it is, behind it.
+ *
+ * @param {MouseEvent} press
+ */
+function openPressedRecord(press) {
+  const target = /** @type {{ closest?: (selector: string) => unknown } | null} */ (press.target);
+  const link = /** @type {HTMLElement | null} */ (target?.closest?.("a") ?? null);
+  const named = link === null ? undefined : linked.get(link);
+  if (link === null || named === undefined || !isPlainPress(press)) return;
+  press.preventDefault();
+  /* Whatever held focus lets go, the link or (where a browser leaves it) the bar or a field of the
+   * record being left. The record's first field takes it as it lands (`addressed-window.js`), or
+   * here where the record was already open and nothing will land. */
+  const active = /** @type {HTMLElement | null} */ (document.activeElement);
+  if (active !== null && active !== document.body) active.blur?.();
+  const landed = () => {
+    const region = /** @type {Element | null} */ (windowRegion());
+    if (region !== null && recordInWindow(region) === named.record) focusLanded(region);
+  };
+  /** @type {{ capability: string, record: string, landed: () => void, outcome?: unknown }} */
+  const detail = { capability: named.capability, record: named.record, landed };
+  document.dispatchEvent(new CustomEvent(OPEN_THE_RECORD_EVENT, { detail }));
+  if (detail.outcome === "gone") unlink(link, named.name);
+}
+
+/**
+ * A name whose capability has left the desk stops being a link, and the bar says what it says of
+ * any record that is not there (`NOT_FOUND_NOTICE`, design D14), with focus beside it.
+ *
+ * @param {HTMLElement & { replaceWith?: (words: string) => void }} link @param {string} name
+ */
+function unlink(link, name) {
+  linked.delete(link);
+  link.replaceWith?.(name);
+  const detail = { sentence: RECORD_NOT_THERE, refused: true };
+  document.dispatchEvent(new CustomEvent(PROMPT_BAR_MESSAGE_EVENT, { detail }));
+  focusTheBar();
 }
 
 /**
@@ -161,6 +267,7 @@ function mount(root) {
   const body = document.createElement("div");
   body.className = ANSWER_BODY_CLASS;
   body.setAttribute("aria-live", "polite");
+  body.addEventListener("click", openPressedRecord);
   content.append(body);
   el.append(content);
   layer.append(el);
@@ -302,7 +409,7 @@ export function openAnswerWindow(root = document, question = "", saying = "") {
  * decision 21). Replaced rather than appended — a log is a build narration, and this is one
  * utterance (decision 24).
  *
- * @param {string} saying
+ * @param {string | readonly AnswerRun[]} saying
  * @returns {boolean} whether there was a window standing to say it in
  */
 export function sayInAnswerWindow(saying) {
@@ -382,13 +489,19 @@ export function dismissAnswerWindow() {
   entry.win.destroy();
   entry.el.remove();
   /* Focus goes back to the bar rather than to `<body>`: a question is what opened this, the way a
-   * logo opens a capability window, and the bar is where the next one is typed. Whichever of its
-   * controls can take focus, and neither when a build is running: a build still holds the bar,
-   * and `focus()` on a disabled control is a no-op. */
+   * logo opens a capability window, and the bar is where the next one is typed. */
+  focusTheBar();
+  return true;
+}
+
+/**
+ * Whichever of the bar's controls can take focus, and neither when a build is running: a build
+ * still holds the bar, and `focus()` on a disabled control is a no-op.
+ */
+function focusTheBar() {
   const bar = document.getElementById(PROMPT_FORM_ID);
   const control = bar?.querySelector("input:not(:disabled), button:not(:disabled)");
   if (control instanceof HTMLElement && control.isConnected) control.focus();
-  return true;
 }
 
 /* ── the desk changing size ────────────────────────────────────────────────── */
@@ -444,9 +557,15 @@ export function startDeskAnswerWindow(root = document) {
   });
 
   root.addEventListener(SAY_IN_THE_ANSWER_WINDOW_EVENT, (event) => {
-    const detail = /** @type {CustomEvent<{ saying?: string }>} */ (event).detail;
-    if (typeof detail?.saying !== "string") return;
-    sayInAnswerWindow(detail.saying);
+    const said = /** @type {CustomEvent<{ said?: ReadNode }>} */ (event).detail?.said;
+    /* Read only as far as it reads: a detail no glue sent is said as nothing rather than thrown. */
+    try {
+      const nodes = said?.childNodes;
+      if (typeof nodes?.[Symbol.iterator] !== "function") return;
+      sayInAnswerWindow(answerRuns({ childNodes: nodes }));
+    } catch {
+      return;
+    }
   });
 
   root.addEventListener(REFUSE_IN_THE_ANSWER_WINDOW_EVENT, (event) => {

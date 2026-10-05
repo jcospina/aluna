@@ -18,9 +18,11 @@
 // the gap, bar the one call that names what there is nowhere for, in this person's own words.
 
 import { assertNever } from "../../../platform/errors.ts";
+import type { AnswerRecordLink } from "../../../server/http/index.ts";
 import { runQuestionAnswer } from "../endings/question-answer.ts";
 import { runQuestionNoHome } from "../endings/question-no-home.ts";
 import { questionFoundNothing, questionReadSomething } from "../endings/question-nothing-found.ts";
+import { linkTheRecordsNamed } from "../records/answer-records.ts";
 import type { QuestionStep, QuestionTurn } from "../step/question-step.ts";
 import { type QuestionTurnDeps, runQuestionTurn } from "../turn/question-turn.ts";
 import { QUESTION_NOTHING_WORKED, questionNothingFoundSentence } from "./question-narration.ts";
@@ -45,12 +47,20 @@ export type QuestionEnding =
  */
 export type QuestionLoopResult =
   | {
-      /** The endings that speak. Nothing-found is not found-nothing, and neither is a question
-       * whose every statement failed: she never searched, so she may not report a search. Nor is
-       * either of them the gap, which is about the desk rather than about one search of it. */
-      readonly ending: Exclude<QuestionEnding, "budget_spent">;
+      readonly ending: "answered";
       readonly steps: readonly QuestionStep[];
       /** What she says she found, written from those steps and from nothing else (decision 4). */
+      readonly answer: string;
+      /** The records her answer names, each vouched for. Only this ending links any (ADR-0010). */
+      readonly links: readonly AnswerRecordLink[];
+    }
+  | {
+      /** The platform's own endings. Nothing-found is not found-nothing, and neither is a question
+       * whose every statement failed: she never searched, so she may not report a search. Nor is
+       * either of them the gap, which is about the desk rather than about one search of it. */
+      readonly ending: Exclude<QuestionEnding, "budget_spent" | "answered">;
+      readonly steps: readonly QuestionStep[];
+      /** The platform's sentence for that ending. */
       readonly answer: string;
     }
   | { readonly ending: "budget_spent"; readonly stepsTaken: number };
@@ -109,14 +119,13 @@ export async function runQuestionLoop(
     if (questionFoundNothing(steps)) {
       return { ending: "nothing_found", steps, answer: questionNothingFoundSentence(steps) };
     }
-    return {
-      ending: "answered",
-      steps,
-      answer: await runQuestionAnswer(
-        { provider: deps.provider, signal: deps.scope.signal },
-        { question: input.question, steps },
-      ),
-    };
+    const written = await runQuestionAnswer(
+      { provider: deps.provider, signal: deps.scope.signal },
+      { question: input.question, steps },
+    );
+    // The checks read the capabilities, which is why they run here, in the scope, and not inside
+    // the answer: the generation is handed no way to read, and the checks need one.
+    return { ending: "answered", steps, ...(await linkTheRecordsNamed(deps, steps, written)) };
   };
 
   // The gap, or the ending this question truthfully has instead. A search that matched nothing

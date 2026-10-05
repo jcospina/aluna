@@ -275,6 +275,7 @@ async function ranStatement(
     facts = {
       // `scopedCapabilitySpecs` already resolved these to the names the person gave them.
       collections: explained.collections.map((spec) => spec.label),
+      capabilities: explained.collections.map((spec) => spec.id),
       plan: explained.plan,
     };
     const refusal = payloadRefusal(steps, shown ?? call, facts);

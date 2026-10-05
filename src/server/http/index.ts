@@ -9,10 +9,12 @@ export {
   renderRehydratedShellPage,
 } from "./cached-view.ts";
 export {
+  ANSWER_RECORD_ATTRIBUTE,
   ANSWER_WINDOW_ATTRIBUTE,
   ANSWER_WINDOW_OPENING,
   ANSWER_WINDOW_SAYING_ATTRIBUTE,
   ANSWER_WINDOW_TITLE_LIMIT,
+  type AnswerRecordLink,
   answerWindowTitle,
   BLANK_PROMPT_NOTICE,
   BUILD_WINDOW_TITLE_ATTRIBUTE,

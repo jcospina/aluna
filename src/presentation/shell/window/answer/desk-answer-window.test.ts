@@ -384,10 +384,12 @@ describe("the seam a classic script reaches the answer window across", () => {
     openStream(scene);
     const counting = questionLabelNarration("counting");
     expect(frameArrives(scene, renderAnswerWindowSaying(counting))).toBe(true);
-    expect(scene.dispatched).toContainEqual({
-      type: SAY_IN_THE_ANSWER_WINDOW_EVENT,
-      detail: { saying: counting },
-    });
+    const said = scene.dispatched.filter(({ type }) => type === SAY_IN_THE_ANSWER_WINDOW_EVENT);
+    expect(said).toHaveLength(1);
+    // Handed on parsed, for `answer-runs.js` to read, rather than flattened to its text.
+    const { said: fragment } = said[0]?.detail as { said: { textContent: string } };
+    expect(fragment.textContent).toBe(counting);
+    expect(scene.region.textContent).not.toContain(counting);
   });
 
   test("a sentence for a window nobody is holding open goes nowhere at all", async () => {
@@ -396,11 +398,12 @@ describe("the seam a classic script reaches the answer window across", () => {
     expect(sayInAnswerWindow(questionLabelNarration("counting"))).toBe(false);
     const say = (await wiring({})).get(SAY_IN_THE_ANSWER_WINDOW_EVENT)?.[0];
     expect(say).toBeDefined();
-    for (const detail of [undefined, null, {}, { saying: 7 }, { question: "how many?" }]) {
+    for (const detail of [undefined, null, {}, { said: 7 }, { question: "how many?" }]) {
       expect(() => say?.({ detail })).not.toThrow();
     }
     // And a real sentence reaches the same dead end rather than building a window to hold it.
-    expect(() => say?.({ detail: { saying: "I'm adding everything up." } })).not.toThrow();
+    const said = { childNodes: [{ nodeType: 3, textContent: "I'm adding everything up." }] };
+    expect(() => say?.({ detail: { said } })).not.toThrow();
   });
 
   test("each sentence replaces the last: the window is one utterance, never a log", () => {

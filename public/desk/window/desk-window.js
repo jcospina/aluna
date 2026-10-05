@@ -1102,6 +1102,8 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
     /* Put away while the bar was away, the window is not there to say where the bar belongs. */
     follow: (go) =>
       mounted ? addressTheWindow(go) : followWindow(DESK_ADDRESS, go, deskHistory()),
+    knows: (id) => logoFor(root, id) !== null,
+    bring: () => mounted && raise(mounted),
   });
   renderAddress(root, pathname);
 }

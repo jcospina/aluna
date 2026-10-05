@@ -41,6 +41,7 @@ import {
   ANSWER_STEP_UNDER,
   MOST_ANSWER_CHARACTERS,
   QUESTION_ANSWER_RULES,
+  type QuestionAnswerWritten,
   questionAnswerSchema,
 } from "./question-answer.ts";
 
@@ -60,7 +61,10 @@ const ONE_CATEGORY_TOTAL = `SELECT sum(amount) AS total FROM ${EXPENSES_TABLE} W
 
 /** A second answer, in words the first one could not be mistaken for. Put through the schema, so
  * what the fixture holds is what a generation of those words would be. */
-const SAID_AGAIN = questionAnswerSchema.parse({ answer: "I looked again, and it says the same." });
+const SAID_AGAIN = questionAnswerSchema.parse({
+  answer: "I looked again, and it says the same.",
+  records: [],
+});
 
 /** The characters a fixture cannot carry as itself: written by code, so this file holds none. */
 const character = (code: number) => String.fromCharCode(code);
@@ -93,7 +97,7 @@ function categoriesDesk(): QuestionDesk {
 }
 
 /** The run that gets it wrong: she reads the categories, then counts only the first of them. */
-function askUnderOneCategory(desk: QuestionDesk, said: { answer: string }) {
+function askUnderOneCategory(desk: QuestionDesk, said: QuestionAnswerWritten) {
   return desk.run(
     scriptedProviderSaying(
       said,
@@ -222,8 +226,16 @@ describe("what she says is one thing she says, and it is hers", () => {
     // `question-tool.ts` says why an absent key is not an option under OpenAI's strict mode.
     const emitted = zodSchema(questionAnswerSchema).jsonSchema as Record<string, unknown>;
 
-    expect(emitted.required).toEqual(["answer"]);
+    expect(emitted.required).toEqual(["answer", "records"]);
     expect(emitted.additionalProperties).toBe(false);
+    // A nomination is all-required too, and its cap is applied after parsing, not as `maxItems`.
+    expect(emitted.properties).toMatchObject({
+      records: {
+        type: "array",
+        items: { required: ["says", "id"], additionalProperties: false },
+      },
+    });
+    expect(JSON.stringify(emitted)).not.toContain("maxItems");
     for (const keyword of ["oneOf", "minLength", "maxLength", "pattern", "format", "default"]) {
       expect({ keyword, present: JSON.stringify(emitted).includes(keyword) }).toEqual({
         keyword,
@@ -240,12 +252,14 @@ describe("what she says is one thing she says, and it is hers", () => {
     );
     // Including the shape the answer used to have: a strict object refuses the extra key rather
     // than quietly speaking half of it.
-    expect(questionAnswerSchema.safeParse({ answer: said, found: "six" }).success).toBe(false);
+    expect(
+      questionAnswerSchema.safeParse({ answer: said, records: [], found: "six" }).success,
+    ).toBe(false);
     expect(questionAnswerSchema.safeParse({}).success).toBe(false);
   });
 
   test("an answer that did not stop itself is stopped, and one that did is left alone", () => {
-    const finish = (answer: string) => questionAnswerSchema.parse({ answer }).answer;
+    const finish = (answer: string) => questionAnswerSchema.parse({ answer, records: [] }).answer;
 
     expect(finish("Six are finished")).toBe("Six are finished.");
     for (const ended of ["You have 22.", "Was it?", "None at all!"]) {
@@ -257,15 +271,15 @@ describe("what she says is one thing she says, and it is hers", () => {
     const said = SCRIPTED_ANSWER_WRITTEN.answer;
 
     for (const blank of ["", "   ", "\n\t "]) {
-      expect(questionAnswerSchema.safeParse({ answer: blank }).success).toBe(false);
+      expect(questionAnswerSchema.safeParse({ answer: blank, records: [] }).success).toBe(false);
     }
-    expect(questionAnswerSchema.parse({ answer: `\n  ${said}  ` }).answer).toBe(said);
+    expect(questionAnswerSchema.parse({ answer: `\n  ${said}  `, records: [] }).answer).toBe(said);
   });
 
   test("punctuation that joins is not doubled up, at either end of what she wrote", () => {
     // Nothing strips these on the way in any more: the two halves each had their own transform,
     // and the join between them was where a stray comma used to go.
-    const said = (answer: string) => questionAnswerSchema.parse({ answer }).answer;
+    const said = (answer: string) => questionAnswerSchema.parse({ answer, records: [] }).answer;
 
     for (const trailing of [",", ";", " -", ` ${EM_DASH}`]) {
       expect(said(`you spent 84.20${trailing}`)).toBe("you spent 84.20.");
@@ -274,7 +288,7 @@ describe("what she says is one thing she says, and it is hers", () => {
   });
 
   test("a list of one item is a list, and keeps its own shape", () => {
-    expect(questionAnswerSchema.parse({ answer: `${BREAK}- July: 120` }).answer).toBe(
+    expect(questionAnswerSchema.parse({ answer: `${BREAK}- July: 120`, records: [] }).answer).toBe(
       "- July: 120",
     );
   });
@@ -284,7 +298,10 @@ describe("what she says is one thing she says, and it is hers", () => {
     // line count taken here is the line count a person sees.
     for (const between of [CARRIAGE_RETURN, CARRIAGE_RETURN + BREAK, LINE_SEPARATOR]) {
       expect(
-        questionAnswerSchema.parse({ answer: `July was quiet${between}August was not` }).answer,
+        questionAnswerSchema.parse({
+          answer: `July was quiet${between}August was not`,
+          records: [],
+        }).answer,
       ).toBe(`July was quiet${BREAK}August was not.`);
     }
   });
@@ -293,20 +310,22 @@ describe("what she says is one thing she says, and it is hers", () => {
     // They survive `escapeHtml` untouched and land in `textContent` unseen.
     const hidden = `${NUL}${BELL}${ESCAPE}[31m${ZERO_WIDTH}four are from Japan`;
 
-    expect(questionAnswerSchema.parse({ answer: hidden }).answer).toBe("[31mfour are from Japan.");
+    expect(questionAnswerSchema.parse({ answer: hidden, records: [] }).answer).toBe(
+      "[31mfour are from Japan.",
+    );
   });
 
   test("an answer longer than she would ever say is a generation that failed", () => {
     // The one bound on what comes back: the payload budget weighs what goes into a prompt.
     const said = "x".repeat(MOST_ANSWER_CHARACTERS);
 
-    expect(questionAnswerSchema.safeParse({ answer: said }).success).toBe(true);
-    expect(questionAnswerSchema.safeParse({ answer: `${said}x` }).success).toBe(false);
+    expect(questionAnswerSchema.safeParse({ answer: said, records: [] }).success).toBe(true);
+    expect(questionAnswerSchema.safeParse({ answer: `${said}x`, records: [] }).success).toBe(false);
   });
 
   test("an answer of nothing but punctuation says nothing, so it is not one", () => {
     for (const empty of [".", " — ", "…", "-"]) {
-      expect(questionAnswerSchema.safeParse({ answer: empty }).success).toBe(false);
+      expect(questionAnswerSchema.safeParse({ answer: empty, records: [] }).success).toBe(false);
     }
   });
 });
@@ -317,7 +336,7 @@ describe("the answer is prose and it is disposable", () => {
     // it runs over lines, so it stops itself and no full stop is put on the last item.
     const listed = "Month by month:\n- July: 120\n- August: 98";
 
-    expect(questionAnswerSchema.parse({ answer: listed }).answer).toBe(listed);
+    expect(questionAnswerSchema.parse({ answer: listed, records: [] }).answer).toBe(listed);
   });
 
   test("the same question asked twice reads again and speaks again", async () => {

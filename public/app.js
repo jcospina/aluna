@@ -470,8 +470,8 @@ function openTheAnswerWindowFrom(listener, raw) {
 function sayInTheAnswerWindowFrom(listener, raw) {
   const said = markedFragment(listener, raw, ANSWER_WINDOW_SAYING_ATTRIBUTE);
   if (!said) return false;
-  const detail = { saying: said.textContent ?? "" };
-  document.dispatchEvent(new CustomEvent(SAY_IN_THE_ANSWER_WINDOW_EVENT, { detail }));
+  // Handed on parsed and inert: `public/desk/window/answer-runs.js` reads its names (ADR-0010).
+  document.dispatchEvent(new CustomEvent(SAY_IN_THE_ANSWER_WINDOW_EVENT, { detail: { said } }));
   return true;
 }
 

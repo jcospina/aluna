@@ -10,7 +10,7 @@
 
 import { recordAddress } from "../../core/routes.js";
 import {
-  focusFirstField,
+  focusLanded,
   RECORD_ID_FIELD,
   WINDOW_TOOK_CAPABILITY_EVENT,
 } from "../../core/shell-dom.js";
@@ -102,24 +102,11 @@ export function fillAddressedWindow(asked, open) {
     }
     correctUnfilledAddress(address, collection);
     /* Into the same window, asked from inside it as a record view's own way back asks, so the
-     * prompt bar keeps the notice the record's answer has just put there. */
-    const same = open();
-    void ask(same, collection, same.region).then((again) => settle(collection, same, again));
-  });
-}
-
-/**
- * The record's first field, once what the swap brought has mounted, as a press focuses it, and
- * only where the person has not since put focus somewhere else.
- *
- * @param {Element} region
- */
-function focusLanded(region) {
-  queueMicrotask(() => {
-    const active = document.activeElement;
-    if (active === null || active === document.body || region.contains(active)) {
-      focusFirstField(region);
-    }
+     * prompt bar keeps the notice the record's answer has just put there. Not opened again: that
+     * would raise it over whatever the person has brought forward since. */
+    void ask(window_, collection, window_.region).then((again) =>
+      settle(collection, window_, again),
+    );
   });
 }
 

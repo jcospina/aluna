@@ -90,7 +90,7 @@ async function ask(question: string) {
   const { provider } = makeQuestionProvider({
     intent: DATA_QUERY_INTENT,
     reads: [{ sql: `SELECT count(*) AS total FROM ${NOTES_TABLE}`, label: "counting" }],
-    answer: { answer: "I had a look at your notes — you wrote three in July." },
+    answer: { answer: "I had a look at your notes — you wrote three in July.", records: [] },
   });
   const app = makeScratchApp(
     { dir, conns, artifactsRoot },

@@ -192,6 +192,7 @@ export function toldAgainStep(message: string): QuestionStep {
   return Object.freeze({
     call: null,
     collections: [],
+    capabilities: [],
     plan: NO_PLAN,
     result: { outcome: "failed", message } as const,
   });
@@ -206,6 +207,7 @@ export const UNREADABLE_STEP: QuestionStep = toldAgainStep(UNREADABLE_DECISION);
  */
 export const SCRIPTED_ANSWER_WRITTEN: QuestionAnswerWritten = questionAnswerSchema.parse({
   answer: "I had a look through what you have saved, and here is what I found.",
+  records: [],
 });
 
 /** The one sentence that fixture is, which is the whole of what she says. */

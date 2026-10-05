@@ -43,7 +43,7 @@ let conns: PlatformDatabase;
 let artifactsRoot: string;
 
 const READ = { sql: `SELECT count(*) AS total FROM ${NOTES_TABLE}`, label: "counting" } as const;
-const ANSWER = { answer: "You wrote three notes in July." };
+const ANSWER = { answer: "You wrote three notes in July.", records: [] };
 
 /** Long enough that a clock reading over the whole question cannot round down to nothing, and
  * spent before the first turn — so a sum of step times would still be zero. */

@@ -20,11 +20,16 @@ import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coo
 import type { ReadGateCoordinator } from "../../runtime/concurrency/read-gates.ts";
 import {
   QUESTION_COULD_NOT_FINISH,
+  questionResultLinks,
   questionResultSentence,
   questionStepNarration,
   questionStepsTaken,
 } from "../../runtime/query/index.ts";
-import { renderAnswerWindowOpening, renderAnswerWindowSaying } from "../../server/http/index.ts";
+import {
+  type AnswerRecordLink,
+  renderAnswerWindowOpening,
+  renderAnswerWindowSaying,
+} from "../../server/http/index.ts";
 import type { Send } from "../../server/sse/index.ts";
 import type { PromptResolutionMemory } from "../build/admission/resolved-request.ts";
 import type { BuildPipelineCompletion } from "../jobs/build-jobs.ts";
@@ -167,12 +172,18 @@ async function openTheAnswerWindow(
   }
 }
 
+/** What a question ends on: the sentence, and the records it links. */
+interface QuestionEnded {
+  readonly saying: string;
+  readonly links: readonly AnswerRecordLink[];
+}
+
 /** The sentence this question ends on, whichever of its three endings it reached. */
 async function runToAnEnding(
   input: QuestionPipelineInput,
   say: (saying: () => string) => void,
   steps: QuestionSoFar,
-): Promise<string> {
+): Promise<QuestionEnded> {
   try {
     const result = await runDataQuery(
       {
@@ -193,7 +204,7 @@ async function runToAnEnding(
       },
     );
     steps.taken = questionStepsTaken(result);
-    return questionResultSentence(result);
+    return { saying: questionResultSentence(result), links: questionResultLinks(result) };
   } catch (error) {
     // A prompt that is not a question reached the one path that only answers questions: that is a
     // wiring mistake, not an ending, and it goes to the pipeline's own failure handling.
@@ -206,7 +217,7 @@ async function runToAnEnding(
     if (!input.isAborted()) {
       console.error(COULD_NOT_FINISH_LOG, errorDetail(error));
     }
-    return QUESTION_COULD_NOT_FINISH;
+    return { saying: QUESTION_COULD_NOT_FINISH, links: [] };
   }
 }
 
@@ -267,7 +278,7 @@ async function answerTheQuestion(
   }
   await deliverRestoredPresentation(
     input.send,
-    renderAnswerWindowSaying(ending),
+    renderAnswerWindowSaying(ending.saying, ending.links),
     "ok",
     input.terminalPresenterTimeoutMs,
   );

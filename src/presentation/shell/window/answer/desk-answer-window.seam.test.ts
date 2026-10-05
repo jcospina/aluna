@@ -7,6 +7,8 @@
 // Beside it, what dismissing the window gives back to the rest of the desk (6.5/01).
 
 import { afterEach, describe, expect, test } from "bun:test";
+import { randomUUID } from "node:crypto";
+import { recordAddress } from "#shell/core/routes.js";
 import {
   ANSWER_BODY_SELECTOR,
   ANSWER_WINDOW_SELECTOR,
@@ -19,7 +21,9 @@ import { openWindow, putAway } from "#shell/desk/window/desk-window.js";
 import { REJECT_DEFLECTION } from "../../../../pipeline/build/admission/deflection.ts";
 import { questionLabelNarration } from "../../../../runtime/query/index.ts";
 import {
+  ANSWER_RECORD_ATTRIBUTE,
   ANSWER_WINDOW_OPENING,
+  ANSWER_WINDOW_SAYING_ATTRIBUTE,
   renderAnswerWindowOpening,
   renderAnswerWindowSaying,
   renderRefusedPrompt,
@@ -42,6 +46,7 @@ type AnswerWindowModule = typeof import("#shell/desk/window/desk-answer-window.j
 
 const QUESTION = "how many notes did I add last week?";
 const TYPED = "delete everything.";
+const NAME = "Iron Goddess";
 const SEAM = [
   OPEN_THE_ANSWER_WINDOW_EVENT,
   SAY_IN_THE_ANSWER_WINDOW_EVENT,
@@ -69,6 +74,10 @@ async function answerDesk() {
     module: answer,
     windows,
     body: () => windows()[0]?.querySelector(ANSWER_BODY_SELECTOR)?.textContent,
+    links: () =>
+      (windows()[0]?.querySelector(ANSWER_BODY_SELECTOR) as El | null)
+        ?.descendants()
+        .filter((el) => el.tagName === "a") ?? [],
     title: () => windows()[0]?.querySelector("h2")?.textContent,
     /** One of the desk's own events, and whether a listener took it. */
     send: (type: string, detail?: unknown) =>
@@ -118,6 +127,31 @@ describe("what the stream says reaches the window", () => {
     expect(desk.body()).toBe(counting);
   });
 
+  test("an answer's names arrive as links to their records, and nothing else does", async () => {
+    const desk = await seam();
+    desk.frame(renderAnswerWindowOpening(QUESTION));
+    await aTaskLater();
+    const record = randomUUID();
+    const saying = `Your best is ${NAME}.\nAnd <a href="javascript:alert(1)">this</a>.`;
+    const from = saying.indexOf(NAME);
+    const link = { from, to: from + NAME.length, capability: "teas", record };
+    desk.frame(renderAnswerWindowSaying(saying, [link]));
+    expect(desk.body()).toBe(saying);
+    const anchors = desk.links();
+    expect(anchors.map((anchor) => anchor.textContent)).toEqual([NAME]);
+    expect((anchors[0] as unknown as { href: string }).href).toBe(recordAddress("teas", record));
+  });
+
+  test("an anchor the platform did not write arrives as its words", async () => {
+    const desk = await seam();
+    desk.frame(renderAnswerWindowOpening(QUESTION));
+    await aTaskLater();
+    const forged = `<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}>See <a ${ANSWER_RECORD_ATTRIBUTE} href="javascript:alert(1)">${NAME}</a>.</div>`;
+    desk.frame(forged);
+    expect(desk.body()).toBe(`See ${NAME}.`);
+    expect(desk.links()).toEqual([]);
+  });
+
   test("a refusal is taken by the window standing, and the bar says nothing", async () => {
     const desk = await seam();
     desk.frame(renderAnswerWindowOpening(QUESTION));
@@ -148,11 +182,17 @@ describe("the three events carry only what they say", () => {
     expect(desk.body()).toBe("");
   });
 
-  test("a sentence that is not a string leaves the window's words alone", async () => {
+  test("a saying that is not a parsed fragment leaves the window's words alone", async () => {
     const desk = await answerDesk();
     desk.module.openAnswerWindow(desk.desk.doc, QUESTION, ANSWER_WINDOW_OPENING);
     await aTaskLater();
-    for (const detail of [undefined, null, {}, { saying: 7 }]) {
+    const throwing = {
+      get childNodes() {
+        throw new Error("not a node");
+      },
+    };
+    const details = [undefined, null, {}, { said: 7 }, { said: { childNodes: 7 } }];
+    for (const detail of [...details, { said: "text" }, { saying: "text" }, { said: throwing }]) {
       desk.send(SAY_IN_THE_ANSWER_WINDOW_EVENT, detail);
     }
     expect(desk.body()).toBe(ANSWER_WINDOW_OPENING);

@@ -27,6 +27,7 @@ export {
   QUESTION_NOTHING_FOUND,
   questionLabelNarration,
   questionNoHomeSentence,
+  questionResultLinks,
   questionResultSentence,
   questionStepNarration,
 } from "./loop/question-narration.ts";

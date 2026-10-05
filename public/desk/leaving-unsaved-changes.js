@@ -12,6 +12,7 @@
 
 import { settleFileFields } from "../../design/scripts/files/file-field.js";
 import { heldUploads } from "../controls/held-uploads.js";
+import { focusFirstField } from "../core/shell-dom.js";
 import { hasUnsavedChanges, letGoOfChanges } from "../records/unsaved-changes.js";
 import { raiseWindow } from "./window/desk-stack.js";
 
@@ -129,19 +130,23 @@ export function unsavedQuestionIn(el, scope, how = {}) {
   let pressed = null;
   /** @type {{ inert: boolean }[]} */
   let covered = [];
-  /* Focus goes back to what was pressed, so the press made again lands exactly as the first. */
-  const takeDown = () => {
+  /* Focus goes back to what was pressed, so the press made again lands exactly as the first.
+   * Staying, with nothing pressed to go back to, puts the person back in the form they kept. */
+  const takeDown = (staying = false) => {
     veil?.remove();
     veil = null;
     for (const node of covered) node.inert = false;
     covered = [];
-    if (pressed?.isConnected) pressed.focus?.();
+    const real = pressed?.isConnected && pressed !== globalThis.document?.body;
+    if (real) pressed?.focus?.();
+    else if (staying)
+      focusFirstField(/** @type {QuestionWindow} */ (/** @type {unknown} */ (scope)));
   };
   return {
     run: null,
     show(asking) {
       if (!asking) {
-        takeDown();
+        takeDown(true);
         return;
       }
       pressed = /** @type {Focusable | null} */ (how.pressed ?? focused());
