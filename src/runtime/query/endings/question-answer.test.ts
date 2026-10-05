@@ -132,6 +132,7 @@ function stepOf(label: QuestionStepLabel, rows: readonly Record<string, never>[]
   return {
     call: { tool: READ_ONLY_QUERY_TOOL, sql: A_FEW_ROWS, label, parameters: [SHOP] },
     collections: [EXPENSES_CAPABILITY.label],
+    capabilities: [EXPENSES_CAPABILITY.id],
     plan: { empty: "no rows" },
     result: { outcome: "rows", rows },
   };
@@ -261,6 +262,7 @@ describe("nothing but the results reaches the answer", () => {
         parameters: [hostile],
       },
       collections: [EXPENSES_CAPABILITY.label],
+      capabilities: [EXPENSES_CAPABILITY.id],
       plan: { empty: "no rows" },
       result: { outcome: "rows", rows: [{}] },
     };
@@ -300,9 +302,9 @@ describe("nothing but the results reaches the answer", () => {
     // The rows are what the question's payload budget already held down. What is left is the
     // rules, the fences, and per step one sentence and its two named lines — and four hundred
     // times the rows leaves every byte of it where it was. The ceiling is a sanity bound rather
-    // than a budget: a frame this size is a twentieth of what one question may spend.
+    // than a budget: a frame this size is a sixteenth of what one question may spend.
     expect(frame(heavy)).toBe(frame(light));
-    expect(frame(light)).toBeLessThan(3584);
+    expect(frame(light)).toBeLessThan(4096);
   });
 
   test("but it does grow with the desk, the way the turn's own collections block does", () => {
@@ -323,12 +325,14 @@ describe("a step that returned nothing has nothing to report", () => {
     const failed: QuestionStep = {
       call: null,
       collections: [],
+      capabilities: [],
       plan: { empty: "no rows" },
       result: { outcome: "failed", message: QUESTION_STEP_RESULT_TOO_LARGE },
     };
     const rows: QuestionReadStep = {
       call: null,
       collections: [],
+      capabilities: [],
       plan: { empty: "one row", answers: [] },
       result: { outcome: "rows", rows: [{ total: 3 }] },
     };

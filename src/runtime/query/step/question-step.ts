@@ -40,6 +40,8 @@ export interface QuestionStep {
    * the SQL's words, and empty for a statement the bound refused before it opened anything.
    */
   readonly collections: readonly string[];
+  /** The same collections by capability id, which is what an answer's record link is checked in. */
+  readonly capabilities: readonly string[];
   /**
    * What the statement would have handed back having matched nothing, read off the same
    * `EXPLAIN` as `collections` so no step's classification is the model's.
@@ -48,10 +50,14 @@ export interface QuestionStep {
 }
 
 /** Everything a step carries about its statement rather than about its result. */
-export type StatementFacts = Pick<QuestionStep, "collections" | "plan">;
+export type StatementFacts = Pick<QuestionStep, "collections" | "capabilities" | "plan">;
 
 /** What a step says about a statement the bound refused before it read a plan at all. */
-export const NO_STATEMENT_FACTS: StatementFacts = Object.freeze({ collections: [], plan: NO_PLAN });
+export const NO_STATEMENT_FACTS: StatementFacts = Object.freeze({
+  collections: [],
+  capabilities: [],
+  plan: NO_PLAN,
+});
 
 /**
  * What one turn decided. `answer` means the steps so far are enough; `no_home` that nothing here

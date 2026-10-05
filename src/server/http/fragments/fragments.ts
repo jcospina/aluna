@@ -11,6 +11,7 @@ import {
   capabilityLogoAttemptUrl,
   capabilityLogoUrl,
   capabilityUrl,
+  recordAddress,
 } from "#shell/core/routes.js";
 import {
   BUILD_JOB_ID_ATTRIBUTE,
@@ -327,9 +328,44 @@ export function renderRefusedPrompt(refused: string, saying: string): string {
   return markedDiv(REFUSED_PROMPT_ATTRIBUTE, answerWindowTitle(refused), saying);
 }
 
-/** One thing Aluna says while she reads, and then the answer, into the window she is in. */
-export function renderAnswerWindowSaying(saying: string): string {
-  return markedDiv(ANSWER_WINDOW_SAYING_ATTRIBUTE, null, saying);
+/** What marks a name in the answer as a link to the record it names (ADR-0010). */
+export const ANSWER_RECORD_ATTRIBUTE = "data-answer-record";
+
+/**
+ * The words `saying.slice(from, to)` name one record. The platform vouched for it before it got
+ * here; this file only spells the address, so nothing the model wrote becomes markup.
+ */
+export interface AnswerRecordLink {
+  readonly from: number;
+  readonly to: number;
+  readonly capability: string;
+  readonly record: string;
+}
+
+/**
+ * One thing Aluna says while she reads, and then the answer, into the window she is in. The
+ * answer's links come as escaped text runs and anchors around escaped names.
+ */
+export function renderAnswerWindowSaying(
+  saying: string,
+  links: readonly AnswerRecordLink[] = [],
+): string {
+  const runs: string[] = [];
+  let at = 0;
+  for (const { from, to, capability, record } of links) {
+    // A link out of order, out of range or off a whole offset would repeat or invent words; it is
+    // left out instead.
+    if (!Number.isInteger(from) || !Number.isInteger(to)) continue;
+    if (from < at || to <= from || to > saying.length) continue;
+    const href = escapeHtml(recordAddress(capability, record));
+    runs.push(escapeHtml(saying.slice(at, from)));
+    runs.push(
+      `<a ${ANSWER_RECORD_ATTRIBUTE} href="${href}">${escapeHtml(saying.slice(from, to))}</a>`,
+    );
+    at = to;
+  }
+  runs.push(escapeHtml(saying.slice(at)));
+  return `<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}>${runs.join("")}</div>`;
 }
 
 /**

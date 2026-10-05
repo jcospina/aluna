@@ -127,6 +127,23 @@ export function focusFirstField(view) {
   control?.focus?.({ focusVisible: true });
 }
 
+/**
+ * The first field of what `region` holds, once what a swap brought has mounted, as a press
+ * focuses it. Only where the person has not since put focus somewhere else, and only while its
+ * window is the one in front: a caret in a window behind types into something nobody can see.
+ *
+ * @param {Element} region
+ */
+export function focusLanded(region) {
+  queueMicrotask(() => {
+    const active = document.activeElement;
+    const free = active === null || active === document.body || region.contains(active);
+    if (free && region.closest(".window")?.classList.contains("is-focused") !== false) {
+      focusFirstField(region);
+    }
+  });
+}
+
 /** The attribute the shell finds the collection's count label by. */
 export const COLLECTION_COUNT_LABEL_ATTR = "data-capability-count-label";
 

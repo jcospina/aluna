@@ -95,7 +95,8 @@ cannot emit `<a>` or `href`, and a card stays a `<button>`.
 
 **A link press opens the record in the capability window.** A plain press takes the same
 path as a record address: push, then open, under the same leave question and run hold.
-The answer window stays where it is, and on a phone the capability window comes forward.
+The answer window stays where it is, and the capability window comes forward with the
+record's first field focused, on every desk (owner ruling 2026-10-05).
 A modified or middle press belongs to the browser and opens the record address in a new
 tab. The answer still has no address, and nothing about it survives a reload.
 `intent_resolution_metrics` records no record id.

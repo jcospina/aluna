@@ -40,7 +40,7 @@ let artifactsRoot: string;
 
 const FIRST = "which of my notes mention the garden?";
 const SECOND = "how many notes do I have?";
-const ANSWER = { answer: "You have three notes." };
+const ANSWER = { answer: "You have three notes.", records: [] };
 const READ = { sql: `SELECT count(*) AS total FROM ${NOTES_TABLE}`, label: "counting" } as const;
 
 beforeEach(() => {

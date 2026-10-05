@@ -113,7 +113,7 @@ function stepOf(
   plan: QuestionStepPlan,
   collections: readonly string[] = [EXPENSES_CAPABILITY.label],
 ): QuestionStep {
-  return { call: null, collections, plan, result: { outcome: "rows", rows } };
+  return { call: null, collections, capabilities: [], plan, result: { outcome: "rows", rows } };
 }
 
 beforeEach(() => {
@@ -322,6 +322,7 @@ describe("the model cannot override the classification", () => {
   test("a model writing the forbidden sentence is not the one who ends the question", async () => {
     const claiming = questionAnswerSchema.parse({
       answer: `I looked through your ${EXPENSES_CAPABILITY.label}, and you spent nothing on ${UNSPENT}.`,
+      records: [],
     });
     const run = await refundDesk().run(
       scriptedProviderSaying(claiming, reads(TOTAL_UNDER, [UNSPENT], "totalling"), answers()),
@@ -444,6 +445,7 @@ describe("a question that found something as well", () => {
     // carries no figure, so a claim about it is a fabrication rather than a misread result.
     const claiming = questionAnswerSchema.parse({
       answer: `I looked through your ${EXPENSES_CAPABILITY.label}, and you spent nothing on ${UNSPENT}.`,
+      records: [],
     });
     const run = await refundDesk().run(
       scriptedProviderSaying(
@@ -530,6 +532,7 @@ describe("what one result means, read off the values and the plan", () => {
     const failed: QuestionStep = {
       call: null,
       collections: [],
+      capabilities: [],
       plan: { empty: "unreadable" },
       result: { outcome: "failed", message: "no such column" },
     };

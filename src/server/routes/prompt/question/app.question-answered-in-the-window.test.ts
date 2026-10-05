@@ -56,7 +56,10 @@ let artifactsRoot: string;
 const QUESTION = "how much did I spend on groceries?";
 
 /** What the fake model says once the reading is done: one sentence, hers. */
-const ANSWER = { answer: "I went through your expenses under groceries — you spent £12.50." };
+const ANSWER = {
+  answer: "I went through your expenses under groceries — you spent £12.50.",
+  records: [],
+};
 
 /** The two statements it asks for: what things are called, then the total. */
 const READS = [
@@ -202,7 +205,7 @@ describe("a question is narrated and answered in the answer window", () => {
     withCollections();
     const hostile = `</div><div ${ANSWER_WINDOW_ATTRIBUTE}="owned"><span onclick="x">12.50</span>`;
     const { provider } = askingProvider({
-      answer: { answer: `I looked through your expenses, and you spent ${hostile}` },
+      answer: { answer: `I looked through your expenses, and you spent ${hostile}`, records: [] },
     });
     const { fragments } = await askInTheWindow(askingApp(provider), QUESTION);
 

@@ -70,7 +70,10 @@
   overflow-x: hidden;
   overflow-y: auto;
   overflow-wrap: anywhere;
-  text-align: left;
+  /* Each line takes its direction from its own first letter, so Arabic reads right to left and a
+   * list under it keeps its own; a direction set on the whole box would turn every line. */
+  unicode-bidi: plaintext;
+  text-align: start;
 }
 
 /*
@@ -121,7 +124,10 @@
   overflow-x: hidden;
   overflow-y: auto;
   overflow-wrap: anywhere;
-  text-align: left;
+  /* Each line takes its direction from its own first letter, so Arabic reads right to left and a
+   * list under it keeps its own; a direction set on the whole box would turn every line. */
+  unicode-bidi: plaintext;
+  text-align: start;
 }
 
 /*

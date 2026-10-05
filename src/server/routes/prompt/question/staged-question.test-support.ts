@@ -13,6 +13,7 @@ import {
   type IntentClassification,
 } from "../../../../pipeline/intent/index.ts";
 import type { GenerateResult, Provider } from "../../../../platform/provider/index.ts";
+import type { QuestionAnswerWritten } from "../../../../runtime/query/endings/question-answer.ts";
 import {
   QUESTION_ANSWER_PROMPT_PREFIX,
   QUESTION_NO_HOME_PROMPT_PREFIX,
@@ -35,7 +36,7 @@ export interface StagedQuestionInput {
   /** The statements it asks for, in order. It answers once they are done. */
   readonly reads: readonly StagedQuestionRead[];
   /** The one sentence it says once the reading is done. */
-  readonly answer: { readonly answer: string };
+  readonly answer: QuestionAnswerWritten;
   /** What answers everything that is not a question: a build's own stages, usually. */
   readonly fallback?: Provider;
   /** Thrown from the answer generation, so a caller can reach the question's third ending. */

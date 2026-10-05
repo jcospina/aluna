@@ -6,157 +6,24 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { recordAddress } from "#shell/core/routes.js";
 import { PROMPT_FORM_ID } from "#shell/core/shell-dom.js";
-import { PROMPT_BAR_MESSAGE_EVENT } from "#shell/desk/prompt-bar.js";
 import {
   capabilityAddress,
   DESK_ADDRESS,
   PUT_WINDOW_AWAY_EVENT,
-  WINDOW_TOOK_CAPABILITY_EVENT,
 } from "#shell/desk/window/desk-window.js";
-import { notesSpec } from "../../../../registry/spec/spec.test-support.ts";
-import { createCapabilityActionRecord } from "../../../../runtime/data/index.ts";
 import { NOT_FOUND_FRAGMENT } from "../../../../runtime/router/wire/failure-responses.ts";
-import { renderCapabilitySurface } from "../../../../server/http/fragments/fragments.ts";
-import { renderableFromSpec, renderPresentedRecordView } from "../../../index.ts";
 import type { El } from "../standing-desk.test-support.ts";
+import { deskNodes } from "../viewport-desk.test-support.ts";
 import {
-  deskNodes,
-  serverLogo,
-  type ViewportDesk,
-  viewportDesk,
-} from "../viewport-desk.test-support.ts";
+  answerFor,
+  askedFrom,
+  deskAnswering,
+  gate,
+  RECORD,
+  restoreDesk,
+} from "./record-address-desk.test-support.ts";
 
-const RECORD = randomUUID();
-const LOGOS = [serverLogo("notes", "Notes"), serverLogo("recipes", "Recipes")];
-
-/** How one request ends, given a turn to land in, or held until `gate` opens. */
-interface Ending {
-  readonly status: number;
-  readonly gate?: Promise<void>;
-}
-
-let screen: ViewportDesk | undefined;
-/** Whether each request was asked from inside the window, as `public/app.js` reads it. */
-let askedFromWindow: boolean[] = [];
-afterEach(() => {
-  screen?.restore();
-  screen = undefined;
-});
-
-/** A gate a test opens when it has done what it needs to while a request is in flight. */
-function gate() {
-  let open = () => {};
-  const opened = new Promise<void>((resolve) => {
-    open = resolve;
-  });
-  return { opened, open };
-}
-
-/** What the server sends a request it answers: a record's view, or a collection's scaffolding. */
-function answerFor(path: string): string {
-  const [, , id = "", record] = path.split("/");
-  const surface = { id, incarnation_id: "i", version: 1 };
-  if (record === undefined) return renderCapabilitySurface(surface, "");
-  const capability = renderableFromSpec(notesSpec({ id }));
-  const stored = createCapabilityActionRecord({
-    id: record,
-    created_at: "2026-10-04T00:00:00.000Z",
-    text: "Buy figs",
-    pinned: false,
-  });
-  return renderCapabilitySurface(surface, renderPresentedRecordView(capability, stored));
-}
-
-/**
- * End request `index` where and in the order htmx 2 ends it: `htmx:beforeSwap` and
- * `htmx:afterSwap` on the target, then on the element that asked a refusal and
- * `htmx:afterRequest` (a severed request sends `htmx:afterRequest` before `htmx:sendError`), each
- * naming that element as `requestConfig.elt`. A success is swapped in, and so is a refusal asked from inside the window
- * (`public/app.js`), unless a listener said otherwise.
- */
-async function end(index: number, ending: Ending) {
-  await (ending.gate ?? Bun.sleep(1));
-  const asked = screen?.htmx.requests[index];
-  const source = asked?.context.source as El | undefined;
-  const target = asked?.context.target as El | undefined;
-  const { status } = ending;
-  const inWindow = target?.contains(source) === true;
-  askedFromWindow[index] = inWindow;
-  const detail = {
-    requestConfig: { elt: source },
-    xhr: { status },
-    shouldSwap: status === 200 || (status !== 0 && inWindow),
-  };
-  const send = (on: El | undefined, type: string, more = {}) =>
-    on?.dispatchEvent({ type, bubbles: true, detail: Object.assign(detail, more) } as never);
-  const outcome = status === 0 ? {} : { successful: status === 200 };
-  if (status === 0) {
-    send(source, "htmx:afterRequest", outcome);
-    send(source, "htmx:sendError");
-    return;
-  }
-  swap(target, detail, status === 200 ? answerFor(asked?.path ?? "") : null, send);
-  if (status !== 200) send(source, "htmx:responseError");
-  send(source, "htmx:afterRequest", outcome);
-}
-
-/** A swap's half of an ending: asked about, then drawn if nobody said no. */
-function swap(
-  target: El | undefined,
-  detail: { shouldSwap: boolean },
-  answer: string | null,
-  send: (on: El | undefined, type: string) => void,
-) {
-  send(target, "htmx:beforeSwap");
-  if (!detail.shouldSwap) return;
-  target?.replaceChildren(...deskNodes(answer ?? NOT_FOUND_FRAGMENT));
-  send(target, "htmx:afterSwap");
-}
-
-/** The desk loaded at `pathname`, each request ending the next way, in turn. */
-async function deskAnswering(
-  pathname: string,
-  endings: readonly (Ending | number)[],
-  hearPromptBar?: (event: { detail?: unknown }) => void,
-) {
-  const queue = endings.map((one) => (typeof one === "number" ? { status: one } : one));
-  let asks = 0;
-  askedFromWindow = [];
-  screen = await viewportDesk({
-    pathname,
-    logos: LOGOS,
-    answer: () => end(asks++, queue.shift() ?? { status: 0 }),
-  });
-  if (hearPromptBar) screen.desk.doc.addEventListener(PROMPT_BAR_MESSAGE_EVENT, hearPromptBar);
-  await Bun.sleep(10);
-  const opened = screen;
-  const logo = (name: string) =>
-    opened.desk.root.querySelector(`[aria-label="Open ${name}"]`) as El;
-  const region = () => opened.htmx.requests[0]?.context.target as El;
-  return {
-    ...opened,
-    logo,
-    region,
-    asked: () => opened.htmx.requests.map(({ path }) => path),
-    written: () => opened.desk.address.written.slice(1),
-    title: () => opened.desk.windows()[0]?.querySelector("h2")?.textContent,
-    /** A Back or Forward onto `next`, answered by the desk's own traversal listener. */
-    async travelTo(next: string) {
-      opened.desk.address.pathname = next;
-      const bar = (globalThis as unknown as { window: { onpopstate: (e: unknown) => void } })
-        .window;
-      bar.onpopstate({ state: null });
-      await Bun.sleep(10);
-    },
-    /** The window changing hands, as `public/app.js` says it after every swap. */
-    tookCapability() {
-      opened.desk.doc.dispatchEvent({
-        type: WINDOW_TOOK_CAPABILITY_EVENT,
-        detail: { navigated: false },
-      } as never);
-    },
-  };
-}
+afterEach(restoreDesk);
 
 describe("a page loaded at a record address", () => {
   test("asks for the record in the window, under the capability's name, and writes nothing", async () => {
@@ -198,7 +65,7 @@ describe("a page loaded at a record address", () => {
     // Asked from inside the window, which leaves the prompt bar saying what the record's answer said.
     const [first, fallback] = desk.htmx.requests;
     expect(desk.desk.windows()[0]?.contains(first?.context.source as El)).toBe(false);
-    expect(askedFromWindow).toEqual([false, true]);
+    expect(askedFrom()).toEqual([false, true]);
     expect(fallback?.context.target).toBe(first?.context.target);
     expect(desk.region().querySelector('[data-active-capability-id="notes"]')).not.toBeNull();
     expect(desk.written()).toEqual([`replace ${capabilityAddress("notes")}`]);

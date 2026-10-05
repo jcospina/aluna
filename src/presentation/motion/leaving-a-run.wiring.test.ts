@@ -1,10 +1,12 @@
 // The other half of `leaving-a-run.test.ts`: the copies the shell and the server keep of
-// each other's marks, and the three navigations that ask before they take a run away.
+// each other's marks, and the navigations that ask before they take a run away.
 // Split out when the one file grew past what a file should hold.
 
 import { afterEach, describe, expect, test } from "bun:test";
+import { randomUUID } from "node:crypto";
 import { CONTENT_REGION_SELECTOR } from "#shell/core/region-scope.js";
-import { DESK_HISTORY_STATE } from "#shell/desk/desk-address.js";
+import { recordAddress } from "#shell/core/routes.js";
+import { DESK_HISTORY_STATE, OPEN_THE_RECORD_EVENT } from "#shell/desk/desk-address.js";
 
 import {
   askBeforeLeaving,
@@ -333,5 +335,34 @@ describe("the three navigations that ask", () => {
     // what a press on it does is run in `desk-logos.test.ts` ("pressing the tile brings…").
     const tile = parseHtml(renderProvisionalLogo("build-7"), new El("div"));
     expect(tile.querySelectorAll(CAPABILITY_LOGO_SELECTOR)).toEqual([]);
+  });
+});
+
+describe("a name pressed in an answer", () => {
+  let desk: Awaited<ReturnType<typeof runningDesk>> | undefined;
+  afterEach(() => {
+    backOutOfLeaving();
+    desk?.screen.restore();
+    desk = undefined;
+  });
+
+  test("asks, and a yes opens its record", async () => {
+    desk = await runningDesk();
+    const record = randomUUID();
+    const detail = { capability: "recipes", record };
+    desk.screen.desk.doc.dispatchEvent({ type: OPEN_THE_RECORD_EVENT, detail } as never);
+    expect(desk.asked()).toBe(true);
+    expect(desk.title()).toBe("Notes");
+    expect(desk.screen.htmx.requests).toEqual([]);
+
+    desk.go();
+    expect(desk.ended()).toBe(true);
+    expect(desk.title()).toBe("Recipes");
+    expect(desk.screen.htmx.requests.map(({ path }) => path)).toEqual([
+      recordAddress("recipes", record),
+    ]);
+    expect(desk.screen.desk.address.written.at(-1)).toBe(
+      `push ${recordAddress("recipes", record)}`,
+    );
   });
 });

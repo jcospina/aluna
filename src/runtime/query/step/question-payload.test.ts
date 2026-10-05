@@ -79,6 +79,7 @@ function weigh(rows: readonly QueryWorkerRow[], spent = 0): string | null {
   const step: QuestionStep = {
     call: null,
     collections: [],
+    capabilities: [],
     plan: { empty: "no rows" },
     result: { outcome: "rows", rows },
   };
@@ -175,6 +176,7 @@ describe("the two numbers", () => {
     const step: QuestionStep = {
       call: null,
       collections: [],
+      capabilities: [],
       plan: { empty: "no rows" },
       result: { outcome: "rows", rows },
     };
@@ -411,6 +413,7 @@ describe("a statement too large to carry is refused before it runs", () => {
       // What it would have opened outlives the statement it could not quote: a collection's name
       // is what a person calls their own things, and never the machinery this refusal is about.
       collections: [NOTES_CAPABILITY.label],
+      capabilities: [NOTES_CAPABILITY.id],
       plan: { empty: "no rows" },
       result: { outcome: "failed", message: QUESTION_STATEMENT_TOO_LARGE },
     });
