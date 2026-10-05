@@ -35,6 +35,20 @@ address is replaced with `/capability/:id`, adding no entry (decision 44, amende
 identity" assertion becomes "a record id and nothing else: no search term, no draft".
 `isAnotherPlace` compares the capability and the record.
 
+**Already in place from 7.5/02.** `isAnotherPlace` compares the capability and the record
+(02 needed it so a correction recognises the same record spelled in upper case). A record
+address renders on a traversal whatever the window holds: the press guard lets a record ask
+through, and `windowAddress` (`public/desk/window/addressed-window.js`) keeps the bar on a
+record address while that record's view holds the window, so the back control already lands
+on `/capability/:id` by replacing the entry. A trailing slash on a record address is the same
+record, as it is for a collection. This issue still owns the push and stepping back.
+
+**Left for this issue by 7.5/02.** A prompt submitted while an address is still loading takes
+the window, and the address's answer then stands aside (it is neither swapped in nor said). When
+that run gives the window back empty, the window is put away but the bar still names the address
+that never opened. The same was already true of a collection's address. The restoration rule
+below should cover it: whatever the run gives back, the bar ends on what the window shows.
+
 ## Acceptance criteria
 
 - [ ] A card press pushes the record address; Back returns to the collection and

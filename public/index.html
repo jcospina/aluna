@@ -240,9 +240,9 @@
   <!--
     No page of this desk is ever written outside the DOM. htmx snapshots the whole body
     into `sessionStorage` before it touches history — and it touches history on every
-    `HX-Replace-Url` a deletion route answers with — which would put the search term, the
-    open record and a half-typed edit somewhere they outlive the tab. Nothing below
-    capability identity may leave the DOM (design D14; M5 plan 6), and the snapshot is
+    `HX-Replace-Url` a deletion route answers with — which would put the search term, a
+    record's fields and a half-typed edit somewhere they outlive the tab. Nothing but the
+    address may leave the DOM (design D14; M5 plan 6; ADR-0010), and the snapshot is
     never read back either: the desk answers Back by re-rendering the address
     (`public/desk/window/desk-window.js`), not by restoring a copy of the page.
   -->

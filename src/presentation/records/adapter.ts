@@ -20,7 +20,7 @@ import {
 import type { RenderableCapability } from "../fields/field-renderer.ts";
 import { enforceItemMarkup } from "../safety/enforcer/enforcer.ts";
 import { type ItemRecordViewRef, renderItemWrapper } from "./collection/list-container.ts";
-import { renderRecordViewTemplate } from "./record-view/record-view.ts";
+import { renderRecordView, renderRecordViewTemplate } from "./record-view/record-view.ts";
 
 /**
  * A record as it reaches presentation: the spec fields plus the platform-populated `id` and
@@ -82,6 +82,21 @@ function storedFiles(
 ): PresentableRecord {
   const files = capability.schema.fields.filter((field) => isFileFieldType(field.type));
   return Object.fromEntries(files.map((field) => [field.name, stored[field.name]]));
+}
+
+/**
+ * One record's view as its card's `<template>` holds it, for the record address (ADR-0010): the
+ * same record, stored files and template id, so a link and a press open one markup. The address
+ * draws the record as stored, which is what a press draws for a Handler presenting what it read.
+ */
+export function renderPresentedRecordView(
+  capability: RenderableCapability,
+  record: CapabilityActionRecord,
+): string {
+  const materialized = materializeCapabilityActionRecord(record);
+  const files = storedFiles(capability, storedCapabilityActionRecord(record));
+  const templateId = recordTemplateId(capability.id, materialized);
+  return renderRecordView(capability, { ...materialized, ...files }, templateId);
 }
 
 /** Platform-only presentation for synthetic previews and deterministic design probes. */

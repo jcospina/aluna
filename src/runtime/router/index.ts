@@ -20,6 +20,7 @@ export type {
   CapabilityUpdateContext,
   CapabilityUpdateHandler,
 } from "./contract.ts";
+export { CAPABILITY_PAGE_ROUTES } from "./dispatch/address/capability-views.ts";
 export {
   CapabilityReadAbandonedError,
   DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS,

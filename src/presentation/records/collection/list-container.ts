@@ -60,7 +60,8 @@ export const ITEM_PAYLOAD_ATTR = "data-item";
 
 /**
  * The attribute pointing at the record's inert view `<template>`, which the swap clones on open.
- * The record's form comes from the field renderer: no client formatting, no read-single route.
+ * The record's form comes from the field renderer: no client formatting, and a press asks the
+ * server for nothing (its record address draws the same view, ADR-0010).
  */
 export const ITEM_RECORD_VIEW_ATTR = "data-record-view-template";
 

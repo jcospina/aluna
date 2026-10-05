@@ -1,31 +1,73 @@
 // @ts-check
 
 /**
- * The address, and the history it is written into. One capability's address and the bare desk are
- * the only two places this desk has (design D14); nothing here knows there is a window.
+ * The address, and the history it is written into. The bare desk, one capability's collection and
+ * one of its records are the only places this desk has (ADR-0010); nothing here knows there is a
+ * window.
  */
 
-import { capabilityUrl } from "../core/routes.js";
+import { capabilityUrl, RECORD_ID_PATTERN } from "../core/routes.js";
 
-/** `/capability/:id`, and nothing below it (design D14). */
+/** `/capability/:id`, a capability's collection (design D14). */
 const CAPABILITY_ADDRESS = /^\/capability\/([^/]+)\/?$/;
 
+/** `/capability/:id/:record`, one record open in its record view (ADR-0010). */
+const RECORD_ADDRESS = /^\/capability\/([^/]+)\/([^/]+)\/?$/;
+
+/** A record id, read after its segment is decoded, as the server's route reads it. */
+const RECORD_ID = new RegExp(`^${RECORD_ID_PATTERN}$`);
+
 /**
- * The capability an address names — and an address names a capability or nothing at all
- * (design D14). No search term, no open record and no draft has ever been below the id.
+ * One segment as the server reads it, or null where its escape is malformed.
+ *
+ * @param {string | undefined} segment
+ * @returns {string | null}
+ */
+function decodedSegment(segment) {
+  if (!segment) return null;
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The capability a collection's address names. A record address and anything deeper name no
+ * collection; no search term and no draft has ever been in the address.
  *
  * @param {string} pathname
  * @returns {string | null}
  */
 export function capabilityIdFromAddress(pathname) {
-  const match = CAPABILITY_ADDRESS.exec(pathname);
-  if (!match?.[1]) return null;
-  try {
-    return decodeURIComponent(match[1]);
-  } catch {
-    /* A malformed escape names no capability. */
-    return null;
-  }
+  return decodedSegment(CAPABILITY_ADDRESS.exec(pathname)?.[1]);
+}
+
+/**
+ * The record a record address names, its id in lower case as the server compares it.
+ *
+ * @param {string} pathname
+ * @returns {{ capability: string, record: string } | null}
+ */
+export function recordFromAddress(pathname) {
+  const match = RECORD_ADDRESS.exec(pathname);
+  const capability = decodedSegment(match?.[1]);
+  const record = decodedSegment(match?.[2]);
+  if (capability === null || record === null || !RECORD_ID.test(record)) return null;
+  return { capability, record: record.toLowerCase() };
+}
+
+/**
+ * The place an address names, comparable across spellings, or null where it names none.
+ *
+ * @param {string} pathname
+ * @returns {string | null}
+ */
+function placeOf(pathname) {
+  const addressed = recordFromAddress(pathname);
+  if (addressed !== null) return JSON.stringify([addressed.capability, addressed.record]);
+  const id = capabilityIdFromAddress(pathname);
+  return id === null ? null : JSON.stringify([id]);
 }
 
 /** The bare desk. Putting the window away comes back here (design D14). */
@@ -43,8 +85,9 @@ export function capabilityAddress(id) {
 }
 
 /**
- * Whether one address is somewhere other than another. Two addresses naming the same capability
- * are one place however spelled, which stops Back walking a run of entries that all name it.
+ * Whether one address is somewhere other than another. Two addresses naming the same collection or
+ * the same record are one place however spelled, which stops Back walking a run of entries that
+ * all name it.
  *
  * @param {string} current the address in the bar
  * @param {string} next
@@ -52,8 +95,8 @@ export function capabilityAddress(id) {
  */
 export function isAnotherPlace(current, next) {
   if (current === next) return false;
-  const here = capabilityIdFromAddress(current);
-  return here === null || here !== capabilityIdFromAddress(next);
+  const here = placeOf(current);
+  return here === null || here !== placeOf(next);
 }
 
 /**

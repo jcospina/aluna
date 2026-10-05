@@ -22,12 +22,7 @@ import {
   effectiveCapabilityLabel,
   readActiveRegistryCatalog,
 } from "../../../registry/index.ts";
-import {
-  guardWritingRoute,
-  NOT_FOUND_NOTICE,
-  renderCachedCapabilitySurface,
-  renderRehydratedShellPage,
-} from "../../../server/http/index.ts";
+import { guardWritingRoute } from "../../../server/http/index.ts";
 import {
   createMutationCoordinator,
   type MutationCoordinator,
@@ -96,6 +91,7 @@ import {
   type WireProtocolAction,
   WireProtocolError,
 } from "../wire/wire-protocol.ts";
+import { registerCapabilityViews } from "./address/capability-views.ts";
 import { invokeCapabilityHandler } from "./handler-invocation.ts";
 
 /**
@@ -131,12 +127,6 @@ export interface CapabilityRouterDeps {
 // The fixed route and the complete five-Action method/Action matrix. Every capability declares
 // all five, and a pair outside this matrix fails before any code loads.
 const CAPABILITY_ROUTE = `${CAPABILITY_PATH_PREFIX}/:id/:action`;
-const CAPABILITY_VIEW_ROUTE = `${CAPABILITY_PATH_PREFIX}/:id`;
-/**
- * The same address with a trailing slash, which is the same place (design D14). Without this
- * route `/capability/notes/` fell past every route here to Hono's bare-text 404: no shell.
- */
-const CAPABILITY_VIEW_TRAILING_SLASH_ROUTE = `${CAPABILITY_VIEW_ROUTE}/`;
 const METHOD_BY_ACTION = {
   create: "POST",
   delete: "POST",
@@ -167,10 +157,8 @@ export function registerCapabilityRoutes(
   const readGates = deps.readGates ?? createReadGateCoordinator();
   const handlerTimeoutMs = deps.handlerTimeoutMs ?? DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS;
 
-  const view = (c: Context) =>
-    handleCapabilityViewRequest(c, databases, lookupCapability, readActiveCatalog, readGates);
-  app.get(CAPABILITY_VIEW_ROUTE, view);
-  app.get(CAPABILITY_VIEW_TRAILING_SLASH_ROUTE, view);
+  // Ahead of the Action route, which would otherwise answer a record's id as an unknown Action.
+  registerCapabilityViews(app, { databases, lookupCapability, readActiveCatalog, readGates });
   // Catch every HTTP method here so a wrong pair receives the same warm product
   // boundary instead of falling through to Hono's generic 404 response.
   app.all(CAPABILITY_ROUTE, guardWritingRoute(), async (c) => {
@@ -188,67 +176,6 @@ export function registerCapabilityRoutes(
     // Only a write answers a POST, and only a committed one answers it ok.
     if (response.ok && c.req.method === "POST") wakeFileCleanup();
     return response;
-  });
-}
-
-function handleCapabilityViewRequest(
-  c: Context,
-  databases: PlatformDatabase,
-  lookupCapability: CapabilityLookup | undefined,
-  readActiveCatalog: ActiveCatalogReader,
-  readGates: ReadGateCoordinator,
-): Response {
-  const id = c.req.param("id");
-  // Hono routes no empty segment onto `:id`, so this guards rather than paths. It answers the
-  // way the `!row` branch does: an address with nothing where the name goes names nothing.
-  if (!id) {
-    return missingCapabilityView(c, databases, []);
-  }
-
-  const captured = captureCapabilityRead(
-    id,
-    undefined,
-    databases.readonly,
-    readActiveCatalog,
-    lookupCapability,
-  );
-  const { catalog, row } = captured;
-  if (!row) {
-    return missingCapabilityView(c, databases, catalog);
-  }
-
-  const tokens = readGates.tryAcquire({
-    catalog: catalog.map(capabilityIncarnation),
-    incarnations: captured.incarnations,
-  });
-  if (!tokens) return readUnavailable(c);
-
-  try {
-    if (c.req.header("HX-Request") === "true") return c.html(renderCachedCapabilitySurface(row));
-    // A direct navigation renders the desk alone; the client opens the window over the logo this
-    // address names. `no-store`: the page names logo addresses served `immutable` for a year.
-    return c.html(renderRehydratedShellPage(databases.readonly, catalog), 200, {
-      "cache-control": "no-store",
-    });
-  } catch (error) {
-    return internalFailure(c, id, "view", error);
-  } finally {
-    readGates.release(tokens);
-  }
-}
-
-/**
- * An address that no longer names anything (PLAN decision 21). A direct navigation loads the bare
- * desk and opens no window; an `HX-Request` gets a `data-error-code` fragment for the prompt bar.
- */
-function missingCapabilityView(
-  c: Context,
-  databases: PlatformDatabase,
-  catalog: readonly CapabilityRow[],
-): Response {
-  if (c.req.header("HX-Request") === "true") return c.html(NOT_FOUND_FRAGMENT, 404);
-  return c.html(renderRehydratedShellPage(databases.readonly, catalog, NOT_FOUND_NOTICE), 404, {
-    "cache-control": "no-store",
   });
 }
 

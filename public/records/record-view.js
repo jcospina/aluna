@@ -1,13 +1,14 @@
 // @ts-check
 
 /**
- * Opening a record: a DOM clone of the item's inert `<template>`, so there is no read-single
- * route, no modal, no focus trap and no page-wide inertness — an ordinary view swap (design D2).
+ * Opening a record: a DOM clone of the item's inert `<template>`, so a press asks the server for
+ * nothing, and there is no modal, no focus trap and no page-wide inertness — an ordinary view swap
+ * (design D2). Its record address draws the same view (ADR-0010).
  */
 
 import { releaseRegionContent } from "../core/region-scope.js";
 import { capabilityUrl } from "../core/routes.js";
-import { FIRST_FIELD_SELECTOR } from "../core/shell-dom.js";
+import { focusFirstField } from "../core/shell-dom.js";
 
 const ITEM_SELECTOR = ".capability-item";
 const RECORD_VIEW_SELECTOR = "[data-record-view]";
@@ -46,19 +47,6 @@ function recordViewFor(item) {
   const view = template.content.cloneNode(true);
   const root = view instanceof DocumentFragment ? view.firstElementChild : null;
   return root instanceof HTMLElement ? root : null;
-}
-
-/**
- * The form takes the window, so the first field is where the user now is. A record whose fields
- * are all pickers or segmented rows once matched nothing and dropped focus on the floor.
- *
- * @param {HTMLElement} view
- */
-function focusFirstField(view) {
-  const control = view.querySelector(FIRST_FIELD_SELECTOR);
-  /* Visibly: a picker's control and a segmented row are buttons, and a button rings
-     on keyboard focus only — which this, arriving after a click, is not. */
-  if (control instanceof HTMLElement) control.focus({ focusVisible: true });
 }
 
 /**
@@ -187,8 +175,8 @@ export function leaveRecordView(view) {
       target: region,
       swap: "innerHTML",
     })
-    // A read refused mid-change answers 409 and htmx swaps nothing; a severed connection
-    // rejects. Either way the view is still standing, so the busy mark comes off regardless.
+    // A read refused mid-change answers 409, drawn where the view stood (`public/app.js`); a
+    // severed connection rejects and leaves the view standing. The busy mark comes off either way.
     .catch(() => undefined)
     .then(() => {
       releaseRecordExit(view);

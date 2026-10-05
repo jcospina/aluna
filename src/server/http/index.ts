@@ -34,12 +34,14 @@ export {
   renderBuildWindowTitle,
   renderCapabilityLogo,
   renderCapabilityLogoFace,
+  renderCapabilitySurface,
   renderPromptNotice,
   renderProvisionalLogo,
   renderProvisionalLogoName,
   renderRefusedPrompt,
   renderRehydratedShell,
 } from "./fragments/fragments.ts";
+export { isInPageRequest } from "./in-page-request.ts";
 export {
   hasMeaningfulPromptContent,
   readPrompt,

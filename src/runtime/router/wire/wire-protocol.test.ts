@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderEditForm } from "../../../presentation/fields/field-renderer.ts";
 import {
+  ALUNA_RESERVED_FIELD_PREFIX,
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
   FULL_CAPABILITY_TOOLS,
@@ -306,6 +307,11 @@ describe("reserved capability wire protocol — the search value is bounded", ()
 });
 
 describe("reserved capability wire protocol — marker and record-target validation", () => {
+  test("the record id travels under the prefix the parser reserves", () => {
+    // Spelled in the shell, where the desk reads which record a view holds by it.
+    expect(ALUNA_RECORD_ID_MARKER.startsWith(ALUNA_RESERVED_FIELD_PREFIX)).toBe(true);
+  });
+
   test("rejects duplicate scalar input and invalid presence markers deterministically", async () => {
     await expect(
       parseCapabilityRequest(

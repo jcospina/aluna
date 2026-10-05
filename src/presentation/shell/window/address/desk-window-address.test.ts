@@ -1,6 +1,14 @@
 import { describe, expect, test } from "bun:test";
+import { randomUUID } from "node:crypto";
+import { recordAddress } from "#shell/core/routes.js";
 import { WINDOW_CONTENT_ID } from "#shell/core/shell-dom.js";
-import { answerTraversal, startDeskHistory, travelled } from "#shell/desk/desk-address.js";
+import {
+  answerTraversal,
+  recordFromAddress,
+  startDeskHistory,
+  travelled,
+} from "#shell/desk/desk-address.js";
+import { windowAddress } from "#shell/desk/window/addressed-window.js";
 import {
   ACTIVE_CAPABILITY_ATTRIBUTE,
   addressAsks,
@@ -16,6 +24,8 @@ import {
   pushAddress,
   replaceAddress,
 } from "#shell/desk/window/desk-window.js";
+import { notesSpec } from "../../../../registry/spec/spec.test-support.ts";
+import { createCapabilityActionRecord } from "../../../../runtime/data/index.ts";
 import {
   renderCapabilityLogo,
   renderPromptNotice,
@@ -26,10 +36,16 @@ import {
   desk as shellDesk,
   streamRestoration,
 } from "../../../../server/shell-glue/app.shell-double.test-support.ts";
+import { renderableFromSpec, renderPresentedRecordView } from "../../../index.ts";
 import { readSource as read } from "../../../safety/source.test-support.ts";
+import type { El } from "../standing-desk.test-support.ts";
+import { deskNodes } from "../viewport-desk.test-support.ts";
 
-// The address, and the whole of what it may say: `/capability/:id` and nothing below it. A search
-// term, an open record and a draft die with the tab (design D14; PLAN decision 6; ARCH §6.1).
+// The address, and the whole of what it may say: `/capability/:id` and one record below it,
+// `/capability/:id/:record`. A search term and a draft die with the tab (design D14; ADR-0010).
+
+/** A record id as `randomUUID()` writes one. */
+const RECORD = "0b0e3d6c-4c1f-4b8e-9a52-7d1f0c2a9e41";
 
 /** The address bar and its history, recorded rather than driven. */
 function barAt(pathname: string, search = "") {
@@ -120,8 +136,8 @@ function windowHolding(standing: string | null) {
   };
 }
 
-describe("the address names the capability and nothing else", () => {
-  test("there are two addresses, and the logo is fetched from the one it pushes", () => {
+describe("the address names the capability, or one of its records, and nothing else", () => {
+  test("a press pushes the address its logo is fetched from, spelled one way", () => {
     expect(DESK_ADDRESS).toBe("/");
     expect(capabilityAddress("notes")).toBe("/capability/notes");
     expect(capabilityAddress("my notes")).toBe("/capability/my%20notes");
@@ -258,9 +274,87 @@ describe("the address names the capability and nothing else", () => {
     // window yet, so the answer may not depend on something already being there.
     expect(addressAsks(root, "/capability/recipes", null)).toEqual({ ask: "bare desk" });
     expect(addressAsks(root, "/capability/recipes/", null)).toEqual({ ask: "bare desk" });
-    // Nothing below identity is an address at all, so nothing below it can be asked for.
-    expect(addressAsks(root, "/capability/notes/read", "notes")).toEqual({ ask: "bare desk" });
-    expect(addressAsks(root, "/capability/notes/record/7", "notes")).toEqual({ ask: "bare desk" });
+    // One record below identity is an address, opened whatever the window holds, since the
+    // window holding its capability may be holding its collection or another of its records.
+    const record = { ...open, record: RECORD };
+    expect(addressAsks(root, `/capability/notes/${RECORD}`, null)).toEqual(record);
+    expect(addressAsks(root, `/capability/notes/${RECORD}`, "notes")).toEqual(record);
+    expect(addressAsks(root, `/capability/notes/${RECORD.toUpperCase()}`, null)).toEqual(record);
+    expect(addressAsks(root, `/capability/notes/${RECORD}/`, null)).toEqual(record);
+    expect(addressAsks(root, `/capability/recipes/${RECORD}`, null)).toEqual({ ask: "bare desk" });
+    // Anything else below identity is not an address at all, so nothing below it can be asked
+    // for: an Action's name, a segment not shaped like a record id, and anything deeper.
+    for (const below of [
+      "/capability/notes/read",
+      `/capability/notes/${RECORD}x`,
+      `/capability/notes/${RECORD}//`,
+      "/capability/notes/record/7",
+    ]) {
+      expect(addressAsks(root, below, "notes")).toEqual({ ask: "bare desk" });
+    }
+  });
+});
+
+describe("a record address names one record and nothing below it", () => {
+  test("a record address names its capability and its record, in lower case", () => {
+    expect(recordAddress("notes", RECORD)).toBe(`/capability/notes/${RECORD}`);
+    expect(recordFromAddress(recordAddress("my notes", RECORD))).toEqual({
+      capability: "my notes",
+      record: RECORD,
+    });
+    expect(recordFromAddress(`/capability/notes/${RECORD.toUpperCase()}`)?.record).toBe(RECORD);
+    // A trailing slash is the same place, as it is for a collection (design D14).
+    expect(recordFromAddress(`/capability/notes/${RECORD}/`)?.record).toBe(RECORD);
+    // The escape is read before the shape, as the server's route reads it.
+    expect(recordFromAddress(`/capability/notes/%30${RECORD.slice(1)}`)?.record).toBe(
+      `0${RECORD.slice(1)}`,
+    );
+    for (const deeper of [
+      `/capability/notes/${RECORD}//`,
+      `/capability/notes/${RECORD}/edit`,
+      `/capability/notes/${RECORD}x`,
+      `/capability/notes/${RECORD.replaceAll("-", "")}`,
+      "/capability/notes/read",
+      "/capability/notes/record/7",
+      `/capability/%E0%A4%A/${RECORD}`,
+    ]) {
+      expect(recordFromAddress(deeper)).toBeNull();
+    }
+    // A record address names no collection, so nothing reads it as one.
+    expect(capabilityIdFromAddress(`/capability/notes/${RECORD}`)).toBeNull();
+  });
+
+  test("the window holding a record's view keeps the bar on its record address", () => {
+    const capability = renderableFromSpec(notesSpec());
+    const holding = (id: string) =>
+      renderPresentedRecordView(
+        capability,
+        createCapabilityActionRecord({ id, created_at: "2026-10-04T00:00:00.000Z", text: "Figs" }),
+      );
+    const region = (markup: string) => deskNodes(`<div>${markup}</div>`)[0] as El;
+    const record = `/capability/notes/${RECORD}`;
+    const own = region(holding(RECORD));
+    expect(windowAddress(record, "notes", own)).toBe(record);
+    expect(windowAddress(`/capability/notes/${RECORD.toUpperCase()}/`, "notes", own)).toBe(record);
+    // Another record's view, a collection, another capability and the collection's own address
+    // all put the bar on the collection's.
+    expect(windowAddress(record, "notes", region(holding(randomUUID())))).toBe("/capability/notes");
+    expect(windowAddress(record, "notes", region("<section></section>"))).toBe("/capability/notes");
+    expect(windowAddress(record, "recipes", own)).toBe("/capability/recipes");
+    expect(windowAddress("/capability/notes", "notes", own)).toBe("/capability/notes");
+    // A field holding the id is not the record's own: only the id its forms post counts.
+    const lookalike = `<div data-record-view><input name="text" value="${RECORD}"></div>`;
+    expect(windowAddress(record, "notes", region(lookalike))).toBe("/capability/notes");
+  });
+
+  test("a record is a place of its own, however its id is spelled", () => {
+    const record = `/capability/notes/${RECORD}`;
+    expect(isAnotherPlace(record, `/capability/notes/${RECORD.toUpperCase()}`)).toBe(false);
+    expect(isAnotherPlace(record, `${record}/`)).toBe(false);
+    expect(isAnotherPlace(record, "/capability/notes")).toBe(true);
+    expect(isAnotherPlace("/capability/notes", record)).toBe(true);
+    expect(isAnotherPlace(record, `/capability/recipes/${RECORD}`)).toBe(true);
+    expect(isAnotherPlace(record, `/capability/notes/${RECORD.replace("0b", "1b")}`)).toBe(true);
   });
 });
 
@@ -436,10 +530,12 @@ describe("who moves the address", () => {
     expect(body?.attributes.get("hx-history")).toBe("false");
   });
 
-  test("an address below capability identity names no capability", () => {
+  test("an address deeper than a record names no capability", () => {
     // What the storage keys and the restoration descriptor may carry is swept in
-    // `desk-window-address.policy.ts`; the address itself names nothing below identity.
+    // `desk-window-address.policy.ts`; the address itself names nothing below a record.
     expect(capabilityIdFromAddress("/capability/notes/record/7")).toBeNull();
+    expect(recordFromAddress("/capability/notes/record/7")).toBeNull();
+    expect(recordFromAddress(`/capability/notes/${RECORD}/${RECORD}`)).toBeNull();
   });
 
   test("the browser's own bar is what the verbs are handed", () => {

@@ -32,6 +32,7 @@ import {
   ACTIVE_CAPABILITY_ATTRIBUTE,
   PROMPT_FORM_ID,
   WINDOW_CONTENT_ID,
+  WINDOW_TOOK_CAPABILITY_EVENT,
 } from "../../core/shell-dom.js";
 import {
   capabilityAddress,
@@ -40,6 +41,7 @@ import {
   DESK_ADDRESS,
   deskHistory,
   pushAddress,
+  recordFromAddress,
   replaceAddress,
   startDeskHistory,
 } from "../desk-address.js";
@@ -52,6 +54,7 @@ import {
   runIsUsingWindow,
   startLeavingGuard,
 } from "../leaving-a-run.js";
+import { fillAddressedWindow, recordInWindow, stayPut, windowAddress } from "./addressed-window.js";
 import { joinStack, leaveStack, raise, raiseFromPress } from "./desk-stack.js";
 import {
   centredBox,
@@ -431,6 +434,9 @@ export function windowForOpening(standing, mountWindow, title, openedBy) {
   return entry;
 }
 
+/** How many times the window has been opened, so an address answers only for its own opening. */
+let openings = 0;
+
 /**
  * Open the window, and hand back the region whatever opened it is about to fill.
  *
@@ -441,6 +447,7 @@ export function windowForOpening(standing, mountWindow, title, openedBy) {
  */
 export function openWindow(title, root = document, openedBy = null) {
   mounted = windowForOpening(mounted, () => mount(root, title), title, openedBy);
+  openings += 1;
   /* Whatever is about to fill it is what the user just asked for, so it comes to the front —
    * below the breakpoint, the difference between being on screen and out of the page. */
   raise(mounted);
@@ -702,10 +709,11 @@ export function capabilityInWindow(entry) {
 }
 
 /**
- * The window's content changed hands, said by `app.js` rather than decided there, so the rule for
- * "already there" stays in one place. `detail.navigated` is true only for a v1 activation.
+ * The window's content changed hands, said by `app.js` and `addressed-window.js` rather than
+ * decided there, so the rule for "already there" stays in one place. `detail.navigated` is true
+ * only for a v1 activation.
  */
-export const WINDOW_TOOK_CAPABILITY_EVENT = "aluna:window-took-capability";
+export { WINDOW_TOOK_CAPABILITY_EVENT };
 
 /**
  * Point the address at the capability standing in the window. Taking the window is a navigation
@@ -715,17 +723,13 @@ export const WINDOW_TOOK_CAPABILITY_EVENT = "aluna:window-took-capability";
  */
 function addressTheWindow(navigated) {
   const id = capabilityInWindow(mounted);
-  if (id === null) return;
-  const next = capabilityAddress(id);
   const bar = deskHistory();
-  if (bar === null) return;
-  if (navigated) {
-    pushAddress(next, bar);
-    return;
-  }
+  if (id === null || bar === null) return;
+  const next = windowAddress(bar.location.pathname, id, mounted?.region);
   /* A correction asks whether the bar is exactly right, where a push asks only whether it is
    * somewhere else — which is what strips a query string or a trailing slash from outside. */
-  if (bar.location.pathname !== next || bar.location.search !== "") replaceAddress(next, bar);
+  if (navigated) pushAddress(next, bar);
+  else if (bar.location.pathname !== next || bar.location.search !== "") replaceAddress(next, bar);
 }
 
 /**
@@ -760,15 +764,18 @@ export function pressWouldOpen(logo, showing) {
  * @param {LogoRoot} root
  * @param {string} pathname
  * @param {string | null} showing the capability already in the window
- * @returns {{ ask: "bare desk" } | { ask: "nothing" } | { ask: "open", logo: LogoNode, id: string }}
+ * @param {string | null} [holding] the record whose view the window holds, if it holds one
+ * @returns {{ ask: "bare desk" } | { ask: "nothing" } | AddressedOpen}
  */
-export function addressAsks(root, pathname, showing) {
-  const id = capabilityIdFromAddress(pathname);
+export function addressAsks(root, pathname, showing, holding = null) {
+  const record = recordFromAddress(pathname)?.record ?? null;
+  const id = recordFromAddress(pathname)?.capability ?? capabilityIdFromAddress(pathname);
   const logo = id === null ? null : logoFor(root, id);
   if (id === null || logo === null) return { ask: "bare desk" };
-  /* Already standing there: an address that names what the window is holding asks for
-   * nothing, the way a press on the open logo does. */
-  return id === showing ? { ask: "nothing" } : { ask: "open", logo, id };
+  /* Already standing there: an address that names what the window is holding, its collection or
+   * that one record, asks for nothing, the way a press on the open logo does. */
+  if (id === showing && record === holding) return { ask: "nothing" };
+  return record === null ? { ask: "open", logo, id } : { ask: "open", logo, id, record };
 }
 
 /**
@@ -825,8 +832,9 @@ function whenDeskIsLaidOut(root, open) {
  * @param {string} pathname
  */
 function renderAddress(root, pathname) {
-  const asked = addressAsks(root, pathname, capabilityInWindow(mounted));
-  if (asked.ask === "nothing") return;
+  const holding = recordInWindow(mounted?.region);
+  const asked = addressAsks(root, pathname, capabilityInWindow(mounted), holding);
+  if (asked.ask === "nothing") return stayPut();
   if (asked.ask === "bare desk") {
     /* No run reaches here any more: a traversal that would take one is held above and a
      * confirmed one has already ended it, so this is a window going away over nothing. */
@@ -843,26 +851,25 @@ function renderAddress(root, pathname) {
     correctUnfilledAddress(pathname, DESK_ADDRESS);
     return;
   }
-  /* The capability's own address, not the one in the bar: both spellings of it reach the
-   * view, and this asks for the one the logo's own press asks for. */
-  whenDeskIsLaidOut(root, () => openAddressedWindow(root, capabilityAddress(asked.id), asked.logo));
+  whenDeskIsLaidOut(root, () => openAddressedWindow(root, asked));
 }
 
+/** @typedef {{ ask: "open", logo: LogoNode, id: string, record?: string }} AddressedOpen */
+
 /**
+ * The same fragment a logo click serves, asked for by the same client: the capability's own
+ * address rather than the bar's spelling of it, or the record's.
+ *
  * @param {ParentNode} root
- * @param {string} pathname
- * @param {LogoNode} logo
+ * @param {AddressedOpen} asked
  */
-function openAddressedWindow(root, pathname, logo) {
-  const region = openWindow(logoTitle(logo), root, asElement(logo));
-  /* The same fragment a logo click serves, asked for by the same client. The address is already
-   * right, so nothing is pushed. */
-  void htmx()
-    ?.ajax?.("GET", pathname, { source: logo, target: region, swap: "innerHTML" })
-    .catch(() => undefined)
-    .finally(() => {
-      if (putAwayUnfilledWindow(region)) correctUnfilledAddress(pathname, DESK_ADDRESS);
-    });
+function openAddressedWindow(root, asked) {
+  fillAddressedWindow(asked, () => {
+    const region = openWindow(logoTitle(asked.logo), root, asElement(asked.logo));
+    const at = openings;
+    const current = () => mounted?.region === region && openings === at;
+    return { region, current, putAway: () => void (current() && putAway()) };
+  });
 }
 
 /**
@@ -873,8 +880,7 @@ function openAddressedWindow(root, pathname, logo) {
  * @returns {boolean} whether there was an unfilled window and it is now gone
  */
 function putAwayUnfilledWindow(region) {
-  if (mounted?.region !== region) return false;
-  if (region.childNodes.length > 0) return false;
+  if (mounted?.region !== region || region.childNodes.length > 0) return false;
   return putAway();
 }
 
@@ -974,9 +980,7 @@ function windowForDoorways(root) {
     titleOf: (logo) => logoTitle(logo),
     fallbackTitle: BUILD_WINDOW_TITLE,
     openWindow: (title, openedBy) => openWindow(title, root, openedBy),
-    putAwayUnfilled: (region) => {
-      putAwayUnfilledWindow(region);
-    },
+    putAwayUnfilled: (region) => putAwayUnfilledWindow(region),
   };
 }
 
@@ -1037,6 +1041,7 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
       /* A build takes over whatever the window holds and remembers the name, because a run that
        * does not activate owes it back. It has to be in front, or the story is behind the panel. */
       const displaced = mounted?.win.title ?? BUILD_WINDOW_TITLE;
+      openings += 1;
       if (mounted) raise(mounted);
       /* Nothing was standing, so this frame exists only for a run that may turn out to
        * have nothing to say. It waits out of sight until it is given something. */ else

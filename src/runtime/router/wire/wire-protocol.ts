@@ -1,3 +1,4 @@
+import { RECORD_ID_FIELD } from "#shell/core/shell-dom.js";
 import { isFileKey } from "../../../platform/files/store/ledger.ts";
 import {
   ALUNA_RESERVED_FIELD_PREFIX,
@@ -17,7 +18,7 @@ import { listInputModeForField, normalizeListInputValues } from "../../field-typ
 import type { CapabilityInput, CapabilityInputValue } from "../contract.ts";
 
 export const ALUNA_PRESENT_MARKER = `${ALUNA_RESERVED_FIELD_PREFIX}present`;
-export const ALUNA_RECORD_ID_MARKER = `${ALUNA_RESERVED_FIELD_PREFIX}record_id`;
+export const ALUNA_RECORD_ID_MARKER = RECORD_ID_FIELD;
 /**
  * What an edit's file field held when its form was drawn, posted beside its value, so a form drawn
  * before another window saved the field is told so, whether it keeps, replaces or clears.

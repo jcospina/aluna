@@ -33,6 +33,7 @@ export {
   type PresentationAdapter,
   type PresentationAdapterOptions,
   RECORD_TEMPLATE_ID_PREFIX,
+  renderPresentedRecordView,
 } from "./records/adapter.ts";
 export {
   COLLECTION_LAYOUTS,
@@ -51,6 +52,7 @@ export {
   serializeItemPayload,
 } from "./records/collection/list-container.ts";
 export {
+  hasRecordView,
   RECORD_BACK_ATTR,
   RECORD_VIEW_ATTR,
   renderRecordView,

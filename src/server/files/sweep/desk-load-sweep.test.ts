@@ -3,6 +3,7 @@
 // coordinator's queue is the cutoff. Any other request to those addresses sweeps nothing.
 
 import { describe, expect, spyOn, test } from "bun:test";
+import { randomUUID } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { until } from "../../../platform/async.test-support.ts";
@@ -24,6 +25,8 @@ import {
 import { pageNavigation } from "./desk-load.test-support.ts";
 
 const files = useFileRoutes();
+/** A record address whose record is not there, which still draws the whole desk. */
+const ABSENT_RECORD = randomUUID();
 
 /** Admit a photo for `state`, with its bytes where the upload would have left them. */
 function seeded(state: ledger.FileLedgerState = "pending", staged = false): string {
@@ -134,15 +137,18 @@ describe("a desk load", () => {
     expect(stateOf(owned)).toBe("owned");
   });
 
-  for (const path of [
-    `/capability/${PHOTOS.capabilityId}`,
-    `/capability/${PHOTOS.capabilityId}/`,
-  ]) {
+  // A record address no record answers still draws the desk, with the collection to open.
+  for (const [path, status] of [
+    [`/capability/${PHOTOS.capabilityId}`, 200],
+    [`/capability/${PHOTOS.capabilityId}/`, 200],
+    [`/capability/${PHOTOS.capabilityId}/${ABSENT_RECORD}`, 404],
+    [`/capability/${PHOTOS.capabilityId}/${ABSENT_RECORD}/`, 404],
+  ] as const) {
     test(`of a capability's page at ${path} sweeps as the desk's does`, async () => {
       const key = seeded();
       const app = files.app();
 
-      expect((await app.request(path, pageNavigation())).status).toBe(200);
+      expect((await app.request(path, pageNavigation())).status).toBe(status);
       await until(() => stateOf(key) !== "pending");
       await files.cleaned();
       expect(stateOf(key)).toBeUndefined();
@@ -231,7 +237,12 @@ describe("a request that does not load a page into a tab", () => {
     ["a HEAD", { ...pageNavigation(), method: "HEAD" }],
     ["a request from outside a browser", {}],
   ];
-  const paths = ["/", `/capability/${PHOTOS.capabilityId}`, "/capability/cover.jpg"];
+  const paths = [
+    "/",
+    `/capability/${PHOTOS.capabilityId}`,
+    `/capability/${PHOTOS.capabilityId}/${ABSENT_RECORD}`,
+    "/capability/cover.jpg",
+  ];
 
   for (const [name, init] of requests) {
     test(`sweeps nothing when it is ${name}`, async () => {
@@ -259,6 +270,7 @@ describe("a browser fetching a desk address ahead of a navigation", () => {
         "/",
         `/capability/${PHOTOS.capabilityId}`,
         `/capability/${PHOTOS.capabilityId}/`,
+        `/capability/${PHOTOS.capabilityId}/${ABSENT_RECORD}`,
       ]) {
         const declined = await app.request(path, pageNavigation({ "sec-purpose": purpose }));
         expect(declined.status).toBe(503);
@@ -279,8 +291,12 @@ test("a HEAD carrying a speculation's header is answered as a HEAD at every desk
   const app = files.app();
   const head = { ...pageNavigation({ "sec-purpose": "prefetch" }), method: "HEAD" };
 
-  for (const path of ["/", `/capability/${PHOTOS.capabilityId}`]) {
-    expect((await app.request(path, head)).status).toBe(200);
+  for (const [path, status] of [
+    ["/", 200],
+    [`/capability/${PHOTOS.capabilityId}`, 200],
+    [`/capability/${PHOTOS.capabilityId}/${ABSENT_RECORD}`, 404],
+  ] as const) {
+    expect((await app.request(path, head)).status).toBe(status);
   }
   await files.cleaned();
   expect(stateOf(key)).toBe("pending");
