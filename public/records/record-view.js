@@ -7,8 +7,9 @@
  */
 
 import { releaseRegionContent } from "../core/region-scope.js";
-import { capabilityUrl } from "../core/routes.js";
-import { focusFirstField } from "../core/shell-dom.js";
+import { capabilityUrl, RECORD_ID_PATTERN, recordAddress } from "../core/routes.js";
+import { focusFirstField, RECORD_ID_FIELD } from "../core/shell-dom.js";
+import { deskHistory, markRecordExit, pushAddress } from "../desk/desk-address.js";
 
 const ITEM_SELECTOR = ".capability-item";
 const RECORD_VIEW_SELECTOR = "[data-record-view]";
@@ -18,6 +19,9 @@ const COLLECTION_SELECTOR = ".capability-collection";
 const SURFACE_SELECTOR = "[data-active-capability-id]";
 const RECORDS_REGION_SELECTOR = "[data-content-region='records']";
 const CONTENT_REGION_SELECTOR = "[data-content-region]";
+
+/** A record id an address can name; any other id has no record address to push. */
+const RECORD_ID = new RegExp(`^${RECORD_ID_PATTERN}$`);
 
 export { FIRST_FIELD_SELECTOR } from "../core/shell-dom.js";
 
@@ -85,8 +89,24 @@ function openRecord(item) {
     replace: (outgoing, incoming) => outgoing.replaceWith(incoming),
     process: (incoming) => htmx()?.process(incoming),
   });
+  if (!swapped || !view) return;
+  pushRecordAddress(view);
   // After the microtask that mounts what the swap brought, or a file field would have no control.
-  if (swapped && view) queueMicrotask(() => focusFirstField(view));
+  queueMicrotask(() => focusFirstField(view));
+}
+
+/**
+ * A press is a navigation, so the record it opened gets an entry of its own (PLAN decision 44).
+ * Its id is the one its forms post; the search term the collection stood under is not in it.
+ *
+ * @param {HTMLElement} view
+ */
+function pushRecordAddress(view) {
+  const surface = view.closest(SURFACE_SELECTOR);
+  const capabilityId = surface instanceof HTMLElement ? surface.dataset.activeCapabilityId : null;
+  const record = view.querySelector(`input[name="${RECORD_ID_FIELD}"]`)?.getAttribute("value");
+  if (!capabilityId || !record || !RECORD_ID.test(record)) return;
+  pushAddress(recordAddress(capabilityId, record), deskHistory());
 }
 
 /**
@@ -169,19 +189,69 @@ export function leaveRecordView(view) {
   const itemTargetId = view.dataset.itemTargetId;
 
   releaseRegionContent(view);
+  const collection = capabilityUrl(capabilityId);
+  const unmark = markRecordExit(collection);
+  const { source, done } = askingElement(region, view);
   void transport
-    .ajax("GET", capabilityUrl(capabilityId), {
-      source: region,
-      target: region,
-      swap: "innerHTML",
-    })
+    .ajax("GET", collection, { source, target: region, swap: "innerHTML" })
     // A read refused mid-change answers 409, drawn where the view stood (`public/app.js`); a
     // severed connection rejects and leaves the view standing. The busy mark comes off either way.
     .catch(() => undefined)
     .then(() => {
+      unmark();
+      done();
       releaseRecordExit(view);
       focusReturnedRecord(region, itemTargetId);
     });
+}
+
+/**
+ * The element the way out asks from: its own, inside the window so a refusal is drawn there, and
+ * not the region, where htmx would queue it behind a press still being answered. Once anything
+ * else has swapped into the window, a press, a build, a question, what comes back is not its to
+ * draw or say.
+ *
+ * @param {Element} region @param {HTMLElement} view
+ * @returns {{ source: HTMLElement, done: () => void }}
+ */
+function askingElement(region, view) {
+  const source = document.createElement("span");
+  source.hidden = true;
+  region.append(source);
+  let changedHands = false;
+  const overtaken = () => changedHands || !view.isConnected;
+  /** @param {Event} event @returns {{ requestConfig?: { elt?: unknown }, shouldSwap?: boolean }} */
+  const detailOf = (event) => /** @type {CustomEvent} */ (event).detail ?? {};
+  /** @param {Event} event */
+  const swapped = (event) => {
+    if (event.target === region && detailOf(event).requestConfig?.elt !== source) {
+      changedHands = true;
+    }
+  };
+  /** @param {Event} event */
+  const swapping = (event) => {
+    const detail = detailOf(event);
+    if (detail.requestConfig?.elt !== source || !overtaken()) return;
+    detail.shouldSwap = false;
+    event.stopPropagation();
+  };
+  /** @param {Event} event */
+  const unheard = (event) => {
+    if (overtaken()) event.stopPropagation();
+  };
+  /** @type {[EventTarget, string, (event: Event) => void][]} */
+  const listening = [
+    [region, "htmx:afterSwap", swapped],
+    [region, "htmx:beforeSwap", swapping],
+    [source, "htmx:responseError", unheard],
+    [source, "htmx:sendError", unheard],
+  ];
+  for (const [node, type, run] of listening) node.addEventListener(type, run);
+  const done = () => {
+    for (const [node, type, run] of listening) node.removeEventListener(type, run);
+    source.remove();
+  };
+  return { source, done };
 }
 
 // Delegated and document-level, so it covers records htmx swaps in later without re-binding.

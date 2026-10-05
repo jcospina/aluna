@@ -10,6 +10,7 @@ import { PROMPT_BAR_MESSAGE_EVENT } from "#shell/desk/prompt-bar.js";
 import {
   capabilityAddress,
   DESK_ADDRESS,
+  PUT_WINDOW_AWAY_EVENT,
   WINDOW_TOOK_CAPABILITY_EVENT,
 } from "#shell/desk/window/desk-window.js";
 import { notesSpec } from "../../../../registry/spec/spec.test-support.ts";
@@ -267,6 +268,13 @@ describe("a record address still loading when the window is taken", () => {
     expect(desk.asked()).toEqual([recordAddress("notes", RECORD)]);
     expect(desk.desk.windows()).toHaveLength(1);
     expect(desk.written()).toEqual([]);
+
+    // The run gives the window back with nothing in it, and the bar follows it to the bare desk.
+    desk.desk.doc.dispatchEvent({ type: PUT_WINDOW_AWAY_EVENT } as never);
+    expect(desk.desk.windows()).toHaveLength(0);
+    expect(desk.written()).toEqual([`replace ${DESK_ADDRESS}`]);
+    desk.desk.doc.dispatchEvent({ type: PUT_WINDOW_AWAY_EVENT } as never);
+    expect(desk.written()).toEqual([`replace ${DESK_ADDRESS}`]);
   });
 
   test("by a record the person opened in it, keeps that record", async () => {
@@ -348,6 +356,22 @@ describe("a traversal while a window stands", () => {
     await desk.travelTo(capabilityAddress("notes"));
     expect(desk.asked()).toEqual([recordAddress("notes", RECORD), capabilityAddress("notes")]);
     expect(desk.region().querySelector("[data-record-view]")).toBeNull();
+  });
+
+  test("onto a record keeps its address while the collection's own records land first", async () => {
+    const held = gate();
+    const desk = await deskAnswering(capabilityAddress("notes"), [
+      200,
+      { status: 200, gate: held.opened },
+    ]);
+    await desk.travelTo(recordAddress("notes", RECORD));
+    desk.tookCapability();
+    expect(desk.written()).toEqual([]);
+    held.open();
+    await Bun.sleep(10);
+    desk.tookCapability();
+    expect(desk.desk.address.pathname).toBe(recordAddress("notes", RECORD));
+    expect(desk.written()).toEqual([]);
   });
 
   test("onto the record the window already holds asks for nothing", async () => {

@@ -4,7 +4,8 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { registerRegionRelease, releaseRegionContent } from "#shell/core/region-scope.js";
-import { capabilityActionUrl, capabilityUrl } from "#shell/core/routes.js";
+import { capabilityActionUrl, capabilityUrl, recordAddress } from "#shell/core/routes.js";
+import { answerTraversal, followWindow } from "#shell/desk/desk-address.js";
 import { PROMPT_BAR_MESSAGE_EVENT } from "#shell/desk/prompt-bar.js";
 import {
   MUTATION_OUTCOME_UNKNOWN,
@@ -19,10 +20,10 @@ import {
   renderCollection,
   renderItemWrapper,
 } from "../collection/list-container.ts";
-import { CAPABILITY, RECORD, recordDesk } from "./record-view.test-support.ts";
+import { CAPABILITY, RECORD, recordDesk, standingWindow } from "./record-view.test-support.ts";
 import { RECORD_VIEW_ATTR, renderRecordViewTemplate } from "./record-view.ts";
 
-const templateId = "record-notes-note-1";
+const templateId = `record-notes-${RECORD.id}`;
 const ITEMS =
   renderItemWrapper(`<span>${RECORD.text}</span>`, RECORD, { templateId }) +
   renderRecordViewTemplate(templateId, CAPABILITY, RECORD);
@@ -307,5 +308,145 @@ describe("the record's deletion — the wiring", () => {
     desk.doc.fire("htmx:beforeRequest", desk.question, { detail: { elt: desk.question } });
     desk.doc.fire("keydown", desk.question, { key: "Escape" });
     expect(desk.question.hidden).toBe(false);
+  });
+});
+
+// The address a press writes and every way out leaves, the window's own catching up played where
+// `public/app.js` says it: as the collection's read lands (PLAN decision 44).
+describe("the record's address", () => {
+  let desk: Awaited<ReturnType<typeof openRecord>>;
+  afterEach(() => desk.restore());
+  const collection = capabilityUrl(CAPABILITY.id);
+
+  /** A record whose way out lands its collection and has the bar follow, as the desk does. */
+  async function openFollowed(answer = () => Promise.resolve()) {
+    const opened = await openRecord(() => {
+      followWindow(collection, false, opened.tab);
+      return answer();
+    });
+    Object.assign(standingWindow(), {
+      onpopstate: (event: unknown) =>
+        answerTraversal(event, { render: () => {}, hold: () => false }, opened.tab),
+    });
+    return opened;
+  }
+
+  test("a press pushes it, spelled from the capability and the record and nothing else", async () => {
+    desk = await openRecord();
+    expect(desk.tab.entries()).toEqual([collection, recordAddress(CAPABILITY.id, RECORD.id)]);
+  });
+
+  const ways: Record<string, (opened: typeof desk) => void> = {
+    back: (opened) => void goBack(opened),
+    Cancel: (opened) => opened.press(named(opened.form, "button", "Cancel")),
+    "a committed save": (opened) => {
+      opened.doc.fire("htmx:beforeRequest", opened.form, { detail: { elt: opened.form } });
+      opened.doc.fire("htmx:afterRequest", opened.form, {
+        detail: { elt: opened.form, successful: true, xhr: { status: 200 } },
+      });
+    },
+    "a committed delete": (opened) => {
+      opened.press(opened.asks);
+      opened.doc.fire("htmx:beforeRequest", opened.question, { detail: { elt: opened.question } });
+      opened.doc.fire("htmx:afterRequest", opened.question, {
+        detail: { elt: opened.question, successful: true, xhr: { status: 200 } },
+      });
+    },
+  };
+  for (const [way, leave] of Object.entries(ways)) {
+    test(`${way} steps back onto the collection the press left, keeping its Forward`, async () => {
+      desk = await openFollowed();
+      leave(desk);
+      await desk.settled();
+      expect(desk.tab.pending()).toEqual([-1]);
+      await desk.tab.arrived();
+      expect(desk.tab.at()).toBe(0);
+      expect(desk.tab.entries()).toEqual([collection, recordAddress(CAPABILITY.id, RECORD.id)]);
+    });
+  }
+
+  test("a read that fails lifts its mark, so nothing later steps back for it", async () => {
+    desk = await openRecord(() => Promise.reject(new Error("severed")));
+    await goBack(desk);
+    followWindow(collection, false, desk.tab);
+    expect(desk.tab.pending()).toEqual([]);
+    expect(desk.tab.entries()).toEqual([collection, collection]);
+  });
+
+  test("its way out asks from an element of its own in the window, not from the region", async () => {
+    desk = await openRecord();
+    await goBack(desk);
+    const source = desk.asked.requests[0]?.context.source as El;
+    expect(source).not.toBe(desk.region);
+    expect(source.hidden).toBe(true);
+    // Gone once the read is over.
+    expect(source.isConnected).toBe(false);
+  });
+
+  test("what its way out reads is not swapped over a window that has changed hands since", async () => {
+    let swapAsked: { shouldSwap: boolean } | undefined;
+    const ask = (opened: typeof desk) => {
+      const source = opened.asked.requests[0]?.context.source as El;
+      const detail = { requestConfig: { elt: source }, shouldSwap: true };
+      opened.doc.fire("htmx:beforeSwap", opened.region, { detail });
+      return detail;
+    };
+    desk = await openRecord(() => {
+      swapAsked = ask(desk);
+      return Promise.resolve();
+    });
+    await goBack(desk);
+    expect(swapAsked?.shouldSwap).toBe(true);
+    desk.restore();
+
+    desk = await openRecord(() => {
+      // Another capability's press landed first and took the window.
+      desk.region.replaceChildren(...parseHtml("<div></div>", new Doc()).children);
+      swapAsked = ask(desk);
+      return Promise.resolve();
+    });
+    await goBack(desk);
+    expect(swapAsked?.shouldSwap).toBe(false);
+  });
+
+  test("what its way out reads stands aside for a build that took the window meanwhile", async () => {
+    let swapAsked: { shouldSwap: boolean } | undefined;
+    let toDesk = 0;
+    desk = await openRecord(() => {
+      // A prompt's run lands in the window, beside the record view, while the read is out.
+      const run = parseHtml('<section data-build-job-id="build-7"></section>', new Doc());
+      desk.region.append(...run.children);
+      desk.doc.fire("htmx:afterSwap", desk.region, { detail: { requestConfig: { elt: {} } } });
+      desk.doc.addEventListener("htmx:beforeSwap", () => toDesk++);
+      const source = desk.asked.requests[0]?.context.source as El;
+      const detail = { requestConfig: { elt: source }, shouldSwap: true };
+      desk.doc.fire("htmx:beforeSwap", desk.region, { detail });
+      swapAsked = detail;
+      return Promise.resolve();
+    });
+    await goBack(desk);
+    expect(swapAsked?.shouldSwap).toBe(false);
+    // Nor is its answer heard anywhere else: a refusal it carried is said by nobody.
+    expect(toDesk).toBe(0);
+    expect(desk.region.querySelector("[data-build-job-id]")).not.toBeNull();
+  });
+
+  test("a record whose id no address can name opens without one", async () => {
+    const odd = { ...RECORD, id: "note-1" };
+    const oddTemplate = "record-notes-odd";
+    const items =
+      renderItemWrapper(`<span>${odd.text}</span>`, odd, { templateId: oddTemplate }) +
+      renderRecordViewTemplate(oddTemplate, CAPABILITY, odd);
+    const opened = await recordDesk(renderCollection({ capability: CAPABILITY, items }), {
+      capabilityId: CAPABILITY.id,
+    });
+    try {
+      opened.press(opened.doc.getElementById(itemElementIdForTemplate(oddTemplate)) as El);
+      await opened.settled();
+      expect(opened.doc.querySelector(`[${RECORD_VIEW_ATTR}]`)).not.toBeNull();
+      expect(opened.tab.entries()).toEqual([collection]);
+    } finally {
+      opened.restore();
+    }
   });
 });

@@ -117,6 +117,15 @@ function entryState() {
 }
 
 /**
+ * The address each entry names, by its place in the run, as far as this page has seen: what says
+ * whether the entry before a record is its collection (PLAN decision 44). Kept off the entries, so
+ * a reload, whose entries before belong to a page now gone, knows none of them.
+ *
+ * @type {Map<number, string>}
+ */
+const places = new Map();
+
+/**
  * How far a traversal moved, or `null` where the entry it landed on is not one this desk wrote.
  * `null` is a move out of the desk, not a fallback to guess around ({@link restampAfterHtmx}).
  *
@@ -161,6 +170,10 @@ export function pushAddress(next, bar) {
   const cameFrom = bar.location.pathname;
   if (!isAnotherPlace(cameFrom, next)) return null;
   addressIndex += 1;
+  places.set(addressIndex, next);
+  /* A navigation of the person's own outranks any traversal still expected to land. */
+  taking = null;
+  steppingOff = null;
   bar.history.pushState(entryState(), "", next);
   return cameFrom;
 }
@@ -173,7 +186,103 @@ export function pushAddress(next, bar) {
  * @param {Bar | null} bar
  */
 export function replaceAddress(next, bar) {
-  bar?.history.replaceState(entryState(), "", next);
+  if (bar === null) return;
+  places.set(addressIndex, next);
+  bar.history.replaceState(entryState(), "", next);
+}
+
+/**
+ * The collection a record view is being left for by its own way out (back, a save, a delete),
+ * marked for the length of that read. Only that leaving may step back; a build giving the
+ * capability back replaces.
+ *
+ * @type {{ collection: string, kept?: boolean } | null}
+ */
+let exiting = null;
+
+/**
+ * @param {string} collection the address the record view's way out asks for
+ * @returns {() => void} lifts this mark, and no newer one, nor one kept for the desk coming back
+ */
+export function markRecordExit(collection) {
+  /** @type {{ collection: string, kept?: boolean }} */
+  const mark = { collection };
+  exiting = mark;
+  return () => {
+    if (exiting === mark && !mark.kept) exiting = null;
+  };
+}
+
+/**
+ * Leave a record for its collection by stepping back, where the record view's own way out is
+ * leaving it and the entry before is that collection as this page knows it. Arrived by link, or
+ * after a reload, it is left by a replace.
+ *
+ * @param {string} collection @param {Bar} bar
+ * @returns {boolean} whether it stepped back
+ */
+function stepBackOffRecord(collection, bar) {
+  if (exiting === null || isAnotherPlace(exiting.collection, collection)) return false;
+  exiting = null;
+  const known = (/** @type {number} */ index) => places.get(index) ?? DESK_ADDRESS;
+  if (!bar.history.go || isAnotherPlace(known(addressIndex), bar.location.pathname)) return false;
+  if (isAnotherPlace(known(addressIndex - 1), collection)) return false;
+  steppingOff = bar.location.pathname;
+  stepBack(1, bar, addressIndex - 1);
+  return true;
+}
+
+/**
+ * The record address the desk's own step back is leaving, until a traversal arrives. A write while
+ * the bar still names it, or while the bar is on an entry the desk is stepping back off, would land
+ * on the wrong entry, so it waits, and whether it was owed an entry is kept for when the desk lands.
+ *
+ * @type {string | null}
+ */
+let steppingOff = null;
+let owedAnEntry = false;
+
+/** @param {Bar} bar @returns {boolean} whether a write now would land on the wrong entry */
+function barIsAway(bar) {
+  const away = travelled(bar.history.state);
+  if (away !== null && away !== 0) return true;
+  return steppingOff !== null && !isAnotherPlace(bar.location.pathname, steppingOff);
+}
+
+/**
+ * What a write held back while the bar is away owes when the desk is back: an entry, if it was a
+ * push, and a step back, if it was a record's way out landing.
+ *
+ * @param {string} next @param {boolean} navigated
+ */
+function holdBack(next, navigated) {
+  owedAnEntry ||= navigated;
+  if (exiting !== null && !isAnotherPlace(exiting.collection, next)) exiting.kept = true;
+}
+
+/**
+ * Point the bar at what the window now shows. Taking the window is a navigation and is owed an
+ * entry, except where it takes it back for the capability whose record the bar names: that, and
+ * anything else, is the address catching up and is owed none (design D14; PLAN decision 44).
+ *
+ * @param {string} next the address of what the window shows
+ * @param {boolean} navigated
+ * @param {Bar | null} bar
+ */
+export function followWindow(next, navigated, bar) {
+  if (bar === null) return;
+  const { pathname, search } = bar.location;
+  if (barIsAway(bar)) {
+    holdBack(next, navigated);
+    return;
+  }
+  const left = recordFromAddress(pathname);
+  const offRecord = left !== null && !isAnotherPlace(capabilityAddress(left.capability), next);
+  if (offRecord && stepBackOffRecord(next, bar)) return;
+  /* A correction asks whether the bar is exactly right, where a push asks only whether it is
+   * somewhere else — which is what strips a query string or a trailing slash from outside. */
+  if (navigated && !offRecord) pushAddress(next, bar);
+  else if (pathname !== next || search !== "") replaceAddress(next, bar);
 }
 
 /**
@@ -200,6 +309,7 @@ export function correctUnfilledAddress(attempted, back) {
  * @typedef {{
  *   render: (pathname: string) => void,
  *   hold: (go: () => void) => boolean,
+ *   follow?: (navigated: boolean) => void,
  * }} DeskAnswers
  */
 
@@ -263,18 +373,50 @@ function isOwnStepBack(landedAt) {
  */
 export function answerTraversal(event, desk, bar = deskHistory()) {
   if (bar === null) return;
+  steppingOff = null;
   const landedAt = travelled(/** @type {{ state?: unknown }} */ (event)?.state, 0);
-  if (isOwnStepBack(landedAt)) return;
   const landed = bar.location.pathname;
-  const moved = landedAt === null ? null : landedAt - addressIndex;
-  if (moved !== null && moved !== 0 && bar.history.go) {
-    if (desk.hold(() => takeTheTraversal(moved, bar))) {
-      stepBack(moved, bar);
+  if (isOwnStepBack(landedAt)) {
+    deskIsBack(/** @type {number} */ (landedAt), landed, desk);
+    return;
+  }
+  /* The person moved: nothing held back for the desk's return, nor any way out, still applies. */
+  owedAnEntry = false;
+  exiting = null;
+  if (landedAt === null) {
+    desk.render(landed);
+    return;
+  }
+  const confirmed = taking === landedAt;
+  taking = null;
+  if (landedAt !== addressIndex && bar.history.go && !confirmed) {
+    if (desk.hold(() => takeTheTraversal(landedAt, landed, desk, bar))) {
+      stepBack(landedAt - addressIndex, bar);
       return;
     }
   }
-  if (moved !== null) addressIndex += moved;
+  arrive(landedAt, landed);
   desk.render(landed);
+}
+
+/**
+ * The desk's own step back has landed. Whatever the window took while the bar was away is answered
+ * now, from what it shows, and owed an entry only if what was held back was.
+ *
+ * @param {number} index @param {string} pathname @param {DeskAnswers} desk
+ */
+function deskIsBack(index, pathname, desk) {
+  arrive(index, pathname);
+  const owed = owedAnEntry;
+  owedAnEntry = false;
+  desk.follow?.(owed);
+  if (exiting?.kept) exiting = null;
+}
+
+/** @param {number} index the entry the bar is on @param {string} pathname what it names */
+function arrive(index, pathname) {
+  addressIndex = index;
+  places.set(index, pathname);
 }
 
 /**
@@ -283,22 +425,37 @@ export function answerTraversal(event, desk, bar = deskHistory()) {
  *
  * @param {number} moved
  * @param {Bar} bar
+ * @param {number} [landing] the entry the step back lands on
  */
-function stepBack(moved, bar) {
-  steppingBackTo = addressIndex;
+function stepBack(moved, bar, landing = addressIndex) {
+  steppingBackTo = landing;
   bar.history.go?.(-moved);
 }
 
 /**
- * Take the traversal the person confirmed. Equal and opposite to `stepBack`, so the stack ends
- * one move on and no wider; it arrives back as an ordinary `popstate` and that renders.
+ * Take the traversal the person confirmed, to the entry they asked for, measured from wherever the
+ * desk is by then: its own way out of a record may have stepped back while the question stood.
+ * It arrives as an ordinary `popstate` and that renders; already there, it renders here.
  *
- * @param {number} moved
- * @param {Bar} bar
+ * @param {number} target @param {string} landed @param {DeskAnswers} desk @param {Bar} bar
  */
-function takeTheTraversal(moved, bar) {
-  bar.history.go?.(moved);
+function takeTheTraversal(target, landed, desk, bar) {
+  const delta = target - addressIndex;
+  if (delta === 0) {
+    desk.render(landed);
+    return;
+  }
+  taking = target;
+  bar.history.go?.(delta);
 }
+
+/**
+ * The entry a confirmed traversal is on its way to. It is not asked about again when it lands:
+ * the yes gave focus back to the form it let go of, which counts as starting on it again.
+ *
+ * @type {number | null}
+ */
+let taking = null;
 
 /**
  * Back and Forward are the desk's to answer: htmx would answer an `{ htmx: true }` entry by

@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, describe, expect, test } from "bun:test";
 
 import { seedFrom } from "#design/lib/random.js";
 import { recordInkSeed } from "../records/collection/ink-seed.ts";
@@ -13,6 +13,14 @@ const { drawAlso, mountAllInk, mountInk, unmountInk } = await import("#design/in
 // The fakes are process-wide while they are installed, and the shell's own browser
 // modules install themselves the moment a `document` exists. Hand them back.
 afterAll(() => dom.restore());
+
+// The ink system's observers live at module scope, so anything a test leaves drawn is still
+// watched in the next one. Each test gets an empty, unobserved document.
+afterEach(() => {
+  for (const el of dom.body.descendants()) unmountInk(el);
+  for (const child of [...dom.body.children]) child.remove();
+  dom.frame();
+});
 
 type Drawn = ReturnType<typeof dom.element>;
 
