@@ -3,7 +3,9 @@
 // so each desk imports its own instances with the globals they reach for standing, and puts every
 // global back when the test is over.
 
+import { capabilityUrl } from "#shell/core/routes.js";
 import { WINDOW_CONTENT_ID } from "#shell/core/shell-dom.js";
+import { replaceAddress } from "#shell/desk/desk-address.js";
 import { WINDOW_CONTENT_REGION } from "#shell/desk/window/desk-window.js";
 
 import { cssEscape } from "../../../server/dom-double/dom-events.test-support.ts";
@@ -15,6 +17,7 @@ import {
   parseHtml,
 } from "../../controls/double/choice-picker.test-support.ts";
 import type { RenderableCapability } from "../../fields/field-renderer.ts";
+import { tabHistory } from "../../shell/window/address/tab-history.test-support.ts";
 
 /** The notes capability every record-view suite opens a record of. */
 export const CAPABILITY: RenderableCapability = {
@@ -39,14 +42,14 @@ export const CAPABILITY: RenderableCapability = {
 };
 
 export const RECORD = {
-  id: "note-1",
+  id: "5f0c2a9e-41b8-4e0d-9a52-7d1f0b0e3d6c",
   created_at: "2026-08-27T00:00:00.000Z",
   text: "Buy oat milk",
   due_on: null,
   retired: "server only",
 };
 
-export const TEMPLATE_ID = "record-notes-note-1";
+export const TEMPLATE_ID = `record-notes-${RECORD.id}`;
 
 /** A constructor only its own tags are an instance of, for the module's `instanceof` guards. */
 const onlyTags = (tags: readonly string[]) => ({
@@ -94,6 +97,12 @@ export async function recordDesk(
   );
   const asked: Asked = { processed: [], requests: [] };
   const globals = globalThis as Record<string, unknown>;
+  /* The collection's own address, the bar a press in it pushes from. */
+  const tab = tabHistory(capabilityUrl(capabilityId), (event) =>
+    (globals.window as { onpopstate?: (event: unknown) => void }).onpopstate?.(event),
+  );
+  /* Stamped as the page stamps the entry it loads into (`startDeskHistory`). */
+  replaceAddress(capabilityUrl(capabilityId), tab);
   const stood: Record<string, unknown> = {
     document: doc,
     window: {
@@ -105,7 +114,8 @@ export async function recordDesk(
         },
         trigger: () => {},
       },
-      location: { reload: () => {} },
+      location: Object.assign(tab.location, { reload: () => {} }),
+      history: tab.history,
     },
     Element: El,
     HTMLElement: El,
@@ -129,6 +139,7 @@ export async function recordDesk(
   return {
     doc,
     asked,
+    tab,
     region: doc.getElementById(WINDOW_CONTENT_ID) as El,
     press: (on: El) => doc.fire("click", on),
     /** Everything the module queued: the focus after a swap, and a read's settling. */

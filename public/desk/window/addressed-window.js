@@ -302,8 +302,8 @@ export function recordInWindow(region) {
 
 /**
  * Where the bar belongs while capability `id` stands in the window: the record address it names,
- * spelled as the desk spells it, while that record's view is what the window holds, and otherwise
- * the collection's. Without this, every swap would take a record address back to the collection.
+ * spelled as the desk spells it, while that record's view is what the window holds or is being asked
+ * for (its collection's records can land first), and otherwise the collection's.
  *
  * @param {string} pathname the address in the bar
  * @param {string} id
@@ -312,6 +312,8 @@ export function recordInWindow(region) {
  */
 export function windowAddress(pathname, id, region) {
   const addressed = recordFromAddress(pathname);
-  const holding = addressed?.capability === id && addressed.record === recordInWindow(region);
-  return holding ? recordAddress(id, addressed.record) : capabilityAddress(id);
+  if (addressed?.capability !== id) return capabilityAddress(id);
+  const record = recordAddress(id, addressed.record);
+  const asking = filling?.pathname === record && filling.live();
+  return addressed.record === recordInWindow(region) || asking ? record : capabilityAddress(id);
 }

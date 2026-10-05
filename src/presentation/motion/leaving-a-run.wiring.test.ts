@@ -18,6 +18,7 @@ import {
   CAPABILITY_LOGO_SELECTOR,
   capabilityAddress,
   DESK_ADDRESS,
+  PUT_WINDOW_AWAY_EVENT,
   THINKING_WINDOW_TITLE,
 } from "#shell/desk/window/desk-window.js";
 import {
@@ -276,6 +277,28 @@ describe("the three navigations that ask", () => {
       expect.stringMatching(/^go \d+$/),
     ]);
     expect(desk.screen.desk.windows()).toEqual([desk.frame]);
+    // The desk's step back arrives, as the browser delivers it, leaving no step expected after.
+    const stepped = Number(desk.screen.desk.address.written.at(-1)?.split(" ")[1]);
+    popstate({ state: { ...DESK_HISTORY_STATE, index: stepped - 1 } });
+    expect(desk.screen.desk.windows()).toEqual([desk.frame]);
+  });
+
+  test("a window put away while Back is being asked about leaves the bar on the bare desk", async () => {
+    desk = await runningDesk();
+    const bar = (globalThis as unknown as { window: { history: { state: unknown } } }).window;
+    const popstate = (bar as unknown as { onpopstate: (event: unknown) => void }).onpopstate;
+    popstate({ state: { ...DESK_HISTORY_STATE, index: -1 } });
+    const stepped = Number(desk.screen.desk.address.written.at(-1)?.split(" ")[1]);
+    // The bar sits on the entry Back landed on until the desk's step back arrives, and the run
+    // gives its window back empty in that gap: nothing is written onto the wrong entry.
+    bar.history.state = { ...DESK_HISTORY_STATE, index: -1 };
+    const written = desk.screen.desk.address.written.length;
+    desk.screen.desk.doc.dispatchEvent({ type: PUT_WINDOW_AWAY_EVENT } as never);
+    expect(desk.screen.desk.windows()).toEqual([]);
+    expect(desk.screen.desk.address.written.slice(written)).toEqual([]);
+    bar.history.state = { ...DESK_HISTORY_STATE, index: stepped - 1 };
+    popstate({ state: bar.history.state });
+    expect(desk.screen.desk.address.written.slice(written)).toEqual([`replace ${DESK_ADDRESS}`]);
   });
 
   test("putting the window away ends its run the one way a run ends", async () => {

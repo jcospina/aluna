@@ -40,9 +40,9 @@ import {
   correctUnfilledAddress,
   DESK_ADDRESS,
   deskHistory,
+  followWindow,
   pushAddress,
   recordFromAddress,
-  replaceAddress,
   startDeskHistory,
 } from "../desk-address.js";
 import { answerDoorway, WINDOW_DOORWAY_SELECTOR, whenTheRequestFails } from "../desk-doorway.js";
@@ -716,8 +716,8 @@ export function capabilityInWindow(entry) {
 export { WINDOW_TOOK_CAPABILITY_EVENT };
 
 /**
- * Point the address at the capability standing in the window. Taking the window is a navigation
- * and is owed an entry; anything else is the address catching up, and is owed none (design D14).
+ * Point the address at the capability standing in the window, or at the record whose view it
+ * holds (`followWindow` decides whether that is owed an entry).
  *
  * @param {boolean} navigated
  */
@@ -725,11 +725,7 @@ function addressTheWindow(navigated) {
   const id = capabilityInWindow(mounted);
   const bar = deskHistory();
   if (id === null || bar === null) return;
-  const next = windowAddress(bar.location.pathname, id, mounted?.region);
-  /* A correction asks whether the bar is exactly right, where a push asks only whether it is
-   * somewhere else — which is what strips a query string or a trailing slash from outside. */
-  if (navigated) pushAddress(next, bar);
-  else if (bar.location.pathname !== next || bar.location.search !== "") replaceAddress(next, bar);
+  followWindow(windowAddress(bar.location.pathname, id, mounted?.region), navigated, bar);
 }
 
 /**
@@ -1018,10 +1014,10 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
     true,
   );
 
-  /* A window that holds nothing does not exist. The glue that empties the region says so here
-   * rather than reaching into the window itself. */
+  /* A window that holds nothing does not exist, and the bar follows it to the bare desk, whatever
+   * it named. The glue that empties the region says so here. */
   root.addEventListener(PUT_WINDOW_AWAY_EVENT, () => {
-    putAway();
+    if (putAway()) followWindow(DESK_ADDRESS, false, deskHistory());
   });
 
   /* A request that never came back leaves the frame it stood up holding nothing, with no swap to
@@ -1103,6 +1099,9 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
     /* A traversal that would take a live run or unsaved changes asks first, and the answer is
      * what moves. A desk with nothing to lose answers `false`, and the traversal is taken. */
     hold: (go) => askBeforeLeaving(mounted?.el ?? null, go),
+    /* Put away while the bar was away, the window is not there to say where the bar belongs. */
+    follow: (go) =>
+      mounted ? addressTheWindow(go) : followWindow(DESK_ADDRESS, go, deskHistory()),
   });
   renderAddress(root, pathname);
 }
