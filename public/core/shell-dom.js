@@ -100,6 +100,33 @@ export const FIRST_FIELD_SELECTOR =
 export const COLLECTION_COUNT_SIDECAR_PREFIX = "<!--aluna:count:";
 export const COLLECTION_COUNT_SIDECAR_SUFFIX = "-->";
 
+/**
+ * Said when the window's content changes hands (ARCH §6.1); `navigated` is true only where a
+ * capability took the window. Restated in `public/app.js`, a classic script that imports nothing.
+ */
+export const WINDOW_TOOK_CAPABILITY_EVENT = "aluna:window-took-capability";
+
+/**
+ * The field a record's forms post its id in. The router reads it by this name
+ * (`ALUNA_RECORD_ID_MARKER`), and the desk finds which record a view holds by it.
+ */
+export const RECORD_ID_FIELD = "__aluna_record_id";
+
+/**
+ * The form takes the window, so the first field is where the user now is. A record whose fields
+ * are all pickers or segmented rows once matched nothing and dropped focus on the floor.
+ *
+ * @param {{ querySelector(selector: string): unknown }} view
+ */
+export function focusFirstField(view) {
+  const control = /** @type {{ focus?: (options: object) => void } | null | undefined} */ (
+    view.querySelector(FIRST_FIELD_SELECTOR)
+  );
+  /* Visibly: a picker's control and a segmented row are buttons, and a button rings
+     on keyboard focus only — which this, arriving by a press or an address, is not. */
+  control?.focus?.({ focusVisible: true });
+}
+
 /** The attribute the shell finds the collection's count label by. */
 export const COLLECTION_COUNT_LABEL_ATTR = "data-capability-count-label";
 

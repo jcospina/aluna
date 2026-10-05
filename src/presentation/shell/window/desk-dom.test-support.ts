@@ -370,9 +370,37 @@ export class El implements EventNode {
     return { width: DESK.width, height: DESK.height, x: 0, y: 0, top: 0, left: 0 };
   }
 
+  /**
+   * A compound selector, or a descendant one read the way the browser reads it: the last step is
+   * this node, and each earlier step an ancestor further out. Whitespace inside `[…]` is a value's.
+   */
   private matchesOne(whole: string): boolean {
-    if (!this.pseudosHold(whole)) return false;
-    const selector = whole.replace(/^:scope\s*>?\s*/, "").replace(/:[a-z-]+(\([^)]*\))?/g, "");
+    const read = whole.replace(/^:scope\s*>?\s*/, "").trim();
+    // What it does not read it refuses rather than guesses at: a child or sibling step, an
+    // attribute operator, and any pseudo-class but `:disabled` and `:not([…])`/`:not(:disabled)`.
+    const outsideValues = read.replace(/\[[^\]]*\]/g, "[]");
+    const pseudos = outsideValues.replace(/:not\((\[\]|:disabled)\)|:disabled\b/g, "");
+    if (/[>+~]/.test(outsideValues) || /\[[\w-]+[~^$*|]=/.test(read) || /:/.test(pseudos)) {
+      throw new Error(`the desk double does not read this selector: ${whole}`);
+    }
+    const steps = read.split(/\s+(?![^[]*\])/);
+    if (!this.matchesStep(steps.pop() ?? "")) return false;
+    let at = this.parent;
+    for (const step of steps.reverse()) {
+      while (at && !at.matchesStep(step)) at = at.parent;
+      if (!at) return false;
+      at = at.parent;
+    }
+    return true;
+  }
+
+  private matchesStep(step: string): boolean {
+    if (!this.pseudosHold(step)) return false;
+    // `:not([attr])` and `:not([attr=value])`: the node holds none of what each one names.
+    const negated = [...step.matchAll(/:not\((\[[^\]]*\])\)/g)];
+    if (negated.some(([, attribute = ""]) => this.hasAttributes(attribute))) return false;
+    // Pseudo-classes out, values untouched: a `:` inside `[name="a:b"]` is the value's.
+    const selector = step.replace(/(\[[^\]]*\])|:[a-z-]+(\([^)]*\))?/g, (_, value = "") => value);
     const tag = /^[a-z][\w-]*/i.exec(selector)?.[0];
     if (tag !== undefined && tag.toLowerCase() !== this.tagName.toLowerCase()) return false;
     const id = /#([\w-]+)/.exec(selector)?.[1];
@@ -393,8 +421,10 @@ export class El implements EventNode {
   }
 
   private hasAttributes(selector: string): boolean {
-    const asked = [...selector.matchAll(/\[([\w-]+)(?:="([^"]*)")?\]/g)];
-    return asked.every(([, name = "", value]) => {
+    // A value quoted or not, as the browser reads `[type=hidden]` and `[type="hidden"]` alike.
+    const asked = [...selector.matchAll(/\[([\w-]+)(?:=(?:"([^"]*)"|([^\]"]*)))?\]/g)];
+    return asked.every(([, name = "", quoted, bare]) => {
+      const value = quoted ?? bare;
       const held = this.attrs.get(name);
       return held !== undefined && (value === undefined || held === value);
     });

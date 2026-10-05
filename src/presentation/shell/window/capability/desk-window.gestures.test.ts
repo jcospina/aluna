@@ -222,8 +222,8 @@ describe("the address names the capability, and the desk says what exists", () =
     expect(capabilityIdFromAddress("/capability/my%20notes")).toBe("my notes");
     expect(capabilityIdFromAddress("/")).toBeNull();
     expect(capabilityIdFromAddress("/capability/")).toBeNull();
-    // Nothing below the id is an address: a record, a search and a draft die with the
-    // tab, so there is never a second segment to parse.
+    // Nothing below the id names a collection: a search and a draft die with the tab, and a
+    // record's address (ADR-0010) is read by `recordFromAddress`, never as a capability.
     expect(capabilityIdFromAddress("/capability/notes/read")).toBeNull();
     // A malformed escape names no capability rather than throwing on page load.
     expect(capabilityIdFromAddress("/capability/%E0%A4%A")).toBeNull();

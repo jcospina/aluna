@@ -55,7 +55,11 @@ import {
   createReadGateCoordinator,
   type ReadGateCoordinator,
 } from "../runtime/concurrency/read-gates.ts";
-import { type CapabilityRouterDeps, registerCapabilityRoutes } from "../runtime/router/index.ts";
+import {
+  CAPABILITY_PAGE_ROUTES,
+  type CapabilityRouterDeps,
+  registerCapabilityRoutes,
+} from "../runtime/router/index.ts";
 import { createFileCleanupWorker, type FileCleanupWorker } from "./files/cleanup/file-cleanup.ts";
 import { registerFileRoutes } from "./files/index.ts";
 import { createDeskLoadSweep, isPageNavigation } from "./files/sweep/desk-load-sweep.ts";
@@ -63,6 +67,7 @@ import {
   BLANK_PROMPT_NOTICE,
   guardWritingRoute,
   hasMeaningfulPromptContent,
+  isInPageRequest,
   isSendersDoing,
   LONG_PROMPT_NOTICE,
   MAX_PROMPT_LENGTH,
@@ -338,8 +343,9 @@ function registerShellRoute(app: Hono, ctx: ResolvedAppDeps, recover: DeskLoadRe
 }
 
 /**
- * Direct navigation to `/capability/:id` draws the whole desk, so it owes the same reconciliation
- * `/` does. Middleware, not a router hook: the view handler holds read tokens and would deadlock.
+ * Direct navigation to a capability's collection or one of its records draws the whole desk, so
+ * it owes the reconciliation `/` does. Middleware, not a router hook: the view handler holds read
+ * tokens and would deadlock.
  */
 function registerCapabilityPageRecovery(app: Hono, recoverOnDeskLoad: DeskLoadRecovery): void {
   const recover = async (c: Context, next: () => Promise<void>) => {
@@ -347,10 +353,8 @@ function registerCapabilityPageRecovery(app: Hono, recoverOnDeskLoad: DeskLoadRe
     if (c.req.method === "GET" && !isInPageRequest(c)) await recoverOnDeskLoad(c);
     await next();
   };
-  // Both spellings of the one address (`CAPABILITY_VIEW_TRAILING_SLASH_ROUTE`): a desk drawn
-  // for a bookmark with a trailing slash owes the same reconciliation as one without it.
-  app.get("/capability/:id", recover);
-  app.get("/capability/:id/", recover);
+  // Every capability address the router draws a desk for, a bookmark's trailing slash included.
+  for (const route of CAPABILITY_PAGE_ROUTES) app.get(route, recover);
 }
 
 /** A browser fetching a desk address ahead of a navigation that may never come (`Sec-Purpose`). */
@@ -364,11 +368,6 @@ function isSpeculative(c: Context): boolean {
  */
 function declineSpeculation(c: Context): Response {
   return c.body(null, 503, { "cache-control": "no-store" });
-}
-
-/** An htmx request swaps part of a page that stays open, so it is never a desk load. */
-function isInPageRequest(c: Context): boolean {
-  return c.req.header("HX-Request") === "true";
 }
 
 type DeskLoadRecovery = (c: Context) => Promise<void>;

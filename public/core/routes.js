@@ -18,6 +18,18 @@ export function capabilityUrl(/** @type {string} */ capabilityId) {
   return `${CAPABILITY_PATH_PREFIX}/${encodeURIComponent(capabilityId)}`;
 }
 
+/**
+ * A record id as its address spells it: the hyphenated UUID `randomUUID()` writes, in either case,
+ * since the address compares it in lower case (ADR-0010). The server's route and the desk share it.
+ */
+export const RECORD_ID_PATTERN =
+  "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+
+/** One record open in its capability's record view: the record address (ADR-0010). */
+export function recordAddress(/** @type {string} */ capabilityId, /** @type {string} */ recordId) {
+  return `${capabilityUrl(capabilityId)}/${encodeURIComponent(recordId)}`;
+}
+
 /** One Action on a capability, the address the router dispatches. */
 export function capabilityActionUrl(
   /** @type {string} */ capabilityId,

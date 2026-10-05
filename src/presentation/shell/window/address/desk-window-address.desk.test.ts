@@ -177,13 +177,19 @@ describe("an address the page loads at", () => {
     // Held open: a read that has not answered yet is a window still waiting to be filled.
     const desk = await deskAt(`${capabilityAddress("notes")}/`, () => new Promise(() => {}));
     const region = desk.region();
-    expect(desk.htmx.requests).toEqual([
-      {
-        verb: "GET",
-        path: capabilityAddress("notes"),
-        context: { source: desk.logo("Notes"), target: region, swap: "innerHTML" },
-      },
-    ]);
+    const [asked, ...more] = desk.htmx.requests;
+    expect(more).toEqual([]);
+    expect(asked).toMatchObject({
+      verb: "GET",
+      path: capabilityAddress("notes"),
+      context: { target: region, swap: "innerHTML" },
+    });
+    // From an element of the address's own, outside the window: not the logo, since htmx queues a
+    // second request from one element and a press listens to the logo's own endings.
+    const source = asked?.context.source as El;
+    expect(source).not.toBe(desk.logo("Notes"));
+    expect(source.isConnected).toBe(true);
+    expect(desk.desk.windows()[0]?.contains(source)).toBe(false);
     expect(desk.written()).toEqual([]);
   });
 

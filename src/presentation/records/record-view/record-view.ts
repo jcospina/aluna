@@ -105,6 +105,11 @@ export function recordTitleAttribute(title: string): string {
   return ` ${RECORD_TITLE_ATTRIBUTE}="${escapeHtml(title)}"`;
 }
 
+/** Whether a capability has a record view at all: one that cannot update has none. */
+export function hasRecordView(capability: Pick<RenderableCapability, "actions">): boolean {
+  return capability.actions.includes("update");
+}
+
 /**
  * Render one record's view: the back control, then the record's form in edit mode, with the
  * deletion confirmation beside it. A capability that cannot update renders nothing at all.
@@ -114,7 +119,7 @@ export function renderRecordView(
   record: Readonly<Record<string, unknown>>,
   templateId: string,
 ): string {
-  if (!capability.actions.includes("update")) return "";
+  if (!hasRecordView(capability)) return "";
   const itemTargetId = escapeHtml(itemElementIdForTemplate(templateId));
   return (
     `<div class="capability-record-view" ${RECORD_VIEW_ATTR}` +
