@@ -9,8 +9,9 @@ import { ALLOWED_CLASSES } from "../safety/enforcer/vocabulary.ts";
 
 const ROOT = resolve(import.meta.dir, "../../..");
 const KIT = "design/styles/layout-kit.css";
-const CONTROLS = "design/styles/components/controls/controls.css";
-const FORM_CONTROLS = "design/styles/components/controls/form-controls.css";
+const CONTROLS_DIR = "design/styles/components/controls";
+const CONTROLS = `${CONTROLS_DIR}/controls.css`;
+const FORM_CONTROLS = `${CONTROLS_DIR}/form-controls.css`;
 
 type Rule = { selector: string; properties: string[] };
 
@@ -34,11 +35,29 @@ function selectorsOf(path: string): string[] {
   return rules(read(path)).map((rule) => rule.selector);
 }
 
-/** Every property the file declares on a selector, across all of that selector's rules. */
-function propertiesOn(path: string, selector: string): string[] {
-  const matching = rules(read(path)).filter((rule) => rule.selector === selector);
-  if (matching.length === 0) throw new Error(`${path} declares no rule for ${selector}`);
-  return matching.flatMap((rule) => rule.properties);
+/** A selector list's parts, split on the commas outside any parentheses or brackets. */
+function selectorParts(selector: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = "";
+  for (const character of selector) {
+    if (character === "(" || character === "[") depth += 1;
+    if (character === ")" || character === "]") depth -= 1;
+    if (character === "," && depth === 0) {
+      parts.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += character;
+  }
+  return [...parts, current.trim()];
+}
+
+/** Every property the file declares on a selector part, in any rule whose list names it. */
+function propertiesOnPart(path: string, part: string): string[] {
+  return rules(read(path))
+    .filter((rule) => selectorParts(rule.selector).includes(part))
+    .flatMap((rule) => rule.properties);
 }
 
 /** The class tokens a stylesheet's selectors name, `.btn--danger` included. */
@@ -125,36 +144,68 @@ describe("the layout kit ships under design/styles", () => {
   });
 });
 
-describe("the two control stylesheets", () => {
-  test("stay two files, each under the linter's 500-line ceiling", () => {
-    expect(nonBlankLines(CONTROLS)).toBeLessThanOrEqual(500);
-    expect(nonBlankLines(FORM_CONTROLS)).toBeLessThanOrEqual(500);
+describe("the control stylesheets", () => {
+  // The rules every field shares, and one sheet per field kind after them: a kind that
+  // outgrows its sheet splits again rather than pushing the shared one past the ceiling.
+  const sheets = stylesheetsUnder(CONTROLS_DIR);
+
+  test("stay under the linter's 500-line ceiling, every one", () => {
+    expect(sheets).toContain(FORM_CONTROLS);
+    for (const path of sheets) expect(nonBlankLines(path), path).toBeLessThanOrEqual(500);
   });
 
-  test("share one selector, and declare nothing twice on it", () => {
-    const later = selectorsOf(FORM_CONTROLS);
-    const shared = [...new Set(selectorsOf(CONTROLS).filter((one) => later.includes(one)))];
-    // `.btn` is split between the two on purpose: type, colour and line here, fill and
-    // metrics there. Every other overlap was a rule this file no longer reached.
-    expect(shared).toEqual([".btn"]);
+  test("load the base, then the shared rules, then each kind after what it overrides", () => {
+    // These override at equal specificity, so only the manifest's order decides them: `--area`
+    // and `--select` restate the shell, Record tightens a button's gap, and the linked field
+    // resizes the listbox's button and pads its panel differently.
+    const manifest = read("design/styles/index.css");
+    const at = (name: string) => manifest.indexOf(`"./components/controls/${name}"`);
+    for (const path of sheets) expect(at(path.slice(CONTROLS_DIR.length + 1)), path).not.toBe(-1);
+    for (const path of sheets.filter((one) => one !== CONTROLS && one !== FORM_CONTROLS)) {
+      expect(at(path.slice(CONTROLS_DIR.length + 1)), path).toBeGreaterThan(
+        at("form-controls.css"),
+      );
+    }
+    expect(at("form-controls.css")).toBeGreaterThan(at("controls.css"));
+    expect(at("linked-field.css")).toBeGreaterThan(at("choice-field.css"));
+  });
 
-    const restated = propertiesOn(CONTROLS, ".btn").filter((property) =>
-      propertiesOn(FORM_CONTROLS, ".btn").includes(property),
-    );
-    expect(restated, "controls.css re-declares a `.btn` property form-controls.css sets").toEqual(
-      [],
-    );
+  test("share three selectors, and declare nothing twice on any of them", () => {
+    // Read part by part, so a list naming one sheet's selector cannot hide in another sheet.
+    // `.btn` is split on purpose: type, colour and line in controls.css, fill and metrics in
+    // form-controls.css. The bare-control rule there names every bare element once, and the
+    // long-text and choice sheets add what only their own element needs.
+    const owners = new Map<string, Set<string>>();
+    for (const path of sheets) {
+      for (const part of selectorsOf(path).flatMap(selectorParts)) {
+        owners.set(part, (owners.get(part) ?? new Set()).add(path));
+      }
+    }
+    const shared = [...owners].filter(([, paths]) => paths.size > 1);
+    expect(shared.map(([part, paths]) => [part, [...paths].sort()]).sort()).toEqual([
+      [".btn", [CONTROLS, FORM_CONTROLS]],
+      [".field__select", [`${CONTROLS_DIR}/choice-field.css`, FORM_CONTROLS]],
+      [".field__textarea", [FORM_CONTROLS, `${CONTROLS_DIR}/long-text-field.css`]],
+    ]);
+
+    for (const [part, paths] of shared) {
+      const [first, second] = [...paths].map((path) => propertiesOnPart(path, part));
+      const restated = (first ?? []).filter((property) => (second ?? []).includes(property));
+      expect(restated, `${part} is declared twice across ${[...paths].join(" and ")}`).toEqual([]);
+    }
   });
 
   test("move a button from exactly one rule, which excludes disabled and held itself", () => {
     // Deleting `.btn:active` from controls.css left `.btn:disabled:active` with nothing to
     // suppress. `translate`, because travel is the axis Reduce Motion turns off. A
     // held save is `aria-disabled` rather than disabled, and it must not press in either.
-    const pressing = [...rules(read(CONTROLS)), ...rules(read(FORM_CONTROLS))].filter(
-      (rule) =>
-        rule.selector.startsWith(".btn") &&
-        (rule.properties.includes("translate") || rule.properties.includes("transform")),
-    );
+    const pressing = sheets
+      .flatMap((path) => rules(read(path)))
+      .filter(
+        (rule) =>
+          rule.selector.startsWith(".btn") &&
+          (rule.properties.includes("translate") || rule.properties.includes("transform")),
+      );
     expect(pressing.map((rule) => rule.selector)).toEqual([
       '.btn:active:not(:disabled, [aria-disabled="true"])',
     ]);

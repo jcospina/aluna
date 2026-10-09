@@ -8,6 +8,15 @@ Status: accepted
 > handlers through a capability-scoped presentation adapter. The scratch-adapter
 > contract remains; its non-sandbox containment scope is clarified below.
 
+**Amended 2026-10-08 (ADR-0011, pending 8.1/01's sign-off).** The router's closed set
+of reserved keys grows by one. Beside `__aluna_present`, `__aluna_record_id` and
+`__aluna_drawn`, a linked single-line text field posts `__aluna_link`, carrying the
+field and the picked record's id. The router validates and strips it before generated
+code runs, checks that the id names a live record of the relation's target, and
+checks again inside the save's transaction, as it does a file reference. It never
+reaches a Handler, and a forged or stale id refuses the save. Generated code receives
+no link projection: a linked field reaches a Handler as the text it always held.
+
 **Amended 2026-07-10 for Module 4.** The original M2 `insert` + scoped `select`
 tool was a deliberately small first slice, not the end-state read contract. M4
 splits it into a capability-bound mutation interface and a free SQL query

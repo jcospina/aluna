@@ -6,8 +6,8 @@
  * separator. `repeatable` is a column of rows, each its own shell plus the three
  * actions that reorder and remove it, and that is what this file draws.
  *
- * It lives beside `form-controls.css` rather than inside it because the subject is
- * different: that file draws one control, and this one arranges several into a field.
+ * It is a sheet of its own, as every field kind is. With `file-field.css` it differs from
+ * the single-control sheets: they draw one control, and these two arrange several into a field.
  * Every boundary here already belongs to something the ink system draws — a row's
  * shell is a `.field__control` and every action is a `.btn` — so nothing in this file
  * declares an edge of its own.

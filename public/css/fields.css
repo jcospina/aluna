@@ -100,8 +100,8 @@
   flex-direction: column;
   gap: var(--space-1);
 }
-/* The label is set in caps, the way `design/styles/components/controls/form-controls.css`
-   sets it: quiet, small and above the well rather than competing with the value
+/* The label is set in caps, as every field on `design/controls.html` takes `.caps`:
+   quiet, small and above the well rather than competing with the value
    inside it.
 
    It *takes* `.caps` rather than restating it. Small caps is a role the design system
@@ -122,7 +122,7 @@
  * and `.field__select` carry the caret and the text and nothing else. A drawn boundary is
  * two SVG layers sandwiching real content, and `<input>` is a void element, so the split
  * is what makes a drawn field possible at all — and it is what gives the design's
- * `:focus-within`, `:has(:disabled)` and invalid rules something to attach to.
+ * `:has(:focus)`, `:has(:disabled)` and invalid rules something to attach to.
  *
  * The product used to put `.field__control` straight on the `<input>` and restate the row
  * here. It no longer restates anything: every one of those rules already ships from the
@@ -204,9 +204,9 @@
 
 /*
  * The drawn picker's own parts — panel, scroller, rows, group headings, notes — are the
- * design system's and ship from `design/styles/components/controls/form-controls.css`, which this
- * page already loads. So is the radio group's `.choice` vocabulary and the segmented row.
- * Two things are left here.
+ * design system's and ship from `design/styles/components/controls/choice-field.css`, which this
+ * page already loads. So does the radio group's `.choice` vocabulary; the segmented row is
+ * `controls.css`'s. Two things are left here.
  *
  * The first is where the panel hangs. On the design page a listbox stands in open air, so
  * it is positioned against the field; in the product it stands inside the form's own

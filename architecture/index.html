@@ -1412,6 +1412,19 @@
           </p>
 
           <details class="aside">
+            <summary>Coming next: a field linked to another capability</summary>
+            <p class="sm">
+              Today a book holds its author as typed text, so the same author typed into two books
+              is two pieces of text, and nothing says they name one person. Linked fields are the
+              next thing Aluna learns. A book's author will point at one record in a capability of
+              authors. The name will stay in Books' own table, and which record it points at will be
+              kept in a platform table beside it, the link table, so there will still be no foreign
+              key. Books' handlers will read and write the author as the text it always was, and
+              linking a field will write no code and make no version.
+            </p>
+          </details>
+
+          <details class="aside">
             <summary>What a classification carries</summary>
             <div class="fields">
               <div class="fields__row">

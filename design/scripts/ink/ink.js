@@ -61,6 +61,7 @@ export const INK_SELECTOR = [
   /* Things that report state */
   ".pill",
   ".stage__tag",
+  ".link-mark",
   /* Things that contain other things */
   ".record",
   ".note",

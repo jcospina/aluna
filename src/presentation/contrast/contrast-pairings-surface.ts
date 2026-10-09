@@ -36,7 +36,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "design/styles/components/desk.css § .logo-tile--dev [color]",
       "design/styles/components/desk.css § .prompt-bar__input [color]",
       "design/styles/components/controls/form-controls.css § .btn--outline [color]",
-      "design/styles/components/controls/form-controls.css § .field__select option [color]",
+      "design/styles/components/controls/choice-field.css § .field__select option [color]",
       "design/styles/components/controls/list-field.css § .field-list__grip:hover:not(:disabled) [color]",
       "design/styles/components/window.css § .window__leaving-panel p [color]",
       "public/css/collection.css § .capability-search__input [color]",
@@ -57,6 +57,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "design/styles/components/controls/controls.css § .search__input [color]",
       "design/styles/components/controls/form-controls.css § .field__control [color]",
       "design/styles/components/controls/form-controls.css § .field__input, .field__textarea, .field__select [color]",
+      "design/styles/components/controls/linked-field.css § .linked-field.is-unmatched .listbox__value.is-placeholder [color]",
     ],
   },
   {
@@ -71,7 +72,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     ],
   },
   {
-    what: "ink on the tightest title-bar pane, and a link on a clay note",
+    what: "ink on the tightest title-bar pane, a link on a clay note, and the connecting note",
     foreground: ink,
     background: { token: "pane-2" },
     threshold: "text",
@@ -87,6 +88,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     sites: [
       "design/styles/base.css § a [color]",
       "design/styles/components/window.css § .window__title [color]",
+      "design/styles/components/controls/linked-field.css § .link-control__note [color]",
     ],
   },
   {
@@ -133,10 +135,11 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     alsoCovers: [surface, { token: "ground-deep" }],
     sites: [
       "design/styles/components/controls/controls.css § .segmented button [color]",
-      "design/styles/components/controls/form-controls.css § .listbox__option [color]",
+      "design/styles/components/controls/choice-field.css § .listbox__option [color]",
       "design/styles/components/controls/controls.css § .pill--wait [color]",
       "design/styles/components/controls/form-controls.css § .btn--warm [color]",
-      'design/styles/components/controls/form-controls.css § .listbox__option[aria-selected="true"] .listbox__note [color]',
+      "design/styles/components/controls/linked-field.css § .link-mark [color]",
+      'design/styles/components/controls/choice-field.css § .listbox__option[aria-selected="true"] .listbox__note [color]',
       "design/styles/components/logo-contract.css § .prompt-block mark [color]",
       "public/css/components.css § .btn--warm [color]",
     ],
@@ -244,7 +247,10 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "above it — which is what lets this row state a number the whole line meets, where " +
       "the row above has to caveat one. Grass is the busiest ground on the desk and this " +
       "is the only type read straight off it at sentence length.",
-    sites: ["public/css/prompt.css § .prompt__notice [color]"],
+    sites: [
+      "design/styles/components/desk.css § .prompt-bar__notice [color]",
+      "public/css/prompt.css § .prompt__notice [color]",
+    ],
   },
   {
     what: "the developer tile's name",
@@ -272,7 +278,10 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "design/styles/components/desk.css § .logo-rename__error [color]",
       "design/styles/doc.css § .numbers small [color]",
       "design/styles/doc.css § .swatch__meta code [color]",
-      "design/styles/components/controls/form-controls.css § .choice__hint [color]",
+      "design/styles/components/controls/choice-field.css § .choice__hint [color]",
+      "design/styles/components/controls/choice-field.css § .listbox__empty [color]",
+      "design/styles/components/controls/linked-field.css § .link-control__line [color]",
+      "design/styles/components/window.css § .window__leaving-panel .window__leaving-detail [color]",
       "design/styles/components/controls/form-controls.css § .field__control:has([readonly]) .field__input [color]",
       "design/styles/layout-kit.css § .text-muted [color]",
       "public/css/deletion.css § .capability-deletion__body [color]",
@@ -331,7 +340,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     note:
       "The active row fills rather than outlining, so the note on it is read against " +
       "the deepest band in the palette. This was 4.42 before `--ink-2` was set by the audit.",
-    sites: ["design/styles/components/controls/form-controls.css § .listbox__note [color]"],
+    sites: ["design/styles/components/controls/choice-field.css § .listbox__note [color]"],
   },
   {
     what: "prose in a tinted note",
@@ -389,7 +398,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     sites: [
       "design/styles/components/controls/controls.css § .search__input::placeholder [color]",
       "design/styles/components/controls/form-controls.css § .field__input::placeholder, .field__textarea::placeholder [color]",
-      "design/styles/components/controls/form-controls.css § .listbox__value.is-placeholder [color]",
+      "design/styles/components/controls/choice-field.css § .listbox__value.is-placeholder [color]",
     ],
   },
   {

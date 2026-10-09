@@ -73,6 +73,15 @@ reading anything, or, through a view, as *cannot modify it because it is a view*
 `main.`-qualified names now find nothing, and the worker is handed the view statements at
 birth, written on the main thread — names, never a token.
 
+*Amended 2026-10-08 — question views gain the link joins (ADR-0011, pending 8.1/01's
+sign-off).* The link table is the first platform table a question reads. "How many
+copies of Le Guin's books do I have?" follows Inventory to Books to Authors through
+it, instead of guessing a join on plain columns. The table bound admits the link
+table by its real name on the platform's connection, and the worker shadows it with a
+view of the same name and columns that holds only active relations' rows, while every
+other platform table stays an empty view. A link join, like every question statement,
+declares no read dependency.
+
 **Ownership stays on the main thread.** The complete per-incarnation read-token set is
 acquired atomically against one catalog snapshot or not at all, and released in
 `finally`, exactly as ADR-0006 and ARCH §8 require. The worker is only where SQL
@@ -123,15 +132,16 @@ person actually asks is answered by a sentence, with bullets where a sentence wo
 list. A one-cell table headed `count(*)` is an engineering artifact, and ARCH §9.7
 forbids the product from being one.
 
-*Amended 2026-10-03 — an answer links the records it names (ADR-0010).* The answer is
-still prose, and it may now carry links. The model returns `{ answer, records }`, where
-each `{ says, id }` nominates the words that name a record and the id it says it read.
-The platform links a nomination only after four checks, the first being that a step
-returned that id. It removes from the spoken text every record id the steps returned,
-and it builds each anchor itself, so no anchor reaches the screen unchecked and no
-markup the model wrote reaches it at all. Only an answered question carries links: the
-platform's own sentences for **nothing matched**, **nowhere for it**, every statement
-failing and a spent step budget link nothing.
+*Amended 2026-10-03 — an answer carries answer links to the records it names
+(ADR-0010).* The answer is still prose, and it may now carry answer links. The model
+returns `{ answer, records }`, where each `{ says, id }` nominates the words that
+name a record and the id it says it read. The platform links a nomination only after
+four checks, the first being that a step returned that id. It removes from the spoken
+text every record id the steps returned, and it builds each anchor itself, so no
+anchor reaches the screen unchecked and no markup the model wrote reaches it at all.
+Only an answered question carries links: the platform's own sentences for **nothing
+matched**, **nowhere for it**, every statement failing and a spent step budget link
+nothing.
 
 **Amended 2026-09-11 — rule 1 is withdrawn by the owner.** The restatement shipped, was read
 on a real desk, and was rejected: *"THE USER KNOWS WHICH CAPABILITIES IT HAS THERE IS NO NEED
@@ -214,7 +224,7 @@ two. An answer icon would have muddied that for something there is no reason to 
 to. Future persistence — a history of answers, a reopen, recent questions — is out of
 scope and no groundwork for it is laid.
 
-*Amended 2026-10-03 (ADR-0010):* a link in an answer leads to a record's address, never
+*Amended 2026-10-03 (ADR-0010):* an answer link leads to a record's address, never
 back to the answer, and `intent_resolution_metrics` records no record id.
 
 **A refusal opens no window.** The classification says which it is, so the window opens

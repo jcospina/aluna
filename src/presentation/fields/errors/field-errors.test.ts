@@ -13,7 +13,7 @@ import { elementsOf, moduleSources } from "../../../server/http/served-page.test
 import { installDomGlobals } from "../../controls/double/choice-picker.fixture.test-support.ts";
 import { Doc, El, parseHtml } from "../../controls/double/choice-picker.test-support.ts";
 import { startedOn } from "../../controls/double/started-module.test-support.ts";
-import { readSource } from "../../safety/source.test-support.ts";
+import { readSource, under } from "../../safety/source.test-support.ts";
 import { REQUIRED_FIELD_SENTENCE } from "../chrome/field-chrome.ts";
 import { probeField } from "../field-renderer.test-support.ts";
 import { renderCreateForm } from "../field-renderer.ts";
@@ -350,7 +350,9 @@ describe("what the field-error module leaves to others", () => {
     one.landRefusal(requiredRefusal(["value"]));
     const written = classes().filter((name) => name !== "" && !before.includes(name));
     expect(written.length).toBeGreaterThan(0);
-    const design = readSource("design/styles/components/controls/form-controls.css");
+    const design = under("design/styles/components/controls", "**/*.css")
+      .map(readSource)
+      .join("\n");
     for (const name of written) expect(design).toContain(`.${name}`);
   });
 });

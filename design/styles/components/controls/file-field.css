@@ -8,8 +8,8 @@
  * two share is the rest — the pick, the drop, the upload's progress, Stop, Replace and Clear,
  * and a refusal said in the guidance's place. `scripts/files/file-field.js` writes each state.
  *
- * It lives beside `form-controls.css` for the reason `list-field.css` does: that file draws a
- * control, and this one arranges several into a field — one file, a list of them, or the
+ * With `list-field.css` it differs from the single-control sheets: they draw one control,
+ * and these two arrange several into a field — one file, a list of them, or the
  * full player the record's render view holds. Every boundary here belongs to something the
  * ink draws — a well is a `.field__control`, an action a `.btn`, the seek square and a refused
  * player's stand-in ask by name — and the lines that grow, the upload's progress and the seek

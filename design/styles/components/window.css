@@ -195,6 +195,17 @@
   color: var(--ink);
 }
 
+/* A question that also says what stays: the question leads, and a quieter line answers. */
+.window__leaving-lead {
+  font-weight: 600;
+}
+
+.window__leaving-panel .window__leaving-detail {
+  margin-top: calc(var(--space-2) * -1);
+  font-size: var(--type-base);
+  color: var(--ink-2);
+}
+
 .window__leaving-actions {
   display: flex;
   flex-wrap: wrap;

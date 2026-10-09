@@ -27,7 +27,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "3.01 — C12's pairing, surviving where the threshold was low enough to let it. " +
       "Ink is what every label on leaf takes, and it is 4.54.",
     sites: [
-      "design/styles/components/controls/form-controls.css § .choice__input:checked + .choice__mark [color]",
+      "design/styles/components/controls/choice-field.css § .choice__input:checked + .choice__mark [color]",
     ],
   },
   {
@@ -136,7 +136,7 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "design/styles/base.css § :focus-visible [outline]",
       "design/styles/components/controls/controls.css § .search:has(.search__input:focus) [outline]",
       "design/styles/components/controls/controls.css § .segmented button:focus-visible [outline]",
-      "design/styles/components/controls/form-controls.css § .choice__input:focus-visible + .choice__mark [outline]",
+      "design/styles/components/controls/choice-field.css § .choice__input:focus-visible + .choice__mark [outline]",
       'design/styles/components/controls/form-controls.css § .field__control:has(:is(input:not([type="checkbox"], [type="radio"]), textarea):focus), .field__control:focus-visible, .field__control:has(select:focus-visible) [outline]',
       "design/styles/components/controls/file-field.css § .file-player__seek:has(.file-player__range:focus-visible) [outline]",
       "public/css/collection.css § .capability-search__clear:focus-visible [outline]",
@@ -184,8 +184,9 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "so is the busy prompt rail, whose field is disabled while a build runs.",
     sites: [
       "design/styles/components/controls/form-controls.css § .field__control:has(:disabled), .btn:disabled, .choice:has(:disabled) [opacity]",
-      'design/styles/components/controls/form-controls.css § .listbox__option[aria-disabled="true"] [color]',
+      'design/styles/components/controls/choice-field.css § .listbox__option[aria-disabled="true"] [color]',
       "design/styles/components/controls/list-field.css § .field-list__grip:disabled [opacity]",
+      "design/styles/components/controls/linked-field.css § .link-control__button:disabled, .linked-field__unlink:disabled [opacity]",
       "public/css/deletion.css § .capability-deletion__actions form.htmx-request .btn--danger:disabled [background]",
       "public/css/deletion.css § .capability-deletion__actions form.htmx-request .btn--danger:disabled [color]",
       "public/css/deletion.css § .capability-deletion__actions:has(form.htmx-request) .capability-deletion__keep [opacity]",
@@ -204,8 +205,9 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     note: "Control glyphs the stylesheet draws itself.",
     sites: [
       "design/styles/components/controls/controls.css § .field__chevron [color]",
-      "design/styles/components/controls/form-controls.css § .choice__mark [color]",
-      "design/styles/components/controls/form-controls.css § .listbox__chevron [color]",
+      "design/styles/components/controls/choice-field.css § .choice__mark [color]",
+      "design/styles/components/controls/choice-field.css § .listbox__chevron [color]",
+      "design/styles/components/controls/linked-field.css § .link-control__button:hover:not(:disabled), .linked-field__unlink:hover:not(:disabled) [color]",
       "design/styles/components/controls/file-field.css § .file__line [border-top-color]",
     ],
   },
@@ -256,29 +258,43 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     sites: ["design/styles/components/controls/file-field.css § .file__toggle [color]"],
   },
   {
-    what: "the focus ring on a sound's play toggle",
-    foreground: ring,
+    what: "Connect and Unlink at rest",
+    foreground: ink3,
     background: surface2,
     threshold: "non-text",
-    note:
-      "It hugs the toggle at no offset, so it stays inside the well and is read against " +
-      "the well's own fill rather than the window's.",
+    note: "A glyph button in a field's own line, quieter than the chevron until the pointer is on it.",
     sites: [
-      "design/styles/components/controls/file-field.css § .file__toggle:focus-visible [outline]",
+      "design/styles/components/controls/linked-field.css § .link-control__button, .linked-field__unlink [color]",
     ],
   },
   {
-    what: "a file field's glyph over the upload's band, or in an alert well",
+    what: "the focus ring on a glyph button inside a well",
+    foreground: ring,
+    background: { token: "well-alert" },
+    threshold: "non-text",
+    note:
+      "A sound's play toggle, Connect and Unlink. It hugs the glyph at no offset, so it stays " +
+      "inside the well and is read against the well's own fill rather than the window's, " +
+      "the redder one a refused field takes being the tighter.",
+    alsoCovers: [surface2],
+    sites: [
+      "design/styles/components/controls/file-field.css § .file__toggle:focus-visible [outline]",
+      "design/styles/components/controls/linked-field.css § .link-control__button:focus-visible, .linked-field__unlink:focus-visible [outline]",
+    ],
+  },
+  {
+    what: "a glyph over the upload's band, or in an alert well",
     foreground: { token: "ink-2" },
     background: { token: "ground-deep" },
     threshold: "non-text",
     note:
       "`--ink-3` is kept to the window's two fills, so the glyph steps up where the well " +
-      "fills behind it as the bytes arrive, and where a refusal turns an empty well. The " +
-      "band is the tighter of the two.",
+      "fills behind it as the bytes arrive, and where a refusal turns an empty well — a " +
+      "file field's glyph, and Connect and Unlink in a refused field. The band is the tighter.",
     alsoCovers: [{ token: "well-alert" }],
     sites: [
       'design/styles/components/controls/file-field.css § .file__well[role="progressbar"] .file__glyph, .file.is-invalid .file__glyph [color]',
+      "design/styles/components/controls/linked-field.css § .field.is-invalid :is(.link-control__button, .linked-field__unlink) [color]",
     ],
   },
   {

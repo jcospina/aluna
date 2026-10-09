@@ -1,0 +1,21 @@
+/*
+ * The long-text field — a textarea in the shell, for a `string` field the form's
+ * `ui_intent.form.long_text` names.
+ *
+ * A shell holding a textarea is a block, not a row, and pads on all four sides. There is
+ * no resize grip: the field grows with what is typed, then scrolls, and
+ * `scripts/pages/controls-main.js` does the growing. A count past its limit is the
+ * guidance's `.is-over`, which every field shares.
+ */
+
+.field__control--area {
+  align-items: stretch;
+  padding: 0.4375rem var(--control-pad-x);
+}
+
+.field__textarea {
+  display: block;
+  width: 100%;
+  resize: none;
+  overflow-y: hidden;
+}

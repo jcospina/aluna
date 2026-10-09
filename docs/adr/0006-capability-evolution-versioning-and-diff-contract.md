@@ -2,6 +2,17 @@
 
 Status: accepted
 
+Amendment (2026-10-08, ADR-0011, pending 8.1/01's sign-off): a capability's relations
+are platform-owned registry state outside every authored candidate, like the
+display-label override below and the logo seed (ADR-0007), and every evolution
+carries them forward unchanged. Changing a relation makes no version and selects no
+generated work: a relation diff of its own maps each change to platform work, and the
+change-fact contract does not grow. Hiding a relation's source or target field makes
+the relation dormant, and reactivating the field revives it. A relation names its
+target's incarnation but is no read dependency, so it never blocks a deletion.
+Deleting a target capability removes every relation pointing at it, as Unlink does,
+and each linked field keeps its text.
+
 Amendment (2026-07-16): the one platform search normalizer is now explicitly
 case- and Latin-accent-insensitive. It removes combining diacritics only after a
 Latin-script base, so Latin accents fold without corrupting voicing, vowel, or
@@ -23,8 +34,8 @@ confirmation displaced another open capability, its current canonical collection
 returns. There is no in-window terminal state for the deleted capability.
 Where the deletion section below says the capability leaves the toolbar and the
 content becomes neutral, read: the logo leaves the desk and the window closes or
-restores the unrelated displaced capability under the rule above. A
-link to a deleted capability loads the bare desk with a brief notice, which
+restores the unrelated displaced capability under the rule above. An
+address naming a deleted capability loads the bare desk with a brief notice, which
 covers the second-tab, bookmark and reload cases without a window state of its
 own. Delete is also the only word for the act, in UI copy and in every document.
 

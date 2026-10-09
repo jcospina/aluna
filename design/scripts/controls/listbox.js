@@ -37,6 +37,23 @@ function optionsIn(panel) {
   return [...panel.querySelectorAll('[role="option"]')].filter((el) => el instanceof HTMLElement);
 }
 
+/**
+ * Give the listbox role to the panel's list, and return its id. A panel that heads its options,
+ * as the Link control's chooser does, names the list inside it `[data-listbox-list]`, so the
+ * heading is not a child the listbox role forbids.
+ *
+ * @param {HTMLElement} panel
+ * @returns {string}
+ */
+function claimList(panel) {
+  const named = panel.querySelector("[data-listbox-list]");
+  const list = named instanceof HTMLElement ? named : panel;
+  list.id ||= `listbox-${++uid}`;
+  list.setAttribute("role", "listbox");
+  list.setAttribute("tabindex", "-1");
+  return list.id;
+}
+
 /** @param {HTMLElement} option */
 const isDisabled = (option) => option.getAttribute("aria-disabled") === "true";
 
@@ -129,10 +146,7 @@ export class Listbox {
      */
     this.field = null;
 
-    const id = panel.id || `listbox-${++uid}`;
-    panel.id = id;
-    panel.setAttribute("role", "listbox");
-    panel.setAttribute("tabindex", "-1");
+    const id = claimList(panel);
     panel.hidden = true;
     button.setAttribute("aria-haspopup", "listbox");
     button.setAttribute("aria-controls", id);
@@ -240,8 +254,12 @@ export class Listbox {
    * happens to be standing when it is opened.
    */
   #place() {
-    const box = this.button.getBoundingClientRect();
-    const wanted = Math.min(this.panel.scrollHeight || 240, 260);
+    /* A glyph button inside a field's shell, like the Link control's, hangs it off the shell. */
+    const shell = this.button.closest(".field__control");
+    const anchor = shell instanceof HTMLElement && this.root.contains(shell) ? shell : this.button;
+    const box = anchor.getBoundingClientRect();
+    /* The panel is showing by now, so its own height counts a chooser's heading too. */
+    const wanted = this.panel.offsetHeight || 240;
     const below = window.innerHeight - box.bottom;
     const flip = below < wanted + 16 && box.top > below;
     const gap = 5;
@@ -249,10 +267,10 @@ export class Listbox {
     this.root.classList.toggle("is-above", flip);
     if (flip) {
       this.panel.style.top = "auto";
-      this.panel.style.bottom = `${this.root.offsetHeight - this.button.offsetTop + gap}px`;
+      this.panel.style.bottom = `${this.root.offsetHeight - anchor.offsetTop + gap}px`;
     } else {
       this.panel.style.bottom = "auto";
-      this.panel.style.top = `${this.button.offsetTop + this.button.offsetHeight + gap}px`;
+      this.panel.style.top = `${anchor.offsetTop + anchor.offsetHeight + gap}px`;
     }
   }
 
@@ -429,9 +447,12 @@ export class Listbox {
       if (option instanceof HTMLElement && !isDisabled(option)) this.#setActive(option, false);
     });
 
+    /* Outside means outside the button and the panel: a field's own input or a second glyph
+       button can share the root, and pressing one leaves the list. */
     document.addEventListener("pointerdown", (event) => {
       const { target } = event;
-      if (this.open && target instanceof Node && !this.root.contains(target)) this.hide(false);
+      if (!this.open || !(target instanceof Node)) return;
+      if (!this.button.contains(target) && !this.panel.contains(target)) this.hide(false);
     });
   }
 }

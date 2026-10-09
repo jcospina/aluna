@@ -1,0 +1,152 @@
+/*
+ * The linked field — a single-line text field connected to another capability's records,
+ * and the Link control that connects it (ADR-0011). Product copy says connect, never link.
+ *
+ * Unlinked, the field is the shared shell with one glyph button inside it, the chain, and
+ * that button is a drawn listbox's own button: its panel is the chooser, headed with what
+ * picking a target will do. Linked, the field is the drawn listbox, with Unlink's broken
+ * chain laid over a slot kept free inside its button, before the chevron, because a button
+ * cannot hold another. Both build on `choice-field.css` and override the listbox button's
+ * width and the panel's padding at the same specificity, so this sheet must load after it.
+ *
+ * The broken-link mark is here too. The platform's item wrapper draws it on a card for a
+ * linked field holding text no record stands behind.
+ */
+
+/* ── The glyph buttons ────────────────────────────────────────────────────── */
+
+/* Connect and Unlink: a glyph in the field's own line, never a second boundary. */
+.link-control__button,
+.linked-field__unlink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+/* On a refused field's redder well the faint strength steps up, as a file field's glyph does;
+   above the hover rule, which ties with it, so the glyph still wakes under the pointer. */
+.field.is-invalid :is(.link-control__button, .linked-field__unlink) {
+  color: var(--ink-2);
+}
+
+.link-control__button:hover:not(:disabled),
+.linked-field__unlink:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.link-control__button:focus-visible,
+.linked-field__unlink:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 0;
+}
+
+/* While Aluna connects a field, the glyphs fade with Save and Delete. */
+.link-control__button:disabled,
+.linked-field__unlink:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+/* The shared rule fades a whole shell holding anything disabled, and this shell's input
+   can still be typed in while its button waits. */
+.field__control:has(> .link-control__button:disabled):not(:has(.field__input:disabled)) {
+  opacity: 1;
+  cursor: auto;
+}
+
+/* ── The Link control: the chooser ────────────────────────────────────────── */
+
+.link-control__panel {
+  padding: 0 3px 3px;
+}
+
+/* A line that divides is ruled, not drawn. */
+.link-control__head {
+  padding: var(--space-3) 0.5625rem var(--space-2);
+  border-bottom: var(--line) solid var(--ink-hair);
+}
+
+.link-control__heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--type-md);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.link-control__line {
+  margin: var(--space-1) 0 0;
+  font-size: var(--type-sm);
+  color: var(--ink-2);
+}
+
+/* A target's few values give way to its name, and stop at the panel's edge. */
+.link-control__panel .listbox__option {
+  white-space: nowrap;
+}
+
+.link-control__panel .listbox__note {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The one note atop the form while Aluna connects a field, saying what she connects. */
+.link-control__note {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--pane-1);
+  font-size: var(--type-sm);
+  color: var(--ink);
+}
+
+/* ── The linked field ─────────────────────────────────────────────────────── */
+
+/* The select shell spreads its parts apart, so the slot takes the free space before it and
+   stands beside the chevron. */
+.linked-field__slot {
+  flex-shrink: 0;
+  width: var(--control-h-sm);
+  margin-left: auto;
+}
+
+/* Over the slot: the shell's line, its right padding, the chevron and its gap. The chevron is
+   a 12px drawing, so it stays 12px when the reader's text size grows. */
+.linked-field__unlink {
+  position: absolute;
+  z-index: 1;
+  top: calc((var(--control-h) - var(--control-h-sm)) / 2);
+  right: calc(var(--line) + var(--control-pad-x) + 12px + var(--space-2));
+}
+
+/* Text that matched no record is still the field's value, so it reads in ink. */
+.linked-field.is-unmatched .listbox__value.is-placeholder {
+  color: var(--ink);
+}
+
+/* ── The broken-link mark ─────────────────────────────────────────────────── */
+
+/* A sun pill with the broken chain and no words. It asks for a pick and refuses nothing;
+   its accessible name says what it asks, "Pick the author". It draws `.pill--wait`'s shape
+   under a name of its own because the desk may never name a pill, badge or chip
+   (`no-scope-control.policy.ts`), and the item wrapper that draws it is the desk's. */
+.link-mark {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.1875rem 0.625rem;
+  border: var(--line) solid var(--ink);
+  border-radius: 999px;
+  background: var(--sun);
+  color: var(--ink);
+}

@@ -6,8 +6,8 @@
  * squares beside it, as Replace and Clear are. The wave is not the only signal, because the time
  * runs and the live region says what changed, so where travel is off it lies still.
  *
- * It sits beside `file-field.css` for the reason that one sits beside `form-controls.css`: this
- * arranges drawn controls into a field rather than drawing a control.
+ * It sits beside `file-field.css` and, like it, arranges drawn controls into a field rather than
+ * drawing a control.
  */
 
 /* A peer of the well, the control's height, with its word showing. */

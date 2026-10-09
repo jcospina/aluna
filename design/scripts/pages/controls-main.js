@@ -11,11 +11,13 @@
  * Everything on this page is real. The fields take text, the listboxes open,
  * the textarea grows, the toggles change what is actually drawn. A control that
  * only *looked* right in a screenshot is exactly the failure this page exists
- * to catch.
+ * to catch. Links is the exception, drawn before its build: its listboxes open,
+ * and the states around them are inert pictures.
  */
 
 import { mountListRows, wireListRows } from "../controls/list-rows.js";
 import { mountListboxes } from "../controls/listbox.js";
+import { dressGrounds } from "../desk/wallpaper.js";
 import { mountAllInk, reseedInk, startInk } from "../ink/ink.js";
 import { mountFileBench } from "../sections/file-bench.js";
 import { mountRecorderBench } from "../sections/recorder-bench.js";
@@ -159,6 +161,7 @@ function mountEcho(root) {
 
 function boot() {
   wireSectionWindows(mountWindows(document));
+  dressGrounds();
 
   mountListboxes(document);
   /* The rows the repeatable list is typed into. Delegated, because a row added by a

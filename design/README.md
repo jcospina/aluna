@@ -26,7 +26,8 @@ window, using the same code as the desk.
 **`controls.html`, the controls.** Every form control a generated capability can
 use, in each of its states: buttons, text fields, dates, numbers, search,
 checkboxes, radios, segmented buttons, a textarea that grows as you type, a
-custom listbox for enums, and a file field that uploads and previews what it holds.
+custom listbox for enums, a file field that uploads and previews what it holds,
+and the control that links a text field to another capability's records.
 
 **`logo.html`, the logo contract.** How a capability's logo is made: the request
 sent once, as the last step of a build that has already cleared its gate, the
@@ -86,11 +87,14 @@ design/
       logo-contract.css   the logo tile and label, as the contract defines them
       ink.css             must load last; wires up the drawn borders
       controls/
-        controls.css      the button base, search, chips, segmented, range
-        form-controls.css the full control set
-        list-field.css    the repeatable rows a string[] field is typed into
-        file-field.css    the file field, its list and its player
-        file-recorder.css the voice recorder a sound field's row becomes
+        controls.css        the button base, search, chips, segmented, range
+        form-controls.css   the rules every field shares, buttons and form rows
+        long-text-field.css the textarea a long-text field grows in
+        choice-field.css    the drawn listbox, the native select, radio and checkbox
+        linked-field.css    the Link control, a linked field and the broken-link mark
+        list-field.css      the repeatable rows a string[] field is typed into
+        file-field.css      the file field, its list and its player
+        file-recorder.css   the voice recorder a sound field's row becomes
   scripts/
     pages/                one bootstrap per page: main.js, controls-main.js, logo-main.js
     ink/                  the drawn line: spec.js (the settled numbers, and the three

@@ -60,7 +60,9 @@ then returns. A deletion turned down before the commit — busy, stale, blocked 
 reverse dependencies, out of drain time, or failed — answers with an **ending** in
 the same window and waits there; the press gives back what the question displaced,
 by the one route **Keep it** already took. Delete is the one name for this act, in
-UI copy and in every document (M5 plan 19, 20).
+UI copy and in every document (M5 plan 19, 20). A relation pointing at the capability
+never blocks it: deleting a target capability works like **Unlink** on each one, and every
+linking record keeps the text it shows (ADR-0011).
 _Avoid_: retire, archive, remove, hide, deactivate
 
 **Desk**:
@@ -97,24 +99,24 @@ main panel, canvas, workspace, body
 **Address**:
 What the browser bar says, and it says one of exactly three things: `/` is the bare
 desk, `/capability/:id` is the desk with that capability in the window, and
-`/capability/:id/:record` is the **record address**, the desk with that record open
-in its record view. Nothing else is ever in it: the search term and a half-typed
-edit live in the DOM and die with the tab, so a reload comes back to the collection
-or the record without them. Logo open/switch and put-away push, and so does a card
-press. The record view's back control, a save and a delete step back to the
-collection when it is the entry before, and replace the entry with the collection's
-address when the person arrived by link. `popstate` renders the addressed record or
+`/capability/:id/:record` is the **record address**, the desk with that record open in
+its record view. Nothing else is ever in it: the search term and a half-typed edit live
+in the DOM and die with the tab, so a reload comes back to the collection or the record
+without them. Logo open/switch and put-away push, and so does a card press. The record
+view's back control, a save and a delete step back to the collection when it is the
+entry before, and replace the entry with the collection's address when the person
+arrived by an address or an answer link. `popstate` renders the addressed record or
 capability without pushing again, and focusing the already-open capability adds no
-duplicate. A traversal that would take a running build or evolution is held instead
-of taken: it is stepped back off while the question stands and taken again exactly
-once if the person confirms, so asking costs no entry and answering costs no more
-than the one move. That hold and the leave question for a form's unsaved changes
-cover a record address like any other traversal. During a build the address keeps
-naming what the build displaced; a successful v1 activation pushes the new
-capability only when its canonical collection takes the window, and evolution and
-every non-activating terminal add no entry. A build that displaced a record gives
-back the collection, and the address is replaced with `/capability/:id` when it does
-(design D14; M5 plan 6; ARCH §6.1; ADR-0010).
+duplicate. A traversal that would take a running build or evolution is held instead of
+taken: it is stepped back off while the question stands and taken again exactly once if
+the person confirms, so asking costs no entry and answering costs no more than the one
+move. That hold and the leave question for a form's unsaved changes cover a record
+address like any other traversal. During a build the address keeps naming what the build
+displaced; a successful v1 activation pushes the new capability only when its canonical
+collection takes the window, and evolution and every non-activating terminal add no
+entry. A build that displaced a record gives back the collection, and the address is
+replaced with `/capability/:id` when it does (design D14; M5 plan 6; ARCH §6.1;
+ADR-0010).
 _Avoid_: url, route, path, location, deep link, query string
 
 **Record address**:
@@ -124,10 +126,55 @@ fragment for the window or as the whole desk, which opens the record, so a reloa
 pasted address and a new tab all land on the record. When the record was deleted,
 never existed or belongs to another capability, the addressed capability's collection
 opens, the prompt bar says the not-found notice, and the address becomes
-`/capability/:id`. A record named in an answer links to its record address, and
-Module 8's linked records point at the same one (ADR-0010; M7 plan 40 to
-49).
+`/capability/:id`. An **answer link** opens a record named in an answer at its record
+address, and from 8.2 on a linked field's name opens its target's record address, drawn
+by the platform; generated code is never handed one (ADR-0010, ADR-0011; M7 plan 40 to 49).
 _Avoid_: deep link, permalink, record URL, record route
+
+**Link**:
+The tie between a linked field and a record of another capability. In product copy it is
+*connect* and *disconnect*, never *link* (owner ruling, 2026-10-08). A book's author
+linked to Authors still shows the author's name, but the name follows her record, and
+the book knows which record it is. A link is made for a field once and applies to that
+field in every record, so Aluna stores it as one **relation** for the field and one
+**link row** for each record. It is made with the **Link control**, by a build whose
+request is about records already on the desk, or by a request only about linking. Links
+are soft: text with no match still saves, nothing about a link can stop a record loading
+or a build publishing, and **Unlink** takes one away (ADR-0011; M8 plan 1 to 29).
+_Avoid_: relationship, reference, association, foreign key; connection in docs, since
+*connect* is the product word; composition,
+which is ADR-0005's word for how an item renderer arranges one record's markup and is
+never said for linked capabilities, though Module 8's title borrows it; link alone for
+a pressable name in an answer, which is an **answer link**
+
+**Link control**:
+The small icon-button inside every unlinked single-line text field, in the new-record
+form and in Edit, and the chooser it opens: the drawn listbox, headed with the scope
+("Connect every book’s author to…"), with a Suggested group and then one group per
+capability whose options are its fields, each with a few of its values. A target that
+cannot be picked is left out. It calls no model and writes the relation in place under
+the platform-write lease, as Rename writes a name. While Aluna connects a field, the
+buttons fade with Save and Delete, and a note atop the form says what she is connecting
+(ADR-0011; M8 plan 18 to 24).
+_Avoid_: link settings, relation editor, link dialog
+
+**Unlink**:
+The icon-button inside a linked field, and what it does; product copy says disconnect.
+It asks once, over the window with the disconnect button in red, then removes the
+relation and its link rows, leaves every record's text as it was, and makes the field
+plain text again. There is no "change target": Unlink, then Link. Deleting a target
+capability works like Unlink on every relation pointing at it (ADR-0011; M8 plan 23,
+29).
+_Avoid_: remove link, break link, detach; disconnect in docs, since it is the product word
+
+**Broken-link mark**:
+The mark a linked field carries when it holds text with no record behind it: a name the
+matching scan could not place, a link broken by deleting the record it pointed at, or
+one broken by clearing that record's text (proposed in ADR-0011).
+The item wrapper draws it on the card in the list, never the generated card, and
+from 8.2 on it marks the field in the read view. It asks for a pick and refuses nothing
+(ADR-0011; M8 plan 17).
+_Avoid_: error, warning badge, invalid, orphan, dangling link
 
 **Put away**:
 What the clay lamp does. The window disappears, the logo stays where it was, the
@@ -308,11 +355,11 @@ _Avoid_: step type, action kind, phase, progress message, status
 The third window, and the second exception to there being one. It opens when a question
 is classified `data_query` and displaces nothing — a capability stays open while it is
 asked about. It carries the loop's narration and then Aluna's spoken answer, which may
-link the records it names to their record addresses. One of them: a
+carry an **answer link** for each record it names. One of them: a
 new question replaces its content in place, never closing and reopening the frame. It
 carries **no logo, tile or address**, so it is *dismissed* rather than *put away* —
 closing it destroys the answer and nothing survives a reload (ADR-0008). The platform
-builds each link from a record the steps returned, and the model never writes one;
+builds each answer link from a record the steps returned, and the model never writes one;
 a press opens the record in the capability window and leaves the answer standing
 (ADR-0010). A refusal never
 opens it. When one is already standing the refusal takes it — re-titled to the words that
@@ -320,6 +367,14 @@ were refused, brought forward, and said there rather than on the bar — so the 
 be left holding something that is not an answer. The prompt bar speaks a refusal only
 when no window is there to take it.
 _Avoid_: results panel, query window, output pane, the auto-table (deleted)
+
+**Answer link**:
+A pressable name in Aluna's spoken answer that opens the record it names at its record
+address. The platform builds each one from a record the steps returned, and the model
+never writes one (ADR-0010). It is drawn in ink and underline like every anchor on the
+desk (D14), and it is called an answer link so that **link** keeps one meaning
+(ADR-0011).
+_Avoid_: link (alone), record link, deep link
 
 **Product voice**:
 The single voice all of Aluna's UI copy speaks in — warm, encouraging, gently
@@ -341,7 +396,9 @@ _Avoid_: endpoint, route, operation
 The platform-owned, opaque identity for one lifetime of a capability. Evolution
 preserves it; permanent deletion followed by rebuilding the same semantic
 capability id creates a new incarnation. It keys artifact/cache paths, declared
-read dependencies, cleanup work, and generation metrics. It is never user-facing.
+read dependencies, cleanup work, and generation metrics. A relation pins its target's
+incarnation, checked again when the relation is written, and a link row names the
+incarnation its target record lives in (ADR-0011). It is never user-facing.
 _Avoid_: capability version, capability id, generation id
 
 **Logo lifecycle**:
@@ -538,8 +595,8 @@ _Avoid_: optgroup, category, section
 **Option note**:
 One short phrase beside an option that qualifies it — "closes the record",
 "needs a reason". It belongs to the row and not to the value: it never follows a
-choice onto the closed control, never enters typeahead, and is exposed as the
-option's accessible description rather than as visual-only text.
+choice onto the closed control, never enters typeahead or a picker's search, and is
+exposed as the option's accessible description rather than as visual-only text.
 _Avoid_: hint, help text, subtitle
 
 **Retired option**:
@@ -597,6 +654,86 @@ row is written once the file is admitted, and the ledger is the cleanup queue as
 well: once the save that displaced a key commits, its bytes go, then its row.
 _Avoid_: file table, uploads table, blob registry
 
+**Relation**:
+The platform state that makes a field linked: `{ field, to: { capability, incarnation,
+field } }`, one single-line text field of this capability and the single-line text field
+of another capability it points at, at most one per field. It lives on the capability's
+registry row beside the logo seed, never in the authored spec, so the evolution writer
+never sees it and every evolution carries it forward unchanged. Changing one makes no
+version. A relation made by the link step and one made by the Link control are the same,
+and nothing records which made it. Hiding its source or target field makes it dormant,
+and reactivating the field revives it with its link rows; ADR-0011 proposes the same
+when an evolution breaks one of its rules, with a save that changes the dormant field's
+text dropping its link row. It is no `read_dependency` and never blocks a deletion
+(ADR-0011; M8 plan 3, 7 to 10).
+_Avoid_: foreign key, reference, association, link definition, schema link
+
+**Linked field**:
+A single-line text field with a relation, where a single-line text field is a `string`
+field that `ui_intent.form.long_text` does not name. It keeps its own text in its own
+table, and the form draws it as a dropdown of the target's records, each shown by the
+target field the relation names; it cannot be free-typed while it is linked. Long text,
+lists of text and choice fields never link, as source or as target. Generated code sees
+the text it always held (ADR-0011; M8 plan 1, 13).
+_Avoid_: reference field, lookup field, relation field, foreign field; picker, which is a
+choice presentation
+
+**Link row**:
+One row of the **link table**: a source capability, record and field, and the target
+capability, incarnation and record that field picked. A save writes it in the record's
+own transaction, and so does the matching scan; Unlink, deleting either record, clearing
+the target's text (proposed in ADR-0011) and capability deletion remove it. A dormant
+relation keeps its link rows (ADR-0011).
+_Avoid_: reference row, pointer, foreign key
+
+**Link table**:
+The platform table that records which record each linked field picked: rows of source
+capability, record and field, pointing at a target capability, incarnation and record,
+on the **file ledger**'s pattern. It lies outside every Handler's query scope by
+construction and is indexed both ways. Only the platform writes it: a save in the
+record's own transaction, the matching scan, Unlink and deletion (ADR-0011; M8 plan 11,
+12).
+_Avoid_: join table, junction table, foreign-key table, hidden column
+
+**Link step**:
+The one model call that proposes relations during a build. It reads the request, the
+finished spec and the flagged capabilities, and answers which single-line text field of
+the spec points at which single-line text field of each; it never adds, removes or edits
+a field. On a build it runs beside the frozen tests and the Handlers; on an evolution,
+only for the text fields the change adds; and alone for a request only about linking.
+It fails open: a bad entry is dropped, and a failed step means no relations, never a
+failed build (ADR-0011; M8 plan 52 to 54).
+_Avoid_: linker, relation writer, link pass, link agent
+
+**Related-capability flag**:
+The Intent Resolver's judgment that a request is about records already on the desk,
+naming the capabilities that hold them. It judges records, not field names, and no flag
+is the ordinary answer. The spec writer and the link step see only the flagged
+capabilities, so the two cannot disagree; with none flagged the spec writer's prompt is
+unchanged and the link step does not run. A flag is no `read_dependency` (ADR-0011; M8
+plan 48 to 50).
+_Avoid_: relation detection, dependency flag; overlap, which is the separate
+extend-or-separate decision
+
+**Matching scan**:
+What links the values already typed when a field is linked. Under the lease of the write
+that made the relation, it trims spaces at both ends, folds case with Unicode case
+folding and no accent folding, and writes a link row for each value that matches exactly
+one target record. Ambiguous and unmatched values keep their text and carry the
+broken-link mark, and no stored text changes. The prompt bar reports how many records
+were connected and how many need a pick (ADR-0011; M8 plan 22, 25).
+_Avoid_: backfill, migration, auto-link, fuzzy match
+
+**Linked-text refresh**:
+When a target's text changes, the platform rewrites every field linked to it, in the
+target record's own transaction under the lease the save already holds, as platform SQL
+against each linking capability's table. It and the clearing that deleting a target
+record brings are the only platform writes into another capability's records. A
+rewritten field that is itself a target passes the change on down the chain, each field
+once (proposed in ADR-0011). A linking capability closed by its own deletion is skipped
+(ADR-0011; M8 plan 16).
+_Avoid_: sync, cascade update, propagation, denormalization
+
 **List input mode**:
 The AI-authored, platform-rendered form choice for one active `string[]` field.
 `comma_separated` is for comma-free atomic values such as tags, genres,
@@ -622,11 +759,12 @@ _Avoid_: controller, service, route handler
 The single generated presentation unit for one capability. It turns one projected
 record into capability-specific inner markup used by `create`, `read`, `update`,
 and `search`; delete refreshes the collection without rendering a deleted record.
-Platform-owned list-item chrome supplies the accessible trigger, safe active-field
+The platform's item wrapper supplies the accessible trigger, safe active-field
 client projection, and the swap that puts one record in the window; Handlers
 receive the renderer through their injected presentation adapter rather than
 importing it
-(ADR-0005). How the records are *arranged* as a collection (feed vs. grid) is
+(ADR-0005). How it arranges one record's markup is its *composition* (ADR-0005), a word
+kept for that alone. How the records are *arranged* as a collection (feed vs. grid) is
 not the renderer's concern: that is the platform list container reading the
 capability's `ui_intent.collection.layout`. The renderer is generated knowing
 that layout and may read only active user fields or the closed presentational
@@ -635,7 +773,9 @@ platform field `created_at` when declared by `ui_intent.item.shows`; `id`,
 canonical hidden values stay out of owning-capability input/presentation and new
 model context. Because soft-hide is not erasure, a previously committed external
 Handler may still use a hidden physical column through its declared dependency
-until that Handler is regenerated (ADR-0006).
+until that Handler is regenerated (ADR-0006). A linked field reaches it as the text it
+always held, and the **broken-link mark** is drawn by the item wrapper around its
+markup, never by the renderer (ADR-0011).
 _Avoid_: row helper, card component, template
 
 **View**:
@@ -670,10 +810,14 @@ Distinct from the **Gate** above, which validates candidates before commit.
 _Avoid_: gate (unqualified), lock, mutex, read lock
 
 **Read token**:
-The ownership record one operation holds over the exact incarnations it can observe.
-An operation acquires its *complete* set atomically against one gate/catalog
-snapshot or receives none, and releases the complete set in `finally`. Generated code
-never receives the token — it only observes cancellation as a thrown error.
+The ownership record one operation holds over the exact incarnations it can observe. An
+operation acquires its *complete* set atomically against one gate/catalog snapshot or
+receives none, and releases the complete set in `finally`. An exception is the
+linked-text refresh and the clearing a target record's deletion brings: the save or
+deletion also takes the token of every capability they reach, down the chain where
+ADR-0011's proposed chain rule applies, apart from its own set, so a linking capability
+closed by its own deletion is skipped instead of refusing the save (ADR-0011). Generated
+code never receives the token — it only observes cancellation as a thrown error.
 _Avoid_: read lock, handle, reservation
 
 **Content region**:
@@ -709,7 +853,9 @@ also what stops a generated Handler forging one (PLAN decision 32). A `read` car
 plain count; a `search` carries both numbers — how many matched and how many there are —
 because a filtered number alone reads as the whole truth and is not, and a search that
 matched nothing must say so beside a total that is not zero rather than read as an
-**empty collection**.
+**empty collection**. A search that follows links appends records after the Handler's
+own, and they count with them, because the sidecar counts the list's item wrappers
+(ADR-0011).
 _Avoid_: count header, count endpoint, badge, out-of-band count
 
 **Empty collection**:

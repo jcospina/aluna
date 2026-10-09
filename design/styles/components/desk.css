@@ -555,6 +555,35 @@
   color: var(--signal);
 }
 
+/*
+ * The one sentence Aluna says about the prompt, standing above the rail because under it
+ * is the ground the bar floats over. Out of the bar's flow, so the bar's box is the rail
+ * and nothing else, and never what a click lands on. It is read straight off the
+ * wallpaper, so it takes the desk label's halo deepened by two passes of its own.
+ */
+.prompt-bar__notice {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  min-height: 1.4em;
+  margin: 0 0 var(--space-1);
+  font-size: var(--type-lg);
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--surface);
+  text-shadow:
+    var(--shadow-desk-label),
+    0 0 2px var(--ink),
+    0 0 6px color-mix(in srgb, var(--ink) 65%, transparent);
+}
+
+.prompt-bar__notice:empty {
+  display: none;
+}
+
 /* ── The developer panel ──────────────────────────────────────────────── */
 /*
  * D13: a second window, and the one exempt from D1 — it may sit beside a

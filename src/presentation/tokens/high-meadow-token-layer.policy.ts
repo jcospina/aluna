@@ -201,7 +201,9 @@ describe("the button set on the window surface", () => {
       /#[0-9a-f]{3,8}(?![\w-])|\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color|device-cmyk)\(/i;
 
     expect(read("design/styles/tokens.css")).not.toContain("PROPOSED");
-    expect(read("design/styles/components/controls/form-controls.css")).not.toContain("PROPOSED");
+    for (const sheet of filesUnder("design/styles/components/controls", new Set([".css"]))) {
+      expect(read(sheet), sheet).not.toContain("PROPOSED");
+    }
     for (const file of productSources) {
       expect(read(file), `${file} declares a literal colour below the token layer`).not.toMatch(
         literalColour,

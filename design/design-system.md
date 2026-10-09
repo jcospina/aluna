@@ -16,7 +16,7 @@ the same palette and the same line.
 
 The system is settled on two pages you can open in a browser: `design/index.html`
 for the desk and decisions D1–D14, `design/controls.html` for the control set and
-C1–C21. Language and product voice live in [CONTEXT.md](../CONTEXT.md).
+C1–C22. Language and product voice live in [CONTEXT.md](../CONTEXT.md).
 
 ## Colour
 
@@ -358,6 +358,21 @@ removing a file and adding another is how its order changes. Each file travels o
 upload and holds the save until it lands, removing a travelling row stops its upload, and a
 pick that would take the list past its count is refused whole before anything travels. A
 list names every file it refuses, since several may be travelling at once.
+
+A single-line text field can be linked to a field of another capability (ADR-0011). Unlinked,
+it carries the Link control inside its shell: `.link-control__button`, a chain glyph that is a
+drawn listbox's own button, always there in the new-record form and in Edit and never in long
+text. Its panel, `.link-control__panel`, is the chooser. `.link-control__head` says what
+picking a target does, the suggested target comes first, then each capability's fields with a
+few of their values; a target that cannot be picked is left out, and there is no search and no
+Cancel. Linked, the field is the drawn listbox, with Unlink's broken chain,
+`.linked-field__unlink`, laid over `.linked-field__slot` before the chevron, because a button
+cannot hold another; it asks once, over the window, before it unlinks. While Aluna links a
+field, `.link-control__note` stands atop the form and the glyphs fade with Save and Delete.
+Text that matched no record stays the field's value, in ink, with a line asking for a pick,
+and its card in the list carries `.link-mark`, a sun pill with the broken chain and no words,
+drawn by the item wrapper and never by the generated card. On screen all of it says connect
+and disconnect, never link.
 
 Two keys sit on a field. `guidance` is a short hint under the field, and it also
 carries the sentence announcing a default, so a default needs no key of its own.

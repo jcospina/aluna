@@ -10,6 +10,14 @@ single record; and Module 7's decision 37, which kept the answer window text. It
 the address, router, record view and answer window passages of ARCH, and `design/`'s
 D14.
 
+**Amended 2026-10-08 (ADR-0011, pending 8.1/01's sign-off).** Module 8 hands
+generated code no link projection, so the consequence "Module 8 points at the record
+address" no longer holds as written. A linked field reaches a Handler as the text it
+always held, and the record address survives as what a linked field's name opens,
+drawn by the platform in the read view 8.2/01 adds. The anchors this record builds in
+an answer are called *answer links* from here on, because *link* now names Module 8's
+tie between a linked field and the record it picked.
+
 Files made the gap visible. A question about a Photos capability can count its photos,
 but to find one the person reads a name in the answer and then hunts for its card.
 
@@ -48,13 +56,14 @@ address follows that guard: it would open such a capability's collection without
 notice. Record ids are random, so a capability deleted and built again under the same id
 finds none of the old records, and the address needs no incarnation.
 
-**Opening a record moves the address.** A card press pushes the record address. The back
-control, a save and a delete all leave the record view the same way. When the entry
-before is this capability's collection, they step back. When the person arrived by link,
-they replace the entry with the collection's address. Back and Forward render a record
-or a collection without pushing. The leave question for unsaved changes and the hold on
-a running build cover a record address like any other traversal. `desk-address.js` keeps
-its single `pushState` and its single `replaceState`.
+**Opening a record moves the address.** A card press pushes the record address. The
+back control, a save and a delete all leave the record view the same way. When the
+entry before is this capability's collection, they step back. When the person arrived
+by an address or an answer link, they replace the entry with the collection's
+address. Back and Forward render a record or a collection without pushing. The leave
+question for unsaved changes and the hold on a running build cover a record address
+like any other traversal. `desk-address.js` keeps its single `pushState` and its
+single `replaceState`.
 
 **A build gives back the collection, and the address follows it.** A build's restoration
 descriptor stays capability-only. A build started from a record address keeps that
@@ -138,7 +147,10 @@ address, and the question loop still never sees a file key (ADR-0008, ADR-0009).
 
 **Module 8 points at the record address.** Its link projection hands generated code a
 `url` beside a name, as a file reference does. For a linked record that `url` is the
-record address, so Module 8 needs no second scheme.
+record address, so Module 8 needs no second scheme. *Amended 2026-10-08 (ADR-0011,
+pending 8.1/01's sign-off):* generated code receives nothing for a link. The record
+address is what a linked field's name opens, and the platform draws that anchor
+itself.
 
 **Module 10's Event Log must admit the record address as a route context.** The Event
 Log derives which capability incarnations an event belongs to from admitted route, query

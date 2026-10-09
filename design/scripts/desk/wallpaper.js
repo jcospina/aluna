@@ -27,3 +27,15 @@ const WALLPAPER = "assets/wallpaper/high-meadow.webp";
 export function wallpaperUrl() {
   return `url("${WALLPAPER}")`;
 }
+
+/**
+ * Put the wallpaper behind every `[data-ground]` element: what a page shows standing on the
+ * desk stands on the image the product uses, never one a stylesheet names.
+ *
+ * @param {Document | Element} [root]
+ */
+export function dressGrounds(root = document) {
+  for (const el of root.querySelectorAll("[data-ground]")) {
+    if (el instanceof HTMLElement) el.style.backgroundImage = wallpaperUrl();
+  }
+}

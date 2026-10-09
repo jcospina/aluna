@@ -15,10 +15,15 @@
 
 @import url("./components/window.css");
 @import url("./components/controls/controls.css");
-/* Extends controls.css with the full control set — see the header there. It
+/* Extends controls.css with the rules every field shares — see the header there. It
    must stay above ink.css like everything else that declares a border. */
 @import url("./components/controls/form-controls.css");
-/* The two fields made of other controls, a list and a file, so they load after what they arrange. */
+/* One sheet per field kind, each after the shared rules it adds to. A linked field is the
+   choice field's listbox, and a list or a file arranges other controls, so each loads after
+   what it builds on. */
+@import url("./components/controls/long-text-field.css");
+@import url("./components/controls/choice-field.css");
+@import url("./components/controls/linked-field.css");
 @import url("./components/controls/list-field.css");
 @import url("./components/controls/file-field.css");
 @import url("./components/controls/file-recorder.css");

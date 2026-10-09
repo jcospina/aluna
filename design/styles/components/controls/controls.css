@@ -2,11 +2,12 @@
  * The button base, and the page chrome around it — search, status chips, the
  * segmented control, the range row.
  *
- * `form-controls.css` imports directly after this file and owns every control a
- * capability's form puts on screen, the button's fill and metrics included. What is
- * left here is what that file does not say: the button's type, colour and line, the
- * one chevron it has no counterpart for, and four blocks that are this document's
- * own furniture rather than product components.
+ * `form-controls.css` imports directly after this file with the rules every field
+ * shares, the button's fill and metrics included, and one sheet per field kind follows
+ * it. What is left here is what those do not say: the button's type, colour and line,
+ * the one chevron they have no counterpart for, the segmented control a choice field's
+ * segmented presentation is drawn with, and three blocks that are this document's own
+ * furniture rather than product components: search, chips and the range row.
  *
  * The `border` declarations below are drawn rather than ruled — `ink.js` takes each
  * one over on mount. What that means here: the border stays (it reserves the line's
@@ -35,7 +36,7 @@
 
 /* ── The select shell's chevron ───────────────────────────────────────── */
 
-/* The one field part with no counterpart in `form-controls.css`, which names the
+/* The one field part with no counterpart in `choice-field.css`, which names the
  * listbox's chevron instead. The native-select shell still reaches for this. */
 .field__chevron {
   display: flex;
@@ -123,7 +124,7 @@
   color: var(--ink);
 }
 
-/* ── Segmented control — page chrome, for the live benches ────────────── */
+/* ── Segmented control — a choice field's segmented presentation ──────── */
 
 /*
  * The outer boundary is drawn; the seams between buttons stay ruled — a line that

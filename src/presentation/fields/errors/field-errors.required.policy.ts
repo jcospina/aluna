@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { readSource } from "../../safety/source.test-support.ts";
+import { readSource, under } from "../../safety/source.test-support.ts";
 
 // What the two stylesheets have to be saying for a marked field to show at all.
 
 describe("the paint the marked state depends on", () => {
-  const DESIGN = readSource("design/styles/components/controls/form-controls.css");
+  // Every control sheet, so a blanket rule cannot slip into one field kind's sheet unread.
+  const DESIGN = under("design/styles/components/controls", "**/*.css").map(readSource).join("\n");
   const PRODUCT = readSource("public/css/fields.css");
 
   /** One rule's body, by its exact selector list. */

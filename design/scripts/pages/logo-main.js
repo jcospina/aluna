@@ -14,24 +14,10 @@
  * bug rather than a variation.
  */
 
-import { wallpaperUrl } from "../desk/wallpaper.js";
+import { dressGrounds } from "../desk/wallpaper.js";
 import { startInk } from "../ink/ink.js";
 import { wireSectionWindows } from "../sections/section-window.js";
 import { mountWindows } from "../window/window.js";
-
-/**
- * Put the settled wallpaper behind anything that stands on the desk.
- *
- * Read from `wallpaper.js` rather than written into the stylesheet, so a page
- * about the contract cannot end up demonstrating it over a different image than
- * the product uses.
- */
-function dressGrounds() {
-  const paper = wallpaperUrl();
-  for (const el of document.querySelectorAll("[data-ground]")) {
-    if (el instanceof HTMLElement) el.style.backgroundImage = paper;
-  }
-}
 
 function boot() {
   wireSectionWindows(mountWindows(document));

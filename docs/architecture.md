@@ -139,7 +139,7 @@ It shows up on every axis:
 | Axis | Write / mutate | Read |
 |---|---|---|
 | **Data access** | Capability-bound mutation interface (no raw mutation SQL) | Parameterized read-only SQL (`SELECT` + joins); persistent cross-capability dependencies declared |
-| **Structure** | Isolated table per capability, no foreign keys | Relationships materialize at query time via joins |
+| **Structure** | Isolated table per capability, no foreign keys; from Module 8, which record a linked field picked is kept in a platform link table | Joins between capabilities materialize at query time, through the link table for a linked field |
 | **Schema lifecycle** | Platform-derived evolution DDL is additive-only; explicit confirmed capability deletion purges that capability's structure | — |
 | **Records** | User deletes own records through platform-owned confirmation (recorded once M10's Event Log exists) | — |
 | **Orchestration** | One mutation coordinator atomically admits every shared-connection write — builds, record/platform writes, and deletion | Prompt resolution/reads stay outside; deletion briefly closes the target incarnation to new reads |
@@ -254,7 +254,7 @@ stale copy when the user edits, and never stacks or times away competing message
 **Logo layer** — empty for a fresh user, otherwise rehydrated from the registry on
 load. Clicking a logo opens that capability's View in the window, and clicking
 another swaps what is inside the same window. A card press opens a record inside the
-window. A record address, or a record linked in the answer window, opens that
+window. A record address, or an answer link in the answer window, opens that
 record's capability with the record open in it (ADR-0010). There is no toolbar and no
 taskbar, and an empty desk is a wallpaper and a prompt bar,
 which needs no special case. After resolution admits a new-capability build, the
@@ -322,20 +322,20 @@ record view (ADR-0010). Logo open/switch and put-away push `/capability/:id` or 
 into browser history, and a card press pushes the record address. The record view's
 back control, a save and a delete leave it the same way: they step back when the
 entry before is this capability's collection, and replace the entry with the
-collection's address when the person arrived by link. `popstate` renders the
-addressed record or capability without pushing another entry, and focusing the
-already-open capability adds none. Every entry the desk writes carries its place in
-the run of them, which is what lets a traversal that would take a running build or
-evolution be held: it is stepped back off while the question stands and taken again
-exactly once on confirmation, so the stack is neither an entry wider for the asking
-nor an entry shorter for the answering. This hold and the leave question for a
-form's unsaved changes cover a record address like any other traversal. Search and
-draft remain DOM-only and are not encoded in history. During a build the address
-stays on the displaced identity; successful v1 activation pushes the new capability
-only when its canonical collection takes the window, while evolution and
-non-activation do not add a route entry. A build that displaced a record address
-gives that capability back as its collection, restored or shown evolved, and the
-address is replaced with `/capability/:id` (ADR-0010).
+collection's address when the person arrived by an address or an answer link.
+`popstate` renders the addressed record or capability without pushing another entry,
+and focusing the already-open capability adds none. Every entry the desk writes
+carries its place in the run of them, which is what lets a traversal that would take
+a running build or evolution be held: it is stepped back off while the question
+stands and taken again exactly once on confirmation, so the stack is neither an entry
+wider for the asking nor an entry shorter for the answering. This hold and the leave
+question for a form's unsaved changes cover a record address like any other
+traversal. Search and draft remain DOM-only and are not encoded in history. During a
+build the address stays on the displaced identity; successful v1 activation pushes
+the new capability only when its canonical collection takes the window, while
+evolution and non-activation do not add a route entry. A build that displaced a
+record address gives that capability back as its collection, restored or shown
+evolved, and the address is replaced with `/capability/:id` (ADR-0010).
 
 A logo action refused before it may take the capability window speaks on the
 prompt bar. In particular, Delete cannot replace a build or evolution that is
@@ -402,13 +402,20 @@ A deterministic router fronts everything: the UI only ever calls
 `GET read`, `GET search`, `POST create`, `POST update`, and `POST delete`; every
 other method/Action pairing fails before generated code loads. Spec field names
 cannot use the reserved `__aluna_` prefix. The router validates and strips repeated
-`__aluna_present` markers and exactly one nonblank `__aluna_record_id` for update
-and delete; missing, duplicate, or unexpected target markers fail before generated
-code. The target reaches the Handler and mutation context separately from writable
-values, and only as an opaque platform handle. The router binds update/delete
-mutation authority to that exact target before generated code runs, so the Handler
-has no record selector. Generated UI never invents routes or touches raw requests.
-Routing is never an AI concern.
+`__aluna_present` markers and exactly one nonblank `__aluna_record_id` for update and
+delete; missing, duplicate, or unexpected target markers fail before generated code.
+Those two and `__aluna_drawn`, which an edit's file field posts, form the router's
+closed set of reserved keys, and any other `__aluna_` key is refused. A linked field
+adds `__aluna_link`, carrying the field and the picked record's id: the router strips
+it, checks that the id names a live record of the relation's target before generated
+code runs, and checks again inside the save's transaction, so a forged or stale pick
+refuses the save and never reaches a Handler. A marker for a field whose relation is
+gone or dormant is dropped, and the text saves as plain text (ADR-0011). The
+update/delete record target reaches the Handler and mutation context separately from
+writable values, and only as an opaque platform handle. The router binds
+update/delete mutation authority to that exact target before generated code runs, so
+the Handler has no record selector. Generated UI never invents routes or touches raw
+requests. Routing is never an AI concern.
 
 `GET /capability/:id/:record` is a platform route registered ahead of the Action
 route, not a sixth Action. A segment shaped like a UUID is a record, the five Action
@@ -431,8 +438,9 @@ Behind the router, three cooperating modules:
 
 The entry point for both loops. It receives a typed prompt or a gated batch of
 behavioral events, assembles context — every capability's `prompt_context` from the
-registry, the active capability, recent events — and asks the AI to classify intent
-into a structured object:
+registry (Module 8 adds each one's record noun and plural noun), the active
+capability, recent events — and asks the AI to classify intent into a structured
+object:
 
 ```json
 {
@@ -450,16 +458,26 @@ Typed explicit intents proceed directly and therefore carry
 `requires_confirmation: false`; only an M10 behavior-derived proposal sets it true,
 and confirmation belongs to M10's proposal surface before Builder hand-off.
 
-Two responsibilities live here rather than in separate modules:
+Three responsibilities live here rather than in separate modules:
 
-- **Overlap resolution.** The resolver already sees the whole registry, so when a
-  new intent touches an existing capability it decides on its own whether to extend
-  that capability or create a separate one with its own semantic identity. There is
-  no "share a field" option, because sharing a field would require foreign keys
-  (§8). "Namespace" is only the internal resolution and metrics term: it creates no
-  hierarchy and no shared schema, and the user simply sees an independent capability
-  called Work contacts, never `contacts_2`. The chosen `resolution` is logged to
-  metrics for the experiment. The user is never asked to reconcile schemas.
+- **Overlap resolution.** The resolver already sees the whole registry, so when a new
+  intent touches an existing capability it decides on its own whether to extend that
+  capability or create a separate one with its own semantic identity. There is no
+  "share a field" option: a field belongs to one capability, and a record of another
+  capability is reached through a link (§8). "Namespace" is only the internal
+  resolution and metrics term: it creates no hierarchy and no shared schema, and the
+  user simply sees an independent capability called Work contacts, never
+  `contacts_2`. The chosen `resolution` is logged to metrics for the experiment. The
+  user is never asked to reconcile schemas.
+- **Related capabilities.** The same call flags the existing capabilities a request
+  is about, and it judges records, not field names: does each record of the new
+  capability name one record that already exists? Movies, Books and Articles each
+  have a title and are unrelated, while every Inventory record is about one book in
+  Books. No flag is the ordinary answer. The spec writer and the link step see only
+  the flagged capabilities, each with its name, description, record noun and
+  single-line text fields, so the two cannot disagree; with nothing flagged, the spec
+  writer's prompt is unchanged and the link step does not run. A flag is a judgment
+  for one build and never a `read_dependency` (ADR-0011).
 - **The friendly label.** The same call emits `user_facing_label`, one warm
   product-voice sentence about what is happening. That single phrase threads through
   the build narration, the confirmation prompt, and the implicit proposal, so copy
@@ -477,7 +495,9 @@ coordinator (§8). Prompt resolution happens before admission and creates no dur
 generation row. The request carries one stale-target binding — `expected_absent`
 for a new semantic id, or `{ capability_id, incarnation_id, expected_version }` for
 evolution — plus the resolver-catalog revision or fingerprint that produced its
-classification.
+classification. From Module 8 it also carries the resolver's related-capability flags,
+and says when the request is only about linking; the shape of both is settled when the
+resolver gains them (ADR-0011).
 
 The core Builder emits lifecycle events and owns neither the prompt route, the
 active DOM, nor SSE. The explicit-loop presenter turns those events into the
@@ -501,22 +521,24 @@ first and proceeds only through the existing cancel path.
 The lifecycle is spec-first and recoverable across SQLite and the filesystem:
 
 1. Wait on a bounded build ticket, acquire the exclusive build lease, then, at the
-   head of the lease, require both the stale-target binding and the
-   resolver-catalog fingerprint to match. Any mismatch is stale, never a silent
-   reclassification. Only after that check does the separate active
-   dependency-generation catalog freeze. A v1 build gets a new incarnation;
-   evolution retains the committed one. Only now create a durable `running`
-   generation row, immediately before the first Builder-owned provider call. A
-   stale or collision refusal instead writes one direct terminal `failed/stale`
-   admission row with all generation stages skipped, and starts no Builder work.
+   head of the lease, require both the stale-target binding and the resolver-catalog
+   fingerprint to match. Any mismatch is stale, never a silent reclassification. Only
+   after that check does the separate active dependency-generation catalog freeze. A
+   v1 build gets a new incarnation; evolution retains the committed one. Only now
+   create a durable `running` generation row, immediately before the first
+   Builder-owned provider call; whether a request only about linking writes one is
+   settled in epic 8.7. A stale or collision refusal instead writes one direct
+   terminal `failed/stale` admission row with all generation stages skipped, and
+   starts no Builder work.
 2. Generate one complete candidate authored spec from the resolved intent plus the
-   committed field-lifecycle catalog and active-field projections of the dependency
-   catalog. Before any DDL or unit generation, validate immutable ids, field names
-   and types, Action/error/dependency contracts, exact inactive preservation
-   (`active→inactive` is lifecycle-only; `inactive→inactive` is identical),
-   active-only presentation references, and additive-only evolution. The platform
-   derives SQL identifiers and additive DDL from that validated spec; generated code
-   never does.
+   committed field-lifecycle catalog, active-field projections of the dependency
+   catalog, and each flagged capability's name, description, record noun and
+   single-line text fields with their length limits. Before any DDL or unit
+   generation, validate immutable ids, field names and types, Action/error/dependency
+   contracts, exact inactive preservation (`active→inactive` is lifecycle-only;
+   `inactive→inactive` is identical), active-only presentation references, and
+   additive-only evolution. The platform derives SQL identifiers and additive DDL
+   from that validated spec; generated code never does.
 3. Let the Diff Engine derive additive schema work, affected Handlers/item
    renderer, and Gate scope. A semantic zero-diff candidate completes as a
    measured no-op without publishing a version. Project only admitted facts and
@@ -534,7 +556,9 @@ The lifecycle is spec-first and recoverable across SQLite and the filesystem:
    Behavioral tests are generated/copied according to the recorded tier.
    Independent Action cache misses may author with bounded concurrency and
    report per-Action progress, but settle into canonical order and freeze as one
-   admitted artifact before any Handler generation or bounded repair.
+   admitted artifact before any Handler generation or bounded repair. When the
+   resolver flagged a related capability, the link step runs beside the tests and
+   the Handlers, because nothing generated depends on a relation.
 5. Validate before publication through a layered, fail-closed Gate. One failing
    active rung fails the whole build:
    - **Structural** (always): type-check the complete snapshot and assert every
@@ -546,15 +570,17 @@ The lifecycle is spec-first and recoverable across SQLite and the filesystem:
      may repair Handler code only and reruns the same test.
    - **Design lint** *(always when the item renderer changes)*: render hostile
      values and reject contract/security violations under ADR-0005.
+
+   A relation is no Gate input, so no link can fail a build.
 6. Write exact `spec.json` plus platform-authored snapshot inventory/digests/tier
    metadata and audit-only per-unit dependency-generation provenance;
    `snapshot.json` inventories itself but omits its own digest. Verify
    completeness, then atomically publish to the final incarnation/version path
    with no overwrite.
 7. In one SQLite transaction apply additive DDL, compare-and-swap the registry
-   spec/version/pointer, and finalize `success/activated` metrics. Commit is the
-   activation point of no return. Only afterward may the presenter attempt the
-   terminal complete View `commit` swap.
+   spec/version/pointer, write the link step's relations that pass their checks, and
+   finalize `success/activated` metrics. Commit is the activation point of no return.
+   Only afterward may the presenter attempt the terminal complete View `commit` swap.
 
 For a newly activated v1, that transaction also commits seed plus logo lifecycle
 `absent/0`. Only after the presenter terminates and the long build lease releases
@@ -562,6 +588,33 @@ may a follow-up offer the logo subsystem its first atomic attempt claim. It runs
 after success is authoritative, outside immutable snapshot inventory, and cannot
 relabel or roll back the build; desk-load recovery uses the same claim after a
 crash in the gap.
+
+The link step is one model call with one job, shaped like the Intent Resolver. It
+reads the request, the finished spec and the flagged capabilities, and answers which
+single-line text field of the spec points at which single-line text field of each. It
+never adds, removes or edits a field, and on an evolution it runs only for the text
+fields the change adds. A single-line text field is a `string` field that
+`ui_intent.form.long_text` does not name. The step's answer has a loose schema, and
+the platform checks each proposed relation on its own: the source is an active
+single-line text field of the capability being built, on an evolution one the change
+adds, and holds no other relation; the target is an active single-line text field of
+a flagged capability; the source's length limit is absent or at least the target's;
+the relation would close no loop (proposed in ADR-0011); and the target's
+incarnation, read under the build lease, is checked again in the activation
+transaction. A bad entry is dropped. A failed or timed-out step means no relations
+and never fails the build or the evolution: a unit fails closed because it is code
+that runs against the person's data, and a relation is optional platform state that
+nothing generated reads (ADR-0003, ADR-0011). The step looks only at the capability
+being built, so building Authors never links Books on its own.
+
+A request only about linking, such as "link each book to its author", runs the link
+step alone on the current spec under the build lease: no spec writer, no units, no
+Gate and no version. Its source may be any active single-line text field with no
+relation, its target must belong to a flagged capability, and the target's
+incarnation is checked at once. Its relation is written in place through the code the
+Link control uses, and the matching scan follows inside the same lease. Whether it
+writes a generation row, and with which outcome, is settled when the request is built
+(Module 8, epic 8.7).
 
 A database failure after publication leaves an unreferenced complete candidate,
 never a live partial one. For an active incarnation at version `N`, every verified
@@ -663,6 +716,15 @@ ordered target ids and the platform rehydrates canonical target rows on the same
 read snapshot, so a copied reader cannot silently freeze an old target-row shape.
 The normative matrix lives in the Module 4 PLAN (ADR-0006).
 
+Relations never reach the change-fact contract. They live on the registry row and not
+in the spec, so the evolution writer never sees one and every evolution carries them
+forward unchanged. The Diff Engine gains a relation diff of its own, which maps each
+relation change, such as Link, Unlink or a target capability's deletion, to platform
+work only: the registry row, the matching scan and the link rows. It never maps to a
+version, a unit or Gate work, and the change-fact contract does not grow. An
+evolution that hides a relation's field makes the relation dormant (§6.3), and
+reactivating the field revives it with its link rows (ADR-0011).
+
 Test artifact generation follows behavior and error intent, the canonical
 active-schema validation shape, and per-Action dependency identities, while test
 execution follows Handler impact. Active dependency projections inform generation
@@ -680,10 +742,10 @@ while non-activation restores through `fragment` rather than pretending a commit
 ### 6.3 Persistence — partly generated at runtime
 
 Four domain stores in `bun:sqlite`, plus small platform lifecycle metadata
-(mutation ownership/deletion tombstones), generated code files, and an object
-store on disk. Two of these do not exist yet: no migration creates the Event Log,
-which Module 10 builds, and no code implements the object store, which Module 7
-builds, so `storage/` holds only a README.
+(mutation ownership/deletion tombstones), two platform tables beside the data
+tables (the file ledger and the link table), generated code files, and an object
+store on disk. The Event Log and the link table do not exist yet: Module 10 builds
+the first and Module 8 the second.
 
 #### Capability Registry — the source of truth
 
@@ -709,6 +771,7 @@ shape label is analytical, not preservation machinery.
   "incarnation_id": "4a80b52d-60a1-47e9-971c-765766a6a3b2",
   "seed": 184206,
   "logo": { "status": "present", "attempts": 1 },
+  "relations": [],
   "version": 3,
   "schema": {
     "fields": [
@@ -775,17 +838,33 @@ shape label is analytical, not preservation machinery.
 
 The AI authors `id` on v1 and thereafter returns it unchanged, along with `label`,
 the logo birth facts `subject`/`ground`/`companion`, the empty-state `noun` and the
-count label's `plural_noun`,
-`schema`, `ui_intent`, `behavior`, `behavioral_errors`, the fixed M4 `tools`,
-`read_dependencies`, and `prompt_context`. The two colours must differ. Subject,
-ground and companion are immutable for the incarnation; noun and plural_noun may
-evolve as View-only facts. The platform owns
-`display_label_override`, `incarnation_id`, `seed`, logo lifecycle, `version`,
-snapshot metadata, build id, and `artifacts_path`. The effective user-facing name
-is `display_label_override ?? label`; rename mutates only the override through a
-short coordinator write and advances the resolver catalog binding. Fixed platform
-choices such as "a record opens in the window" do not belong in the AI-authored
-spec.
+count label's `plural_noun`, `schema`, `ui_intent`, `behavior`, `behavioral_errors`,
+the fixed M4 `tools`, `read_dependencies`, and `prompt_context`. The two colours must
+differ. Subject, ground and companion are immutable for the incarnation; noun and
+plural_noun may evolve as View-only facts. The platform owns
+`display_label_override`, `incarnation_id`, `seed`, logo lifecycle, `relations` (from
+Module 8), `version`, snapshot metadata, build id, and `artifacts_path`. The
+effective user-facing name is `display_label_override ?? label`; rename mutates only
+the override through a short coordinator write and advances the resolver catalog
+binding. A relation is `{ field, to: { capability, incarnation, field } }`: one
+single-line text field of this capability and the single-line text field of another
+capability it points at. Four rules decide which fields can link. The source is an
+active single-line text field of this capability with no other relation. The target
+is an active single-line text field of another capability. The target's incarnation
+is pinned and checked again when the relation is written. The source's length limit
+is absent or at least the target's, so a picked name always fits. A target may itself
+be a linked field, and a relation that would close a loop, counting dormant ones, is
+refused (proposed in ADR-0011). The link step proposes a relation during a build, the
+Link control writes one in place under the platform-write lease as rename writes the
+override, and a request only about linking writes one in place under its build lease;
+nothing records which. Changing a relation makes no version, regenerates no code and
+moves no frozen test, and the evolution writer never sees one. Hiding the source or
+the target field makes the relation dormant: it stays on the row unchanged, Aluna
+treats it as absent, and reactivating the field revives it with its link rows.
+ADR-0011 proposes the same when an evolution breaks a rule: a field turned into long
+text, or limits that no longer fit. A source made dormant that way is drawn as plain
+text, and a save that changes its text drops its link row. Fixed platform choices
+such as "a record opens in the window" do not belong in the AI-authored spec.
 
 `ui_intent` records only capability-specific choices: the item's free design
 direction and ordered presentation dependencies, the collection layout (a closed
@@ -829,25 +908,29 @@ snapshots, while new specs emit the complete form shape.
 The drawn picker implements the select-only combobox keyboard and ARIA contract:
 open keys, arrow/Home/End movement, typeahead, commit, Escape/click-away, focus
 held on the button and active-descendant reporting, with disabled options skipped.
-Radio uses native radio inputs; segmented remains a mutually exclusive,
-keyboard-operable button set. Presentation changes do not change the stored wire
-value.
+From Module 8 (8.1/03) a linked field and a choice field's picker are fields you type
+into rather than select-only buttons: Space, Home and End are typing, and the list
+narrows to the options whose label contains every typed word, ignoring case and accents
+and never reading an option's note. It says "No results" when nothing matches. Radio
+uses native radio inputs; segmented remains a mutually exclusive, keyboard-operable
+button set. Presentation changes do not change the stored wire value.
 
 `artifacts_path` points to the incarnation/version directory holding the exact
-`spec.json`, all Handlers, the item renderer, platform-authored `snapshot.json`,
-and tests only when that snapshot's behavioral tier is on. `snapshot.json` also
-carries audit-only per-unit dependency-generation provenance, which is neither
-registry state nor an equality or cascade input. The registry row keeps only what
-the resolver needs — authored spec, lifecycle identity, pointer — while bulky
-inventories and tests stay in snapshot files. Each persistent read dependency is a
-strict `{ capability_id, incarnation_id }` pair resolving to an active row; arrays
-are unique and canonically ordered, and the target capability is implicit. Naming
-exact live incarnations lets permanent deletion find reverse dependencies without
-inspecting generated code. Through M11 there is no registry/serving
+`spec.json`, all Handlers, the item renderer, platform-authored `snapshot.json`, and
+tests only when that snapshot's behavioral tier is on. `snapshot.json` also carries
+audit-only per-unit dependency-generation provenance, which is neither registry state
+nor an equality or cascade input. The registry row keeps only what the resolver needs
+— authored spec, lifecycle identity, pointer — while bulky inventories and tests stay
+in snapshot files. Each persistent read dependency is a strict `{ capability_id,
+incarnation_id }` pair resolving to an active row; arrays are unique and canonically
+ordered, and the target capability is implicit. Naming exact live incarnations lets
+permanent deletion find reverse dependencies without inspecting generated code. A
+relation names its target's incarnation too, but it is no read dependency and never
+blocks a deletion (§8 Concurrency). Through M11 there is no registry/serving
 artifact-contract upgrade marker (ADR-0005 §7); an M11 metrics-only shape label may
 classify historical rows. Keeping the active registry set lean matters because the
-Intent Resolver scans every row on every classification, reading `prompt_context`
-to understand the capabilities that already exist.
+Intent Resolver scans every row on every classification, reading `prompt_context` to
+understand the capabilities that already exist.
 
 The logo file is not part of `artifacts_path` or any version inventory. It lives
 once at `capabilities/<id>/<incarnation_id>/logo.svg`, beside `vN/`, so bounded
@@ -869,6 +952,8 @@ vocabulary. Module 4 extends that one renderer when list types arrive and lets
 the authored form intent select between the two platform list-input modes without
 exposing the choice to generated Handlers; Module 5 adds choice/long-text form
 contracts, and Module 7 extends it again for file controls and form presentation.
+Module 8 draws a linked single-line text field as a dropdown of its target's
+records, a rendering of the existing `string` type rather than a new one.
 Unknown types or list-input modes fail
 closed rather than falling back to an arbitrary text field.
 
@@ -899,6 +984,22 @@ Platform-derived DDL follows the AI-authored candidate spec and is additive-only
 fields are added or soft-hidden, never destructively changed. Only confirmed
 capability deletion removes the whole table. JSON columns remain the escape hatch
 for fields that do not warrant a real column yet.
+
+#### Link Table — which record a linked field picked
+
+A linked field keeps its text in its own capability's table, and which record it
+points at is kept here, in a platform table on the file ledger's pattern: one row per
+source capability, record and field, naming a target capability, incarnation and
+record. The table lies outside every Handler's query scope by construction. A
+Handler's query may open only its own `cap_` table and its declared dependencies',
+so the link table, like the ledger, is out of reach with no list of names to
+maintain, and the Gate's scratch database creates it beside the ledger. It is
+indexed in both directions, because search walks links backwards. Only the platform
+writes it: a save in the record's own transaction, the matching scan, Unlink, and
+deletion. The rows of a dormant relation stay, and reactivating its field revives
+them. Capability deletion removes the deleted capability's relations and link rows
+on both sides in the tombstone transaction, so every relation pointing at it goes
+as Unlink takes one and each linked field keeps its text (ADR-0011).
 
 #### Generation Metrics — the experiment's measurements
 
@@ -1015,30 +1116,53 @@ lifecycle rules, record targeting, and validation of the resulting row. Handlers
 own capability-specific behavior and the product-voice translation of typed
 failures, but never DDL or raw mutation SQL.
 
-Update has merge-patch semantics, and record identity is a separate platform
-target. Only submitted active fields change: omitted active fields, all inactive values,
+Update has merge-patch semantics, and record identity is a separate platform target.
+Only submitted active fields change: omitted active fields, all inactive values,
 `id`, `created_at`, and `extra` survive, an explicit `null` clears only an optional
 active field, and the complete result validates before the write. An edit therefore
 cannot erase soft-hidden or forward-compatible state. A file field goes further: its
 written value is always the router-checked submission, whether the Handler passes it
 back or leaves it out, any other value is refused, and only the platform control's
-explicit clear empties it, or for a `file[]` its naming each file it removes (ADR-0009).
-Incidental I/O stays the
-Handler's business; canonical state always crosses the mutation interface.
+explicit clear empties it, or for a `file[]` its naming each file it removes
+(ADR-0009). A linked field is soft: text with no matching record still saves, and the
+only save a link refuses is a forged or stale pick, after which the field asks for a
+new one. A valid pick wins over the Handler. Inside the record's own transaction,
+where a new record's id is minted, the mutation interface writes the link row and
+makes the stored text the target field's current text, checked again against the
+field's length limit, which always holds while the relation is active under the
+dormancy rule ADR-0011 proposes (§6.3). A Handler that title-cases a name cannot
+change what the link shows, and a form opened before the target changed cannot write
+the old text back (ADR-0011). Incidental I/O stays the Handler's business; canonical
+state a Handler writes always crosses the mutation interface.
+
+Two platform writes reach into another capability's records, and they are the only
+ones. When a target's text changes, the linked-text refresh rewrites every field
+linked to it, in the target record's own transaction, under the lease that save
+already holds, as platform SQL against each linking capability's table. A rewritten
+field that is itself a target passes the change down the chain, each field visited
+once (proposed in ADR-0011). Deleting a target record never deletes or holds up the
+records pointing at it: an optional linked field is cleared, and a required one keeps
+the last text it showed as plain text with the broken-link mark. ADR-0011 proposes
+that clearing a target's text breaks the link the same way, so a required field is
+never rewritten to empty. A generated Handler still never writes outside its own
+capability (ADR-0011).
 
 ### Reads — free
 
 Reads use a distinct parameterized SQL interface backed by a physically read-only
 SQLite connection (`SQLITE_OPEN_READONLY` plus `PRAGMA query_only = ON`; there is no
 authorizer — `bun:sqlite` exposes none, and ADR-0008 records what closes the gap that
-leaves), so mutation through that supplied query adapter fails at the SQLite seam. Every persistent generated
-Action may query its own table plus the exact capability incarnations declared for
-that Action in committed `read_dependencies`, and `read` and `search` necessarily
-do. The declaration exists for lifecycle integrity, not mutation safety: SQL and
-joins stay arbitrary within those physical tables. The physical dependency ABI is
-additive field name and type stability. New Handler and test generation sees only
-active external fields, but a committed Handler may keep reading a field its owner
-later soft-hides, because soft-hide is neither erasure nor read revocation.
+leaves), so mutation through that supplied query adapter fails at the SQLite seam.
+Every persistent generated Action may query its own table plus the exact capability
+incarnations declared for that Action in committed `read_dependencies`, and `read`
+and `search` necessarily do. The declaration exists for lifecycle integrity, not
+mutation safety: SQL and joins stay arbitrary within those physical tables. Platform
+tables lie outside that scope by construction, so the file ledger and the link table
+are out of a Handler's reach with no list of names to maintain, and a link is never a
+read dependency (ADR-0011). The physical dependency ABI is additive field name and
+type stability. New Handler and test generation sees only active external fields, but
+a committed Handler may keep reading a field its owner later soft-hides, because
+soft-hide is neither erasure nor read revocation.
 
 Every query call declares a closed ordered result alias and type descriptor. The
 adapter projects only those aliases, discards extra SQL result columns, and fails on
@@ -1073,6 +1197,19 @@ the cost of a local C compiler and SQLite extension headers. On macOS the runtim
 selects an extension-capable Homebrew SQLite (or `OMNI_CRUD_SQLITE_LIBRARY`)
 instead of Apple's extension-disabled library; setup details live in
 `data/README.md`.
+
+Search also follows links, in platform code. The generated search Handler runs
+unchanged, and its whole answer is records drawn through the platform's `present()`,
+so the platform adds to the results without touching it. It wraps `present()` to note
+which records the Handler showed, follows every relation out of the searched
+capability and every relation into it, then the same from each capability reached,
+and searches each capability once with the same normalizer under a read token. It
+follows the link table back to the searched capability's records and appends those
+the Handler did not show, one link away before two and newest first within each
+distance. It never removes or reorders what the Handler returned, and the count the
+answer carries includes the appended records. Adding or removing a relation moves no
+generated code, so search follows links for capabilities built before links existed
+(ADR-0011).
 
 M6 `data_query` is the ephemeral whole-catalog reader and persists no reverse
 dependency. A cheap classifier may route or reject obvious non-queries early
@@ -1142,16 +1279,23 @@ ADR-0009 is the contract.
 nothing. It resolves through a bounded loop of read-only steps: the model receives
 one tool — a parameterized query against the physically read-only connection — and
 uses its turns to find where the subject lives, read what the user's values are
-actually called, and compute. SQL carries the whole computation; the model never
-does arithmetic by reading rows. The loop's queries execute in a worker that attaches
-the database read-only and reads every table through views that show no file's key,
-so a clumsy query cannot block the desk, a closing read gate can actually cancel one,
-and no statement reaches a file's key, or a copy of one kept whole in text with only
-common separators between its digits, to disguise it (ADR-0008, ADR-0009). The query creates no registry row, no logo on the
-ground, and no version, artifact, cache, or persisted read dependency. Once M10
-exists the Event Log may still record the ordinary user action, which does not turn
-the query into a built capability. Scope follows the context-aware prompt bar: the
-open capability resolves vague references and never fences the search.
+actually called, and compute. SQL carries the whole computation; the model never does
+arithmetic by reading rows. The loop's queries execute in a worker that attaches the
+database read-only and reads every table through views that show no file's key, so a
+clumsy query cannot block the desk, a closing read gate can actually cancel one, and
+no statement reaches a file's key, or a copy of one kept whole in text with only
+common separators between its digits, to disguise it (ADR-0008, ADR-0009). Question
+views gain the link joins, so "how many copies of Le Guin's books do I have?" follows
+Inventory to Books to Authors through the link table instead of guessing a join on
+plain columns, and a link join declares no read dependency. Every statement is
+checked on the platform's own connection, where the worker's views do not exist, so
+the link table is admitted to that check by its real name, and the worker shadows it
+with a view of the same name and columns holding only active relations' rows
+(ADR-0011). The query creates no registry row, no logo on the ground, and no version,
+artifact, cache, or persisted read dependency. Once M10 exists the Event Log may
+still record the ordinary user action, which does not turn the query into a built
+capability. Scope follows the context-aware prompt bar: the open capability resolves
+vague references and never fences the search.
 
 **Aluna speaks the answer.** There is no auto-table — a grid headed by SQL aliases is
 the engineering tool §9.7 forbids. Removing it removes the user's only audit, and two
@@ -1165,28 +1309,29 @@ registry's declared options plus an ordinary read of a field's distinct values �
 and semantic indexes are declined, because they would put an AI call and a fourth
 derived artifact on the write path (ADR-0008).
 
-**An answer links the records it names.** When a question asks about particular
-records rather than a figure, the model selects `id` with them and returns
+**A record the answer names becomes an answer link.** When a question asks about
+particular records rather than a figure, the model selects `id` with them and returns
 `{ answer, records }`, where each `{ says, id }` names the words in the answer that
 mean a record and the id it read. The platform keeps a nomination only when the id
-came back as a cell in a row some step returned, exactly one capability that step read
-holds a record with that id, that capability has a record view, and `says` occurs in
-the answer outside any other link. It links the first free occurrence of `says` and
-drops the rest without a word. The prose never carries an id: the platform removes
-any record id the steps returned from the answer before it is shown. The answer
-fragment holds escaped text runs and `<a data-answer-record>` elements, and the client
-builds each anchor itself from ids it validates, through one `recordAddress()`
-builder; it never parses markup out of the answer. A plain press opens the record in
-the capability window, under the same leave question and run hold as a record address,
-and the answer window stays where it is (ADR-0010).
+came back as a cell in a row some step returned, exactly one capability that step
+read holds a record with that id, that capability has a record view, and `says`
+occurs in the answer outside any other answer link. It makes the first free
+occurrence of `says` an answer link and drops the rest without a word. The prose
+never carries an id: the platform removes any record id the steps returned from the
+answer before it is shown. The answer fragment holds escaped text runs and `<a
+data-answer-record>` elements, the answer links, and the client builds each one
+itself from ids it validates, through one `recordAddress()` builder; it never parses
+markup out of the answer. A plain press opens the record in the capability window,
+under the same leave question and run hold as a record address, and the answer window
+stays where it is (ADR-0010).
 
 The answer opens in its own window — a third window beside the capability window and
 the developer panel, displacing neither, so a capability stays open while it is asked
 about. One answer window: a new question replaces its content in place rather than closing and
 reopening it, the same swap the one window already performs between capabilities. There
 is no route back to an answer once it is gone — no logo, no tile, no address, nothing
-surviving a reload — so it is dismissed rather than put away. Its links lead to
-records, never back to the answer. A refusal opens nothing, but
+surviving a reload — so it is dismissed rather than put away. Its answer links lead
+to records, never back to the answer. A refusal opens nothing, but
 where it speaks depends on what the desk is holding: the prompt bar's notice slot when no
 answer window stands, and the window itself when one does, re-titled to the refused words
 and brought forward. An answer left standing beside a refusal goes on answering a question
@@ -1203,6 +1348,7 @@ User types in Prompt Bar
         │
         ▼
 Intent Resolver  ── classify (new/extend/ui/query) + overlap resolve + friendly label
+        │           + related-capability flags
         ├─ data_query ──▶ M6 ephemeral query path
         ├─ reject ──────▶ friendly refusal
         └─ resolved request + target/catalog fingerprint binding
@@ -1215,11 +1361,14 @@ Intent Resolver  ── classify (new/extend/ui/query) + overlap resolve + frien
                     │
                     ▼
           Capability Builder
+                    │  (a request only about linking instead runs the link step
+                    │   alone: relation in place + matching scan, no version)
                     ├─ complete candidate spec
                     ├─ Diff Engine: facts → DDL/unit/Gate scope (or measured no-op)
                     ├─ generate/copy complete snapshot + layered Gate
+                    │  + link step beside the units
                     ├─ no-overwrite filesystem publication
-                    └─ SQLite pointer + success metrics activation
+                    └─ SQLite pointer + relations + success metrics activation
                     │
                     ▼
           Presenter terminal branch
@@ -1276,11 +1425,14 @@ request to the same Builder that Loop 1 uses, and re-runs no prompt classificati
 
 When a new intent overlaps an existing capability, the Intent Resolver decides
 silently: extend that capability, or create a separate one whose semantic name
-carries the distinction. Work contacts is an independent capability beside
-Contacts, never `contacts_2`, and `namespace` is metrics-only. There are no shared
-fields and no foreign keys. Persistent cross-capability joins declare exact
-incarnation dependencies in the reading capability's spec; ephemeral `data_query`
-joins do not. The user never reconciles data models.
+carries the distinction. Work contacts is an independent capability beside Contacts,
+never `contacts_2`, and `namespace` is metrics-only. There are no shared fields and
+no foreign keys. A single-line text field may instead be linked to a single-line text
+field of another capability: it keeps its own text, which record it picked is kept in
+the link table, and the resolver's related-capability flag is how it marks the
+capability a request relates to (ADR-0011). Persistent cross-capability joins declare
+exact incarnation dependencies in the reading capability's spec; ephemeral
+`data_query` joins and link joins do not. The user never reconciles data models.
 
 ### Concurrency
 
@@ -1292,14 +1444,28 @@ freezes the separate dependency-generation catalog and starts Builder work. A
 mismatch is stale rather than a silent reclassification.
 
 Record create, update, and delete take short ownership, but are refused while any
-lease is held or anything is queued, a platform write included. Short platform
-writes such as logo claims, renames, deletion cleanup or non-build resolver metrics
-queue behind existing work. Capability deletion atomically try-acquires under the
-same rule as a record write, and it never queues. Direct and demo paths use the
-same interface. Tickets and ownership tokens expire and cancel
-separately, and leases release through an ownership-validated `finally`, never an
-`isBusy` observation. That stops a request from accidentally joining another
-open transaction.
+lease is held or anything is queued, a platform write included. Platform writes such
+as logo claims, renames, Link and Unlink, deletion cleanup or non-build resolver
+metrics take the platform-write lease, which queues behind existing work. Capability
+deletion atomically try-acquires under the same rule as a record write, and it never
+queues. Direct and demo paths use the same interface. Tickets and ownership tokens
+expire and cancel separately, and leases release through an ownership-validated
+`finally`, never an `isBusy` observation. That stops a request from accidentally
+joining another open transaction.
+
+Like a rename, a Link or Unlink press that lands as a build starts waits behind the
+build and then applies. Link holds the lease through its matching scan, so record
+saves are refused until the scan finishes. The write is conditional on the row the
+press read: when the build changed either end, the press is refused as stale, nothing
+is written, and the prompt bar says so. A queued press whose connection closes is
+dropped from the queue and writes nothing. While Link's matching scan runs, both
+buttons fade with Save and Delete; nothing fades during a build, which takes the
+window (ADR-0011). A request only about linking takes the build lease like any resolved
+build, and its relation write and matching scan run inside that lease with no lease
+of their own. The linked-text refresh and the clearing a target record's deletion
+brings take no lease either: they run inside the save or deletion that caused them,
+because the coordinator admits one lease at a time and a second request from inside
+the save would wait on itself (ADR-0011).
 
 Explicit-loop builds and evolutions use the foreground SSE presenter: the build
 takes the window and narrates there, record mutation routes refuse while the build
@@ -1309,28 +1475,36 @@ so the build stays visible whether or not the user is watching the window. It is
 replaced on activation and removed on every non-activation. That presentation is not a core Builder invariant;
 Module 10 may choose another presenter after confirmation.
 
-Reads remain concurrent and never enter the mutation coordinator. Capability
-deletion adds a per-incarnation closing step: once it is admitted, new routes,
-reads, queries that reference the incarnation, and file serves are refused, and
-bounded already-admitted reads finish or cancel before the destructive transaction.
-Any operation that can observe multiple incarnations acquires the complete token set
-atomically against one gate/catalog snapshot or receives none, and all tokens
-release in `finally`.
+Reads remain concurrent and never enter the mutation coordinator. Capability deletion
+adds a per-incarnation closing step: once it is admitted, new routes, reads, queries
+that reference the incarnation, and file serves are refused, and bounded
+already-admitted reads finish or cancel before the destructive transaction. Any
+operation that can observe multiple incarnations acquires the complete token set
+atomically against one gate/catalog snapshot or receives none, and all tokens release
+in `finally`. A linked field's dropdown and save hold the target's token beside their
+own, so deleting the target cannot race them. The linked-text refresh and the
+clearing a target record's deletion brings are an exception to taking the set all at
+once: the save or deletion also takes the token of every capability its refresh or
+clearing reaches, down the chain where ADR-0011's proposed chain rule applies, apart
+from its own set, so a linking capability closed by its own deletion is skipped
+instead of refusing the save (ADR-0011).
 
 Cross-capability reads need no invalidation channel. A capability may read another
-capability's table and can never write to it, one capability window means one visible
-capability — the answer window holds a computed answer, never a capability's records,
-only links to them —
-and every open is a fresh read, so nothing has to be kept in step. A
-second browser tab is the only remaining route to a stale view, and it is an
-accepted edge rather than a reason to build a bus, a version stamp, or the refresh
-control the window deliberately does not have.
+capability's table and never writes to it (the linked-text refresh and the clearing
+are the platform's, §7); one capability window means one visible capability — the
+answer window holds a computed answer, never a capability's records, only answer
+links to them — and every open is a fresh read, so nothing has to be kept in step. A
+second browser tab is the only remaining route to a stale view, and it is an accepted
+edge rather than a reason to build a bus, a version stamp, or the refresh control the
+window deliberately does not have.
 
 Any UI dependency preflight is advisory. Confirm revalidates the target incarnation
 and its reverse dependencies after the atomic try-acquire, and declared dependents
-block deletion rather than leaving survivors broken. A new capability has no delete
-surface before commit, and a pending deletion reserves its semantic id until cleanup
-completes.
+block deletion rather than leaving survivors broken. A relation is not a dependent
+and never blocks a deletion: deleting a target capability works like Unlink on every
+relation pointing at it, and each linked field keeps its text as plain text with no
+mark (ADR-0011). A new capability has no delete surface before commit, and a pending
+deletion reserves its semantic id until cleanup completes.
 
 Deletion runs in the window like everything else. The doorway is the logo's context
 menu and never the window chrome, and the confirmation fills the window in authored
@@ -1339,7 +1513,7 @@ authoritative; refusal, timeout and pre-commit failure leave them so and give th
 back on the dismissal rather than at once. At commit the logo vanishes;
 the window puts itself away when the deleted capability was previously open or the
 desk was bare, and otherwise restores the unrelated capability the confirmation
-displaced. There is no terminal state for the deleted capability. A link to a
+displaced. There is no terminal state for the deleted capability. An address naming a
 deleted capability loads the bare desk and speaks a brief notice through the
 prompt bar, which covers a reload, a bookmark and a second tab without a window
 state or third notice component of its own. The response keeps the 404 the absent
@@ -1359,10 +1533,12 @@ External cleanup retries cannot resurrect the deleted surface.
 
 2. **Mutation constrained and coordinated, reads free and declared where
    persistent.** Canonical writes go through capability-bound and
-   validated-target-bound mutations under the one coordinator. Reads use physically
-   read-only SQL through supplied adapters. Persistent cross-capability Handler
-   dependencies are committed lifecycle facts, while M6 queries remain ephemeral.
-   (See §3, §7.)
+   validated-target-bound mutations under the one coordinator. The two exceptions are
+   the platform's own: the linked-text refresh and the clearing a target record's
+   deletion brings run as platform SQL inside the transaction that caused them (§7).
+   Reads use physically read-only SQL through supplied adapters. Persistent
+   cross-capability Handler dependencies are committed lifecycle facts, while M6
+   queries remain ephemeral. (See §3, §7.)
 
 3. **Evolution never destroys; explicit deletion does.** Migrations are
    platform-derived from the AI-authored candidate and additive-only — add or
@@ -1372,13 +1548,13 @@ External cleanup retries cannot resurrect the deleted surface.
    record or a whole capability is different: after explicit platform-owned
    confirmation, the user has authorized permanent destruction. Capability deletion
    removes the active registry entry, the table and its records, the complete
-   artifact and spec history, owned files, and capability-owned Event Log payloads.
-   A durable tombstone drives idempotent cross-store cleanup and reserves identity
-   until that finishes, and declared dependents block rather than break. The
-   confirmation wording states the effect plainly; it never says archive, hide, or
-   deactivate. Generation metrics survive, keyed by incarnation, and they are not
-   content-free: their stored error text can still quote the deleted spec and its
-   generated markup (§6.3).
+   artifact and spec history, owned files, and capability-owned Event Log payloads. A
+   durable tombstone drives idempotent cross-store cleanup and reserves identity
+   until that finishes, and declared dependents block rather than break; a relation
+   is no dependent and never blocks. The confirmation wording states the effect
+   plainly; it never says archive, hide, or deactivate. Generation metrics survive,
+   keyed by incarnation, and they are not content-free: their stored error text can
+   still quote the deleted spec and its generated markup (§6.3).
 
 4. **Merge conflicts are resolved silently, never surfaced.** The Intent Resolver
    decides extend-versus-namespace automatically and proceeds. Getting it wrong
@@ -1395,11 +1571,11 @@ External cleanup retries cannot resurrect the deleted surface.
    undo or relabel success, and the UI recovers from the registry.
 
 6. **Generation is measured, and slowness is expected.** Latency is data, not a
-   defect. Every admitted build gets one generation or admission row: successful
-   lease-head revalidation enters `running`, while a stale or collision refusal
-   writes a direct terminal row without provider work. Resolver-only outcomes
-   retain their measurement without pretending a build occurred. Conclusions come
-   from querying the dataset.
+   defect. Every admitted build gets one generation or admission row (a request only
+   about linking is settled in epic 8.7): successful lease-head revalidation enters
+   `running`, while a stale or collision refusal writes a direct terminal row without
+   provider work. Resolver-only outcomes retain their measurement without pretending
+   a build occurred. Conclusions come from querying the dataset.
 
 7. **Friendly app, never a coding agent or engineering tool.** Users state the
    capability-level outcome they want; they do not choose types, migrations,

@@ -24,6 +24,7 @@
         <a href="#enum">Enums</a>
         <a href="#choice">Choice</a>
         <a href="#files">Files</a>
+        <a href="#link">Links</a>
         <a href="#form">Assembled</a>
         <a href="#decisions">Decisions</a>
         <a href="#open">Still open</a>
@@ -44,7 +45,8 @@
         <p class="lede">
           Everything here is real, so you can type into the fields, open the listboxes, tick the
           boxes and watch the long-text field grow. A control that only looks right in a screenshot
-          is what this page is meant to catch.
+          is what this page is meant to catch. The one exception is Links, drawn before it is built:
+          its choosers and dropdowns open, and the states around them are pictures.
         </p>
 
         <div class="note note--sky">
@@ -842,12 +844,27 @@
                   <div class="listbox__option" role="option" data-value="sent" aria-selected="true">
                     Sent
                   </div>
-                  <div class="listbox__option" role="option" data-value="paid">
-                    Paid<span class="listbox__note">closes the record</span>
+                  <div
+                    class="listbox__option"
+                    role="option"
+                    data-value="paid"
+                    aria-describedby="status-note-paid"
+                  >
+                    Paid<span class="listbox__note" id="status-note-paid" aria-hidden="true"
+                      >closes the record</span
+                    >
                   </div>
                   <div class="listbox__option" role="option" data-value="overdue">Overdue</div>
-                  <div class="listbox__option" role="option" data-value="void" aria-disabled="true">
-                    Void<span class="listbox__note">needs a reason</span>
+                  <div
+                    class="listbox__option"
+                    role="option"
+                    data-value="void"
+                    aria-disabled="true"
+                    aria-describedby="status-note-void"
+                  >
+                    Void<span class="listbox__note" id="status-note-void" aria-hidden="true"
+                      >needs a reason</span
+                    >
                   </div>
                 </div>
               </div>
@@ -863,6 +880,11 @@
               Focus never moves off the button, and the active row is reported through
               <code>aria-activedescendant</code>. That keeps the five ways out of the panel from
               each needing their own focus-restoring code.
+            </p>
+            <p class="xs">
+              From Module 8 typing searches instead of jumping: the list narrows to the options
+              whose label contains every typed word, as <a href="#link">Links</a> draws it. 8.1/03
+              builds that and rewrites this paragraph.
             </p>
 
             <div class="row" style="margin-top: 16px">
@@ -899,21 +921,39 @@
                 </button>
                 <div class="listbox__panel" hidden>
                   <div class="listbox__scroll">
-                    <div class="listbox__group caps" role="presentation">Americas</div>
-                    <div class="listbox__option" role="option" data-value="cop">Colombian peso</div>
-                    <div class="listbox__option" role="option" data-value="usd">US dollar</div>
-                    <div class="listbox__option" role="option" data-value="brl">Brazilian real</div>
-                    <div class="listbox__option" role="option" data-value="cad">
-                      Canadian dollar
+                    <div role="group" aria-labelledby="ccy-group-americas">
+                      <div class="listbox__group caps" role="presentation" id="ccy-group-americas">
+                        Americas
+                      </div>
+                      <div class="listbox__option" role="option" data-value="cop">
+                        Colombian peso
+                      </div>
+                      <div class="listbox__option" role="option" data-value="usd">US dollar</div>
+                      <div class="listbox__option" role="option" data-value="brl">
+                        Brazilian real
+                      </div>
+                      <div class="listbox__option" role="option" data-value="cad">
+                        Canadian dollar
+                      </div>
                     </div>
-                    <div class="listbox__group caps" role="presentation">Europe</div>
-                    <div class="listbox__option" role="option" data-value="eur">Euro</div>
-                    <div class="listbox__option" role="option" data-value="gbp">Pound sterling</div>
-                    <div class="listbox__option" role="option" data-value="chf">Swiss franc</div>
-                    <div class="listbox__group caps" role="presentation">Asia</div>
-                    <div class="listbox__option" role="option" data-value="jpy">Japanese yen</div>
-                    <div class="listbox__option" role="option" data-value="cny">Chinese yuan</div>
-                    <div class="listbox__option" role="option" data-value="inr">Indian rupee</div>
+                    <div role="group" aria-labelledby="ccy-group-europe">
+                      <div class="listbox__group caps" role="presentation" id="ccy-group-europe">
+                        Europe
+                      </div>
+                      <div class="listbox__option" role="option" data-value="eur">Euro</div>
+                      <div class="listbox__option" role="option" data-value="gbp">
+                        Pound sterling
+                      </div>
+                      <div class="listbox__option" role="option" data-value="chf">Swiss franc</div>
+                    </div>
+                    <div role="group" aria-labelledby="ccy-group-asia">
+                      <div class="listbox__group caps" role="presentation" id="ccy-group-asia">
+                        Asia
+                      </div>
+                      <div class="listbox__option" role="option" data-value="jpy">Japanese yen</div>
+                      <div class="listbox__option" role="option" data-value="cny">Chinese yuan</div>
+                      <div class="listbox__option" role="option" data-value="inr">Indian rupee</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2228,13 +2268,2352 @@
         </div>
       </section>
 
+      <!-- ══ Links ══════════════════════════════════════════════════════ -->
+      <section class="window--section" id="link" data-window data-title="Links">
+        <div class="note note--sky">
+          <p>
+            <strong>New in Module 8, and drawn before it is built.</strong>
+            A single-line text field can be linked to a field of another capability. A book's author
+            linked to Authors still shows the author's name, but the name follows her record, and
+            the book knows which record it is. The Link control is the chain inside the field, and
+            Unlink is the broken chain inside a linked one. On screen they say <em>connect</em> and
+            <em>disconnect</em>, never <em>link</em> (ADR-0011).
+          </p>
+          <p>
+            Nothing in this section talks to a server. 8.1/02 builds the chooser, 8.1/03 the linked
+            field, its search and the line under an unmatched name, 8.1/05 what fades while Aluna
+            links a field, the report and the broken-link mark, and 8.1/07 Unlink and its question.
+          </p>
+        </div>
+        <h3 class="kicker" style="margin-top: 22px">Before it is linked</h3>
+        <p class="sm">
+          Every single-line text field carries the chain, in a new record and in Edit, even when
+          nothing on the desk could be picked. Long text never links, so Notes has none. Press a
+          chain to open its chooser; picking a target only closes it here.
+        </p>
+        <div class="cols">
+          <div class="stage">
+            <div class="window window--specimen" data-window data-title="New book">
+              <div class="form" style="min-height: 31rem">
+                <div class="field">
+                  <label class="field__label caps" for="link-new-title">Title</label>
+                  <div class="listbox link-control" data-listbox>
+                    <span class="field__control"
+                      ><input class="field__input" id="link-new-title" type="text" value="">
+                      <button
+                        class="listbox__button link-control__button"
+                        type="button"
+                        aria-label="Connect every book’s title"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="14"
+                          height="14"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.25"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M10 13.5a4 4 0 0 0 5.66 0l3-3a4 4 0 1 0-5.66-5.66l-1.15 1.15"
+                          ></path>
+                          <path
+                            d="M14 10.5a4 4 0 0 0-5.66 0l-3 3a4 4 0 1 0 5.66 5.66l1.15-1.15"
+                          ></path>
+                        </svg><span class="listbox__value" hidden></span>
+                      </button></span
+                    >
+                    <div class="listbox__panel link-control__panel" hidden>
+                      <div class="link-control__head">
+                        <p class="link-control__heading" id="link-new-title-heading">
+                          Connect every book’s title to…
+                        </p>
+                        <p class="link-control__line" id="link-new-title-line">
+                          Pick where every book’s title comes from.
+                        </p>
+                      </div>
+                      <div
+                        class="listbox__scroll"
+                        data-listbox-list
+                        aria-labelledby="link-new-title-heading"
+                        aria-describedby="link-new-title-line"
+                      >
+                        <div role="group" aria-labelledby="link-new-title-group-suggested">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-new-title-group-suggested"
+                          >
+                            Suggested
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="reading_log.title"
+                            aria-describedby="link-new-title-note-reading-log-title"
+                          >
+                            Reading Log’s title<span
+                              class="listbox__note"
+                              id="link-new-title-note-reading-log-title"
+                              aria-hidden="true"
+                              >Piranesi, The Dispossessed, Kindred</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-new-title-group-authors">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-new-title-group-authors"
+                          >
+                            Authors
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.name"
+                            aria-describedby="link-new-title-note-authors-name"
+                          >
+                            Name<span
+                              class="listbox__note"
+                              id="link-new-title-note-authors-name"
+                              aria-hidden="true"
+                              >Ursula K. Le Guin, Octavia E. Butler, Brandon Sanderson</span
+                            >
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.pen_name"
+                            aria-describedby="link-new-title-note-authors-pen-name"
+                          >
+                            Pen name<span
+                              class="listbox__note"
+                              id="link-new-title-note-authors-pen-name"
+                              aria-hidden="true"
+                              >James Tiptree Jr.</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-new-title-group-publishers">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-new-title-group-publishers"
+                          >
+                            Publishers
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.name"
+                            aria-describedby="link-new-title-note-publishers-name"
+                          >
+                            Name<span
+                              class="listbox__note"
+                              id="link-new-title-note-publishers-name"
+                              aria-hidden="true"
+                              >Tor, Gollancz, Ace</span
+                            >
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.city"
+                            aria-describedby="link-new-title-note-publishers-city"
+                          >
+                            City<span
+                              class="listbox__note"
+                              id="link-new-title-note-publishers-city"
+                              aria-hidden="true"
+                              >New York, London</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-new-title-group-contacts">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-new-title-group-contacts"
+                          >
+                            Contacts
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="contacts.phone"
+                            aria-describedby="link-new-title-note-contacts-phone"
+                          >
+                            Phone<span
+                              class="listbox__note"
+                              id="link-new-title-note-contacts-phone"
+                              aria-hidden="true"
+                              >+57 300 123 4567, +57 310 555 0199</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field__label caps" for="link-new-author">Author</label>
+                  <div class="listbox link-control" data-listbox>
+                    <span class="field__control"
+                      ><input class="field__input" id="link-new-author" type="text" value="">
+                      <button
+                        class="listbox__button link-control__button"
+                        type="button"
+                        aria-label="Connect every book’s author"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="14"
+                          height="14"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.25"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M10 13.5a4 4 0 0 0 5.66 0l3-3a4 4 0 1 0-5.66-5.66l-1.15 1.15"
+                          ></path>
+                          <path
+                            d="M14 10.5a4 4 0 0 0-5.66 0l-3 3a4 4 0 1 0 5.66 5.66l1.15-1.15"
+                          ></path>
+                        </svg><span class="listbox__value" hidden></span>
+                      </button></span
+                    >
+                    <div class="listbox__panel link-control__panel" hidden>
+                      <div class="link-control__head">
+                        <p class="link-control__heading" id="link-new-author-heading">
+                          Connect every book’s author to…
+                        </p>
+                        <p class="link-control__line" id="link-new-author-line">
+                          Pick where every book’s author comes from.
+                        </p>
+                      </div>
+                      <div
+                        class="listbox__scroll"
+                        data-listbox-list
+                        aria-labelledby="link-new-author-heading"
+                        aria-describedby="link-new-author-line"
+                      >
+                        <div role="group" aria-labelledby="link-new-author-group-suggested">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-new-author-group-suggested"
+                          >
+                            Suggested
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.name"
+                            aria-describedby="link-new-author-note-authors-name"
+                          >
+                            Authors’ name<span
+                              class="listbox__note"
+                              id="link-new-author-note-authors-name"
+                              aria-hidden="true"
+                              >Ursula K. Le Guin, Octavia E. Butler, Brandon Sanderson</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-new-author-group-authors">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-new-author-group-authors"
+                          >
+                            Authors
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.pen_name"
+                            aria-describedby="link-new-author-note-authors-pen-name"
+                          >
+                            Pen name<span
+                              class="listbox__note"
+                              id="link-new-author-note-authors-pen-name"
+                              aria-hidden="true"
+                              >James Tiptree Jr.</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-new-author-group-publishers">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-new-author-group-publishers"
+                          >
+                            Publishers
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.name"
+                            aria-describedby="link-new-author-note-publishers-name"
+                          >
+                            Name<span
+                              class="listbox__note"
+                              id="link-new-author-note-publishers-name"
+                              aria-hidden="true"
+                              >Tor, Gollancz, Ace</span
+                            >
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.city"
+                            aria-describedby="link-new-author-note-publishers-city"
+                          >
+                            City<span
+                              class="listbox__note"
+                              id="link-new-author-note-publishers-city"
+                              aria-hidden="true"
+                              >New York, London</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-new-author-group-contacts">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-new-author-group-contacts"
+                          >
+                            Contacts
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="contacts.phone"
+                            aria-describedby="link-new-author-note-contacts-phone"
+                          >
+                            Phone<span
+                              class="listbox__note"
+                              id="link-new-author-note-contacts-phone"
+                              aria-hidden="true"
+                              >+57 300 123 4567, +57 310 555 0199</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field__label caps" for="link-new-notes"
+                    >Notes <span class="field__optional">optional</span></label
+                  ><span class="field__control field__control--area"
+                    ><textarea
+                      class="field__textarea"
+                      id="link-new-notes"
+                      rows="2"
+                      data-grow
+                      data-sample=""
+                    ></textarea></span
+                  >
+                </div>
+                <div class="form__actions">
+                  <button class="btn btn--primary" type="button">Add book</button
+                  ><button class="btn btn--outline" type="button">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="stage">
+            <div class="window window--specimen" data-window data-title="Mistborn">
+              <div class="form" style="min-height: 31rem">
+                <div class="field">
+                  <label class="field__label caps" for="link-edit-title">Title</label>
+                  <div class="listbox link-control" data-listbox>
+                    <span class="field__control"
+                      ><input
+                        class="field__input"
+                        id="link-edit-title"
+                        type="text"
+                        value="Mistborn"
+                      ><button
+                        class="listbox__button link-control__button"
+                        type="button"
+                        aria-label="Connect every book’s title"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="14"
+                          height="14"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.25"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M10 13.5a4 4 0 0 0 5.66 0l3-3a4 4 0 1 0-5.66-5.66l-1.15 1.15"
+                          ></path>
+                          <path
+                            d="M14 10.5a4 4 0 0 0-5.66 0l-3 3a4 4 0 1 0 5.66 5.66l1.15-1.15"
+                          ></path>
+                        </svg><span class="listbox__value" hidden></span>
+                      </button></span
+                    >
+                    <div class="listbox__panel link-control__panel" hidden>
+                      <div class="link-control__head">
+                        <p class="link-control__heading" id="link-edit-title-heading">
+                          Connect every book’s title to…
+                        </p>
+                        <p class="link-control__line" id="link-edit-title-line">
+                          Pick where every book’s title comes from.
+                        </p>
+                      </div>
+                      <div
+                        class="listbox__scroll"
+                        data-listbox-list
+                        aria-labelledby="link-edit-title-heading"
+                        aria-describedby="link-edit-title-line"
+                      >
+                        <div role="group" aria-labelledby="link-edit-title-group-suggested">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-edit-title-group-suggested"
+                          >
+                            Suggested
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="reading_log.title"
+                            aria-describedby="link-edit-title-note-reading-log-title"
+                          >
+                            Reading Log’s title<span
+                              class="listbox__note"
+                              id="link-edit-title-note-reading-log-title"
+                              aria-hidden="true"
+                              >Piranesi, The Dispossessed, Kindred</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-edit-title-group-authors">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-edit-title-group-authors"
+                          >
+                            Authors
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.name"
+                            aria-describedby="link-edit-title-note-authors-name"
+                          >
+                            Name<span
+                              class="listbox__note"
+                              id="link-edit-title-note-authors-name"
+                              aria-hidden="true"
+                              >Ursula K. Le Guin, Octavia E. Butler, Brandon Sanderson</span
+                            >
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.pen_name"
+                            aria-describedby="link-edit-title-note-authors-pen-name"
+                          >
+                            Pen name<span
+                              class="listbox__note"
+                              id="link-edit-title-note-authors-pen-name"
+                              aria-hidden="true"
+                              >James Tiptree Jr.</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-edit-title-group-publishers">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-edit-title-group-publishers"
+                          >
+                            Publishers
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.name"
+                            aria-describedby="link-edit-title-note-publishers-name"
+                          >
+                            Name<span
+                              class="listbox__note"
+                              id="link-edit-title-note-publishers-name"
+                              aria-hidden="true"
+                              >Tor, Gollancz, Ace</span
+                            >
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.city"
+                            aria-describedby="link-edit-title-note-publishers-city"
+                          >
+                            City<span
+                              class="listbox__note"
+                              id="link-edit-title-note-publishers-city"
+                              aria-hidden="true"
+                              >New York, London</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-edit-title-group-contacts">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-edit-title-group-contacts"
+                          >
+                            Contacts
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="contacts.phone"
+                            aria-describedby="link-edit-title-note-contacts-phone"
+                          >
+                            Phone<span
+                              class="listbox__note"
+                              id="link-edit-title-note-contacts-phone"
+                              aria-hidden="true"
+                              >+57 300 123 4567, +57 310 555 0199</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field__label caps" for="link-edit-author">Author</label>
+                  <div class="listbox link-control" data-listbox>
+                    <span class="field__control"
+                      ><input
+                        class="field__input"
+                        id="link-edit-author"
+                        type="text"
+                        value="Brandon Sanderson"
+                      ><button
+                        class="listbox__button link-control__button"
+                        type="button"
+                        aria-label="Connect every book’s author"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="14"
+                          height="14"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.25"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M10 13.5a4 4 0 0 0 5.66 0l3-3a4 4 0 1 0-5.66-5.66l-1.15 1.15"
+                          ></path>
+                          <path
+                            d="M14 10.5a4 4 0 0 0-5.66 0l-3 3a4 4 0 1 0 5.66 5.66l1.15-1.15"
+                          ></path>
+                        </svg><span class="listbox__value" hidden></span>
+                      </button></span
+                    >
+                    <div class="listbox__panel link-control__panel" hidden>
+                      <div class="link-control__head">
+                        <p class="link-control__heading" id="link-edit-author-heading">
+                          Connect every book’s author to…
+                        </p>
+                        <p class="link-control__line" id="link-edit-author-line">
+                          Pick where every book’s author comes from.
+                        </p>
+                      </div>
+                      <div
+                        class="listbox__scroll"
+                        data-listbox-list
+                        aria-labelledby="link-edit-author-heading"
+                        aria-describedby="link-edit-author-line"
+                      >
+                        <div role="group" aria-labelledby="link-edit-author-group-suggested">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-edit-author-group-suggested"
+                          >
+                            Suggested
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.name"
+                            aria-describedby="link-edit-author-note-authors-name"
+                          >
+                            Authors’ name<span
+                              class="listbox__note"
+                              id="link-edit-author-note-authors-name"
+                              aria-hidden="true"
+                              >Ursula K. Le Guin, Octavia E. Butler, Brandon Sanderson</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-edit-author-group-authors">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-edit-author-group-authors"
+                          >
+                            Authors
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.pen_name"
+                            aria-describedby="link-edit-author-note-authors-pen-name"
+                          >
+                            Pen name<span
+                              class="listbox__note"
+                              id="link-edit-author-note-authors-pen-name"
+                              aria-hidden="true"
+                              >James Tiptree Jr.</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-edit-author-group-publishers">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-edit-author-group-publishers"
+                          >
+                            Publishers
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.name"
+                            aria-describedby="link-edit-author-note-publishers-name"
+                          >
+                            Name<span
+                              class="listbox__note"
+                              id="link-edit-author-note-publishers-name"
+                              aria-hidden="true"
+                              >Tor, Gollancz, Ace</span
+                            >
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.city"
+                            aria-describedby="link-edit-author-note-publishers-city"
+                          >
+                            City<span
+                              class="listbox__note"
+                              id="link-edit-author-note-publishers-city"
+                              aria-hidden="true"
+                              >New York, London</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-edit-author-group-contacts">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-edit-author-group-contacts"
+                          >
+                            Contacts
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="contacts.phone"
+                            aria-describedby="link-edit-author-note-contacts-phone"
+                          >
+                            Phone<span
+                              class="listbox__note"
+                              id="link-edit-author-note-contacts-phone"
+                              aria-hidden="true"
+                              >+57 300 123 4567, +57 310 555 0199</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field__label caps" for="link-edit-notes"
+                    >Notes <span class="field__optional">optional</span></label
+                  ><span class="field__control field__control--area"
+                    ><textarea
+                      class="field__textarea"
+                      id="link-edit-notes"
+                      rows="2"
+                      data-grow
+                      data-sample="Signed copy"
+                    ></textarea></span
+                  >
+                </div>
+                <div class="form__actions">
+                  <button class="btn btn--primary" type="button">Save changes</button
+                  ><button class="btn btn--outline" type="button">Cancel</button
+                  ><span class="form__spacer"></span
+                  ><button class="btn btn--danger" type="button">Delete</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <h3 class="kicker" style="margin-top: 30px">The chooser, and while Aluna links</h3>
+        <p class="sm">
+          The chooser is the drawn listbox, opened as a panel under the field. It says what picking
+          a target does, offers the likeliest target first, then lists each capability with its
+          fields and a few of their values. A target that cannot be picked is left out rather than
+          explained, whole or one field at a time: Reading Log's Title runs to 300 characters and an
+          author to 120, so Reading Log is missing from the author's chooser, and Contacts offers
+          Phone but not Name, which has no limit at all. There is no search and no Cancel, and a
+          press outside closes it.
+        </p>
+        <p class="sm">
+          Once a target is picked, the field is the drawn listbox at once, and Aluna matches the
+          names it already holds. Until she finishes no save can land, so the chains fade with Save
+          and Delete, and one note atop the form says what she is linking. Cancel and the fields
+          still work. When she finishes, focus lands on the new dropdown. Nothing fades during a
+          build: a build takes the window, so the form is only on screen then in a second tab, where
+          a press waits its turn.
+        </p>
+        <div class="cols">
+          <div class="stage">
+            <div class="window window--specimen" data-window data-title="Mistborn">
+              <div class="form" style="min-height: 31rem" inert>
+                <div class="field">
+                  <label class="field__label caps" for="link-chooser-title">Title</label>
+                  <div class="listbox link-control">
+                    <span class="field__control"
+                      ><input
+                        class="field__input"
+                        id="link-chooser-title"
+                        type="text"
+                        value="Mistborn"
+                      ><button
+                        class="listbox__button link-control__button"
+                        type="button"
+                        aria-label="Connect every book’s title"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="14"
+                          height="14"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.25"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M10 13.5a4 4 0 0 0 5.66 0l3-3a4 4 0 1 0-5.66-5.66l-1.15 1.15"
+                          ></path>
+                          <path
+                            d="M14 10.5a4 4 0 0 0-5.66 0l-3 3a4 4 0 1 0 5.66 5.66l1.15-1.15"
+                          ></path>
+                        </svg><span class="listbox__value" hidden></span>
+                      </button></span
+                    >
+                    <div class="listbox__panel link-control__panel" hidden>
+                      <div class="link-control__head">
+                        <p class="link-control__heading" id="link-chooser-title-heading">
+                          Connect every book’s title to…
+                        </p>
+                        <p class="link-control__line" id="link-chooser-title-line">
+                          Pick where every book’s title comes from.
+                        </p>
+                      </div>
+                      <div
+                        class="listbox__scroll"
+                        data-listbox-list
+                        aria-labelledby="link-chooser-title-heading"
+                        aria-describedby="link-chooser-title-line"
+                      >
+                        <div role="group" aria-labelledby="link-chooser-title-group-suggested">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-chooser-title-group-suggested"
+                          >
+                            Suggested
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="reading_log.title"
+                            aria-describedby="link-chooser-title-note-reading-log-title"
+                          >
+                            Reading Log’s title<span
+                              class="listbox__note"
+                              id="link-chooser-title-note-reading-log-title"
+                              aria-hidden="true"
+                              >Piranesi, The Dispossessed, Kindred</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-chooser-title-group-authors">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-chooser-title-group-authors"
+                          >
+                            Authors
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.name"
+                            aria-describedby="link-chooser-title-note-authors-name"
+                          >
+                            Name<span
+                              class="listbox__note"
+                              id="link-chooser-title-note-authors-name"
+                              aria-hidden="true"
+                              >Ursula K. Le Guin, Octavia E. Butler, Brandon Sanderson</span
+                            >
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.pen_name"
+                            aria-describedby="link-chooser-title-note-authors-pen-name"
+                          >
+                            Pen name<span
+                              class="listbox__note"
+                              id="link-chooser-title-note-authors-pen-name"
+                              aria-hidden="true"
+                              >James Tiptree Jr.</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-chooser-title-group-publishers">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-chooser-title-group-publishers"
+                          >
+                            Publishers
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.name"
+                            aria-describedby="link-chooser-title-note-publishers-name"
+                          >
+                            Name<span
+                              class="listbox__note"
+                              id="link-chooser-title-note-publishers-name"
+                              aria-hidden="true"
+                              >Tor, Gollancz, Ace</span
+                            >
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.city"
+                            aria-describedby="link-chooser-title-note-publishers-city"
+                          >
+                            City<span
+                              class="listbox__note"
+                              id="link-chooser-title-note-publishers-city"
+                              aria-hidden="true"
+                              >New York, London</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-chooser-title-group-contacts">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-chooser-title-group-contacts"
+                          >
+                            Contacts
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="contacts.phone"
+                            aria-describedby="link-chooser-title-note-contacts-phone"
+                          >
+                            Phone<span
+                              class="listbox__note"
+                              id="link-chooser-title-note-contacts-phone"
+                              aria-hidden="true"
+                              >+57 300 123 4567, +57 310 555 0199</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field__label caps" for="link-chooser-author">Author</label>
+                  <div class="listbox link-control is-open">
+                    <span class="field__control"
+                      ><input
+                        class="field__input"
+                        id="link-chooser-author"
+                        type="text"
+                        value="Brandon Sanderson"
+                      ><button
+                        class="listbox__button link-control__button"
+                        type="button"
+                        aria-label="Connect every book’s author"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="14"
+                          height="14"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.25"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M10 13.5a4 4 0 0 0 5.66 0l3-3a4 4 0 1 0-5.66-5.66l-1.15 1.15"
+                          ></path>
+                          <path
+                            d="M14 10.5a4 4 0 0 0-5.66 0l-3 3a4 4 0 1 0 5.66 5.66l1.15-1.15"
+                          ></path>
+                        </svg><span class="listbox__value" hidden></span>
+                      </button></span
+                    >
+                    <div class="listbox__panel link-control__panel">
+                      <div class="link-control__head">
+                        <p class="link-control__heading" id="link-chooser-author-heading">
+                          Connect every book’s author to…
+                        </p>
+                        <p class="link-control__line" id="link-chooser-author-line">
+                          Pick where every book’s author comes from.
+                        </p>
+                      </div>
+                      <div
+                        class="listbox__scroll"
+                        data-listbox-list
+                        role="listbox"
+                        aria-labelledby="link-chooser-author-heading"
+                        aria-describedby="link-chooser-author-line"
+                      >
+                        <div role="group" aria-labelledby="link-chooser-author-group-suggested">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-chooser-author-group-suggested"
+                          >
+                            Suggested
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.name"
+                            aria-describedby="link-chooser-author-note-authors-name"
+                          >
+                            Authors’ name<span
+                              class="listbox__note"
+                              id="link-chooser-author-note-authors-name"
+                              aria-hidden="true"
+                              >Ursula K. Le Guin, Octavia E. Butler, Brandon Sanderson</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-chooser-author-group-authors">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-chooser-author-group-authors"
+                          >
+                            Authors
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.pen_name"
+                            aria-describedby="link-chooser-author-note-authors-pen-name"
+                          >
+                            Pen name<span
+                              class="listbox__note"
+                              id="link-chooser-author-note-authors-pen-name"
+                              aria-hidden="true"
+                              >James Tiptree Jr.</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-chooser-author-group-publishers">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-chooser-author-group-publishers"
+                          >
+                            Publishers
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.name"
+                            aria-describedby="link-chooser-author-note-publishers-name"
+                          >
+                            Name<span
+                              class="listbox__note"
+                              id="link-chooser-author-note-publishers-name"
+                              aria-hidden="true"
+                              >Tor, Gollancz, Ace</span
+                            >
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.city"
+                            aria-describedby="link-chooser-author-note-publishers-city"
+                          >
+                            City<span
+                              class="listbox__note"
+                              id="link-chooser-author-note-publishers-city"
+                              aria-hidden="true"
+                              >New York, London</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-chooser-author-group-contacts">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-chooser-author-group-contacts"
+                          >
+                            Contacts
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="contacts.phone"
+                            aria-describedby="link-chooser-author-note-contacts-phone"
+                          >
+                            Phone<span
+                              class="listbox__note"
+                              id="link-chooser-author-note-contacts-phone"
+                              aria-hidden="true"
+                              >+57 300 123 4567, +57 310 555 0199</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field__label caps" for="link-chooser-notes"
+                    >Notes <span class="field__optional">optional</span></label
+                  ><span class="field__control field__control--area"
+                    ><textarea
+                      class="field__textarea"
+                      id="link-chooser-notes"
+                      rows="2"
+                      data-grow
+                      data-sample="Signed copy"
+                    ></textarea></span
+                  >
+                </div>
+                <div class="form__actions">
+                  <button class="btn btn--primary" type="button">Save changes</button
+                  ><button class="btn btn--outline" type="button">Cancel</button
+                  ><span class="form__spacer"></span
+                  ><button class="btn btn--danger" type="button">Delete</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="stage">
+            <div class="window window--specimen" data-window data-title="Mistborn">
+              <div class="form" style="min-height: 31rem" inert>
+                <p class="link-control__note" role="status">Connecting your books to authors…</p>
+                <div class="field">
+                  <label class="field__label caps" for="link-busy-title">Title</label>
+                  <div class="listbox link-control">
+                    <span class="field__control"
+                      ><input
+                        class="field__input"
+                        id="link-busy-title"
+                        type="text"
+                        value="Mistborn"
+                      ><button
+                        class="listbox__button link-control__button"
+                        type="button"
+                        aria-label="Connect every book’s title"
+                        disabled
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="14"
+                          height="14"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.25"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M10 13.5a4 4 0 0 0 5.66 0l3-3a4 4 0 1 0-5.66-5.66l-1.15 1.15"
+                          ></path>
+                          <path
+                            d="M14 10.5a4 4 0 0 0-5.66 0l-3 3a4 4 0 1 0 5.66 5.66l1.15-1.15"
+                          ></path>
+                        </svg><span class="listbox__value" hidden></span>
+                      </button></span
+                    >
+                    <div class="listbox__panel link-control__panel" hidden>
+                      <div class="link-control__head">
+                        <p class="link-control__heading" id="link-busy-title-heading">
+                          Connect every book’s title to…
+                        </p>
+                        <p class="link-control__line" id="link-busy-title-line">
+                          Pick where every book’s title comes from.
+                        </p>
+                      </div>
+                      <div
+                        class="listbox__scroll"
+                        data-listbox-list
+                        aria-labelledby="link-busy-title-heading"
+                        aria-describedby="link-busy-title-line"
+                      >
+                        <div role="group" aria-labelledby="link-busy-title-group-suggested">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-busy-title-group-suggested"
+                          >
+                            Suggested
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="reading_log.title"
+                            aria-describedby="link-busy-title-note-reading-log-title"
+                          >
+                            Reading Log’s title<span
+                              class="listbox__note"
+                              id="link-busy-title-note-reading-log-title"
+                              aria-hidden="true"
+                              >Piranesi, The Dispossessed, Kindred</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-busy-title-group-authors">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-busy-title-group-authors"
+                          >
+                            Authors
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.name"
+                            aria-describedby="link-busy-title-note-authors-name"
+                          >
+                            Name<span
+                              class="listbox__note"
+                              id="link-busy-title-note-authors-name"
+                              aria-hidden="true"
+                              >Ursula K. Le Guin, Octavia E. Butler, Brandon Sanderson</span
+                            >
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.pen_name"
+                            aria-describedby="link-busy-title-note-authors-pen-name"
+                          >
+                            Pen name<span
+                              class="listbox__note"
+                              id="link-busy-title-note-authors-pen-name"
+                              aria-hidden="true"
+                              >James Tiptree Jr.</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-busy-title-group-publishers">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-busy-title-group-publishers"
+                          >
+                            Publishers
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.name"
+                            aria-describedby="link-busy-title-note-publishers-name"
+                          >
+                            Name<span
+                              class="listbox__note"
+                              id="link-busy-title-note-publishers-name"
+                              aria-hidden="true"
+                              >Tor, Gollancz, Ace</span
+                            >
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.city"
+                            aria-describedby="link-busy-title-note-publishers-city"
+                          >
+                            City<span
+                              class="listbox__note"
+                              id="link-busy-title-note-publishers-city"
+                              aria-hidden="true"
+                              >New York, London</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-busy-title-group-contacts">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-busy-title-group-contacts"
+                          >
+                            Contacts
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="contacts.phone"
+                            aria-describedby="link-busy-title-note-contacts-phone"
+                          >
+                            Phone<span
+                              class="listbox__note"
+                              id="link-busy-title-note-contacts-phone"
+                              aria-hidden="true"
+                              >+57 300 123 4567, +57 310 555 0199</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <span class="field__label caps" id="link-busy-author-label">Author</span>
+                  <div class="listbox linked-field">
+                    <button
+                      class="field__control field__control--select listbox__button"
+                      type="button"
+                      role="combobox"
+                      aria-expanded="false"
+                      aria-labelledby="link-busy-author-label"
+                    >
+                      <span class="listbox__value">Brandon Sanderson</span
+                      ><span class="linked-field__slot" aria-hidden="true"></span
+                      ><span class="listbox__chevron"
+                        ><svg
+                          viewBox="0 0 24 24"
+                          width="12"
+                          height="12"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M6 9l6 6 6-6"></path>
+                        </svg></span
+                      >
+                    </button><button
+                      class="linked-field__unlink"
+                      type="button"
+                      aria-label="Disconnect every book’s author"
+                      disabled
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="14"
+                        height="14"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.25"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                        <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                        <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                      </svg>
+                    </button>
+                    <div class="listbox__panel" hidden>
+                      <div
+                        class="listbox__scroll"
+                        role="listbox"
+                        aria-labelledby="link-busy-author-label"
+                      >
+                        <div class="listbox__option" role="option" data-value="Ann Leckie">
+                          Ann Leckie
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Becky Chambers">
+                          Becky Chambers
+                        </div>
+                        <div
+                          class="listbox__option"
+                          role="option"
+                          data-value="Brandon Sanderson"
+                          aria-selected="true"
+                        >
+                          Brandon Sanderson
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Martha Wells">
+                          Martha Wells
+                        </div>
+                        <div class="listbox__option" role="option" data-value="N. K. Jemisin">
+                          N. K. Jemisin
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Neil Gaiman">
+                          Neil Gaiman
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Octavia E. Butler">
+                          Octavia E. Butler
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Susanna Clarke">
+                          Susanna Clarke
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Ted Chiang">
+                          Ted Chiang
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Terry Pratchett">
+                          Terry Pratchett
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Ursula K. Le Guin">
+                          Ursula K. Le Guin
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field__label caps" for="link-busy-notes"
+                    >Notes <span class="field__optional">optional</span></label
+                  ><span class="field__control field__control--area"
+                    ><textarea
+                      class="field__textarea"
+                      id="link-busy-notes"
+                      rows="2"
+                      data-grow
+                      data-sample="Signed copy"
+                    ></textarea></span
+                  >
+                </div>
+                <div class="form__actions">
+                  <button class="btn btn--primary" type="button" disabled>Save changes</button
+                  ><button class="btn btn--outline" type="button">Cancel</button
+                  ><span class="form__spacer"></span
+                  ><button class="btn btn--danger" type="button" disabled>Delete</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="forms" style="margin-top: 18px">
+          <div style="min-height: 13rem">
+            <h3 class="kicker">When nothing fits</h3>
+            <p class="sm">
+              The chain is there even when the desk holds nothing a field could link to, so a
+              chooser can have no target to offer. It keeps its heading, drops the line under it,
+              and says so in place of the list.
+            </p>
+          </div>
+          <div style="min-height: 13rem" inert>
+            <div class="field">
+              <label class="field__label caps" for="link-none-author">Author</label>
+              <div class="listbox link-control is-open">
+                <span class="field__control"
+                  ><input class="field__input" id="link-none-author" type="text" value="">
+                  <button
+                    class="listbox__button link-control__button"
+                    type="button"
+                    aria-label="Connect every book’s author"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.25"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M10 13.5a4 4 0 0 0 5.66 0l3-3a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                      <path d="M14 10.5a4 4 0 0 0-5.66 0l-3 3a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                    </svg><span class="listbox__value" hidden></span>
+                  </button></span
+                >
+                <div class="listbox__panel link-control__panel">
+                  <div class="link-control__head">
+                    <p class="link-control__heading" id="link-none-author-heading">
+                      Connect every book’s author to…
+                    </p>
+                  </div>
+                  <p class="listbox__empty" role="status">
+                    There’s nothing you can connect to yet.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <h3 class="kicker" style="margin-top: 30px">Linked</h3>
+        <p class="sm">
+          A linked field is the drawn listbox, holding the target's records shown by the field the
+          link names. It cannot be free-typed. In a new record it starts empty and asks for a pick.
+          The broken chain sits inside its boundary, before the chevron; it is laid over a gap kept
+          free in the button, because a button cannot hold another.
+        </p>
+        <div class="forms">
+          <div>
+            <h3 class="kicker">In a new record</h3>
+            <div class="field">
+              <span class="field__label caps" id="link-on-new-label">Author</span>
+              <div class="listbox linked-field" data-listbox data-placeholder="Choose the author…">
+                <button
+                  class="field__control field__control--select listbox__button"
+                  type="button"
+                  role="combobox"
+                  aria-expanded="false"
+                  aria-labelledby="link-on-new-label"
+                >
+                  <span class="listbox__value"></span
+                  ><span class="linked-field__slot" aria-hidden="true"></span
+                  ><span class="listbox__chevron"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg></span
+                  >
+                </button><button
+                  class="linked-field__unlink"
+                  type="button"
+                  aria-label="Disconnect every book’s author"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                    <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                    <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                  </svg>
+                </button>
+                <div class="listbox__panel" hidden>
+                  <div class="listbox__scroll">
+                    <div class="listbox__option" role="option" data-value="Ann Leckie">
+                      Ann Leckie
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Becky Chambers">
+                      Becky Chambers
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Brandon Sanderson">
+                      Brandon Sanderson
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Martha Wells">
+                      Martha Wells
+                    </div>
+                    <div class="listbox__option" role="option" data-value="N. K. Jemisin">
+                      N. K. Jemisin
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Neil Gaiman">
+                      Neil Gaiman
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Octavia E. Butler">
+                      Octavia E. Butler
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Susanna Clarke">
+                      Susanna Clarke
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Ted Chiang">
+                      Ted Chiang
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Terry Pratchett">
+                      Terry Pratchett
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Ursula K. Le Guin">
+                      Ursula K. Le Guin
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="kicker">In Edit</h3>
+            <div class="field">
+              <span class="field__label caps" id="link-on-label">Author</span>
+              <div class="listbox linked-field" data-listbox data-placeholder="Choose the author…">
+                <button
+                  class="field__control field__control--select listbox__button"
+                  type="button"
+                  role="combobox"
+                  aria-expanded="false"
+                  aria-labelledby="link-on-label"
+                >
+                  <span class="listbox__value"></span
+                  ><span class="linked-field__slot" aria-hidden="true"></span
+                  ><span class="listbox__chevron"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg></span
+                  >
+                </button><button
+                  class="linked-field__unlink"
+                  type="button"
+                  aria-label="Disconnect every book’s author"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                    <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                    <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                  </svg>
+                </button>
+                <div class="listbox__panel" hidden>
+                  <div class="listbox__scroll">
+                    <div class="listbox__option" role="option" data-value="Ann Leckie">
+                      Ann Leckie
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Becky Chambers">
+                      Becky Chambers
+                    </div>
+                    <div
+                      class="listbox__option"
+                      role="option"
+                      data-value="Brandon Sanderson"
+                      aria-selected="true"
+                    >
+                      Brandon Sanderson
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Martha Wells">
+                      Martha Wells
+                    </div>
+                    <div class="listbox__option" role="option" data-value="N. K. Jemisin">
+                      N. K. Jemisin
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Neil Gaiman">
+                      Neil Gaiman
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Octavia E. Butler">
+                      Octavia E. Butler
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Susanna Clarke">
+                      Susanna Clarke
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Ted Chiang">
+                      Ted Chiang
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Terry Pratchett">
+                      Terry Pratchett
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Ursula K. Le Guin">
+                      Ursula K. Le Guin
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="min-height: 20rem">
+            <h3 class="kicker">Open</h3>
+            <div inert>
+              <div class="field">
+                <span class="field__label caps" id="link-open-label">Author</span>
+                <div class="listbox linked-field is-open">
+                  <button
+                    class="field__control field__control--select listbox__button"
+                    type="button"
+                    role="combobox"
+                    aria-expanded="true"
+                    aria-labelledby="link-open-label"
+                  >
+                    <span class="listbox__value">Brandon Sanderson</span
+                    ><span class="linked-field__slot" aria-hidden="true"></span
+                    ><span class="listbox__chevron"
+                      ><svg
+                        viewBox="0 0 24 24"
+                        width="12"
+                        height="12"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="3"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M6 9l6 6 6-6"></path>
+                      </svg></span
+                    >
+                  </button><button
+                    class="linked-field__unlink"
+                    type="button"
+                    aria-label="Disconnect every book’s author"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.25"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                      <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                      <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                    </svg>
+                  </button>
+                  <div class="listbox__panel">
+                    <div class="listbox__scroll" role="listbox" aria-labelledby="link-open-label">
+                      <div class="listbox__option" role="option" data-value="Ann Leckie">
+                        Ann Leckie
+                      </div>
+                      <div class="listbox__option" role="option" data-value="Becky Chambers">
+                        Becky Chambers
+                      </div>
+                      <div
+                        class="listbox__option"
+                        role="option"
+                        data-value="Brandon Sanderson"
+                        aria-selected="true"
+                      >
+                        Brandon Sanderson
+                      </div>
+                      <div class="listbox__option" role="option" data-value="Martha Wells">
+                        Martha Wells
+                      </div>
+                      <div class="listbox__option" role="option" data-value="N. K. Jemisin">
+                        N. K. Jemisin
+                      </div>
+                      <div class="listbox__option" role="option" data-value="Neil Gaiman">
+                        Neil Gaiman
+                      </div>
+                      <div class="listbox__option" role="option" data-value="Octavia E. Butler">
+                        Octavia E. Butler
+                      </div>
+                      <div class="listbox__option" role="option" data-value="Susanna Clarke">
+                        Susanna Clarke
+                      </div>
+                      <div class="listbox__option" role="option" data-value="Ted Chiang">
+                        Ted Chiang
+                      </div>
+                      <div class="listbox__option" role="option" data-value="Terry Pratchett">
+                        Terry Pratchett
+                      </div>
+                      <div class="listbox__option" role="option" data-value="Ursula K. Le Guin">
+                        Ursula K. Le Guin
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <h3 class="kicker" style="margin-top: 30px">Searching it</h3>
+        <p class="sm">
+          Typing goes into the field itself and narrows the list to the options whose label contains
+          every typed word, ignoring case and accents, as a capability's own search does; an
+          option's note is never searched. The first match is where Enter lands. When nothing
+          matches, the list says so. The linked field and a choice field's picker both search this
+          way, and the chooser does not. 8.1/03 builds it, so these two are pictures.
+        </p>
+        <div class="forms">
+          <div style="min-height: 13rem">
+            <h3 class="kicker">Narrowing</h3>
+            <div inert>
+              <div class="field">
+                <label class="field__label caps" id="link-search-label" for="link-search"
+                  >Author</label
+                >
+                <div class="listbox linked-field is-open">
+                  <span class="field__control field__control--select"
+                    ><input class="field__input" id="link-search" type="text" value="le">
+                    <span class="linked-field__slot" aria-hidden="true"></span
+                    ><span class="listbox__chevron"
+                      ><svg
+                        viewBox="0 0 24 24"
+                        width="12"
+                        height="12"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="3"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M6 9l6 6 6-6"></path>
+                      </svg></span
+                    ></span
+                  ><button
+                    class="linked-field__unlink"
+                    type="button"
+                    aria-label="Disconnect every book’s author"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.25"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                      <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                      <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                    </svg>
+                  </button>
+                  <div class="listbox__panel">
+                    <div class="listbox__scroll" role="listbox" aria-labelledby="link-search-label">
+                      <div class="listbox__option is-active" role="option" data-value="Ann Leckie">
+                        Ann Leckie
+                      </div>
+                      <div class="listbox__option" role="option" data-value="Octavia E. Butler">
+                        Octavia E. Butler
+                      </div>
+                      <div class="listbox__option" role="option" data-value="Ursula K. Le Guin">
+                        Ursula K. Le Guin
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="min-height: 13rem">
+            <h3 class="kicker">Nothing matches</h3>
+            <div inert>
+              <div class="field">
+                <label class="field__label caps" id="link-search-none-label" for="link-search-none"
+                  >Author</label
+                >
+                <div class="listbox linked-field is-open">
+                  <span class="field__control field__control--select"
+                    ><input class="field__input" id="link-search-none" type="text" value="Tolkien">
+                    <span class="linked-field__slot" aria-hidden="true"></span
+                    ><span class="listbox__chevron"
+                      ><svg
+                        viewBox="0 0 24 24"
+                        width="12"
+                        height="12"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="3"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M6 9l6 6 6-6"></path>
+                      </svg></span
+                    ></span
+                  ><button
+                    class="linked-field__unlink"
+                    type="button"
+                    aria-label="Disconnect every book’s author"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.25"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                      <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                      <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                    </svg>
+                  </button>
+                  <div class="listbox__panel">
+                    <p class="listbox__empty" role="status">No results</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <h3 class="kicker" style="margin-top: 30px">A name that matched no record</h3>
+        <p class="sm">
+          A book typed as "Ursula Le Guin" before the field was linked matches no author, so it
+          keeps its text, and the field shows that text in ink as its value. The line under it asks
+          for a pick. Nothing stops the record saving as it is.
+        </p>
+        <div class="forms" style="max-width: 26rem">
+          <div>
+            <div class="field">
+              <span class="field__label caps" id="link-unmatched-label">Author</span>
+              <div
+                class="listbox linked-field is-unmatched"
+                data-listbox
+                data-placeholder="Ursula Le Guin"
+              >
+                <button
+                  class="field__control field__control--select listbox__button"
+                  type="button"
+                  role="combobox"
+                  aria-expanded="false"
+                  aria-labelledby="link-unmatched-label"
+                  aria-describedby="link-unmatched-guidance"
+                >
+                  <span class="listbox__value"></span
+                  ><span class="linked-field__slot" aria-hidden="true"></span
+                  ><span class="listbox__chevron"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg></span
+                  >
+                </button><button
+                  class="linked-field__unlink"
+                  type="button"
+                  aria-label="Disconnect every book’s author"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                    <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                    <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                  </svg>
+                </button>
+                <div class="listbox__panel" hidden>
+                  <div class="listbox__scroll">
+                    <div class="listbox__option" role="option" data-value="Ann Leckie">
+                      Ann Leckie
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Becky Chambers">
+                      Becky Chambers
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Brandon Sanderson">
+                      Brandon Sanderson
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Martha Wells">
+                      Martha Wells
+                    </div>
+                    <div class="listbox__option" role="option" data-value="N. K. Jemisin">
+                      N. K. Jemisin
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Neil Gaiman">
+                      Neil Gaiman
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Octavia E. Butler">
+                      Octavia E. Butler
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Susanna Clarke">
+                      Susanna Clarke
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Ted Chiang">
+                      Ted Chiang
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Terry Pratchett">
+                      Terry Pratchett
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Ursula K. Le Guin">
+                      Ursula K. Le Guin
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <span class="field__guidance" id="link-unmatched-guidance"
+                >I could not find this author, mind picking one?</span
+              >
+            </div>
+          </div>
+        </div>
+        <h3 class="kicker" style="margin-top: 30px">Unlinking</h3>
+        <p class="sm">
+          The broken chain asks once, over the window, as a form with unsaved changes asks. Focus
+          lands on <strong>Keep them connected</strong>, which changes nothing and puts focus back
+          on the broken chain. The pair is the one a capability's deletion asks with, an outline
+          <strong>Keep it</strong>
+          beside a red <strong>Delete permanently</strong>, because
+          <strong>Disconnect</strong>
+          is what costs something: it takes the link from every record at once. Each record keeps
+          the name it showed, the field is plain text again, and focus lands on the chain that comes
+          back.
+        </p>
+        <div class="cols">
+          <div class="stage">
+            <div class="window window--specimen" data-window data-title="Mistborn">
+              <div class="form" style="min-height: 15rem" inert>
+                <div class="field">
+                  <label class="field__label caps" for="link-ask-title">Title</label>
+                  <div class="listbox link-control">
+                    <span class="field__control"
+                      ><input class="field__input" id="link-ask-title" type="text" value="Mistborn">
+                      <button
+                        class="listbox__button link-control__button"
+                        type="button"
+                        aria-label="Connect every book’s title"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="14"
+                          height="14"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.25"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M10 13.5a4 4 0 0 0 5.66 0l3-3a4 4 0 1 0-5.66-5.66l-1.15 1.15"
+                          ></path>
+                          <path
+                            d="M14 10.5a4 4 0 0 0-5.66 0l-3 3a4 4 0 1 0 5.66 5.66l1.15-1.15"
+                          ></path>
+                        </svg><span class="listbox__value" hidden></span>
+                      </button></span
+                    >
+                    <div class="listbox__panel link-control__panel" hidden>
+                      <div class="link-control__head">
+                        <p class="link-control__heading" id="link-ask-title-heading">
+                          Connect every book’s title to…
+                        </p>
+                        <p class="link-control__line" id="link-ask-title-line">
+                          Pick where every book’s title comes from.
+                        </p>
+                      </div>
+                      <div
+                        class="listbox__scroll"
+                        data-listbox-list
+                        aria-labelledby="link-ask-title-heading"
+                        aria-describedby="link-ask-title-line"
+                      >
+                        <div role="group" aria-labelledby="link-ask-title-group-suggested">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-ask-title-group-suggested"
+                          >
+                            Suggested
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="reading_log.title"
+                            aria-describedby="link-ask-title-note-reading-log-title"
+                          >
+                            Reading Log’s title<span
+                              class="listbox__note"
+                              id="link-ask-title-note-reading-log-title"
+                              aria-hidden="true"
+                              >Piranesi, The Dispossessed, Kindred</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-ask-title-group-authors">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-ask-title-group-authors"
+                          >
+                            Authors
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.name"
+                            aria-describedby="link-ask-title-note-authors-name"
+                          >
+                            Name<span
+                              class="listbox__note"
+                              id="link-ask-title-note-authors-name"
+                              aria-hidden="true"
+                              >Ursula K. Le Guin, Octavia E. Butler, Brandon Sanderson</span
+                            >
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="authors.pen_name"
+                            aria-describedby="link-ask-title-note-authors-pen-name"
+                          >
+                            Pen name<span
+                              class="listbox__note"
+                              id="link-ask-title-note-authors-pen-name"
+                              aria-hidden="true"
+                              >James Tiptree Jr.</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-ask-title-group-publishers">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-ask-title-group-publishers"
+                          >
+                            Publishers
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.name"
+                            aria-describedby="link-ask-title-note-publishers-name"
+                          >
+                            Name<span
+                              class="listbox__note"
+                              id="link-ask-title-note-publishers-name"
+                              aria-hidden="true"
+                              >Tor, Gollancz, Ace</span
+                            >
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="publishers.city"
+                            aria-describedby="link-ask-title-note-publishers-city"
+                          >
+                            City<span
+                              class="listbox__note"
+                              id="link-ask-title-note-publishers-city"
+                              aria-hidden="true"
+                              >New York, London</span
+                            >
+                          </div>
+                        </div>
+                        <div role="group" aria-labelledby="link-ask-title-group-contacts">
+                          <div
+                            class="listbox__group caps"
+                            role="presentation"
+                            id="link-ask-title-group-contacts"
+                          >
+                            Contacts
+                          </div>
+                          <div
+                            class="listbox__option"
+                            role="option"
+                            data-value="contacts.phone"
+                            aria-describedby="link-ask-title-note-contacts-phone"
+                          >
+                            Phone<span
+                              class="listbox__note"
+                              id="link-ask-title-note-contacts-phone"
+                              aria-hidden="true"
+                              >+57 300 123 4567, +57 310 555 0199</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <span class="field__label caps" id="link-ask-author-label">Author</span>
+                  <div class="listbox linked-field">
+                    <button
+                      class="field__control field__control--select listbox__button"
+                      type="button"
+                      role="combobox"
+                      aria-expanded="false"
+                      aria-labelledby="link-ask-author-label"
+                    >
+                      <span class="listbox__value">Brandon Sanderson</span
+                      ><span class="linked-field__slot" aria-hidden="true"></span
+                      ><span class="listbox__chevron"
+                        ><svg
+                          viewBox="0 0 24 24"
+                          width="12"
+                          height="12"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M6 9l6 6 6-6"></path>
+                        </svg></span
+                      >
+                    </button><button
+                      class="linked-field__unlink"
+                      type="button"
+                      aria-label="Disconnect every book’s author"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="14"
+                        height="14"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.25"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                        <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                        <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                      </svg>
+                    </button>
+                    <div class="listbox__panel" hidden>
+                      <div
+                        class="listbox__scroll"
+                        role="listbox"
+                        aria-labelledby="link-ask-author-label"
+                      >
+                        <div class="listbox__option" role="option" data-value="Ann Leckie">
+                          Ann Leckie
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Becky Chambers">
+                          Becky Chambers
+                        </div>
+                        <div
+                          class="listbox__option"
+                          role="option"
+                          data-value="Brandon Sanderson"
+                          aria-selected="true"
+                        >
+                          Brandon Sanderson
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Martha Wells">
+                          Martha Wells
+                        </div>
+                        <div class="listbox__option" role="option" data-value="N. K. Jemisin">
+                          N. K. Jemisin
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Neil Gaiman">
+                          Neil Gaiman
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Octavia E. Butler">
+                          Octavia E. Butler
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Susanna Clarke">
+                          Susanna Clarke
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Ted Chiang">
+                          Ted Chiang
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Terry Pratchett">
+                          Terry Pratchett
+                        </div>
+                        <div class="listbox__option" role="option" data-value="Ursula K. Le Guin">
+                          Ursula K. Le Guin
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="form__actions">
+                  <button class="btn btn--primary" type="button">Save changes</button
+                  ><button class="btn btn--outline" type="button">Cancel</button
+                  ><span class="form__spacer"></span
+                  ><button class="btn btn--danger" type="button">Delete</button>
+                </div>
+              </div>
+              <div class="window__leaving">
+                <div class="window__leaving-panel">
+                  <p class="window__leaving-lead" id="link-unlink-lead">
+                    Books will stop following Authors.
+                  </p>
+                  <p class="window__leaving-detail" id="link-unlink-detail">
+                    Each one keeps the author it shows now, as text you can edit.
+                  </p>
+                  <div class="window__leaving-actions">
+                    <button
+                      class="btn btn--outline"
+                      type="button"
+                      aria-describedby="link-unlink-lead link-unlink-detail"
+                    >
+                      Keep them connected
+                    </button><button
+                      class="btn btn--danger"
+                      type="button"
+                      aria-describedby="link-unlink-lead link-unlink-detail"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <h3 class="kicker" style="margin-top: 30px">After linking</h3>
+        <p class="sm">
+          The prompt bar says how the matching went, in the record nouns of the two capabilities. In
+          the list, the platform's item wrapper marks each card whose linked field holds a name with
+          no record behind it: a sun pill with the broken chain and no words, read aloud as "Pick
+          the author". The generated card never draws it, and it refuses nothing.
+        </p>
+        <p class="sm">
+          When every book found its author, the bar says "All 50 books found their author." and no
+          card is marked. When none did, it says "No book found its author yet. All 50 need you to
+          pick one." and every card is.
+        </p>
+        <div class="stage" data-ground style="padding-bottom: 12rem">
+          <div class="window window--specimen" data-window data-title="Books">
+            <p class="collection__count">50 books · showing 5</p>
+            <div class="records">
+              <button class="record" type="button">
+                <span class="record__text"
+                  ><b class="record__title">Mistborn</b
+                  ><span class="record__detail">Brandon Sanderson</span></span
+                >
+              </button><button class="record" type="button">
+                <span class="record__text"
+                  ><b class="record__title">The Left Hand of Darkness</b
+                  ><span class="record__detail">Ursula K. Le Guin</span></span
+                >
+              </button><button class="record" type="button">
+                <span class="record__text"
+                  ><b class="record__title">A Wizard of Earthsea</b
+                  ><span class="record__detail">Ursula Le Guin</span></span
+                ><span class="link-mark" role="img" aria-label="Pick the author"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    width="12"
+                    height="12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                    <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                    <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                  </svg></span
+                >
+              </button><button class="record" type="button">
+                <span class="record__text"
+                  ><b class="record__title">Kindred</b
+                  ><span class="record__detail">Octavia E. Butler</span></span
+                >
+              </button><button class="record" type="button">
+                <span class="record__text"
+                  ><b class="record__title">Good Omens</b
+                  ><span class="record__detail">Pratchett and Gaiman</span></span
+                ><span class="link-mark" role="img" aria-label="Pick the author"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    width="12"
+                    height="12"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.6"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                    <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                    <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                  </svg></span
+                >
+              </button>
+            </div>
+          </div>
+          <div class="prompt-bar">
+            <p class="prompt-bar__notice" aria-live="polite">
+              45 books found their author. 5 still need you to pick one.
+            </p>
+            <input
+              class="prompt-bar__input"
+              type="text"
+              placeholder="What would you like to keep track of?"
+              aria-label="Prompt"
+            ><button class="btn btn--warm" type="button">Make it</button>
+          </div>
+        </div>
+      </section>
+
       <!-- ══ Assembled ═════════════════════════════════════════════════ -->
       <section class="window--section" id="form" data-window data-title="A record, assembled">
         <p class="sm">
-          Every control on this page in one form, laid out the way the record form already is: label
-          in small caps above its control, guidance below in subtle ink, related short fields paired
-          two-up, and an actions row separated by a rule with the destructive action kept on the
-          right.
+          Most of the controls on this page in one form, laid out the way the record form already
+          is: label in small caps above its control, guidance below in subtle ink, related short
+          fields paired two-up, and an actions row separated by a rule with the destructive action
+          kept on the right.
         </p>
 
         <div class="stage stage--flush stage--paper" style="padding: 22px; max-width: 560px">
@@ -2736,6 +5115,18 @@
                     at sign-off
                   </td>
                   <td class="sm">Recording a voice note, under <a href="#files">Files</a></td>
+                </tr>
+                <tr>
+                  <td>C22</td>
+                  <td>
+                    <strong>A text field links to another capability from inside itself.</strong>
+                    Every single-line text field carries a chain that opens the chooser, the drawn
+                    listbox as a panel. A linked field is the drawn listbox, with a broken chain
+                    before its chevron that asks once, over the window, before it unlinks. A card
+                    whose linked field holds a name no record stands behind carries a sun mark the
+                    platform draws. On screen it is connect and disconnect, never link
+                  </td>
+                  <td class="sm"><a href="#link">Links</a></td>
                 </tr>
               </tbody>
             </table>
