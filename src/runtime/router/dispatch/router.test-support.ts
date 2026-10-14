@@ -48,6 +48,7 @@ export function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow 
     seed: 184206,
     logo: { status: "absent", attempts: 0 },
     display_label_override: null,
+    relations: [],
     ...overrides,
   };
 }
@@ -80,6 +81,7 @@ export function boomRow(): CapabilityRow {
     seed: 730051,
     logo: { status: "absent", attempts: 0 },
     display_label_override: null,
+    relations: [],
     schema: {
       fields: [
         { name: "note", label: "Note", type: "string", required: false, lifecycle: "active" },

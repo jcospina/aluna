@@ -36,6 +36,7 @@ import { maxLengthSchema, validateMaxLength } from "../fields/max-length.ts";
 import { incarnationIdSchema } from "../identifiers.ts";
 import { isCapabilityNameLabel } from "../labels.ts";
 import { capabilityLogoStateSchema, logoHueFamilySchema, logoSeedSchema } from "../logo.ts";
+import { relationsSchema } from "../relations.ts";
 import { capabilityToolsSchema, readDependenciesSchema } from "../tools.ts";
 import {
   allUnique,
@@ -399,6 +400,8 @@ export const capabilityRowSchema = z
     // Row-only for the reason the logo lifecycle is: a write carrying it could wipe a rename, and
     // an evolution builds its write from a row read seconds earlier. `renameCapability` owns it.
     display_label_override: z.string().nullable(),
+    // Row-only for the same reason, and owned by `addCapabilityRelation`.
+    relations: relationsSchema,
   })
   .superRefine(validateSpecSemantics);
 export type CapabilityRow = z.infer<typeof capabilityRowSchema>;

@@ -119,6 +119,7 @@ function journalsCatalog(): readonly CapabilityRow[] {
       seed: 184206,
       logo: { status: "absent", attempts: 0 },
       display_label_override: null,
+      relations: [],
       schema: {
         fields: [
           {

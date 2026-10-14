@@ -99,6 +99,20 @@ describe("a field error is said in its own field", () => {
     );
   });
 
+  test("a field holding the Link control's chain is invalid in its input, never in the chain", async () => {
+    const one = await scene({
+      ...capabilityOf([probeField("string", { max_length: 64 })]),
+      relations: [],
+    });
+    const chain = one.doc.querySelector(".link-control__button") as El;
+    expect(chain).not.toBeNull();
+    one.landRefusal(overLengthRefusal(["value"]));
+    expect(chain.hasAttribute("aria-invalid")).toBe(false);
+    expect((one.doc.querySelector('[name="value"]') as El).getAttribute("aria-invalid")).toBe(
+      "true",
+    );
+  });
+
   test("it is moved out of the form's error region, not copied into the field", async () => {
     const one = await scene(capabilityOf([probeField("string", { max_length: 64 })]));
     one.landRefusal(overLengthRefusal(["value"]));

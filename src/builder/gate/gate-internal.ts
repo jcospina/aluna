@@ -138,6 +138,7 @@ export function scratchDependencyRows(
     seed: SCRATCH_DEPENDENCY_SEED,
     logo: { status: LOGO_BIRTH_STATUS, attempts: 0 },
     display_label_override: null,
+    relations: [],
   }));
 }
 

@@ -100,6 +100,7 @@ function notesRow(overrides: Partial<CapabilityRow> = {}): CapabilityRow {
     seed: 184206,
     logo: { status: "absent", attempts: 0 },
     display_label_override: null,
+    relations: [],
     prompt_context: "Stores the user's text notes.",
     ...overrides,
   };
@@ -149,6 +150,7 @@ function recipesRow(): CapabilityRow {
     seed: 184206,
     logo: { status: "absent", attempts: 0 },
     display_label_override: null,
+    relations: [],
     prompt_context: "Stores recipes the user wants to cook again.",
   };
 }

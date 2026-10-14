@@ -24,6 +24,7 @@ import {
   isListFieldType,
   isLongTextField,
   type ListFieldType,
+  type Relation,
   type SpecField,
   type UiFormIntent,
 } from "../../registry/index.ts";
@@ -37,6 +38,7 @@ import { escapeHtml } from "../../server/http/html.ts";
 import { ADDING_LABEL, SAVING_RECORD_LABEL } from "../controls/busy-label.ts";
 import { renderChoiceField } from "../controls/choice/choice-control.ts";
 import { renderFileField } from "../controls/file/file-control.ts";
+import { linkableShell } from "../controls/link/link-control.ts";
 import { submitButton } from "../controls/submit-button.ts";
 import {
   controlShell,
@@ -58,6 +60,8 @@ export interface RenderableCapability {
   readonly label: string;
   /** The singular record noun the platform's empty-state sentence is written around. */
   readonly noun: string;
+  /** The row's relations, which decide where the chain is drawn; a spec that is only inspected has none. */
+  readonly relations?: readonly Relation[];
   readonly schema: { readonly fields: readonly SpecField[] };
   readonly form: UiFormIntent;
   /** The committed closed Action inventory; platform chrome fails closed against it. */
@@ -253,7 +257,9 @@ function createInputFor(type: NativeInputFieldType): CreateInput {
 
 function renderCreateField(capability: RenderableCapability, field: SpecField): string {
   const { id: capabilityId, form } = capability;
-  if (isListFieldType(field.type)) return renderCreateListField(capabilityId, field, form);
+  if (isListFieldType(field.type)) {
+    return renderListField(`cap-${capabilityId}-${field.name}`, field, form, undefined);
+  }
   if (isChoiceFieldType(field.type)) {
     return renderChoiceField(`cap-${capabilityId}-${field.name}`, field, form, undefined);
   }
@@ -262,14 +268,7 @@ function renderCreateField(capability: RenderableCapability, field: SpecField): 
   }
   // `capabilityId` and `field.name` are both `[a-z][a-z0-9_]*` (spec-validated), so
   // this id is a safe HTML token; the label still escapes its humanized text.
-  return renderScalarField(
-    `cap-${capabilityId}-${field.name}`,
-    field,
-    field.type,
-    form,
-    undefined,
-    false,
-  );
+  return renderScalarField(`cap-${capabilityId}-${field.name}`, field, field.type, capability);
 }
 
 function renderEditField(
@@ -278,7 +277,9 @@ function renderEditField(
   value: unknown,
 ): string {
   const { id: capabilityId, form } = capability;
-  if (isListFieldType(field.type)) return renderEditListField(capabilityId, field, form, value);
+  if (isListFieldType(field.type)) {
+    return renderListField(`edit-${capabilityId}-${field.name}`, field, form, value);
+  }
   if (isChoiceFieldType(field.type)) {
     return renderChoiceField(`edit-${capabilityId}-${field.name}`, field, form, value);
   }
@@ -287,14 +288,9 @@ function renderEditField(
     return renderFileField(id, field, form, capability, value ?? null);
   }
   if (field.type === "datetime") return renderEditDatetimeField(capabilityId, field, form, value);
-  return renderScalarField(
-    `edit-${capabilityId}-${field.name}`,
-    field,
-    field.type,
-    form,
+  return renderScalarField(`edit-${capabilityId}-${field.name}`, field, field.type, capability, {
     value,
-    true,
-  );
+  });
 }
 
 /**
@@ -305,10 +301,12 @@ function renderScalarField(
   inputId: string,
   field: SpecField,
   type: NativeInputFieldType,
-  form: UiFormIntent,
-  value: unknown,
-  editing: boolean,
+  capability: RenderableCapability,
+  edited?: { readonly value: unknown },
 ): string {
+  const { form } = capability;
+  const editing = edited !== undefined;
+  const value = edited?.value;
   const control = createInputFor(type);
   const chrome = fieldChrome(inputId, field, form, {
     emptyable: control.canBeEmpty,
@@ -322,6 +320,7 @@ function renderScalarField(
     required: field.required && control.canBeEmpty ? " required" : "",
     chrome,
     value: editing ? editScalarValue(type, value) : "",
+    shell: (input) => linkableShell(capability, field, inputId, input),
   };
 
   if (control.inline) return renderInlineField(inputId, parts, editing && value === true);
@@ -336,6 +335,8 @@ interface ScalarParts {
   readonly chrome: FieldChrome;
   /** The value the control opens holding, already flattened to its control spelling. */
   readonly value: string;
+  /** The single-line well around the control, which holds the chain where a link is offered. */
+  readonly shell: (input: string) => string;
 }
 
 function presenceMarkerFor(nameAttribute: string): string {
@@ -374,7 +375,7 @@ function renderTextControl(
     `<div class="field">` +
     presenceMarkerFor(nameAttribute) +
     `<label class="field__label caps" for="${inputId}">${label}${chrome.labelSuffix}</label>` +
-    controlShell(
+    parts.shell(
       `<input class="field__input" id="${inputId}" type="${control.inputType}"` +
         ` name="${nameAttribute}"${control.extraAttributes}${valueAttribute}` +
         `${lengthAttributes(inputId, field)}${chrome.describedBy}${required}>`,
@@ -450,19 +451,6 @@ function editScalarValue(type: FieldType, value: unknown): string {
   const raw = String(value);
   if (type === "date") return /^\d{4}-\d{2}-\d{2}/.exec(raw)?.[0] ?? raw;
   return raw;
-}
-
-function renderCreateListField(capabilityId: string, field: SpecField, form: UiFormIntent): string {
-  return renderListField(`cap-${capabilityId}-${field.name}`, field, form, undefined);
-}
-
-function renderEditListField(
-  capabilityId: string,
-  field: SpecField,
-  form: UiFormIntent,
-  value: unknown,
-): string {
-  return renderListField(`edit-${capabilityId}-${field.name}`, field, form, value);
 }
 
 function renderListField(

@@ -40,6 +40,7 @@ describe("the JSON context a unit is handed", () => {
       seed: 1,
       logo: { status: "absent", attempts: 0 },
       display_label_override: null,
+      relations: [],
       prompt_context: `Stores ${label}.`,
     };
   }

@@ -123,22 +123,23 @@ export class ChoicePicker {
      */
     this.listMoved = false;
 
+    const scroll = root.querySelector(".listbox__scroll");
+    if (!(scroll instanceof HTMLElement)) {
+      throw new Error("A picker needs a .listbox__scroll for its options");
+    }
+    /** @type {HTMLElement} */
+    this.scroll = scroll;
+
+    const carrier = root.querySelector("[data-choice-value]");
+    if (!(carrier instanceof HTMLInputElement) && this.carries) {
+      throw new Error("A picker needs a [data-choice-value] to post its choice through");
+    }
     /**
      * The value carrier the renderer emitted. It already holds the record's value, so the
      * control posts correctly whether or not anyone touches it.
      * @type {HTMLInputElement | null}
      */
-    const scroll = root.querySelector(".listbox__scroll");
-    if (!(scroll instanceof HTMLElement)) {
-      throw new Error("A picker needs a .listbox__scroll for its options");
-    }
-    this.scroll = scroll;
-
-    const carrier = root.querySelector("[data-choice-value]");
-    if (!(carrier instanceof HTMLInputElement)) {
-      throw new Error("A picker needs a [data-choice-value] to post its choice through");
-    }
-    this.field = carrier;
+    this.field = carrier instanceof HTMLInputElement ? carrier : null;
 
     /**
      * Where the panel's coordinates start and how far they may reach, measured once each
@@ -152,6 +153,29 @@ export class ChoicePicker {
     this.chrome = 0;
 
     this.#wire();
+  }
+
+  /** Whether a choice posts through a carrier. The Link control's chooser writes, and posts nothing. */
+  get carries() {
+    return true;
+  }
+
+  /** The box the panel hangs from and is as wide as: the drawn control. */
+  controlBox() {
+    return this.button.getBoundingClientRect();
+  }
+
+  /** The tallest the panel may stand. A panel that heads its list measures the heading on. */
+  get panelCap() {
+    return MAX_PANEL_HEIGHT;
+  }
+
+  /**
+   * Whether a press on `node` belongs to this control, so does not close it.
+   * @param {Node} node
+   */
+  holds(node) {
+    return this.root.contains(node);
   }
 
   /* ── the value ────────────────────────────────────────────────────────── */
@@ -255,7 +279,9 @@ export class ChoicePicker {
     panel.style.width = "100%";
     panel.style.height = "100%";
     const block = panel.getBoundingClientRect();
-    panel.style.width = "";
+    // Measured at the width it will stand at: a heading that wraps there is taller than it is
+    // at the shrink-to-fit width, and a chrome measured short lets the panel cover its field.
+    panel.style.width = `${this.controlBox().width}px`;
     panel.style.height = "";
 
     this.origin = { left: block.left, top: block.top };
@@ -273,7 +299,7 @@ export class ChoicePicker {
   place() {
     const { origin, bounds } = this;
     if (!origin || !bounds) return;
-    const box = this.button.getBoundingClientRect();
+    const box = this.controlBox();
     // A control scrolled out of its own form takes its panel with it: a list hanging where its
     // control is not visible has nothing to point at and covers whatever the form stands over.
     if (box.bottom <= bounds.top || box.top >= bounds.bottom) {
@@ -283,7 +309,7 @@ export class ChoicePicker {
 
     const below = bounds.bottom - box.bottom - PANEL_GAP;
     const above = box.top - bounds.top - PANEL_GAP;
-    const wanted = Math.min(this.scroll.scrollHeight + this.chrome, MAX_PANEL_HEIGHT);
+    const wanted = Math.min(this.scroll.scrollHeight + this.chrome, this.panelCap);
     const flip = below < wanted && above > below;
 
     this.root.classList.toggle("is-above", flip);
@@ -314,7 +340,7 @@ export class ChoicePicker {
    * @param {number} room
    */
   #capScroll(room) {
-    const height = Math.min(Math.max(room, MIN_SCROLL_HEIGHT + this.chrome), MAX_PANEL_HEIGHT);
+    const height = Math.min(Math.max(room, MIN_SCROLL_HEIGHT + this.chrome), this.panelCap);
     this.scroll.style.maxHeight = `${height - this.chrome}px`;
   }
 
@@ -504,7 +530,7 @@ export class ChoicePicker {
  * @param {Document} root
  * @param {Set<ChoicePicker>} openPickers
  */
-function watchPlacement(root, openPickers) {
+export function watchPlacement(root, openPickers) {
   // A panel's own list is the one scroller this owes nothing to: placement re-caps the list's
   // height, so answering its scroll resized the box the user was scrolling, mid-scroll.
   root.addEventListener(
@@ -522,6 +548,26 @@ function watchPlacement(root, openPickers) {
   // is to close rather than place it somewhere guessed.
   root.defaultView?.addEventListener("resize", () => {
     for (const picker of [...openPickers]) picker.hide(false);
+  });
+}
+
+/**
+ * A press anywhere else closes an open panel, without taking focus back from where the press
+ * landed. Detached pickers are dropped rather than asked.
+ *
+ * @param {Document} root
+ * @param {Set<ChoicePicker>} openPickers
+ */
+export function closeOnPressOutside(root, openPickers) {
+  root.addEventListener("pointerdown", (event) => {
+    const { target } = event;
+    for (const picker of [...openPickers]) {
+      if (!picker.root.isConnected) {
+        openPickers.delete(picker);
+        continue;
+      }
+      if (target instanceof Node && !picker.holds(target)) picker.hide(false);
+    }
   });
 }
 
@@ -755,19 +801,7 @@ export function startChoiceControls(root) {
     if (segment instanceof HTMLButtonElement && !segment.disabled) pressSegment(segment);
   });
 
-  /* A press anywhere else closes an open panel, without taking focus back from where the press
-   * landed. Detached pickers are dropped rather than asked. */
-  root.addEventListener("pointerdown", (event) => {
-    const { target } = event;
-    for (const picker of [...openPickers]) {
-      if (!picker.root.isConnected) {
-        openPickers.delete(picker);
-        continue;
-      }
-      if (target instanceof Node && !picker.root.contains(target)) picker.hide(false);
-    }
-  });
-
+  closeOnPressOutside(root, openPickers);
   onCreateFinished(root, (form) => resetChoiceControls(form, mounted));
 }
 

@@ -321,6 +321,7 @@ describe("capability row shape", () => {
       seed: 184206,
       logo: { status: "absent" as const, attempts: 0 },
       display_label_override: null,
+      relations: [],
     };
     expect(capabilityRowSchema.parse(row)).toEqual(row);
 
@@ -342,6 +343,7 @@ describe("capability row shape", () => {
       seed: 184206,
       logo: { status: "absent" as const, attempts: 0 },
       display_label_override: null,
+      relations: [],
     });
     expect(capabilityRowSchema.safeParse(row(1)).success).toBe(true);
 
@@ -367,6 +369,7 @@ describe("capability row shape", () => {
       seed: 184206,
       logo: { status: "absent", attempts: 0 },
       display_label_override: null,
+      relations: [],
     };
 
     expect(capabilityRowSchema.safeParse(row).success).toBe(true);

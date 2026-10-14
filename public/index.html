@@ -105,6 +105,13 @@
     <script type="module" src="/static/controls/choice-picker.js"></script>
 
     <!--
+      The Link control: the chain inside every unlinked single-line text field, and the
+      chooser it opens, read from the server each time so its targets and values are current.
+      A pick writes the relation in place; only a refusal reaches the prompt bar.
+    -->
+    <script type="module" src="/static/controls/link-control.js"></script>
+
+    <!--
       The multi-line control and the character counter. A long-text field grows with what
       is typed and then scrolls — it is never dragged, because a resize grip is the
       operating system's mark and the only one on this surface that would not be ours — and

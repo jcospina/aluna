@@ -26,6 +26,7 @@ function validRow(overrides: Record<string, unknown> = {}) {
     seed: 184206,
     logo: { status: "absent" as const, attempts: 0 },
     display_label_override: null,
+    relations: [],
     ...overrides,
   };
 }
@@ -176,6 +177,7 @@ describe("the platform-owned runtime values", () => {
     // The rename override is row-only for the same reason the lifecycle is, and is
     // dropped at the same boundary: a write may not carry either.
     delete write.display_label_override;
+    delete write.relations;
     expect(capabilityRegistryWriteSchema.safeParse(write).success).toBe(true);
     // A write that tried to name a status is refused rather than quietly ignored here;
     // the store drops the key explicitly at its own boundary.

@@ -117,8 +117,9 @@ indexed in both directions, because search walks links backwards.
 typed before its record exists, a work that names two authors, and a target deleted since
 are ordinary on a personal desk, and none of them may cost the person a save, a record or
 a build. A linked field is a dropdown of the target's records, each shown by the target
-field the relation names and searched under a read token, and it cannot be free-typed
-while it is linked. The dropdown and the save hold a read token for the target's incarnation
+field the relation names. Typing into it only searches the records the dropdown holds, so
+it cannot be free-typed while it is linked. The dropdown and the save hold a read token
+for the target's incarnation
 as well as their own, so deleting the target cannot race them. The form posts the text and
 a reserved `__aluna_link` marker, carrying the field and the picked record's id. The marker
 joins the router's closed set of reserved keys and never reaches a Handler. The router

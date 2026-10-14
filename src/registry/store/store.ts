@@ -10,6 +10,7 @@
 // back out of it unnoticed.
 
 import type { Database } from "bun:sqlite";
+import { canonicalizeJson } from "../../platform/canonical-json.ts";
 import { db, dbReadonly } from "../../platform/persistence/db.ts";
 import { REGISTRY_TABLE } from "../../platform/persistence/table-names.ts";
 import { canonicalCapabilityLabel } from "../labels.ts";
@@ -24,6 +25,7 @@ import {
   logoSeedSchema,
   resolveLogoShades,
 } from "../logo.ts";
+import { type Relation, relationsSchema } from "../relations.ts";
 import {
   type CapabilityRegistryWrite,
   type CapabilityRow,
@@ -91,6 +93,7 @@ interface StoredRow {
   logo_status: string;
   logo_attempts: number;
   display_label_override: string | null;
+  relations: string;
 }
 
 /**
@@ -104,9 +107,9 @@ const WRITE_PLACEHOLDERS = WRITE_COLUMNS.split(", ")
   .map(() => "?")
   .join(", ");
 
-// Everything a write supplies plus the two things it may not touch — the logo lifecycle and the
-// display-label override. Both are read here and moved only by the dedicated functions below.
-const ROW_COLUMNS = `${WRITE_COLUMNS}, logo_status, logo_attempts, display_label_override`;
+// Everything a write supplies plus what it may not touch — the logo lifecycle, the display-label
+// override and the relations. Each is read here and moved only by its dedicated function below.
+const ROW_COLUMNS = `${WRITE_COLUMNS}, logo_status, logo_attempts, display_label_override, relations`;
 
 // Rehydrate a stored row and re-validate it. The registry drives DDL, routing and generation, so a
 // row that no longer conforms fails loudly at the read site rather than three derivations later.
@@ -128,6 +131,7 @@ function parseStoredRow(stored: StoredRow): CapabilityRow {
       seed: stored.seed,
       logo: { status: stored.logo_status, attempts: stored.logo_attempts },
       display_label_override: stored.display_label_override,
+      relations: JSON.parse(stored.relations),
       schema,
       ui_intent: JSON.parse(stored.ui_intent),
       behavior: stored.behavior,
@@ -280,6 +284,85 @@ export function renameCapability(
 }
 
 /**
+ * Add one relation in place and nothing else: no version, no artifact.
+ * Bound to the incarnation, version and relations read under the lease, so a moved row is `null`.
+ */
+export function addCapabilityRelation(
+  expectation: {
+    readonly capabilityId: string;
+    readonly incarnationId: string;
+    readonly version: number;
+    readonly relations: readonly Relation[];
+  },
+  relation: Relation,
+  database: Database = db,
+): CapabilityRow | null {
+  const next = JSON.stringify(relationsSchema.parse([...expectation.relations, relation]));
+  const bound = [expectation.capabilityId, expectation.incarnationId, expectation.version];
+  return database.transaction((): CapabilityRow | null => {
+    const read = database
+      .query(
+        `SELECT relations FROM ${REGISTRY_TABLE}
+         WHERE id = ? AND incarnation_id = ? AND version = ? AND lifecycle_state = 'active'`,
+      )
+      .get(...bound) as { relations: string } | null;
+    // Compared as values, not as text: relations stored with their keys in another order are the
+    // same relations, and a text comparison would refuse every press on them as stale for good.
+    if (!read || !sameJson(JSON.parse(read.relations), expectation.relations)) return null;
+    const stored = database
+      .query(
+        `UPDATE ${REGISTRY_TABLE} SET relations = ?
+         WHERE id = ? AND incarnation_id = ? AND version = ? AND relations = ?
+           AND lifecycle_state = 'active'
+         RETURNING ${ROW_COLUMNS}`,
+      )
+      .get(next, ...bound, read.relations) as StoredRow | null;
+    return stored ? parseStoredRow(stored) : null;
+  })();
+}
+
+/**
+ * Take every relation pinned to one incarnation off the other active rows, inside the transaction
+ * that tombstones it. A lifetime never returns, so a relation left pointing at one could never
+ * revive and would keep its field from being linked again.
+ */
+export function removeRelationsTo(
+  target: { readonly capabilityId: string; readonly incarnationId: string },
+  database: Database = db,
+): void {
+  const holders = database
+    .query(
+      `SELECT id, relations FROM ${REGISTRY_TABLE}
+       WHERE lifecycle_state = 'active' AND relations <> '[]'`,
+    )
+    .all() as { id: string; relations: string }[];
+  for (const holder of holders) {
+    const parsed = relationsSchema.safeParse(parsedJson(holder.relations));
+    if (!parsed.success) continue;
+    const kept = parsed.data.filter(
+      ({ to }) => to.capability !== target.capabilityId || to.incarnation !== target.incarnationId,
+    );
+    if (kept.length === parsed.data.length) continue;
+    database
+      .query(`UPDATE ${REGISTRY_TABLE} SET relations = ? WHERE id = ? AND relations = ?`)
+      .run(JSON.stringify(kept), holder.id, holder.relations);
+  }
+}
+
+/** Text that is not JSON is `undefined`, which no schema admits, so its row is passed over. */
+function parsedJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+function sameJson(left: unknown, right: unknown): boolean {
+  return JSON.stringify(canonicalizeJson(left)) === JSON.stringify(canonicalizeJson(right));
+}
+
+/**
  * The write shape, or a whole row a caller already holds. A row's logo lifecycle is dropped rather
  * than written, so passing one is a convenience and never a way to set a status.
  */
@@ -289,6 +372,7 @@ function validateWrite(row: CapabilityRegistryWriteInput): CapabilityRegistryWri
   const write: Record<string, unknown> = { ...row };
   delete write.logo;
   delete write.display_label_override;
+  delete write.relations;
   return capabilityRegistryWriteSchema.parse(write);
 }
 

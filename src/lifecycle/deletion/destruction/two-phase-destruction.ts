@@ -14,6 +14,7 @@ import {
   listCapabilityDeletionTombstones,
   type OwnedResourceEntry,
   removeCapabilityDeletionTombstone,
+  removeRelationsTo,
 } from "../../../registry/index.ts";
 import {
   type ReadGateCloseLease,
@@ -156,6 +157,7 @@ function commitDeletionTombstone(
       database,
     );
     input.faults?.afterTombstoneInserted?.();
+    removeRelationsTo({ capabilityId: target.id, incarnationId: target.incarnation_id }, database);
 
     payloads = purgeInstalledCapabilityPayloads(target, database);
     input.faults?.afterEventPayloadsPurged?.();

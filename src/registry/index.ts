@@ -102,6 +102,14 @@ export {
   resolveLogoShades,
 } from "./logo.ts";
 export {
+  isLinkableField,
+  isSingleLineTextField,
+  type Relation,
+  relationOf,
+  relationSchema,
+  relationsSchema,
+} from "./relations.ts";
+export {
   ALUNA_RESERVED_FIELD_PREFIX,
   activeSpecFields,
   type BehavioralErrorMarkers,
@@ -166,6 +174,7 @@ export {
 } from "./store/deletion-tombstones.ts";
 export {
   abandonMissingCapabilityLogo,
+  addCapabilityRelation,
   CapabilityIdActiveError,
   type CapabilityRegistryExpectation,
   type CapabilityRegistryWriteInput,
@@ -182,6 +191,7 @@ export {
   REGISTRY_TABLE,
   readActiveIncarnationCatalog,
   releaseLogoClaim,
+  removeRelationsTo,
   renameCapability,
   resolveActionReadDependencies,
   StaleCapabilityRegistryError,

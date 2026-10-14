@@ -1,10 +1,11 @@
 import type { Database } from "bun:sqlite";
-import type { Context } from "hono";
+import type { Context, Hono } from "hono";
 import { getCapability } from "../../registry/index.ts";
 import {
   MutationAdmissionError,
   type MutationCoordinator,
 } from "../../runtime/concurrency/mutation-coordinator.ts";
+import { guardWritingRoute } from "../../server/http/writing-route-guard.ts";
 import { singleFormValue } from "../form-values.ts";
 import { type CapabilityRenameOutcome, renameCapabilityLabel } from "./front-half.ts";
 import { renderCapabilityRenameRefusal, renderRenamedCapabilityLogo } from "./presentation.ts";
@@ -13,6 +14,14 @@ export interface CapabilityRenameHttpDeps {
   readonly registryReadwrite: Database;
   readonly registryReadonly: Database;
   readonly mutationCoordinator: MutationCoordinator;
+}
+
+/**
+ * Renaming from the logo's own context menu. A top-level platform route for the reason deletion's
+ * are: no Handler, no resolver and no provider, so menu to registry is zero-AI end to end.
+ */
+export function registerCapabilityRenameRoutes(app: Hono, deps: CapabilityRenameHttpDeps): void {
+  app.post("/capability-rename/:id", guardWritingRoute(), (c) => handleCapabilityRename(c, deps));
 }
 
 /**

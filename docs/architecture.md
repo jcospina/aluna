@@ -905,15 +905,18 @@ model-authored `behavioral_errors`. Older active rows may omit Module 5's new fo
 collections; omission canonicalizes to empty without rewriting historical
 snapshots, while new specs emit the complete form shape.
 
-The drawn picker implements the select-only combobox keyboard and ARIA contract:
-open keys, arrow/Home/End movement, typeahead, commit, Escape/click-away, focus
-held on the button and active-descendant reporting, with disabled options skipped.
-From Module 8 (8.1/03) a linked field and a choice field's picker are fields you type
-into rather than select-only buttons: Space, Home and End are typing, and the list
-narrows to the options whose label contains every typed word, ignoring case and accents
-and never reading an option's note. It says "No results" when nothing matches. Radio
-uses native radio inputs; segmented remains a mutually exclusive, keyboard-operable
-button set. Presentation changes do not change the stored wire value.
+Until Module 8's 8.1/03, the drawn picker implements the select-only combobox keyboard
+and ARIA contract: open keys, arrow/Home/End movement, typeahead, commit,
+Escape/click-away, focus held on the button and active-descendant reporting, with
+disabled options skipped. The Link control's chooser (8.1/02) is drawn on the same
+listbox and keeps that contract after 8.1/03 too, typeahead included, with no search.
+From 8.1/03 a linked field and a choice field's picker are fields you type into rather
+than select-only buttons: Space, Home and End are typing, a search takes the place of
+typeahead, and the list narrows to the options whose label contains every typed word,
+ignoring case and accents and never reading an option's note. It says "No results" when
+nothing matches. Radio uses native radio inputs; segmented remains a mutually
+exclusive, keyboard-operable button set. Presentation changes do not change the stored
+wire value.
 
 `artifacts_path` points to the incarnation/version directory holding the exact
 `spec.json`, all Handlers, the item renderer, platform-authored `snapshot.json`, and

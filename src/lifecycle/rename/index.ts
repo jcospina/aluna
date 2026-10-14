@@ -18,7 +18,11 @@ export {
   type CapabilityRenameOutcome,
   renameCapabilityLabel,
 } from "./front-half.ts";
-export { type CapabilityRenameHttpDeps, handleCapabilityRename } from "./http.ts";
+export {
+  type CapabilityRenameHttpDeps,
+  handleCapabilityRename,
+  registerCapabilityRenameRoutes,
+} from "./http.ts";
 export {
   CAPABILITY_RENAME_ERROR_CODE,
   renderCapabilityRenameRefusal,

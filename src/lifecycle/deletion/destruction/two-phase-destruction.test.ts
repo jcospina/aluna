@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
-import { UNKNOWN_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
+import { REGISTRY_TABLE } from "../../../platform/persistence/table-names.ts";
+import {
+  SECOND_INCARNATION_ID,
+  THIRD_INCARNATION_ID,
+  UNKNOWN_INCARNATION_ID,
+} from "../../../registry/incarnations.test-support.ts";
 import {
   compareAndSwapCapability,
   getCapability,
@@ -317,6 +322,42 @@ describe("two-phase capability destruction", () => {
     expect(conns.readonly.query("SELECT id FROM fake_events").all()).toEqual([{ id: "event-1" }]);
     expect(listCapabilityDeletionTombstones(conns.readonly)).toEqual([]);
     expect(readGates.snapshot()[0]).toMatchObject({ state: "active", readerCount: 0 });
+  });
+
+  test("the relations pointing at the deleted lifetime go with it, rolled back if the commit is", async () => {
+    const target = notesRow();
+    install(conns, target);
+    const linker = notesRow({ id: "books", incarnation_id: SECOND_INCARNATION_ID });
+    install(conns, linker);
+    const pointing = { capability: "notes", incarnation: target.incarnation_id, field: "text" };
+    const elsewhere = { capability: "authors", incarnation: THIRD_INCARNATION_ID, field: "name" };
+    const relations = [
+      { field: "text", to: pointing },
+      { field: "pinned", to: elsewhere },
+    ];
+    conns.readwrite
+      .query(`UPDATE ${REGISTRY_TABLE} SET relations = ? WHERE id = 'books'`)
+      .run(JSON.stringify(relations));
+    const destroy = (faults = {}) =>
+      destroyCapability({
+        target,
+        database: conns.readwrite,
+        readonlyDatabase: conns.readonly,
+        readGates: createReadGateCoordinator(),
+        adapters: [],
+        faults,
+      });
+
+    const failing = {
+      afterTableDropped: () => {
+        throw new Error("before commit");
+      },
+    };
+    await expect(destroy(failing)).rejects.toThrow("before commit");
+    expect(getCapability("books", conns.readonly)?.relations).toEqual(relations);
+
+    await destroy();
+    expect(getCapability("books", conns.readonly)?.relations).toEqual(relations.slice(1));
   });
 
   test("artifact cleanup refuses a symlinked parent without touching the outside directory", async () => {

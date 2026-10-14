@@ -9,7 +9,9 @@
 // so hashing it would let one capability's artwork arriving refuse an unrelated
 // in-flight build as classified-against-stale-state. What the resolver reads, and
 // what a build must be revalidated against, is semantic registry content; whether a
-// picture has landed yet is neither.
+// picture has landed yet is neither. Relations are out for the same reason: no resolver
+// reads them, an activation carries them forward, and a link press is no reason to
+// refuse a build that was waiting for the lease.
 
 import type { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
@@ -31,8 +33,8 @@ export function fingerprintActiveRegistryCatalog(capabilities: readonly Capabili
   return `sha256:${createHash("sha256").update(canonical).digest("hex")}`;
 }
 
-function fingerprintedView(row: CapabilityRow): Omit<CapabilityRow, "logo"> {
-  const { logo: _logo, ...view } = row;
+function fingerprintedView(row: CapabilityRow): Omit<CapabilityRow, "logo" | "relations"> {
+  const { logo: _logo, relations: _relations, ...view } = row;
   return view;
 }
 

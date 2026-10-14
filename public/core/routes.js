@@ -11,6 +11,7 @@
 
 export const CAPABILITY_PATH_PREFIX = "/capability";
 const CAPABILITY_DELETION_PATH_PREFIX = "/capability-deletion";
+const CAPABILITY_LINK_PATH_PREFIX = "/capability-link";
 const BUILD_PATH_PREFIX = "/build";
 
 /** A capability's own address — the View the window opens on. */
@@ -75,6 +76,11 @@ export function capabilityLogoAttemptUrl(
 /** The deletion confirmation and its preflight. */
 export function capabilityDeletionUrl(/** @type {string} */ capabilityId) {
   return `${CAPABILITY_DELETION_PATH_PREFIX}/${encodeURIComponent(capabilityId)}`;
+}
+
+/** One field's Link control: its chooser is read here, and a pick is written here. */
+export function capabilityLinkUrl(/** @type {string} */ capabilityId, /** @type {string} */ field) {
+  return `${CAPABILITY_LINK_PATH_PREFIX}/${encodeURIComponent(capabilityId)}/${encodeURIComponent(field)}`;
 }
 
 /** A running build's event stream. */

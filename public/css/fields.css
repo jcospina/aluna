@@ -212,10 +212,11 @@
  * it is positioned against the field; in the product it stands inside the form's own
  * scroller, which clips an absolutely positioned panel flat and leaves one row of the list
  * visible. Positioned against the viewport it is outside every ancestor's overflow, and
- * `public/controls/choice-picker.js` measures it off the button and keeps it there while the form
- * scrolls. Nothing about how it looks changes.
+ * `public/controls/choice-picker.js` measures it off the control, a chooser's off its field's shell,
+ * and keeps it there while the form scrolls. Nothing about how it looks changes.
  */
-.field--choice .listbox__panel {
+.field--choice .listbox__panel,
+.link-control > .listbox__panel {
   position: fixed;
   right: auto;
   min-width: 0;

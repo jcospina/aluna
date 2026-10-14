@@ -149,13 +149,13 @@ a pressable name in an answer, which is an **answer link**
 
 **Link control**:
 The small icon-button inside every unlinked single-line text field, in the new-record
-form and in Edit, and the chooser it opens: the drawn listbox, headed with the scope
-("Connect every book’s author to…"), with a Suggested group and then one group per
-capability whose options are its fields, each with a few of its values. A target that
-cannot be picked is left out. It calls no model and writes the relation in place under
-the platform-write lease, as Rename writes a name. While Aluna connects a field, the
-buttons fade with Save and Delete, and a note atop the form says what she is connecting
-(ADR-0011; M8 plan 18 to 24).
+form and in Edit, and the chooser it opens: the drawn listbox with no search, headed
+with the scope ("Connect every book’s author to…"), with a Suggested group and then one
+group per capability whose options are its fields, each with a few of its values. A
+target that cannot be picked is left out. It calls no model and writes the relation in
+place under the platform-write lease, as Rename writes a name. While Aluna connects a
+field, the buttons fade with Save and Delete, and a note atop the form says what she is
+connecting (ADR-0011; M8 plan 18 to 24).
 _Avoid_: link settings, relation editor, link dialog
 
 **Unlink**:
@@ -595,8 +595,9 @@ _Avoid_: optgroup, category, section
 **Option note**:
 One short phrase beside an option that qualifies it — "closes the record",
 "needs a reason". It belongs to the row and not to the value: it never follows a
-choice onto the closed control, never enters typeahead or a picker's search, and is
-exposed as the option's accessible description rather than as visual-only text.
+choice onto the closed control, never enters typeahead or the search a picker gains in
+8.1/03, and is exposed as the option's accessible description rather than as visual-only
+text.
 _Avoid_: hint, help text, subtitle
 
 **Retired option**:
@@ -672,9 +673,10 @@ _Avoid_: foreign key, reference, association, link definition, schema link
 A single-line text field with a relation, where a single-line text field is a `string`
 field that `ui_intent.form.long_text` does not name. It keeps its own text in its own
 table, and the form draws it as a dropdown of the target's records, each shown by the
-target field the relation names; it cannot be free-typed while it is linked. Long text,
-lists of text and choice fields never link, as source or as target. Generated code sees
-the text it always held (ADR-0011; M8 plan 1, 13).
+target field the relation names. Typing into it only searches those records, so it cannot
+be free-typed while it is linked. Long text, lists of text and choice fields never link,
+as source or as target. Generated code sees the text it always held
+(ADR-0011; M8 plan 1, 13).
 _Avoid_: reference field, lookup field, relation field, foreign field; picker, which is a
 choice presentation
 
@@ -863,7 +865,8 @@ A capability that holds no records, and the platform **empty state** is what it 
 "add your first note above". It is not a collection whose search matched nothing — that
 one holds records and is only filtered, and it has its own sentence. The two are different
 facts about different things, and the collection never states both at once.
-_Avoid_: no results, zero state, blank slate, nothing found
+_Avoid_: zero state, blank slate, nothing found; no results, which is the drawn listbox's
+own sentence for a search that matches no option (8.1/03)
 
 **Nothing matched**:
 What a question's step did when its statement read a collection and no row of it answered.
@@ -875,7 +878,8 @@ a question whose statements never came back at all — that one searched nothing
 says so. The distinction is the whole of it: she may say she could not find something, and
 never that this person does not have it. Distinct again from **nowhere for it**, which is a
 claim about the desk rather than about one search of it.
-_Avoid_: no results, zero rows, empty result, you have none
+_Avoid_: zero rows, empty result, you have none; no results, which is the drawn listbox's
+own sentence for a search that matches no option (8.1/03)
 
 **Nowhere for it**:
 What this desk has for a subject no collection on it covers, and the ending Aluna reaches by

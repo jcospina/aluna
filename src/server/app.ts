@@ -26,6 +26,7 @@ import {
   renderCapabilityDeletionConfirmation,
   resolveCapabilityDeletionRestoration,
 } from "../lifecycle/deletion/index.ts";
+import { registerCapabilityLinkRoutes } from "../lifecycle/link/index.ts";
 import {
   createRunningLogoClaims,
   type LogoGenerationProvider,
@@ -33,7 +34,7 @@ import {
   recoverCapabilityLogos,
   registerCapabilityLogoRoutes,
 } from "../lifecycle/logo/index.ts";
-import { handleCapabilityRename } from "../lifecycle/rename/index.ts";
+import { registerCapabilityRenameRoutes } from "../lifecycle/rename/index.ts";
 import {
   createMetricsRecorder,
   createPromptBuildPipeline,
@@ -552,14 +553,6 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
 }
 
 /**
- * Renaming from the logo's own context menu. A top-level platform route for the reason deletion's
- * are: no Handler, no resolver and no provider, so menu to registry is zero-AI end to end.
- */
-function registerCapabilityRenameRoutes(app: Hono, ctx: ResolvedAppDeps): void {
-  app.post("/capability-rename/:id", guardWritingRoute(), (c) => handleCapabilityRename(c, ctx));
-}
-
-/**
  * Build the Hono app from {@link AppDeps}, applying the production defaults for any
  * dependency a caller does not inject, then attaching every route group.
  */
@@ -585,6 +578,7 @@ export function createApp(deps: AppDeps = {}): Hono {
   registerBuildJobRoutes(app, ctx);
   registerCapabilityDeletionRoutes(app, ctx);
   registerCapabilityRenameRoutes(app, ctx);
+  registerCapabilityLinkRoutes(app, ctx);
 
   // The logo's own two addresses, registered before the generated capability router so the
   // four-segment paths are matched by their owner and the ordering says who owns them.

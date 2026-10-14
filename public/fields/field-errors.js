@@ -51,6 +51,8 @@ const ERROR_REGION = '[aria-live="polite"]';
  */
 const SPEAKS_FOR =
   ".listbox__button, .field__textarea, .field__input, .field__checkbox, .choice-set, .segmented";
+/** The Link control's chain: a listbox button, but in a text field's well, where the input speaks. */
+const NEVER_SPEAKS = "link-control__button";
 /** The photo control's own buttons, which a refusal reaches but a button cannot be invalid. */
 const FILE_FOCUS = `[${FILE_FIELD_HOOKS.focus}]`;
 
@@ -67,7 +69,9 @@ const FIELD_NAME = /^[a-z][a-z0-9_]*$/;
 function speaksFor(field) {
   const controls = [];
   for (const control of field.querySelectorAll(SPEAKS_FOR)) {
-    if (control instanceof HTMLElement) controls.push(control);
+    if (control instanceof HTMLElement && !control.classList.contains(NEVER_SPEAKS)) {
+      controls.push(control);
+    }
   }
   return controls;
 }

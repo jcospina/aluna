@@ -110,6 +110,7 @@ describe("intent resolver active catalog", () => {
     const row = notesCapabilityRow();
     const reordered = {
       display_label_override: row.display_label_override,
+      relations: row.relations,
       prompt_context: row.prompt_context,
       artifacts_path: row.artifacts_path,
       seed: row.seed,

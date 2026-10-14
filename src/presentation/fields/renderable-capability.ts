@@ -28,6 +28,7 @@ export function renderableFromRow(row: CapabilityRow): RenderableCapability {
     incarnationId: row.incarnation_id,
     label: canonicalCapabilityLabel(row),
     noun: row.noun,
+    relations: row.relations,
     schema: row.schema,
     form: row.ui_intent.form,
     actions: row.tools,

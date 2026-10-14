@@ -69,6 +69,7 @@ describe("a spec may declare a file field", () => {
         seed: 4821,
         logo: { status: "absent", attempts: 0 },
         display_label_override: null,
+        relations: [],
       });
       insertCapability(row, env.conns.readwrite);
       expect(getCapability("photos", env.conns.readonly)).toEqual(row);

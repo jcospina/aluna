@@ -327,6 +327,16 @@ export const MIGRATIONS: readonly Migration[] = [
   { id: "0018_file_ledger_cleanup_index", up: createFileCleanupIndex },
   // The desk-load sweep's walk over pending rows.
   { id: "0019_file_ledger_pending_index", up: createFilePendingIndex },
+  // A capability's relations, row-only beside the logo seed. The default
+  // is no relation, so every row already on a desk loads as it did.
+  {
+    id: "0020_capability_relations",
+    up: (database) => {
+      database.exec(
+        `ALTER TABLE ${REGISTRY_TABLE} ADD COLUMN relations TEXT NOT NULL DEFAULT '[]';`,
+      );
+    },
+  },
 ];
 
 // The set of migration ids already recorded in the ledger. Empty when the ledger table does not

@@ -51,5 +51,8 @@ test("the registry row carries exactly the columns the platform decided on", () 
     // renamed says so, rather than restating its authored label in a second column.
     "display_label_override",
     "plural_noun",
+    // Which single-line text fields show another capability's field.
+    // Row-only like the override, and never null: a capability with no link holds `[]`.
+    "relations",
   ]);
 });

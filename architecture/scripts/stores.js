@@ -6,7 +6,7 @@ if (storesRoot) {
   const copy = {
     registry: {
       normal:
-        "One row per capability: its spec, which version is live, the incarnation and seed the platform assigned and any display name a rename wrote. The resolver reads a summary of every row each time it classifies a sentence.",
+        "One row per capability: its spec, which version is live, the incarnation and seed the platform assigned and any display name a rename wrote. Its relations say which of its fields are linked to another capability's, and linking one makes no new version. The resolver reads a summary of every row each time it classifies a sentence.",
       deleted:
         "The row becomes a tombstone in the deleting transaction. No route reaches it, and it reserves the id until the file clean-up finishes.",
     },
