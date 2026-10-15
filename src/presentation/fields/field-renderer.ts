@@ -157,10 +157,13 @@ export function renderCreateForm(capability: RenderableCapability): string {
 /**
  * Render the platform-owned edit form for one record — the record's only view. Inactive fields,
  * `extra` and `created_at` are not rendered; the mutation port preserves them from server state.
+ *
+ * @param picks the record each linked field picked, which the form posts again beside its text
  */
 export function renderEditForm(
   capability: RenderableCapability,
   record: Readonly<Record<string, unknown>>,
+  picks: ReadonlyMap<string, string> = new Map(),
 ): string {
   const recordId = record.id;
   if (typeof recordId !== "string" || recordId.trim() === "") {
@@ -168,7 +171,9 @@ export function renderEditForm(
   }
 
   const active = activeSpecFields(capability.schema.fields);
-  const fields = active.map((field) => renderEditField(capability, field, record[field.name]));
+  const fields = active.map((field) =>
+    renderEditField(capability, field, record[field.name], picks.get(field.name)),
+  );
   const errorId = capabilityEditErrorId(capability.id);
   const escapedRecordId = escapeHtml(recordId);
   const label = escapeHtml(capability.label);
@@ -277,6 +282,7 @@ function renderEditField(
   capability: RenderableCapability,
   field: SpecField,
   value: unknown,
+  picked: string | undefined,
 ): string {
   const { id: capabilityId, form } = capability;
   if (isListFieldType(field.type)) {
@@ -292,6 +298,7 @@ function renderEditField(
   if (field.type === "datetime") return renderEditDatetimeField(capabilityId, field, form, value);
   return renderScalarField(`edit-${capabilityId}-${field.name}`, field, field.type, capability, {
     value,
+    picked,
   });
 }
 
@@ -304,7 +311,7 @@ function renderScalarField(
   field: SpecField,
   type: NativeInputFieldType,
   capability: RenderableCapability,
-  edited?: { readonly value: unknown },
+  edited?: { readonly value: unknown; readonly picked?: string | undefined },
 ): string {
   const { form } = capability;
   const editing = edited !== undefined;
@@ -322,7 +329,7 @@ function renderScalarField(
     required: field.required && control.canBeEmpty ? " required" : "",
     chrome,
     value: editing ? editScalarValue(type, value) : "",
-    shell: (input) => linkableShell(capability, field, inputId, input),
+    shell: (input) => linkableShell(capability, field, inputId, input, edited?.picked),
   };
 
   if (control.inline) return renderInlineField(inputId, parts, editing && value === true);

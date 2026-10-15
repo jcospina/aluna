@@ -95,15 +95,15 @@ describe("deterministic capability router — presentation adapter and empty rea
   });
 
   test("read leaves the region truly empty when there are no records, so the platform empty state shows", async () => {
-    // Regression: a read handler authoring its own empty state defeats the platform's `:empty`
-    // one (ADR-0005 §1) and lingers below the first record create prepends with `afterbegin`.
+    // Regression: a read handler authoring its own empty state defeats the platform's own
+    // (ADR-0005 §1) and lingers below the first record create prepends with `afterbegin`.
     install(conns, notesRow());
     const app = createTestApp({ capabilityRouter: { databases: conns } });
 
     const res = await app.request("/capability/notes/read");
     expect(res.status).toBe(200);
-    // Nothing rendered into the region, so `:empty` still matches and `.capability-empty` is the
-    // sole empty state. The count says nothing here; the empty state already speaks for zero.
+    // The answer leaves the region holding no element, so `.capability-empty` is the sole
+    // empty state. The count says nothing here; the empty state already speaks for zero.
     const { sentence, records } = splitCollectionCount(await res.text());
     expect(sentence).toBe("");
     expect(records.trim()).toBe("");

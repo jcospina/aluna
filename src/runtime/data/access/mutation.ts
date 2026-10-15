@@ -8,7 +8,6 @@ import {
   capabilitySpecSchema,
   isFileFieldType,
   isFileListFieldType,
-  PLATFORM_COLUMNS,
   type SpecField,
 } from "../../../registry/index.ts";
 import {
@@ -17,6 +16,14 @@ import {
   RecordChangedError,
   RecordNotFoundError,
 } from "../internal.ts";
+import {
+  type LinkBinding,
+  linkCreatedRecord,
+  NO_LINKS,
+  PickWriteError,
+  relinkUpdatedRecord,
+  unlinkDeletedRecord,
+} from "../links/picks.ts";
 import { deriveCapabilityTableDdl } from "../schema/ddl.ts";
 import {
   fileKeyFromProjection,
@@ -48,6 +55,12 @@ import {
   submittedFileKeys,
 } from "./file-claims.ts";
 import { assertReadOwnership } from "./read-ownership.ts";
+import {
+  insertValues,
+  submittedUpdateValue,
+  validateBoundRecordTarget,
+  validateUpdateKeys,
+} from "./values/handed-values.ts";
 
 export { RECORD_NOT_FOUND_ERROR_CODE, RecordNotFoundError } from "../internal.ts";
 
@@ -65,8 +78,6 @@ export interface CapabilityUpdateMutationPort {
 export interface CapabilityDeleteMutationPort {
   delete(): void;
 }
-
-const PLATFORM_POPULATED_COLUMNS = new Set<string>(PLATFORM_COLUMNS);
 
 /** The active fields a save writes, and the same fields split into data and files. */
 function savedFields(spec: CapabilitySpec) {
@@ -87,10 +98,12 @@ export interface FileSubmissionBinding {
   readonly submitted: SubmittedFiles;
 }
 
+/** @param links the relations that hold and the checked picks, from the router; the Gate's has none */
 export function createCapabilityMutationPort(
   spec: CapabilitySpec,
   files: FileSubmissionBinding,
   signal?: AbortSignal,
+  links: LinkBinding = NO_LINKS,
 ): CapabilityMutationPort {
   const parsed = capabilitySpecSchema.parse(spec);
   const { tableName } = deriveCapabilityTableDdl(parsed);
@@ -100,14 +113,16 @@ export function createCapabilityMutationPort(
   const { scope } = files;
   const { database } = scope;
 
-  // A submission's file belongs to one record: a second create cannot claim it or quietly drop it.
+  // A submission's files and picks belong to one record: a second create cannot claim them.
   const written = new Set<string>();
+  let picked = false;
 
   return {
     create(values) {
       assertReadOwnership(signal);
       const own = insertValues(parsed.id, allowedInsertFields, values);
       const keys = writtenFileKeys(fileFields, own, files.submitted, written);
+      if (picked && links.picks.size > 0) throw new PickWriteError();
       assertRequiredFilesHeld(parsed.id, fields, own, keys, "create");
       const normalized = normalizeSpecFieldValues(parsed.id, dataFields, own);
       const id = randomUUID();
@@ -124,6 +139,7 @@ export function createCapabilityMutationPort(
         ];
         const placeholders = columns.map(() => "?").join(", ");
         const quotedColumns = columns.map(sqlIdentifier).join(", ");
+        linkCreatedRecord(database, parsed.id, id, links);
         return database
           .query(
             `INSERT INTO ${quotedTable} (${quotedColumns}) VALUES (${placeholders}) RETURNING *`,
@@ -131,6 +147,7 @@ export function createCapabilityMutationPort(
           .get(...sqlValues) as StoredCapabilityRow;
       });
       const stored = insert();
+      picked = true;
       for (const fieldKeys of keys.values()) for (const key of fieldKeys) written.add(key);
       return createCapabilityActionRecord(normalizeStoredRow(fields, stored));
     },
@@ -242,6 +259,7 @@ export function createCapabilityUpdateMutationPort(
   submittedFields: ReadonlySet<string>,
   files: FileSubmissionBinding,
   signal?: AbortSignal,
+  links: LinkBinding = NO_LINKS,
 ): CapabilityUpdateMutationPort {
   const parsed = capabilitySpecSchema.parse(spec);
   const input: BoundUpdateAuthority = {
@@ -274,9 +292,13 @@ export function createCapabilityUpdateMutationPort(
       depth += 1;
       let updated: CapabilityDataRow;
       try {
-        updated = input.scope.database.transaction(() =>
-          updateBoundTarget(input, own, fileWrites),
-        )();
+        updated = input.scope.database.transaction(() => {
+          const { current, row } = updateBoundTarget(input, own, fileWrites);
+          const changed = (field: string) => current[field] !== row[field];
+          const edit = { capabilityId: parsed.id, recordId: input.target, changed };
+          relinkUpdatedRecord(input.scope.database, edit, links, submittedFields);
+          return row;
+        })();
       } finally {
         depth -= 1;
       }
@@ -310,6 +332,7 @@ export function createCapabilityDeleteMutationPort(
           .get(target);
         if (!deleted) throw new RecordNotFoundError(parsed.id, "delete");
         enqueueRecordFiles(database, scope, target);
+        unlinkDeletedRecord(database, parsed.id, target);
       })();
     },
   };
@@ -330,11 +353,12 @@ interface BoundUpdateAuthority {
 
 type FileWrites = readonly (readonly [SpecField, SubmittedFile])[];
 
+/** The record as it stood, and as the update leaves it. */
 function updateBoundTarget(
   authority: BoundUpdateAuthority,
   values: CapabilityUpdateValues,
   fileWrites: FileWrites,
-): CapabilityDataRow {
+): { readonly current: CapabilityDataRow; readonly row: CapabilityDataRow } {
   const stored = authority.scope.database
     .query(`SELECT * FROM ${authority.quotedTable} WHERE "id" = ?`)
     .get(authority.target) as StoredCapabilityRow | null;
@@ -374,8 +398,8 @@ function updateBoundTarget(
     ),
     ...writeSubmittedFiles(authority, current, fileWrites),
   };
-  if (Object.keys(columns).length === 0) return current;
-  return persistBoundUpdate(authority, columns);
+  if (Object.keys(columns).length === 0) return { current, row: current };
+  return { current, row: persistBoundUpdate(authority, columns) };
 }
 
 /**
@@ -468,50 +492,6 @@ function persistBoundUpdate(
   return normalizeStoredRow(authority.fields, updated);
 }
 
-/** A create's values as the Handler gave them, refused before any field is judged if malformed. */
-function insertValues(
-  capabilityId: string,
-  allowedInsertFields: ReadonlySet<string>,
-  values: CapabilityCreateValues,
-): CapabilityCreateValues {
-  if (!isPlainObject(values)) {
-    throw new CapabilityDataValidationError(
-      `Capability "${capabilityId}" insert values must be an object.`,
-    );
-  }
-  validateInsertKeys(capabilityId, allowedInsertFields, values);
-  return { ...values };
-}
-
-function validateInsertKeys(
-  capabilityId: string,
-  allowedInsertFields: ReadonlySet<string>,
-  values: Readonly<Record<string, unknown>>,
-): void {
-  for (const key of Object.keys(values)) {
-    if (PLATFORM_POPULATED_COLUMNS.has(key)) {
-      throw new CapabilityDataValidationError(
-        `Column "${key}" is platform-populated and cannot be inserted by a handler.`,
-      );
-    }
-    if (!allowedInsertFields.has(key)) {
-      const fieldList = [...allowedInsertFields].sort().join(", ");
-      throw new CapabilityDataValidationError(
-        `Unknown field "${key}" for capability "${capabilityId}". Insert accepts only: ${fieldList}.`,
-      );
-    }
-  }
-}
-
-function validateBoundRecordTarget(recordTarget: string): string {
-  if (typeof recordTarget !== "string" || recordTarget.trim().length === 0) {
-    throw new CapabilityDataValidationError(
-      "A target-bound mutation requires a nonblank record id.",
-    );
-  }
-  return recordTarget;
-}
-
 function validateBoundSubmittedFields(authority: BoundUpdateAuthority): void {
   for (const name of authority.submittedFields) {
     const field = authority.fieldsByName.get(name);
@@ -525,47 +505,4 @@ function validateBoundSubmittedFields(authority: BoundUpdateAuthority): void {
       throw new FileFieldWriteError(name);
     }
   }
-}
-
-function validateUpdateKeys(
-  capabilityId: string,
-  fieldsByName: ReadonlyMap<string, SpecField>,
-  submittedFields: ReadonlySet<string>,
-  values: Readonly<Record<string, unknown>>,
-): void {
-  for (const key of Object.keys(values)) {
-    if (PLATFORM_POPULATED_COLUMNS.has(key)) {
-      throw new CapabilityDataValidationError(
-        `Column "${key}" is platform-populated and cannot be updated by a handler.`,
-      );
-    }
-    const field = fieldsByName.get(key);
-    if (!field) {
-      throw new CapabilityDataValidationError(
-        `Unknown field "${key}" for capability "${capabilityId}".`,
-      );
-    }
-    if (field.lifecycle !== "active") {
-      throw new CapabilityDataValidationError(
-        `Inactive field "${key}" cannot be updated for capability "${capabilityId}".`,
-      );
-    }
-    if (!submittedFields.has(key)) {
-      throw new CapabilityDataValidationError(
-        `Field "${key}" was not submitted and cannot be updated for capability "${capabilityId}".`,
-      );
-    }
-  }
-}
-
-function submittedUpdateValue(field: SpecField, values: CapabilityUpdateValues): unknown {
-  if (!Object.hasOwn(values, field.name) || values[field.name] === undefined) {
-    if (field.type === "boolean") return false;
-    if (field.type === "string[]") return [];
-    return null;
-  }
-
-  const value = values[field.name];
-  if (value === "" && !field.required && field.type !== "string[]") return null;
-  return value;
 }

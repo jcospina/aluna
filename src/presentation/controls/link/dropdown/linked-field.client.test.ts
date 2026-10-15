@@ -236,13 +236,23 @@ describe("a pick fills the field with the record's text", () => {
     expect(scene.carrier.value).toBe(NAMES[1] as string);
   });
 
-  test("picking the record the field already names announces nothing", async () => {
-    const scene = await dropdownScene([records(), records()], editBook("Brandon Sanderson"));
+  test("picking the record the field already picked announces nothing", async () => {
+    const book = editBook("Brandon Sanderson", linkedBooks(), "author-0");
+    const scene = await dropdownScene([records(), records()], book);
     scene.key("Enter");
     await settle();
     expect(scene.active()).toBe(scene.options()[0]?.id ?? null);
     scene.key("Enter");
     expect(scene.doc.changes).toEqual([]);
+  });
+
+  test("picking the record whose text the field holds, but never picked, is a change", async () => {
+    const scene = await dropdownScene([records(), records()], editBook("Brandon Sanderson"));
+    scene.key("Enter");
+    await settle();
+    expect(scene.active()).toBe(scene.options()[0]?.id ?? null);
+    scene.key("Enter");
+    expect(scene.doc.changes).toHaveLength(1);
   });
 
   test("the form posts the picked text, and never what was typed to find it", async () => {

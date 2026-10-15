@@ -10,6 +10,7 @@
 
 import { CHAIN } from "#shell/controls/listbox-glyphs.js";
 import { capabilityLinkUrl, capabilityPickUrl } from "#shell/core/routes.js";
+import { PICKED_RECORD_ATTRIBUTE } from "#shell/core/shell-dom.js";
 import {
   isLinkableField,
   type Relation,
@@ -52,19 +53,23 @@ function linkState(capability: LinkableCapability, field: SpecField): "offered" 
 
 /**
  * The field's shell around `input`, with the chain and its chooser when the field offers a link,
- * or marked for its dropdown when it is linked. The chooser's panel is drawn empty: every record's
- * Edit form carries this, and its words arrive when it opens, as a dropdown's records do.
+ * or marked for its dropdown when it is linked, naming the record an Edit form's field `picked`
+ * so a save posts it again. The chooser's panel is drawn empty: every record's Edit form carries
+ * this, and its words arrive when it opens, as a dropdown's records do.
  */
 export function linkableShell(
   capability: LinkableCapability,
   field: SpecField,
   inputId: string,
   input: string,
+  picked?: string,
 ): string {
   if (isLinkedField(capability, field)) {
+    const record =
+      picked === undefined ? "" : ` ${PICKED_RECORD_ATTRIBUTE}="${escapeHtml(picked)}"`;
     return (
       `<div class="listbox linked-field" data-linked-field` +
-      ` data-pick-url="${escapeHtml(capabilityPickUrl(capability.id, field.name))}">` +
+      ` data-pick-url="${escapeHtml(capabilityPickUrl(capability.id, field.name))}"${record}>` +
       `${controlShell(input)}</div>`
     );
   }

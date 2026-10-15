@@ -293,16 +293,12 @@
    a collection saying nothing at all. The read contract forbids that answer and the Gate
    holds a capability to it; this makes the chrome not depend on either. It stops firing
    the moment a record is server-rendered or prepended, so the empty state still hides
-   itself with no JS. */
+   itself with no JS. A region not yet read holds a hidden marker element until its read
+   answers (`list-container.ts`), so an unread collection never says it is empty. */
 .capability-records:not(:has(*)) ~ .capability-empty {
   display: revert;
 }
 .capability-records:has(*) ~ .capability-empty {
-  display: none;
-}
-/* While the region's own read request is in flight it is loading, not empty —
-   without this the commit swap flashes "Nothing here yet" before records land. */
-.capability-records.htmx-request:empty ~ .capability-empty {
   display: none;
 }
 

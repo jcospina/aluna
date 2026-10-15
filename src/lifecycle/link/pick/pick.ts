@@ -119,11 +119,13 @@ function targetRecords(
       `SELECT "id" AS "target_id" FROM ${table}` +
       ` WHERE ${column} IS NOT NULL AND trim(${column}) <> ''`,
   });
+  // SQLite's `trim` takes spaces only; a save refuses a pick whose text is blank by JavaScript's.
   return rows
     .map(({ record }) => {
       const stored = storedCapabilityActionRecord(record);
       return { id: String(stored.id), text: String(stored[field.name]) };
     })
+    .filter((record) => record.text.trim() !== "")
     .sort((a, b) => collator.compare(a.text, b.text) || order(a.text, b.text) || order(a.id, b.id));
 }
 

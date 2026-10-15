@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 
 import { createFileLedgerSchema } from "../../../platform/files/store/ledger.ts";
+import { createLinkTableSchema } from "../../../platform/links/link-table.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
@@ -264,6 +265,7 @@ describe("a missing record and a delete's bound target", () => {
       const spec = mutationSpec();
       applyCapabilityTableDdl(spec, databases.readwrite);
       createFileLedgerSchema(databases.readwrite);
+      createLinkTableSchema(databases.readwrite);
       seedRecord(databases.readwrite, "target");
       seedRecord(databases.readwrite, "survivor");
 

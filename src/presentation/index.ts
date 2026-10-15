@@ -33,6 +33,7 @@ export {
   type PresentationAdapter,
   type PresentationAdapterOptions,
   RECORD_TEMPLATE_ID_PREFIX,
+  type RecordLinks,
   renderPresentedRecordView,
 } from "./records/adapter.ts";
 export {

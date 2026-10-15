@@ -2,14 +2,18 @@
 // tests, `shelves` beside it, and its `text` is linked to `shelves.text` through the real chooser
 // and route. The row's pointer, every published byte, the model-facing spec views and the frozen
 // suite are the same afterwards, and the capability's own routes answer as they did: the one change
-// on the page is the chain leaving the linked field.
+// on the page is the chain leaving the linked field. A pick saved through the router leaves the
+// Gate's inputs as they were, and the Gate passes on both ends.
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { capabilityLinkUrl, capabilityPickUrl } from "#shell/core/routes.js";
-import { FROZEN_BEHAVIORAL_TEST_FILE } from "../../builder/artifacts/publication/snapshot-contract.ts";
+import {
+  assertSuccessfulGate,
+  FROZEN_BEHAVIORAL_TEST_FILE,
+} from "../../builder/artifacts/publication/snapshot-contract.ts";
 import {
   committedSpecView,
   readFrozenBehavioralTests,
@@ -33,10 +37,13 @@ import {
   type CapabilityRow,
   capabilitySpecFromRow,
   getCapability,
+  holdingRelations,
+  listCapabilities,
   type SpecField,
 } from "../../registry/index.ts";
 import { notesSpec } from "../../registry/spec/spec.test-support.ts";
-import { deriveCapabilityTableDdl } from "../../runtime/data/index.ts";
+import { deriveCapabilityTableDdl, heldPicks } from "../../runtime/data/index.ts";
+import { saveBody } from "../../runtime/router/dispatch/links/router.links.test-support.ts";
 import { formBody } from "../../runtime/router/dispatch/router.test-support.ts";
 import { elementsOf } from "../../server/http/served-page.test-support.ts";
 import { createTestApp } from "../../server/isolated-app.test-support.ts";
@@ -313,4 +320,56 @@ describe("Handlers and cards run as they did", () => {
       }),
     ).not.toBe(answeredBefore.read);
   });
+});
+
+describe("a pick saved on the linked capability", () => {
+  const SHELF = "shelf-1";
+  /** `id`'s published Handlers and card, rerun through the Gate with what it was published with. */
+  const rerun = (id: string, frozen?: ReturnType<typeof readFrozenBehavioralTests>) => {
+    const published = row(id);
+    const spec = capabilitySpecFromRow(published);
+    const unit = (name: string) =>
+      readFileSync(join(published.artifacts_path, `${name}.ts`), "utf8");
+    return runCapabilityGate({
+      spec,
+      ddl: deriveCapabilityTableDdl(spec),
+      handlers: Object.fromEntries(spec.tools.map((action) => [action, unit(action)] as const)),
+      itemRenderer: unit("item"),
+      behavioralTier:
+        frozen && env.gate.behavioral.tier === "on"
+          ? {
+              enabled: true,
+              frozen: { frozenTests: frozen, generation: env.gate.behavioral.testGen },
+            }
+          : { enabled: false },
+    });
+  };
+
+  test("is remembered, and the Gate passes on the source and on the target as before", async () => {
+    env.conns.readwrite.run('INSERT INTO "cap_shelves" ("id", "text") VALUES (?, ?)', [
+      SHELF,
+      "Top shelf",
+    ]);
+    const saved = await app.request(
+      "/capability/notes/create",
+      saveBody({ text: "Top shelf" }, { text: SHELF }, ["text", "pinned"]),
+    );
+    expect(saved.status).toBe(200);
+    const id = env.conns.readonly
+      .query<{ id: string }, [string]>('SELECT "id" FROM "cap_notes" WHERE "text" = ?')
+      .get("Top shelf")?.id;
+    const relations = holdingRelations(row("notes"), listCapabilities(env.conns.readonly));
+    expect(heldPicks(env.conns.readonly, "notes", id ?? "", relations)).toEqual(
+      new Map([["text", SHELF]]),
+    );
+
+    for (const view of [capabilitySpecFromRow, committedSpecView]) {
+      expect(view(row("notes"))).toEqual(view(before.notes));
+    }
+    const notesGate = await rerun("notes", after.frozen);
+    const shelvesGate = await rerun("shelves");
+    expect(() => assertSuccessfulGate(notesGate)).not.toThrow();
+    expect(() => assertSuccessfulGate(shelvesGate)).not.toThrow();
+    expect(notesGate.behavioral.tier).toBe(env.gate.behavioral.tier);
+  }, 60_000);
 });

@@ -18,6 +18,7 @@ import {
   ADD_FILE_AGAIN_SENTENCE,
   tooManyFilesSentence,
 } from "../../../platform/files/admission/refusal-copy.ts";
+import { pickAgainLine } from "../../../presentation/controls/link/link-copy.ts";
 import {
   capabilityCreateErrorId,
   capabilityDeleteErrorId,
@@ -33,6 +34,7 @@ import type {
   InvalidFileReferenceError,
   MaxLengthExceededError,
   MissingRequiredFieldsError,
+  PickNotFoundError,
   RecordChangedError,
   RecordNotFoundError,
   TooManyFilesError,
@@ -256,6 +258,22 @@ export function tooManyFilesFailure(
   const [first] = Object.values(error.counts);
   const sentence = first ? tooManyFilesSentence(first.count, first.cap) : SIDEWAYS_COPY;
   return c.html(refusalFragment(error.code, sentence, error.fields), 422);
+}
+
+/**
+ * A linked field's pick naming no record of its target, said in each such field so it asks for a
+ * new pick. Nothing was written, and the text the form holds stays where it is.
+ */
+export function pickNotFoundFailure(
+  c: Context,
+  capabilityId: string,
+  error: PickNotFoundError,
+): Response {
+  retargetMutationError(c, capabilityId, error.action);
+  return c.html(
+    refusalFragment(error.code, escapeHtml(pickAgainLine(error.nouns)), error.fields),
+    422,
+  );
 }
 
 /**

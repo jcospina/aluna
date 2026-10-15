@@ -20,6 +20,8 @@ import {
   type CapabilitySpec,
   capabilitySpecFromRow,
   effectiveCapabilityLabel,
+  holdingRelations,
+  type Relation,
   readActiveRegistryCatalog,
 } from "../../../registry/index.ts";
 import { guardWritingRoute } from "../../../server/http/index.ts";
@@ -41,8 +43,10 @@ import {
   InvalidFileReferenceError,
   MaxLengthExceededError,
   MissingRequiredFieldsError,
+  PickNotFoundError,
   RecordChangedError,
   RecordNotFoundError,
+  resolveSubmittedPicks,
   TooManyFilesError,
 } from "../../data/index.ts";
 import {
@@ -75,6 +79,7 @@ import {
   maxLengthExceededFailure,
   missingRequiredFieldsFailure,
   NOT_FOUND_FRAGMENT,
+  pickNotFoundFailure,
   readUnavailable,
   recordChangedFailure,
   recordMutationRefusal,
@@ -92,7 +97,7 @@ import {
   WireProtocolError,
 } from "../wire/wire-protocol.ts";
 import { registerCapabilityViews } from "./address/capability-views.ts";
-import { type HandlerRead, invokeCapabilityHandler } from "./handler-invocation.ts";
+import { type HandlerRead, invokeCapabilityHandler, pickScope } from "./handler-invocation.ts";
 
 /**
  * Registry lookup seam. Production uses the validated registry store; route tests
@@ -224,17 +229,22 @@ async function handleCapabilityRequest(
     return capabilityHandlerFailure(c, row, action, error);
   }
 
+  // A pick reads its target's records, so the save holds the target's read token beside its own.
+  const relations = holdingRelations(row, catalog);
+  const dormant = row.relations.filter((relation) => !relations.includes(relation));
+  const read: HandlerRead = { dependencies, catalog, relations, dormant };
   const tokens = readGates.tryAcquire({
     catalog: catalog.map(capabilityIncarnation),
-    incarnations: captured.incarnations,
+    incarnations: [...captured.incarnations, ...pickedTargets(read.relations, parsedRequest)],
   });
   if (!tokens) return readUnavailable(c, row.id, action);
 
   try {
     // The refusals the platform owns — an undeclared choice value, an over-long string, a file it
-    // may not claim or keep — settle before any generated code loads, so a Handler cannot answer
-    // 200. Under the read token, because an edit's file check reads the capability's own table.
-    const refused = platformRefusal(c, databases, row, spec, action, parsedRequest);
+    // may not claim or keep, a pick naming no record — settle before any generated code loads, so
+    // a Handler cannot answer 200. Under the read tokens: an edit's file check reads the
+    // capability's own table, and a pick its target's.
+    const refused = platformRefusal(c, databases, row, spec, action, parsedRequest, read);
     if (refused) return refused;
     if (isMutationAction(action)) {
       return await handleRecordMutation(
@@ -246,7 +256,7 @@ async function handleCapabilityRequest(
         row,
         spec,
         parsedRequest,
-        { dependencies, catalog },
+        read,
         action,
         tokens.signal,
         () => readGates.release(tokens),
@@ -263,7 +273,7 @@ async function handleCapabilityRequest(
       row,
       spec,
       parsedRequest,
-      { dependencies, catalog },
+      read,
       action,
       tokens.signal,
       handlerTimeoutMs,
@@ -274,6 +284,13 @@ async function handleCapabilityRequest(
   }
 }
 
+/** The target of each relation a save's pick rides, whose records the pick is checked against. */
+function pickedTargets(relations: readonly Relation[], parsed: ParsedCapabilityRequest) {
+  return relations
+    .filter((relation) => parsed.picks?.has(relation.field))
+    .map(({ to }) => ({ capabilityId: to.capability, incarnationId: to.incarnation }));
+}
+
 function platformRefusal(
   c: Context,
   databases: PlatformDatabase,
@@ -281,6 +298,7 @@ function platformRefusal(
   spec: CapabilitySpec,
   action: WireProtocolAction,
   parsedRequest: ParsedCapabilityRequest,
+  read: HandlerRead,
 ): Response | undefined {
   if (action !== "create" && action !== "update") return undefined;
   try {
@@ -296,6 +314,8 @@ function platformRefusal(
         parsedRequest.drawnFiles,
       ),
     );
+    const scope = pickScope(databases.readonly, spec.id, action, read.catalog);
+    resolveSubmittedPicks(scope, read, parsedRequest.picks);
     return undefined;
   } catch (error) {
     return capabilityHandlerFailure(c, row, action, asFormChanged(error, parsedRequest.input));
@@ -421,6 +441,7 @@ function fieldRefusal(c: Context, id: string, error: unknown): Response | undefi
   if (error instanceof InvalidFileReferenceError) return invalidFileReferenceFailure(c, id, error);
   if (error instanceof RecordChangedError) return recordChangedFailure(c, id, error);
   if (error instanceof TooManyFilesError) return tooManyFilesFailure(c, id, error);
+  if (error instanceof PickNotFoundError) return pickNotFoundFailure(c, id, error);
   return undefined;
 }
 

@@ -987,7 +987,7 @@ describe("unit generation with bounded fix loop — item-renderer prompt", () =>
 describe("unit generation with bounded fix loop — read, few-shot, and present-adapter prompts", () => {
   test("the read handler prompt defers the empty state to the platform, never emitting its own", () => {
     // Regression: the read prompt used to ask for an empty state. A handler's own markup fills
-    // `#<id>-records`, defeating the platform's `:empty` and lingering below a created record.
+    // `#<id>-records`, defeating the platform's empty state and lingering below a created record.
     const readPrompt = buildUnitPrompt(notesSpec(), { kind: "handler", name: "read" });
 
     // The stale instruction is gone: the handler must NOT author its own empty state.

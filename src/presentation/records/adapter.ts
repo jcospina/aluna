@@ -9,7 +9,8 @@
 // `<template>` the swap clones, so the full record's form shows even when the card truncates.
 //
 // Synchronous: the enforcer parses with Bun's native HTMLRewriter and the rest is string
-// composition. The router resolves the item renderer once, which is why it loads it eagerly.
+// composition. The router resolves the item renderer once, which is why it loads it eagerly. The
+// one read is the router's link lookup, since a Handler hands over a record's text, not its picks.
 
 import { isFileFieldType } from "../../registry/index.ts";
 import {
@@ -20,7 +21,11 @@ import {
 import type { RenderableCapability } from "../fields/field-renderer.ts";
 import { enforceItemMarkup } from "../safety/enforcer/enforcer.ts";
 import { type ItemRecordViewRef, renderItemWrapper } from "./collection/list-container.ts";
-import { renderRecordView, renderRecordViewTemplate } from "./record-view/record-view.ts";
+import {
+  hasRecordView,
+  renderRecordView,
+  renderRecordViewTemplate,
+} from "./record-view/record-view.ts";
 
 /**
  * A record as it reaches presentation: the spec fields plus the platform-populated `id` and
@@ -41,11 +46,16 @@ export type ItemRenderer = (record: PresentableRecord) => string;
 export type PresentationAdapter = (record: CapabilityActionRecord) => string;
 export type PlatformPresentationAdapter = (record: PresentableRecord) => string;
 
+/** The record each linked field of one record picked, by field. */
+export type RecordLinks = (recordId: string) => ReadonlyMap<string, string>;
+
 /** What {@link createPresentationAdapter} closes over: the capability (for the label,
  *  active schema-field order, and the id namespacing the record templates) and its item renderer. */
 export interface PresentationAdapterOptions {
   readonly capability: RenderableCapability;
   readonly renderItem: ItemRenderer;
+  /** What each record's Edit form says its linked fields picked; the Gate's adapter has none. */
+  readonly links?: RecordLinks;
 }
 
 /**
@@ -56,19 +66,25 @@ export const RECORD_TEMPLATE_ID_PREFIX = "record";
 
 /**
  * Build the capability-scoped presentation adapter. Bind once per capability and hand the returned
- * `present` to Handlers through the toolbox. Pure: it captures the capability and adds no I/O.
+ * `present` to Handlers through the toolbox. It reads nothing but what `links` reads.
  */
 export function createPresentationAdapter(
   options: PresentationAdapterOptions,
 ): PresentationAdapter {
   const { capability, renderItem } = options;
-  return (record) =>
-    present(
+  // Only a record's Edit form carries picks, and only for a field whose relation holds.
+  const draws = hasRecordView(capability) && (capability.linkedFields?.length ?? 0) > 0;
+  const links = draws ? options.links : undefined;
+  return (record) => {
+    const materialized = materializeCapabilityActionRecord(record);
+    return present(
       capability,
       renderItem,
-      materializeCapabilityActionRecord(record),
+      materialized,
       storedFiles(capability, storedCapabilityActionRecord(record)),
+      links?.(String(materialized.id)),
     );
+  };
 }
 
 /**
@@ -91,11 +107,13 @@ function storedFiles(
 export function renderPresentedRecordView(
   capability: RenderableCapability,
   record: CapabilityActionRecord,
+  links?: RecordLinks,
 ): string {
   const materialized = materializeCapabilityActionRecord(record);
   const files = storedFiles(capability, storedCapabilityActionRecord(record));
   const templateId = recordTemplateId(capability.id, materialized);
-  return renderRecordView(capability, { ...materialized, ...files }, templateId);
+  const picks = links?.(String(materialized.id));
+  return renderRecordView(capability, { ...materialized, ...files }, templateId, picks);
 }
 
 /** Platform-only presentation for synthetic previews and deterministic design probes. */
@@ -115,9 +133,11 @@ function present(
   renderItem: ItemRenderer,
   record: PresentableRecord,
   files: PresentableRecord = {},
+  picks?: ReadonlyMap<string, string>,
 ): string {
   const templateId = recordTemplateId(capability.id, record);
-  const recordTemplate = renderRecordViewTemplate(templateId, capability, { ...record, ...files });
+  const drawn = { ...record, ...files };
+  const recordTemplate = renderRecordViewTemplate(templateId, capability, drawn, picks);
   const recordView: ItemRecordViewRef | undefined =
     recordTemplate === "" ? undefined : { templateId };
 

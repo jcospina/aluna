@@ -152,7 +152,7 @@ describe("the sidecar the server writes and the shell reads", () => {
     });
   });
 
-  test("it is a comment, so a records region holding only it still matches :empty", () => {
+  test("it is a comment, so a records region holding only it still holds no element", () => {
     const sidecar = renderCollectionCountSidecar("");
     expect(sidecar.startsWith("<!--")).toBe(true);
     expect(sidecar.endsWith("-->")).toBe(true);

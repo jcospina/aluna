@@ -47,8 +47,13 @@ export function linkedBooks(
 
 export const newBook = (capability = linkedBooks()) => renderCreateForm(capability);
 
-export const editBook = (author: string | null, capability = linkedBooks()) =>
-  renderEditForm(capability, { id: "book-1", author, title: "Mistborn" });
+/** Mistborn's Edit form, its Author holding `author` and, when `picked` names one, its pick. */
+export const editBook = (author: string | null, capability = linkedBooks(), picked?: string) =>
+  renderEditForm(
+    capability,
+    { id: "book-1", author, title: "Mistborn" },
+    new Map(picked === undefined ? [] : [["author", picked]]),
+  );
 
 /** The pick route's answer, written with the platform's own sentences. */
 export const records =
@@ -121,10 +126,14 @@ export function partsOf(doc: Doc, name: string) {
   };
 }
 
-/** What the form posts: each named input's value, a checkbox or radio only when checked. */
+/**
+ * What the form posts: each named input's value that is not disabled, a checkbox or radio only
+ * when checked.
+ */
 export function posted(form: El): [string, string][] {
   return form
     .querySelectorAll("input[name]")
+    .filter((input) => !input.disabled)
     .filter(
       (input) => !["checkbox", "radio"].includes(input.getAttribute("type") ?? "") || input.checked,
     )

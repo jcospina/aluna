@@ -14,6 +14,7 @@ export {
   FORM_CHANGED_ERROR_CODE,
   MAX_BEHAVIORAL_ERRORS,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
+  PICK_NOT_FOUND_ERROR_CODE,
   PLATFORM_OWNED_ERROR_CODES,
   platformOwnedErrorCodeList,
   RECORD_NOT_FOUND_ERROR_CODE,
@@ -111,6 +112,7 @@ export {
   relationOf,
   relationSchema,
   relationsSchema,
+  sameRelation,
 } from "./relations.ts";
 export {
   ALUNA_RESERVED_FIELD_PREFIX,

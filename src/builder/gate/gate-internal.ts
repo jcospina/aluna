@@ -12,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import ts from "typescript";
 import { errorMessage } from "../../platform/errors.ts";
 import { createFileLedgerSchema } from "../../platform/files/store/ledger.ts";
+import { createLinkTableSchema } from "../../platform/links/link-table.ts";
 import { sqlIdentifier } from "../../platform/persistence/sql-identifier.ts";
 import {
   createPresentationAdapter,
@@ -104,7 +105,8 @@ export interface ScratchDatabasePair {
 
 /**
  * Open a fresh shared-cache in-memory db pair for one rung's scratch execution, with its own file
- * ledger for the scratch references a save claims (`gate-scratch-files.ts`).
+ * ledger for the scratch references a save claims (`gate-scratch-files.ts`), and a link table beside
+ * it that no Gate save writes, since the Gate hands the ports no relations.
  */
 export function openScratchDatabasePair(): ScratchDatabasePair {
   const name = `aluna_gate_${randomUUID().replaceAll("-", "_")}`;
@@ -112,6 +114,7 @@ export function openScratchDatabasePair(): ScratchDatabasePair {
   const readwrite = new Database(uri, { create: true, readwrite: true });
   const readonly = new Database(uri, { readonly: true });
   createFileLedgerSchema(readwrite);
+  createLinkTableSchema(readwrite);
   return { readwrite, readonly };
 }
 

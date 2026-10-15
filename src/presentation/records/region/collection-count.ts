@@ -79,8 +79,8 @@ export function renderCollectionCountLabel(capability: RenderableCapability): st
 }
 
 /**
- * The sidecar carrying one sentence at the head of a records response, as an HTML comment:
- * `:empty` ignores comments (Selectors L3). An empty sentence clears the label, not the sidecar.
+ * The sidecar carrying one sentence at the head of a records response, as an HTML comment: not an
+ * element, so it never hides the empty state. An empty sentence clears the label, not the sidecar.
  */
 export function renderCollectionCountSidecar(sentence: string): string {
   return `${COLLECTION_COUNT_SIDECAR_PREFIX}${encodeSidecarPayload(sentence)}${COLLECTION_COUNT_SIDECAR_SUFFIX}`;

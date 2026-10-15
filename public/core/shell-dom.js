@@ -5,8 +5,9 @@
  * meaning, the sidecar's wire format, one selector, and the header an upload names its file in.
  *
  * A leaf on purpose. Their natural homes — `desk-window.js`, `record-view.js`,
- * `collection-count.js`, `search-chrome.js` — each install themselves on import, so reaching one
- * of these names used to mean pulling a self-starting module into whatever wanted the string.
+ * `collection-count.js`, `records-region-status.js`, `search-chrome.js` — each install themselves
+ * on import, so reaching one of these names used to mean pulling a self-starting module into
+ * whatever wanted the string.
  */
 
 /** The window's content area: the one region a capability's surface is swapped into. */
@@ -113,6 +114,25 @@ export const WINDOW_TOOK_CAPABILITY_EVENT = "aluna:window-took-capability";
 export const RECORD_ID_FIELD = "__aluna_record_id";
 
 /**
+ * The field a linked field posts its pick in, beside its text. The router reads it by this name
+ * (`ALUNA_LINK_MARKER`), checks the record it names, and keeps it from generated code.
+ */
+export const LINK_FIELD = "__aluna_link";
+
+/** Where an Edit form's linked field names the record it picked, so a save posts it again. */
+export const PICKED_RECORD_ATTRIBUTE = "data-picked-record";
+
+/**
+ * The {@link LINK_FIELD} value naming the record `field` picked: `field:id`.
+ *
+ * @param {string} field
+ * @param {string} recordId
+ */
+export function linkFieldValue(field, recordId) {
+  return `${field}:${recordId}`;
+}
+
+/**
  * The form takes the window, so the first field is where the user now is. A record whose fields
  * are all pickers or segmented rows once matched nothing and dropped focus on the floor.
  *
@@ -153,6 +173,9 @@ export function focusLanded(region) {
 
 /** The attribute the shell finds the collection's count label by. */
 export const COLLECTION_COUNT_LABEL_ATTR = "data-capability-count-label";
+
+/** The marker a records region holds until its first read answers. */
+export const RECORDS_UNREAD_ATTR = "data-records-unread";
 
 /** Said, bubbling, by a create form once its record is saved. */
 export const RECORD_CREATED_EVENT = "aluna:record-created";

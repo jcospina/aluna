@@ -552,16 +552,26 @@ export class ChoicePicker {
   }
 
   /**
+   * What tells one option from another once the options are drawn again: its value.
+   *
+   * @param {HTMLElement} option
+   * @returns {string | undefined}
+   */
+  identity(option) {
+    return option.dataset.value;
+  }
+
+  /**
    * Search the options again, as they are drawn now: after a keystroke, or when a list read while
    * it stood open is drawn again. With nothing typed the keyboard lands on the chosen option.
    *
-   * @param {string} [keep] the value of the row the keyboard was on before the options were drawn
-   *   again, which it stays on while the search still keeps it
+   * @param {string} [keep] the {@link ChoicePicker#identity} of the row the keyboard was on before
+   *   the options were drawn again, which it stays on while the search still keeps it
    */
   relist(keep) {
     if (!this.open || !this.input) return;
     const kept = narrow(this.panel, this.query).filter((option) => !isDisabled(option));
-    const held = kept.find((option) => keep !== undefined && option.dataset.value === keep);
+    const held = kept.find((option) => keep !== undefined && this.identity(option) === keep);
     const chosen = this.query.trim() === "" ? this.selectedOption : null;
     const landing = held ?? (chosen && kept.includes(chosen) ? chosen : kept[0]);
     if (landing) this.#setActive(landing);

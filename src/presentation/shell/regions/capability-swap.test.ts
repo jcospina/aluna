@@ -226,7 +226,7 @@ describe("every open is a fresh read", () => {
     );
     expect(records?.getAttribute("hx-get")).toBe(capabilityActionUrl(SAMPLE.id, "read"));
     expect(records?.getAttribute("hx-trigger")).toBe("load");
-    expect(records?.children).toHaveLength(0);
+    expect(records?.textContent).toBe("");
     expect(collection).not.toContain("a record somebody already had");
   });
 });

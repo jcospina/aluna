@@ -16,6 +16,7 @@ import {
   CREATE_CANCELLED_EVENT,
   FIRST_FIELD_SELECTOR,
   RECORD_CREATED_EVENT,
+  RECORDS_UNREAD_ATTR,
   DEFAULT_SEARCH_DEBOUNCE_MS as SEARCH_DEBOUNCE_MS,
 } from "#shell/core/shell-dom.js";
 import { assertNever } from "../../../platform/errors.ts";
@@ -98,12 +99,13 @@ export interface CollectionOptions {
   readonly layout?: CollectionLayout;
   /**
    * Pre-rendered wrapped items to seed the records region with. Empty leaves the region childless,
-   * so the empty state shows via CSS `:empty`. Exclusive with {@link loadThroughRead}.
+   * so the empty state shows. Exclusive with {@link loadThroughRead}.
    */
   readonly items?: string;
   /**
    * Wire the records region to lazy-load through the capability's `read` action instead of seeding
-   * {@link items}. The chrome renders from the spec and htmx fetches the records afterward.
+   * {@link items}. The chrome renders from the spec, the region holds {@link UNREAD_RECORDS}, and
+   * htmx fetches the records afterward.
    */
   readonly loadThroughRead?: boolean;
 }
@@ -158,6 +160,13 @@ function renderSearchFeedback(capability: RenderableCapability): string {
 }
 
 /**
+ * What a records region holds until its first read answers, which replaces it. While the region
+ * holds an element, the `:has(*)` rule in `collection.css` keeps the empty state hidden, and
+ * `hidden` stops this one drawing. A failed read leaves it, so the shell knows nothing answered.
+ */
+const UNREAD_RECORDS = `<span ${RECORDS_UNREAD_ATTR} hidden></span>`;
+
+/**
  * Render a capability's list scaffolding — search, New X, the records region, the empty state —
  * and the create form. Two views of one surface, not a panel over a list (design D2).
  */
@@ -173,7 +182,7 @@ export function renderCollection(options: CollectionOptions): string {
   const recordsLoad = options.loadThroughRead
     ? ` hx-get="${capabilityActionUrl(capability.id, "read")}" hx-trigger="load" hx-swap="innerHTML"`
     : "";
-  const recordsContent = options.loadThroughRead ? "" : items;
+  const recordsContent = options.loadThroughRead ? UNREAD_RECORDS : items;
 
   // Every close lands focus back on the control that opened the form; a view swap that does not
   // leaves a keyboard user at the top of the desk.
@@ -200,8 +209,8 @@ export function renderCollection(options: CollectionOptions): string {
     // How many records this holds, filled from the same response the records arrive in, so the
     // number is never the chrome's stale copy of a fact the region has moved on from.
     renderCollectionCountLabel(capability) +
-    // No whitespace inside the region: it must stay truly `:empty` for the empty-state CSS. The
-    // count is its description; the window's own `aria-live` region is what speaks it.
+    // The empty state shows only while the region holds no element. The count is its description;
+    // the window's own `aria-live` region is what speaks it.
     `<div id="${regionId}" class="capability-records ${layoutClass}"` +
     ` aria-describedby="${countLabelId}"` +
     ` data-content-region="records"${recordsLoad}>${recordsContent}</div>` +

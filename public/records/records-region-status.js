@@ -10,6 +10,11 @@
  * they can be read together, rather than one in each controller.
  */
 
+import { RECORDS_UNREAD_ATTR } from "../core/shell-dom.js";
+
+/** The records region's own marker. */
+const RECORDS_REGION_SELECTOR = '[data-content-region="records"]';
+
 /** @typedef {"idle" | "loading" | "results" | "no-matches" | "error"} RecordsRegionState */
 /** @typedef {"search" | "refresh"} RecordsRegionAct */
 
@@ -53,3 +58,42 @@ export function searchUrlWithQuery(searchUrl, query) {
   const separator = searchUrl.includes("?") ? "&" : "?";
   return `${searchUrl}${separator}q=${encodeURIComponent(query)}`;
 }
+
+/**
+ * @param {Element} region
+ * @returns {HTMLFormElement | null}
+ */
+export function searchFormForRegion(region) {
+  const collection = region.closest(".capability-collection");
+  const form = collection?.querySelector("[data-capability-search]");
+  return form instanceof HTMLFormElement ? form : null;
+}
+
+/**
+ * A read that failed with nothing to show for it leaves the region still unread, and a collection
+ * that says nothing is no better than one that says it is empty. A refusal swapped in speaks itself.
+ *
+ * @param {Element} region
+ * @returns {boolean} whether the failure was said
+ */
+function sayUnansweredReadFailed(region) {
+  if (region.querySelector(`:scope > [${RECORDS_UNREAD_ATTR}]`) === null) return false;
+  const form = searchFormForRegion(region);
+  if (!form) return false;
+  applyRecordsRegionState(form, region, "error", "refresh");
+  return true;
+}
+
+function installRecordsRegionStatus() {
+  // An abort is neither: a region released mid-read is being replaced or read again.
+  for (const failed of ["htmx:sendError", "htmx:responseError"]) {
+    document.addEventListener(failed, (event) => {
+      const region = event.target;
+      if (region instanceof Element && region.matches(RECORDS_REGION_SELECTOR)) {
+        sayUnansweredReadFailed(region);
+      }
+    });
+  }
+}
+
+if (typeof document !== "undefined") installRecordsRegionStatus();

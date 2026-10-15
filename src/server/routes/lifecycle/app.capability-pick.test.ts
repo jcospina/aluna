@@ -100,9 +100,12 @@ describe("the records a dropdown holds", () => {
   test("a record holding no text in the field is no option", async () => {
     addAuthor("author-blank", "   ");
     addAuthor("author-none", null);
+    // Blank as a save judges it: a tab, a no-break space and an ideographic space hold no text.
+    addAuthor("author-wide", "\t\u00a0\u3000");
     const ids = (await picked()).records.map((record) => record.id);
     expect(ids).not.toContain("author-blank");
     expect(ids).not.toContain("author-none");
+    expect(ids).not.toContain("author-wide");
     expect(ids).toHaveLength(SEEDED_AUTHORS.length);
   });
 

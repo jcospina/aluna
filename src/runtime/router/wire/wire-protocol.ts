@@ -1,4 +1,4 @@
-import { RECORD_ID_FIELD } from "#shell/core/shell-dom.js";
+import { LINK_FIELD, RECORD_ID_FIELD } from "#shell/core/shell-dom.js";
 import { isFileKey } from "../../../platform/files/store/ledger.ts";
 import {
   ALUNA_RESERVED_FIELD_PREFIX,
@@ -24,6 +24,8 @@ export const ALUNA_RECORD_ID_MARKER = RECORD_ID_FIELD;
  * before another window saved the field is told so, whether it keeps, replaces or clears.
  */
 export const ALUNA_DRAWN_MARKER = `${ALUNA_RESERVED_FIELD_PREFIX}drawn`;
+/** The record a linked field picked, posted beside its text as `field:id` (ADR-0011). */
+export const ALUNA_LINK_MARKER = LINK_FIELD;
 
 /** The {@link ALUNA_DRAWN_MARKER} value naming the keys `field` held, in order: `field:key,key`. */
 export function drawnFileValue(field: string, keys: readonly string[]): string {
@@ -37,6 +39,8 @@ export interface ParsedCapabilityRequest {
   readonly recordTarget?: string;
   /** On an update, the keys each submitted file field held when the form was drawn. */
   readonly drawnFiles?: ReadonlyMap<string, readonly string[]>;
+  /** On a save, the record id each submitted field's pick names, not yet checked. */
+  readonly picks?: ReadonlyMap<string, string>;
 }
 
 export class WireProtocolError extends Error {
@@ -86,19 +90,23 @@ export async function parseCapabilityRequest(
   const presentMarkers = take(grouped, ALUNA_PRESENT_MARKER);
   const targetMarkers = take(grouped, ALUNA_RECORD_ID_MARKER);
   const drawnMarkers = take(grouped, ALUNA_DRAWN_MARKER);
+  const linkMarkers = take(grouped, ALUNA_LINK_MARKER);
   // A form drawn at an earlier version may name a field since hidden: it is parsed as any field
   // is, so a malformed request stays a protocol error, and only then refused as stale.
   const formFields = spec.schema.fields;
   const recordTarget = validateRecordTarget(action, targetMarkers);
   const submittedFields = validatePresenceMarkers(action, presentMarkers, formFields);
   const drawnFiles = validateDrawnMarkers(action, drawnMarkers, formFields, submittedFields);
+  const picks = validateLinkMarkers(action, linkMarkers, submittedFields);
   const values = normalizeValues(action, grouped, formFields, submittedFields, spec.ui_intent.form);
+  refuseEmptyPicks(picks, values, submittedFields);
   refuseStaleForm(action, spec, submittedFields);
 
   return {
     input: { values: Object.freeze(values), submittedFields },
     ...(recordTarget === undefined ? {} : { recordTarget }),
     ...(drawnFiles === undefined ? {} : { drawnFiles }),
+    ...(picks === undefined ? {} : { picks }),
   };
 }
 
@@ -126,7 +134,8 @@ function rejectUnknownReservedKeys(grouped: ReadonlyMap<string, readonly string[
       key.startsWith(ALUNA_RESERVED_FIELD_PREFIX) &&
       key !== ALUNA_PRESENT_MARKER &&
       key !== ALUNA_RECORD_ID_MARKER &&
-      key !== ALUNA_DRAWN_MARKER
+      key !== ALUNA_DRAWN_MARKER &&
+      key !== ALUNA_LINK_MARKER
     ) {
       throw new WireProtocolError(`Unknown reserved marker "${key}".`);
     }
@@ -251,6 +260,51 @@ function validateDrawnMarkers(
     drawn.set(name, keys);
   }
   return drawn;
+}
+
+/**
+ * A save names, at most once, the record each submitted field picked; nothing else does. Whether
+ * the field holds a relation, and the id a record, is the router's to judge against the desk.
+ */
+function validateLinkMarkers(
+  action: WireProtocolAction,
+  markers: readonly string[],
+  submittedFields: ReadonlySet<string>,
+): ReadonlyMap<string, string> | undefined {
+  if (markers.length === 0) return undefined;
+  if (action !== "create" && action !== "update") {
+    throw new WireProtocolError(`Link markers are not accepted for ${action}.`);
+  }
+  const picks = new Map<string, string>();
+  for (const marker of markers) {
+    const colon = marker.indexOf(":");
+    const name = marker.slice(0, colon);
+    const id = marker.slice(colon + 1);
+    if (colon < 0 || !submittedFields.has(name) || id.trim() === "") {
+      throw new WireProtocolError(`Invalid link marker "${marker}".`);
+    }
+    if (picks.has(name)) throw new WireProtocolError(`Duplicate link marker "${name}".`);
+    picks.set(name, id);
+  }
+  return picks;
+}
+
+/**
+ * A pick names the record whose text the field holds, so a submitted field holding no text picks
+ * nothing. A field the form did not submit is the marker check's to refuse.
+ */
+function refuseEmptyPicks(
+  picks: ReadonlyMap<string, string> | undefined,
+  values: Readonly<Record<string, CapabilityInputValue>>,
+  submittedFields: ReadonlySet<string>,
+): void {
+  for (const field of picks?.keys() ?? []) {
+    if (!submittedFields.has(field)) continue;
+    const text = values[field];
+    if (typeof text !== "string" || text.trim() === "") {
+      throw new WireProtocolError(`Link marker "${field}" picks for a field holding no text.`);
+    }
+  }
 }
 
 /** @param fileFields each submitted file field, and whether it is a `file[]` */

@@ -73,7 +73,9 @@
           form under a back control, and back swaps the collection in again.
         - record-mutations.js — request feedback for the create and update forms, and
           where each one lands once its outcome is known.
-        - search-chrome.js — the collection's debounced search controller.
+        - search-chrome.js — the collection's debounced search controller. It imports
+          records-region-status.js, which says so when a records read fails with nothing
+          to show for it.
         - collection-count.js — how many records the collection holds, taken off the head
           of the same read the records arrive in. It leads the group because the rest of
           this list reaches it: search-chrome.js by importing it, record-mutations.js by

@@ -18,6 +18,7 @@ import {
   type ActiveCatalogReader,
   type CapabilityRow,
   capabilitySpecFromRow,
+  holdingRelations,
 } from "../../../../registry/index.ts";
 import {
   isInPageRequest,
@@ -34,6 +35,7 @@ import {
   type CapabilityActionRecord,
   createCapabilityQueryPort,
   deriveCapabilityTableDdl,
+  heldPicks,
 } from "../../../data/index.ts";
 import {
   type CapabilityCatalogLookup,
@@ -151,10 +153,14 @@ function answerRecord(c: Context, deps: CapabilityViewDeps, read: CapabilityRead
   const capability: RenderableCapability = renderableFromRow(read.row, read.catalog);
   if (!hasRecordView(capability)) return answer(c, deps, read, 404, () => "");
   const recordId = (c.req.param("record") ?? "").toLowerCase();
-  const record = readAddressedRecord(read.row, recordId, deps.databases.readonly, read.signal);
+  const { readonly } = deps.databases;
+  const record = readAddressedRecord(read.row, recordId, readonly, read.signal);
   if (record === undefined) return answer(c, deps, read, 404, () => NOT_FOUND_FRAGMENT);
+  // Its Edit form posts again what its linked fields picked, as a card's does.
+  const relations = holdingRelations(read.row, read.catalog);
+  const links = (id: string) => heldPicks(readonly, read.row.id, id, relations);
   return answer(c, deps, read, 200, () =>
-    renderCapabilitySurface(read.row, renderPresentedRecordView(capability, record)),
+    renderCapabilitySurface(read.row, renderPresentedRecordView(capability, record, links)),
   );
 }
 

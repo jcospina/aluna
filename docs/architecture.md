@@ -744,8 +744,7 @@ while non-activation restores through `fragment` rather than pretending a commit
 Four domain stores in `bun:sqlite`, plus small platform lifecycle metadata
 (mutation ownership/deletion tombstones), two platform tables beside the data
 tables (the file ledger and the link table), generated code files, and an object
-store on disk. The Event Log and the link table do not exist yet: Module 10 builds
-the first and Module 8 the second.
+store on disk. The Event Log does not exist yet: Module 10 builds it.
 
 #### Capability Registry — the source of truth
 
@@ -900,7 +899,8 @@ crafted overflow returns typed 422 `max_length_exceeded` with the same field
 marker. These three structural codes, the file field's `invalid_file_reference`,
 `record_changed` and `too_many_files` (ADR-0009), `form_changed` for a save from a
 form drawn before an evolution (it names a hidden field, or never drew an added or
-newly required one), and their authored platform sentences do not enter
+newly required one), `pick_not_found` for a linked field's pick that names no record
+of its target (ADR-0011), and their authored platform sentences do not enter
 model-authored `behavioral_errors`. Older active rows may omit Module 5's new form
 collections; omission canonicalizes to empty without rewriting historical
 snapshots, while new specs emit the complete form shape.
@@ -994,18 +994,38 @@ for fields that do not warrant a real column yet.
 #### Link Table — which record a linked field picked
 
 A linked field keeps its text in its own capability's table, and which record it
-points at is kept here, in a platform table on the file ledger's pattern: one row per
-source capability, record and field, naming a target capability, incarnation and
-record. The table lies outside every Handler's query scope by construction. A
-Handler's query may open only its own `cap_` table and its declared dependencies',
-so the link table, like the ledger, is out of reach with no list of names to
-maintain, and the Gate's scratch database creates it beside the ledger. It is
-indexed in both directions, because search walks links backwards. Only the platform
-writes it: a save in the record's own transaction, the matching scan, Unlink, and
-deletion. The rows of a dormant relation stay, and reactivating its field revives
-them. Capability deletion removes the deleted capability's relations and link rows
-on both sides in the tombstone transaction, so every relation pointing at it goes
-as Unlink takes one and each linked field keeps its text (ADR-0011).
+points at is kept here, in `capability_links`, a platform table on the file ledger's
+pattern: one row per source capability, record and field, naming a target capability,
+incarnation and record. Its primary key is the index from the source end, and
+`capability_links_target` the index from the target end, because the refresh, record
+deletion and search start from the target. The table lies outside every Handler's
+query scope by construction. A Handler's query may open only its own `cap_` table and
+its declared dependencies', so the link table, like the ledger, is out of reach with
+no list of names to maintain, and the Gate's scratch database creates it beside the
+ledger.
+
+Only the platform writes it. The router hands the mutation ports the relations that
+hold, those asleep, and the picks it checked; the Gate hands them none, so no port
+reads a relation of its own and a Gate run writes no row. A create writes a row for
+each pick in the record's savepoint. Every record's Edit form carries what its linked
+fields picked, read by the presentation adapter on the save's own connection during a
+save, so an edit that changes another field posts the pick again and keeps the link.
+The form draws no pick whose record is gone, and a pick whose record went while the
+form was open refuses the save. An edit replaces the row of each submitted linked
+field that carries a pick. A submitted linked field that carries none keeps its row
+while its text stands and the row's record exists, as a form drawn before the link
+existed posts no pick, and loses it once the text changes or the record is gone; a
+field the form did not submit keeps its row. A deleted record's rows as a source go
+in the delete's savepoint. The rows of a dormant relation stay until a
+save changes its field's text, and reactivating the field revives them.
+
+Capability deletion removes the relations pointing at the deleted capability and
+leaves link rows as they are. The matching scan (8.1/05), the removal of a deleted
+target record's rows (8.1/06), and Unlink with the removal of a deleted capability's
+rows (8.1/07) are still to come. Once they land, capability deletion removes the
+deleted capability's relations and link rows on both sides in the tombstone
+transaction, so every relation pointing at it goes as Unlink takes one and each linked
+field keeps its text (ADR-0011).
 
 #### Generation Metrics — the experiment's measurements
 

@@ -24,6 +24,7 @@ import {
   createFilePendingIndex,
   FILE_LEDGER_TABLE,
 } from "../files/store/ledger.ts";
+import { LINK_TABLE } from "../links/link-table.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,
@@ -157,6 +158,7 @@ describe("platform migrations runner", () => {
         GENERATION_LIFECYCLE_TABLE,
         INTENT_RESOLUTION_METRICS_TABLE,
         FILE_LEDGER_TABLE,
+        LINK_TABLE,
       ].sort(),
     );
   });

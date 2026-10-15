@@ -18,6 +18,7 @@ import {
   createFileLedgerSchema,
   createFilePendingIndex,
 } from "../files/store/ledger.ts";
+import { createLinkTableSchema } from "../links/link-table.ts";
 import { INTENT_RESOLUTION_METRICS_TABLE } from "../metrics/intent-resolution-store.ts";
 import {
   GENERATION_LIFECYCLE_TABLE,
@@ -337,6 +338,8 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
+  // The link table. The Gate's scratch databases build it too.
+  { id: "0021_link_table", up: createLinkTableSchema },
 ];
 
 // The set of migration ids already recorded in the ledger. Empty when the ledger table does not

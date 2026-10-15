@@ -848,15 +848,15 @@ an HTML comment the shell takes off before the records land. It rides the respon
 records arrive in rather than asking for a number of its own, so the count and the rows it
 describes are always the same round trip, and there is nothing to poll or invalidate.
 A comment rather than an element, because a sidecar that ever reached the DOM unstripped
-must not defeat the platform **empty state**: browsers do not count comments when matching
-`:empty`. The platform writes it at position zero and only on a records answer, which is
-also what stops a generated Handler forging one (PLAN decision 32). A `read` carries the
-plain count; a `search` carries both numbers — how many matched and how many there are —
-because a filtered number alone reads as the whole truth and is not, and a search that
-matched nothing must say so beside a total that is not zero rather than read as an
-**empty collection**. A search that follows links appends records after the Handler's
-own, and they count with them, because the sidecar counts the list's item wrappers
-(ADR-0011).
+must not defeat the platform **empty state**, which shows while the records region holds no
+element, and a comment is not one. The platform writes it at position zero and only on a
+records answer, which is also what stops a generated Handler forging one (PLAN decision
+32). A `read` carries the plain count; a `search` carries both numbers — how many matched
+and how many there are — because a filtered number alone reads as the whole truth and is
+not, and a search that matched nothing must say so beside a total that is not zero rather
+than read as an **empty collection**. A search that follows links appends records after the
+Handler's own, and they count with them, because the sidecar counts the list's item
+wrappers (ADR-0011).
 _Avoid_: count header, count endpoint, badge, out-of-band count
 
 **Empty collection**:

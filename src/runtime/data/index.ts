@@ -28,6 +28,16 @@ export { countCapabilityRecords } from "./access/record-count.ts";
 export { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from "./access/search-bounds.ts";
 export { assertSubmittedFieldValues } from "./access/submitted-values.ts";
 export {
+  heldPicks,
+  type LinkBinding,
+  NO_LINKS,
+  PickNotFoundError,
+  type PickScope,
+  PickWriteError,
+  resolveSubmittedPicks,
+  type SaveRelations,
+} from "./links/picks.ts";
+export {
   type AdditiveCapabilityMigration,
   applyAdditiveCapabilityMigration,
   applyCapabilityTableDdl,

@@ -23,6 +23,7 @@ import {
   InvalidFileReferenceError,
   MaxLengthExceededError,
   MissingRequiredFieldsError,
+  PickNotFoundError,
   RecordChangedError,
   RecordNotFoundError,
   TooManyFilesError,
@@ -37,6 +38,7 @@ import {
   invalidFileReferenceFailure,
   maxLengthExceededFailure,
   missingRequiredFieldsFailure,
+  pickNotFoundFailure,
   readUnavailable,
   recordChangedFailure,
   recordMutationRefusal,
@@ -117,6 +119,13 @@ async function everyShownRefusal(databases: PlatformDatabase): Promise<readonly 
         ),
       ),
       answered((c) => recordChangedFailure(c, "notes", new RecordChangedError("notes", ["photo"]))),
+      answered((c) =>
+        pickNotFoundFailure(
+          c,
+          "notes",
+          new PickNotFoundError("notes", [{ field: "text", noun: "author" }], "update"),
+        ),
+      ),
       answered((c) =>
         formChangedFailure(c, "notes", "Notes", new FormChangedError("update", ["photo"])),
       ),

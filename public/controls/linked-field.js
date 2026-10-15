@@ -1,18 +1,24 @@
 // @ts-check
 
 /**
- * A linked field: a dropdown of the target's records, searched
- * by typing into the field itself. The server draws the field's own text input inside a
+ * A linked field: a dropdown of the target's records,
+ * searched by typing into the field itself. The server draws the field's own text input inside a
  * `[data-linked-field]` wrapper, and so does the Link control the moment a field is linked, which
  * is how a field becomes a dropdown in place. This draws the listbox around that input and reads
  * the records, with every sentence the field says, from the pick route. A pick fills the field with
- * the target's text, which posts as any text field's does: typing only searches, and leaving
- * without a pick puts the text back.
+ * the target's text, which posts as any text field's does, and posts the record's id beside it, so
+ * the save remembers which record it was. An Edit form's field starts on the record it picked
+ * before. Typing only searches, and leaving without a pick puts the text back.
  */
 
 import { keyIsNotOurs } from "../../design/scripts/controls/listbox-search.js";
 import { watchArrivals } from "../core/dom-arrivals.js";
-import { onCreateFinished } from "../core/shell-dom.js";
+import {
+  LINK_FIELD,
+  linkFieldValue,
+  onCreateFinished,
+  PICKED_RECORD_ATTRIBUTE,
+} from "../core/shell-dom.js";
 import { ChoicePicker, closeOnPressOutside, watchPlacement } from "./choice-picker.js";
 import { bodyOf, CHOOSER_UNREAD, noticeIn, say, withdraw } from "./link-notices.js";
 import { BROKEN_CHAIN, CHEVRON } from "./listbox-glyphs.js";
@@ -84,6 +90,10 @@ export function drawDropdown(root) {
   const counter = field.querySelector(".field__guidance--count");
   const counterNext = counter?.nextElementSibling ?? null;
   const carrier = carrierFor(doc, input);
+  const pick = doc.createElement("input");
+  pick.setAttribute("type", "hidden");
+  pick.setAttribute("name", LINK_FIELD);
+  pick.disabled = true;
   const line = lineFor(doc, input);
   root.dataset.choiceInitial = input.getAttribute("value") ?? "";
   searchFrom(input, counter?.id);
@@ -92,7 +102,7 @@ export function drawDropdown(root) {
     ...parts(doc, `<span class="linked-field__slot" aria-hidden="true"></span>${CHEVRON}`),
   );
   const unlink = `<button class="linked-field__unlink" type="button" disabled>${BROKEN_CHAIN}</button>`;
-  root.append(carrier, ...parts(doc, unlink), panelFor(doc, input, field));
+  root.append(carrier, pick, ...parts(doc, unlink), panelFor(doc, input, field));
   root.after(line);
   counter?.remove();
 
@@ -233,6 +243,13 @@ export class LinkedDropdown extends ChoicePicker {
     super(root, open);
     this.undraw = undraw;
     this.pickUrl = root.dataset.pickUrl ?? "";
+    const pick = root.querySelector(`input[name="${LINK_FIELD}"]`);
+    if (!(pick instanceof HTMLInputElement)) throw new Error("A linked field posts its pick");
+    /** What posts the record the field picked, and posts nothing while it picks none. */
+    this.pick = pick;
+    /** The record the field picked when it was drawn, which putting it back picks again. */
+    this.pickedInitially = root.getAttribute(PICKED_RECORD_ATTRIBUTE) ?? "";
+    this.picked = this.pickedInitially;
     const line = root.nextElementSibling;
     /** The line under the field asking for a pick. */
     this.line = line instanceof HTMLElement && line.id.endsWith("-unmatched") ? line : null;
@@ -254,6 +271,7 @@ export class LinkedDropdown extends ChoicePicker {
       if (event.key === "Escape") this.hide(false);
     };
     this.control.addEventListener("keydown", letGo, { signal: this.wiring.signal });
+    this.mark();
     this.read();
   }
 
@@ -268,6 +286,15 @@ export class LinkedDropdown extends ChoicePicker {
   /** @override */
   shownLabel() {
     return this.field?.value ?? "";
+  }
+
+  /**
+   * A record, which another holding the same text is not.
+   * @param {HTMLElement} option
+   * @override
+   */
+  identity(option) {
+    return option.dataset.record;
   }
 
   /** @returns {HTMLElement[]} */
@@ -285,8 +312,9 @@ export class LinkedDropdown extends ChoicePicker {
   select(option) {
     if (!option || !this.field) return;
     const text = option.dataset.value ?? "";
-    const changed = text !== this.field.value;
+    const changed = text !== this.field.value || option.dataset.record !== this.picked;
     this.field.value = text;
+    this.picked = option.dataset.record ?? "";
     this.mark();
     this.paint();
     if (changed) this.field.dispatchEvent(new Event("change", { bubbles: true }));
@@ -297,6 +325,7 @@ export class LinkedDropdown extends ChoicePicker {
     if (!this.field) return;
     const changed = this.field.value !== "";
     this.field.value = "";
+    this.picked = "";
     this.mark();
     this.paint();
     if (changed) this.field.dispatchEvent(new Event("change", { bubbles: true }));
@@ -306,17 +335,25 @@ export class LinkedDropdown extends ChoicePicker {
   restore() {
     if (this.retired) return;
     if (this.field) this.field.value = this.root.dataset.choiceInitial ?? "";
+    this.picked = this.pickedInitially;
     super.restore();
     this.mark();
   }
 
   /**
-   * The record the field's text names, chosen in the list, and the line asking for a pick under
-   * text that names none. Nothing is said before the records are read.
+   * The record the field picked, or else the one its text names, chosen in the list; the line
+   * asking for a pick under text that names none; and the pick the save posts. Nothing is said
+   * before the records are read.
    */
   mark() {
+    const { picked, pick } = this;
+    pick.disabled = picked === "";
+    pick.value =
+      picked === "" ? "" : linkFieldValue(this.field?.getAttribute("name") ?? "", picked);
     const text = this.field?.value ?? "";
-    const named = this.options().find((option) => sameText(option.dataset.value ?? "", text));
+    const named = this.options().find((option) =>
+      picked === "" ? sameText(option.dataset.value ?? "", text) : option.dataset.record === picked,
+    );
     for (const option of this.options()) {
       option.setAttribute("aria-selected", String(option === named));
     }
@@ -418,7 +455,7 @@ export class LinkedDropdown extends ChoicePicker {
   fill(list) {
     const doc = this.root.ownerDocument;
     // The row the keyboard is on, so a list read while it stood open keeps it where it was.
-    const keep = this.open ? this.active?.dataset.value : undefined;
+    const keep = this.open && this.active ? this.identity(this.active) : undefined;
     this.input?.setAttribute("placeholder", list.placeholder);
     if (this.line) this.line.textContent = list.unmatched;
     this.unlink?.setAttribute("aria-label", list.disconnect);
@@ -430,6 +467,7 @@ export class LinkedDropdown extends ChoicePicker {
         option.id = `${prefix}-option-${index + 1}`;
         option.setAttribute("role", "option");
         option.dataset.value = record.text;
+        option.dataset.record = record.id;
         option.textContent = record.text;
         return option;
       }),

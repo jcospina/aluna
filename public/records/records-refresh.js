@@ -11,7 +11,11 @@ import {
   createRecordsRegionRequestCoordinator,
   recordsRegionRequestCoordinator,
 } from "./records-region-requests.js";
-import { applyRecordsRegionState, searchUrlWithQuery } from "./records-region-status.js";
+import {
+  applyRecordsRegionState,
+  searchFormForRegion,
+  searchUrlWithQuery,
+} from "./records-region-status.js";
 
 /** @typedef {(input: string, init?: RequestInit) => Promise<Response>} RefreshRequest */
 
@@ -25,16 +29,6 @@ export function committedRecordsRefreshTarget({ readUrl, searchUrl, activeQuery 
   const query = activeQuery?.trim() ?? "";
   if (query === "" || !searchUrl) return { url: readUrl, query: "" };
   return { url: searchUrlWithQuery(searchUrl, query), query };
-}
-
-/**
- * @param {Element} region
- * @returns {HTMLFormElement | null}
- */
-function searchFormForRegion(region) {
-  const collection = region.closest(".capability-collection");
-  const form = collection?.querySelector("[data-capability-search]");
-  return form instanceof HTMLFormElement ? form : null;
 }
 
 /** @param {Element} region */

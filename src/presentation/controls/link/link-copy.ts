@@ -40,6 +40,18 @@ export function unmatchedTargetLine(targetNoun: string): string {
   return `I could not find this ${targetNoun}, mind picking one?`;
 }
 
+/**
+ * What a save says under each linked field whose pick names no record: one forged, or one deleted
+ * while the form was open. Fields picking from two kinds of record share a sentence naming neither.
+ */
+export function pickAgainLine(targetNouns: readonly string[]): string {
+  const [noun] = targetNouns;
+  if (noun === undefined || targetNouns.some((each) => each !== noun)) {
+    return "I couldn’t find what you picked. Mind picking again?";
+  }
+  return `I couldn’t find the ${noun} you picked. Mind picking one again?`;
+}
+
 export const SUGGESTED_GROUP = "Suggested";
 
 /** A target named on its own, outside its capability's group: "Authors · Name". */

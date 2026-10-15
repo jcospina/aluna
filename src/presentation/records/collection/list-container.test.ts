@@ -180,7 +180,7 @@ describe("container scaffolding", () => {
   });
 
   test("is data-free: an unseeded region is truly empty so the empty-state CSS fires", () => {
-    // No whitespace or children inside the region, so `:empty` matches and the empty state shows.
+    // No element inside the region, so the empty state shows.
     const { doc, region } = collectionPage(SAMPLE);
     expect(region.children).toHaveLength(0);
     expect(region.textContent).toBe("");
@@ -276,14 +276,13 @@ describe("container scaffolding — serving mode (loadThroughRead)", () => {
   const serving = () =>
     collectionPage(SAMPLE, renderCollection({ capability: SAMPLE, loadThroughRead: true }));
 
-  test("wires the records region to load through the read action on load, and stays empty", () => {
-    // The region carries the read wiring but no child, so `:empty` still matches and no user
-    // record is baked into the chrome; htmx fills it after this scaffolding renders.
+  test("wires the records region to load through the read action on load, and draws nothing", () => {
+    // No user record is baked into the chrome; htmx fills the region after this scaffolding renders.
     const { doc, region } = serving();
     expect(region.getAttribute("hx-get")).toBe(capabilityActionUrl(SAMPLE.id, "read"));
     expect(region.getAttribute("hx-trigger")).toBe("load");
     expect(region.getAttribute("hx-swap")).toBe("innerHTML");
-    expect(region.children).toHaveLength(0);
+    expect(region.textContent).toBe("");
     expect(doc.querySelector(`[${ITEM_PAYLOAD_ATTR}]`)).toBeNull();
     expect(doc.querySelector(".capability-empty")).not.toBeNull();
   });

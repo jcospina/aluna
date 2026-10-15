@@ -14,6 +14,11 @@ import {
   OBJECT_STORE_ROOT_ENV_VAR,
   STAGING_DIRECTORY,
 } from "../src/platform/files/store/object-store-root.ts";
+import {
+  createLinkTableSchema,
+  LINK_TABLE,
+  writeLinkRow,
+} from "../src/platform/links/link-table.ts";
 import { DB_PATH, DB_PATH_ENV_VAR } from "../src/platform/persistence/db-path.ts";
 import { resetRuntime } from "./reset-runtime.ts";
 
@@ -26,6 +31,16 @@ function fillStore(storeRoot: string): { placed: string; staged: string } {
   writeFileSync(join(storeRoot, STAGING_DIRECTORY, staged), "half an upload");
   writeFileSync(join(storeRoot, "notes.txt"), "not the store's");
   return { placed, staged };
+}
+
+/** The link table, holding one row. */
+function holdALink(database: Database): void {
+  createLinkTableSchema(database);
+  writeLinkRow(
+    database,
+    { capability: "notes", record: "note-1", field: "text" },
+    { capability: "shelves", incarnation: "shelves-1", record: "shelf-1" },
+  );
 }
 
 describe("runtime reset script", () => {
@@ -62,6 +77,7 @@ describe("runtime reset script", () => {
       INSERT INTO file_ledger (key) VALUES ('a-pending-photo');
       INSERT INTO cap_notes (id, text) VALUES ('note-1', 'old data');
     `);
+    holdALink(database);
     database.close();
 
     const result = resetRuntime({ root, env: {} });
@@ -73,6 +89,7 @@ describe("runtime reset script", () => {
       "intent_resolution_metrics",
       "capability_deletion_tombstones",
       "file_ledger",
+      LINK_TABLE,
     ]);
     expect(result.droppedTables).toEqual(["cap_notes"]);
     // Naming the paths, not counting them: deleting two of the wrong things would
@@ -104,6 +121,7 @@ describe("runtime reset script", () => {
       wipedDatabase.query("SELECT capability_id FROM capability_deletion_tombstones").all(),
     ).toEqual([]);
     expect(wipedDatabase.query("SELECT key FROM file_ledger").all()).toEqual([]);
+    expect(wipedDatabase.query(`SELECT * FROM ${LINK_TABLE}`).all()).toEqual([]);
     expect(
       wipedDatabase
         .query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'cap_notes'")

@@ -113,11 +113,14 @@ export function hasRecordView(capability: Pick<RenderableCapability, "actions">)
 /**
  * Render one record's view: the back control, then the record's form in edit mode, with the
  * deletion confirmation beside it. A capability that cannot update renders nothing at all.
+ *
+ * @param picks the record each linked field picked, which its Edit form posts again
  */
 export function renderRecordView(
   capability: RenderableCapability,
   record: Readonly<Record<string, unknown>>,
   templateId: string,
+  picks?: ReadonlyMap<string, string>,
 ): string {
   if (!hasRecordView(capability)) return "";
   const itemTargetId = escapeHtml(itemElementIdForTemplate(templateId));
@@ -126,7 +129,7 @@ export function renderRecordView(
     ` data-item-target-id="${itemTargetId}"` +
     `${recordTitleAttribute(recordTitle(capability, record))}>` +
     renderRecordFormBar(capability.label, ` ${RECORD_BACK_ATTR}`) +
-    renderEditForm(capability, record) +
+    renderEditForm(capability, record, picks) +
     renderDeleteConfirmation(capability, record) +
     `</div>`
   );
@@ -175,8 +178,9 @@ export function renderRecordViewTemplate(
   templateId: string,
   capability: RenderableCapability,
   record: Readonly<Record<string, unknown>>,
+  picks?: ReadonlyMap<string, string>,
 ): string {
-  const view = renderRecordView(capability, record, templateId);
+  const view = renderRecordView(capability, record, templateId, picks);
   if (view === "") return "";
   return `<template id="${escapeHtml(templateId)}">${view}</template>`;
 }

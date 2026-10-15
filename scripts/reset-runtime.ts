@@ -22,6 +22,7 @@ import {
   GENERATION_LIFECYCLE_TABLE,
   GENERATION_METRICS_TABLE,
   INTENT_RESOLUTION_METRICS_TABLE,
+  LINK_TABLE,
   REGISTRY_TABLE,
 } from "../src/platform/persistence/table-names.ts";
 
@@ -39,6 +40,7 @@ const PLATFORM_DATA_TABLES = [
   // event ids. Neither exists outside a seam fake until the implicit loop ships: both are no-ops.
   EVENT_LOG_OWNERSHIP_TABLE,
   FILE_LEDGER_TABLE,
+  LINK_TABLE,
 ] as const;
 
 export interface ResetRuntimeOptions {

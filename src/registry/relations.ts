@@ -86,6 +86,16 @@ export function holdingRelations(
   });
 }
 
+/** Whether two relations are the same: one field pointing at one target field in one lifetime. */
+export function sameRelation(a: Relation, b: Relation): boolean {
+  return (
+    a.field === b.field &&
+    a.to.capability === b.to.capability &&
+    a.to.incarnation === b.to.incarnation &&
+    a.to.field === b.to.field
+  );
+}
+
 /** The relation one field holds, if it holds one. */
 export function relationOf(
   relations: readonly Relation[],
