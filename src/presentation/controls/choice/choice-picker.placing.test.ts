@@ -76,13 +76,13 @@ async function place({
   }
   const left = button.left ?? 50;
   const right = button.right ?? left + 200;
-  const control = picker.button as El;
+  const control = picker.shell as El;
   control.box = { ...button, left, right, width: right - left, height: button.bottom - button.top };
   const elsewhere = parseHtml("<button>elsewhere</button>", picker.doc).querySelector(
     "button:not([aria-haspopup])",
   ) as El;
   elsewhere.focus();
-  picker.press(control);
+  picker.press(picker.button as El);
   const placed: Placed = {
     top: panel.style.top,
     left: panel.style.left,

@@ -8,11 +8,12 @@
  * nobody trusts. What the two share — the section lamps, the ink system, the
  * window itself — they share by importing it.
  *
- * Everything on this page is real. The fields take text, the listboxes open,
- * the textarea grows, the toggles change what is actually drawn. A control that
- * only *looked* right in a screenshot is exactly the failure this page exists
- * to catch. Links is the exception, drawn before its build: its listboxes open,
- * and the states around them are inert pictures.
+ * Everything on this page is real. The fields take text, the listboxes open and
+ * search, the textarea grows, the toggles change what is actually drawn. A
+ * control that only *looked* right in a screenshot is exactly the failure this
+ * page exists to catch. Links holds the one exception: a few of its drawings are
+ * held still to show a single moment, such as an open list, the fade while Aluna
+ * connects a field and the question the broken chain asks.
  */
 
 import { mountListRows, wireListRows } from "../controls/list-rows.js";
@@ -159,6 +160,51 @@ function mountEcho(root) {
   });
 }
 
+/* ── The search, typed in ────────────────────────────────────────────────────
+ *
+ * Two linked fields open already searched each time they come into view, so the
+ * page shows a list narrowed and a list emptied without anyone typing. They stay
+ * live: what is typed next searches again, and a press outside closes them until
+ * they are scrolled back to.
+ */
+
+/** @param {ParentNode} root */
+function typeSearches(root) {
+  const seen = new IntersectionObserver((entries) => {
+    for (const entry of entries) if (entry.isIntersecting) typeInto(entry.target);
+  });
+  for (const field of root.querySelectorAll("[data-listbox-typed]")) seen.observe(field);
+}
+
+/** Type a specimen's search into it, unless someone is already in it. @param {Element} field */
+function typeInto(field) {
+  const input = field.querySelector('input[role="combobox"]');
+  if (!(field instanceof HTMLElement) || !(input instanceof HTMLInputElement)) return;
+  if (field.contains(document.activeElement)) return;
+  input.value = field.dataset.listboxTyped ?? "";
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+/**
+ * A name that matched no record keeps its line until a record is picked, as it
+ * does on the desk.
+ *
+ * @param {HTMLElement} root
+ */
+function mountUnmatched(root) {
+  root.addEventListener("listbox:change", (event) => {
+    const { target } = event;
+    if (!(target instanceof HTMLElement) || !target.matches("[data-listbox-unmatched]")) return;
+    const input = target.querySelector('[role="combobox"]');
+    const said = input?.getAttribute("aria-describedby");
+    const line = said ? document.getElementById(said) : null;
+    if (!line) return;
+    line.hidden = true;
+    /* A hidden line still named in the description would still be read out. */
+    input?.removeAttribute("aria-describedby");
+  });
+}
+
 function boot() {
   wireSectionWindows(mountWindows(document));
   dressGrounds();
@@ -172,6 +218,7 @@ function boot() {
   mountCounters(document);
   mountBenches(document.body);
   mountEcho(document.body);
+  mountUnmatched(document.body);
   mountRecorderBench(document.body);
   mountFileBench(document.body);
 
@@ -181,6 +228,7 @@ function boot() {
    * document, so anything added later arrives drawn without being told.
    */
   startInk();
+  typeSearches(document);
 
   /*
    * The listbox panels are `hidden` at boot, so they measure 0×0 and are not

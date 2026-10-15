@@ -25,6 +25,21 @@ export function chooserLine(noun: string, field: Pick<SpecField, "label">): stri
 
 export const CHOOSER_EMPTY = "There’s nothing you can connect to yet.";
 
+/** The broken chain's accessible name, inside a linked field. */
+export function disconnectFieldName(noun: string, field: Pick<SpecField, "label">): string {
+  return `Disconnect ${everyRecordsField(noun, field)}`;
+}
+
+/** What an empty linked field says, around the target's record noun: "Choose the author…". */
+export function chooseTargetRecord(targetNoun: string): string {
+  return `Choose the ${targetNoun}…`;
+}
+
+/** The line under a linked field holding text that no record of the target holds. */
+export function unmatchedTargetLine(targetNoun: string): string {
+  return `I could not find this ${targetNoun}, mind picking one?`;
+}
+
 export const SUGGESTED_GROUP = "Suggested";
 
 /** A target named on its own, outside its capability's group: "Authors · Name". */

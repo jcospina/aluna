@@ -45,6 +45,47 @@ export function isLinkableField(
   return field.lifecycle === "active" && isSingleLineTextField(form, field);
 }
 
+/** A source with no length limit takes any target; one with a limit takes a target held to it. */
+export function fitsLength(sourceLimit: number | undefined, targetLimit: number | undefined) {
+  if (sourceLimit === undefined) return true;
+  return targetLimit !== undefined && targetLimit <= sourceLimit;
+}
+
+/** What `holdingRelations` reads of a capability: its fields, its form and its relations. */
+export interface RelatedCapability {
+  readonly id: string;
+  readonly incarnation_id: string;
+  readonly schema: { readonly fields: readonly SpecField[] };
+  readonly ui_intent: { readonly form: Pick<UiFormIntent, "long_text"> };
+  readonly relations: readonly Relation[];
+}
+
+/**
+ * The relations of `row` that hold against the active `catalog`: both ends active single-line
+ * text fields, the target in the lifetime the relation pinned, and no longer than the source
+ * allows (ADR-0011, rule 4). Any other is dormant, which the form and the pick route treat as
+ * absent.
+ */
+export function holdingRelations(
+  row: RelatedCapability,
+  catalog: readonly RelatedCapability[],
+): Relation[] {
+  const linkable = (capability: RelatedCapability, name: string) =>
+    capability.schema.fields.find(
+      (field) => field.name === name && isLinkableField(capability.ui_intent.form, field),
+    );
+  return row.relations.filter((relation) => {
+    const source = linkable(row, relation.field);
+    const { capability, incarnation } = relation.to;
+    const target = catalog.find(
+      (candidate) => candidate.id === capability && candidate.incarnation_id === incarnation,
+    );
+    const targetField = target ? linkable(target, relation.to.field) : undefined;
+    if (!source || !targetField) return false;
+    return fitsLength(source.max_length, targetField.max_length);
+  });
+}
+
 /** The relation one field holds, if it holds one. */
 export function relationOf(
   relations: readonly Relation[],

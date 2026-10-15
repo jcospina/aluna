@@ -91,7 +91,7 @@ describe("a required field is refused in the browser", () => {
     expect(submitted.stopped).toBe(true);
     expect(one.posted).toHaveLength(0);
     expect(one.saidIn("status")).toBe(REQUIRED_FIELD_SENTENCE);
-    expect(one.doc.activeElement?.classList.contains("listbox__button")).toBe(true);
+    expect(one.doc.activeElement?.getAttribute("role")).toBe("combobox");
   });
 
   test("the segmented row is refused on the same word, which is all it can carry", async () => {
@@ -181,7 +181,7 @@ describe("where a refusal leaves the person", () => {
     // The browser reports the only control it can validate, which is the second field.
     one.reportMissing("title");
     await tick();
-    expect(one.doc.activeElement?.classList.contains("listbox__button")).toBe(true);
+    expect(one.doc.activeElement?.getAttribute("role")).toBe("combobox");
     expect(one.doc.activeElement.focusOptions).toEqual({ focusVisible: true });
   });
 });

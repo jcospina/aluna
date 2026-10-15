@@ -180,7 +180,7 @@ describe("activatePublishedSnapshot — point of no return", () => {
     // rename until reload. Here it comes off a real pointer swap, not an argument.
     expect(commit.previousLabel).toBe("Notes");
     expect(commit.row.label).toBe("Notes");
-    const swap = renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel);
+    const swap = renderCachedCapabilityCommitSwap(commit.row, conns.readonly, commit.previousLabel);
     expect(swap).toContain('data-active-capability-id="notes"');
     expect(swap).toContain("outerHTML:#capability-logo-notes");
     expect(swap).toContain(`name="version" value="${commit.row.version}"`);

@@ -16,11 +16,14 @@ import {
   type MutationCoordinator,
 } from "../../runtime/concurrency/mutation-coordinator.ts";
 import type { ReadGateCoordinator } from "../../runtime/concurrency/read-gates.ts";
+import { READ_UNAVAILABLE_FRAGMENT } from "../../runtime/router/index.ts";
 import { NO_STORE } from "../../server/http/cache-headers.ts";
 import { guardWritingRoute } from "../../server/http/writing-route-guard.ts";
 import { singleFormValue } from "../form-values.ts";
 import { type CapabilityLinkOutcome, type LinkPress, linkCapabilityField } from "./front-half.ts";
+import { readPickList } from "./pick/pick.ts";
 import {
+  FIELD_NOT_LINKED_CODE,
   LINK_STALE_CODE,
   LINK_UNREADABLE_CODE,
   type LinkNotice,
@@ -54,6 +57,25 @@ export function registerCapabilityLinkRoutes(app: Hono, deps: CapabilityLinkHttp
   // The pattern `capabilityLinkUrl` fills in; it would percent-encode the parameters' colons.
   app.get("/capability-link/:id/:field", (c) => answerChooser(c, deps));
   app.post("/capability-link/:id/:field", guardWritingRoute(), (c) => answerPress(c, deps));
+  app.get("/capability-link/:id/:field/records", (c) => answerPick(c, deps));
+}
+
+/** The records a linked field's dropdown holds, read as the desk is now each time it opens. */
+function answerPick(c: Context, deps: CapabilityLinkHttpDeps): Response {
+  const answer = readPickList(c.req.param("id") ?? "", c.req.param("field") ?? "", {
+    readGates: deps.readGates,
+    readonly: deps.registryReadonly,
+  });
+  switch (answer.status) {
+    case "read":
+      return c.json(answer.list, 200, NO_STORE);
+    case "not_linked":
+      return answerNotice(c, { code: FIELD_NOT_LINKED_CODE, source: answer.source });
+    case "unavailable":
+      return c.html(READ_UNAVAILABLE_FRAGMENT, 409, NO_STORE);
+    case "gone":
+      return answerNotice(c, { code: LINK_STALE_CODE, moved: null, opening: true });
+  }
 }
 
 /** The chooser's panel, read when it opens, so every target and value is as the desk is now. */

@@ -36,7 +36,8 @@ describe("a list edited through the form the server draws", () => {
     const tool = createCapabilityDataTool(capabilitySpecFromRow(albumsRow()), albums.conns());
     return tool.select().find((record) => record.id === id);
   };
-  const form = (id: string) => renderEditForm(renderableFromRow(albumsRow()), albumOf(id) ?? {});
+  const form = (id: string) =>
+    renderEditForm(renderableFromRow(albumsRow(), []), albumOf(id) ?? {});
 
   /** The pairs `html` posts, its album's keys swapped for `keys`. */
   async function posting(html: string, keys: readonly string[]) {

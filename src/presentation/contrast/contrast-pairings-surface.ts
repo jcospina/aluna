@@ -57,7 +57,6 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "design/styles/components/controls/controls.css § .search__input [color]",
       "design/styles/components/controls/form-controls.css § .field__control [color]",
       "design/styles/components/controls/form-controls.css § .field__input, .field__textarea, .field__select [color]",
-      "design/styles/components/controls/linked-field.css § .linked-field.is-unmatched .listbox__value.is-placeholder [color]",
     ],
   },
   {

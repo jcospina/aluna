@@ -70,7 +70,7 @@ export function renderRestorationFragment(
     if (row?.incarnation_id === descriptor.incarnationId) {
       restoration = [
         `<div data-build-restoration="capability"${behaviorAttribute}>`,
-        renderCachedCapabilitySurface(row),
+        renderCachedCapabilitySurface(row, database),
         "</div>",
       ].join("\n");
     }

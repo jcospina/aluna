@@ -502,7 +502,7 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
       query.getAll("restore_surface"),
     );
     const row = restoration.kind === "capability" ? restoration.row : null;
-    return c.html(row ? renderCachedCapabilitySurface(row) : "", 200, {
+    return c.html(row ? renderCachedCapabilitySurface(row, ctx.registryReadonly) : "", 200, {
       "cache-control": "no-store",
       "HX-Replace-Url": row ? capabilityUrl(row.id) : "/",
     });

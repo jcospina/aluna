@@ -22,7 +22,7 @@ import {
 import {
   isInPageRequest,
   NOT_FOUND_NOTICE,
-  renderCachedCapabilitySurface,
+  renderCachedCapabilitySurfaceIn,
   renderCapabilitySurface,
   renderRehydratedShellPage,
 } from "../../../../server/http/index.ts";
@@ -138,7 +138,7 @@ function withCapabilityRead(
 }
 
 function answerCollection(c: Context, deps: CapabilityViewDeps, read: CapabilityRead): Response {
-  return answer(c, deps, read, 200, () => renderCachedCapabilitySurface(read.row));
+  return answer(c, deps, read, 200, () => renderCachedCapabilitySurfaceIn(read.row, read.catalog));
 }
 
 /**
@@ -148,7 +148,7 @@ function answerCollection(c: Context, deps: CapabilityViewDeps, read: Capability
  * record address opens the collection unremarked.
  */
 function answerRecord(c: Context, deps: CapabilityViewDeps, read: CapabilityRead): Response {
-  const capability: RenderableCapability = renderableFromRow(read.row);
+  const capability: RenderableCapability = renderableFromRow(read.row, read.catalog);
   if (!hasRecordView(capability)) return answer(c, deps, read, 404, () => "");
   const recordId = (c.req.param("record") ?? "").toLowerCase();
   const record = readAddressedRecord(read.row, recordId, deps.databases.readonly, read.signal);

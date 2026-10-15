@@ -83,6 +83,16 @@ export function capabilityLinkUrl(/** @type {string} */ capabilityId, /** @type 
   return `${CAPABILITY_LINK_PATH_PREFIX}/${encodeURIComponent(capabilityId)}/${encodeURIComponent(field)}`;
 }
 
+/** Where a linked field reads the records it is a dropdown of, beside its Link control's address. */
+export function linkedRecordsUrl(/** @type {string} */ linkUrl) {
+  return `${linkUrl}/records`;
+}
+
+/** The pick route of one linked field. */
+export function capabilityPickUrl(/** @type {string} */ capabilityId, /** @type {string} */ field) {
+  return linkedRecordsUrl(capabilityLinkUrl(capabilityId, field));
+}
+
 /** A running build's event stream. */
 export function buildStreamUrl(/** @type {string} */ jobId) {
   return `${BUILD_PATH_PREFIX}/${encodeURIComponent(jobId)}/stream`;

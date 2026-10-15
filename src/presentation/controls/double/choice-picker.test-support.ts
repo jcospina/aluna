@@ -21,6 +21,7 @@ import {
 } from "../../../server/dom-double/dom-events.test-support.ts";
 import { parseInto, type TreeBuilder } from "../../../server/dom-double/html-parse.test-support.ts";
 import { parseSelector, type Step } from "./choice-picker.selectors.test-support.ts";
+import { windowOf } from "./doc-window.test-support.ts";
 import { formElements, withNamedAccess } from "./form-named-access.test-support.ts";
 import { LaidOut } from "./layout-box.test-support.ts";
 
@@ -152,7 +153,27 @@ export class El extends LaidOut implements EventNode {
     host.ownerDoc?.report(nodes);
   }
 
+  /** `ChildNode.after`: each node moved out of wherever it was, to just behind this one. */
+  after(...nodes: El[]): void {
+    const host = this.parent;
+    if (host === null) return;
+    for (const [offset, node] of nodes.entries()) {
+      node.remove();
+      host.children.splice(host.children.indexOf(this) + 1 + offset, 0, node);
+      node.parent = host;
+    }
+    host.ownerDoc?.report(nodes);
+  }
+
+  get nextElementSibling(): El | null {
+    const siblings = this.parent?.children ?? [];
+    return siblings.slice(siblings.indexOf(this) + 1).find((node) => node.tag !== "#text") ?? null;
+  }
+
+  /** A node leaving the tree takes focus with it, if it or anything in it held it. */
   remove(): void {
+    const doc = this.ownerDoc;
+    if (doc && doc !== (this as El) && this.contains(doc.activeElement)) doc.focusOn(null);
     const siblings = this.parent?.children;
     if (siblings) siblings.splice(siblings.indexOf(this), 1);
     this.parent = null;
@@ -420,6 +441,13 @@ export class El extends LaidOut implements EventNode {
     this.focusOptions = options;
   }
 
+  /** The text a control holds, chosen whole: what `select()` leaves, and where typing replaces. */
+  selection: { start: number; end: number } | null = null;
+
+  select(): void {
+    this.selection = { start: 0, end: this.value.length };
+  }
+
   blur(): void {
     const doc = this.ownerDoc;
     if (doc?.activeElement === this) doc.focusOn(null);
@@ -499,7 +527,7 @@ export class Doc extends El {
   /** Every `change` that reached the document, which is where a consumer of one hears it. */
   readonly changes: { value: unknown }[] = [];
   /** The arrival watches running on this document, and what each one asked to watch. */
-  private readonly observers: ((records: { addedNodes: El[] }[]) => void)[] = [];
+  readonly observers: ((records: { addedNodes: El[] }[]) => void)[] = [];
   readonly watches: { target: El; options: { childList?: boolean; subtree?: boolean } }[] = [];
 
   constructor() {
@@ -571,45 +599,7 @@ export class Doc extends El {
 
   /** The window half the placement walk reads: the viewport, computed styles, and the watch. */
   get defaultView() {
-    const doc = this;
-    return {
-      innerWidth: 1200,
-      innerHeight: 900,
-      /**
-       * Delivered on a microtask, as the browser delivers it. `observe` keeps its arguments: a
-       * watch that is not `childList` hears nothing.
-       */
-      MutationObserver: class {
-        constructor(private readonly run: (records: { addedNodes: El[] }[]) => void) {}
-        observe(target: El, options: { childList?: boolean; subtree?: boolean } = {}): void {
-          doc.watches.push({ target, options });
-          if (options.childList === true && options.subtree === true) doc.observers.push(this.run);
-        }
-      },
-      /**
-       * A box watch. The browser fires on `observe` and again on every box change, including the
-       * change from no box at all, which a control inside an unopened panel has.
-       */
-      ResizeObserver: class {
-        constructor(private readonly run: () => void) {}
-        observe(target: El): void {
-          doc.resizes.push({ target, run: this.run });
-          this.run();
-        }
-        /** The half a watcher that is never released would never call. */
-        disconnect(): void {
-          for (let index = doc.resizes.length - 1; index >= 0; index -= 1) {
-            if (doc.resizes[index]?.run === this.run) doc.resizes.splice(index, 1);
-          }
-        }
-      },
-      getComputedStyle: (node: El) => ({ filter: "none", ...node.computed }),
-      /** The prototype a control named `reset` cannot shadow, which is why the platform calls it. */
-      HTMLFormElement: { prototype: { reset: El.prototype.reset } },
-      addEventListener: (type: string, run: Listener) => {
-        this.addEventListener(type, run);
-      },
-    };
+    return windowOf(this, El.prototype.reset);
   }
 
   /**

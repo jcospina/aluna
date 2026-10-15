@@ -115,7 +115,7 @@ describe("a save through the photo control, as its rendered form posts it", () =
   const photos = usePhotosRouter();
 
   function form(record?: Record<string, unknown>): string {
-    const capability = renderableFromRow(photosRow());
+    const capability = renderableFromRow(photosRow(), []);
     return record ? renderEditForm(capability, record) : renderCreateForm(capability);
   }
 
@@ -285,7 +285,7 @@ describe("a photo sent where the stored capability's form says", () => {
   const files = useFileRoutes();
 
   test("is admitted there, served at the address it answered with, and saved by its key", async () => {
-    const html = renderCreateForm(renderableFromRow(photosRow()));
+    const html = renderCreateForm(renderableFromRow(photosRow(), []));
     const { upload } = await drawnPhoto(html);
     const sent = await files
       .app()
@@ -320,7 +320,7 @@ describe("a required photo", () => {
   }
 
   test("refuses a create with nothing picked, naming the photo", async () => {
-    const html = renderCreateForm(renderableFromRow(required()));
+    const html = renderCreateForm(renderableFromRow(required(), []));
     const posted = { caption: "Dawn", photo: await photoPosted(html, "kept") };
     const response = await photos.request("/capability/photos/create", await submit(html, posted));
     expect(response.status).toBe(422);
@@ -335,7 +335,7 @@ describe("a required photo", () => {
       .select()
       .find((row) => row.id === id);
     if (!held) throw new Error(`no record ${id}`);
-    const html = renderEditForm(renderableFromRow(required()), held);
+    const html = renderEditForm(renderableFromRow(required(), []), held);
     const posted = { caption: "Dusk", photo: await photoPosted(html, "cleared") };
     const response = await photos.request("/capability/photos/update", await submit(html, posted));
     expect(response.status).toBe(422);
@@ -388,7 +388,7 @@ describe("a Handler behind the photo control", () => {
   }
 
   async function createThroughForm(caption: string): Promise<Response> {
-    const form = renderCreateForm(renderableFromRow(captionOnlyHandlersRow()));
+    const form = renderCreateForm(renderableFromRow(captionOnlyHandlersRow(), []));
     return app().request("/capability/photos/create", await submit(form, { caption }));
   }
 
@@ -400,7 +400,7 @@ describe("a Handler behind the photo control", () => {
 
   test("sees its photo refused before it runs when the value is anything but a file", async () => {
     await createThroughForm("A day out");
-    const form = renderEditForm(renderableFromRow(captionOnlyHandlersRow()), storedRecord());
+    const form = renderEditForm(renderableFromRow(captionOnlyHandlersRow(), []), storedRecord());
     const runsBefore = handlerRuns;
 
     const response = await app().request(

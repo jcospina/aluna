@@ -6,7 +6,7 @@
 // in itself, and either way something has to notice. The panel's placement is the other
 // half — a fixed box measured against one ancestor and painted inside a different one.
 //
-// The control's own behavior — the keys, the walk, the typeahead, the commit — is next
+// The control's own behavior — the keys, the walk, the search, the commit — is next
 // door, in `choice-picker.test.ts`.
 
 import { describe, expect, test } from "bun:test";
@@ -55,7 +55,7 @@ describe("what happens around the control", () => {
 
     const field = arriving.querySelector("[data-choice-presentation]") as El;
     expect(field.getAttribute("data-choice-picker-mounted")).toBe("true");
-    picker.doc.fire("click", field.querySelector(".listbox__button") as El);
+    picker.doc.fire("click", field.querySelector('[role="combobox"]') as El);
     expect(field.querySelector(".listbox__panel")?.hidden).toBe(false);
     // And the template it was taken from is inert: cloning a mounted field would hand the
     // copy a flag and no script, which is the same dead control by another route.
@@ -178,7 +178,7 @@ describe("where the panel hangs", () => {
     const { chrome, body, scroller } = deskChrome();
     picker.field.parent?.append(chrome);
     scroller.append(picker.field);
-    (picker.button as El).box = {
+    (picker.shell as El).box = {
       top: 306,
       bottom: 342,
       left: 275,
@@ -230,13 +230,15 @@ describe("where the panel hangs", () => {
   });
 
   test("the placeholder survives a chosen value, so an emptied control reads right", async () => {
-    // Read off the field, not off the rendered value: with a value chosen the rendered value is
-    // the label, which would come back the next time the control was emptied.
+    // The input's own placeholder, not its value: with a value chosen the value is the label,
+    // which would come back the next time the control was emptied.
     const picker = await scene(form("picker", "second"));
-    expect(picker.field.getAttribute("data-choice-placeholder")).toBe("Choose Value…");
+    const placeholder = picker.button?.getAttribute("placeholder");
+    expect(placeholder).toBeTruthy();
     picker.field.setAttribute("data-choice-initial", "");
     picker.doc.fire(RECORD_CREATED_EVENT, picker.form);
-    expect(picker.valueEl?.textContent).toBe("Choose Value…");
+    expect(picker.button?.value).toBe("");
+    expect(picker.button?.getAttribute("placeholder")).toBe(placeholder as string);
   });
 });
 
@@ -245,7 +247,7 @@ describe("putting a finished form back", () => {
     const picker = await scene(form("picker"));
     picker.press(picker.button as El);
     picker.press(picker.options().find((o) => labelOf(o) === "fourth") as El);
-    expect(picker.valueEl?.textContent).toBe("Fourth");
+    expect(picker.button?.value).toBe("Fourth");
     // Left standing open, the way a form finished from anywhere but the panel leaves it: put back
     // has to mean closed too, or an active row outlives the thing it described.
     picker.press(picker.button as El);
@@ -259,8 +261,7 @@ describe("putting a finished form back", () => {
     picker.doc.fire(RECORD_CREATED_EVENT, picker.form);
 
     expect(picker.carrier?.value).toBe("");
-    expect(picker.valueEl?.textContent).toBe("Choose Value…");
-    expect(picker.valueEl?.getAttribute("class")).toContain("is-placeholder");
+    expect(picker.button?.value).toBe("");
     expect(picker.options().every((o) => o.getAttribute("aria-selected") === "false")).toBe(true);
     expect(picker.panel?.hidden).toBe(true);
     expect(picker.button?.getAttribute("aria-expanded")).toBe("false");
@@ -273,9 +274,8 @@ describe("putting a finished form back", () => {
     picker.press(picker.button as El);
     picker.press(picker.options().find((o) => labelOf(o) === "fourth") as El);
     picker.doc.fire(RECORD_CREATED_EVENT, picker.form);
-    expect(picker.valueEl?.textContent).toBe(
-      picker.field.getAttribute("data-choice-placeholder") as string,
-    );
+    expect(picker.carrier?.value).toBe("");
+    expect(picker.button?.value).toBe("");
   });
 
   test("an edit form's picker goes back to the record's own value, not to empty", async () => {
@@ -288,7 +288,7 @@ describe("putting a finished form back", () => {
     picker.doc.fire(RECORD_CREATED_EVENT, picker.form);
 
     expect(picker.carrier?.value).toBe("second");
-    expect(picker.valueEl?.textContent).toBe("Second");
+    expect(picker.button?.value).toBe("Second");
   });
 
   test("a cancelled create does the same to a segmented row", async () => {

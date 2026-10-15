@@ -99,7 +99,11 @@ async function presentBuilt(
     const delivered = await deliverActivatedPresentation(
       context.send,
       JSON.stringify(buildCommitPreview(terminal.commit)),
-      renderCachedCapabilityCommitSwap(terminal.commit.row, terminal.commit.previousLabel),
+      renderCachedCapabilityCommitSwap(
+        terminal.commit.row,
+        context.buildDatabases.readonly,
+        terminal.commit.previousLabel,
+      ),
       context.timeoutMs,
       context.metricsPreview(terminal.incarnationId),
     );

@@ -1,5 +1,5 @@
 import type { CapabilityRow, CapabilitySpec } from "../../registry/index.ts";
-import { canonicalCapabilityLabel } from "../../registry/index.ts";
+import { canonicalCapabilityLabel, holdingRelations } from "../../registry/index.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
 
 /**
@@ -21,14 +21,22 @@ export function renderableFromSpec(spec: CapabilitySpec): RenderableCapability {
   };
 }
 
-/** The same projection from a stored row, whose label is the one the user may have renamed. */
-export function renderableFromRow(row: CapabilityRow): RenderableCapability {
+/**
+ * The same projection from a stored row, whose label is the one the user may have renamed. Its
+ * linked fields are read against the active `catalog`, since a relation whose target end stopped
+ * holding draws no dropdown.
+ */
+export function renderableFromRow(
+  row: CapabilityRow,
+  catalog: readonly CapabilityRow[],
+): RenderableCapability {
   return {
     id: row.id,
     incarnationId: row.incarnation_id,
     label: canonicalCapabilityLabel(row),
     noun: row.noun,
     relations: row.relations,
+    linkedFields: holdingRelations(row, catalog).map((relation) => relation.field),
     schema: row.schema,
     form: row.ui_intent.form,
     actions: row.tools,

@@ -52,8 +52,8 @@ function collectionLayoutForRow(row: CapabilityRow): CollectionLayout {
  * Render a capability's list scaffolding from its spec: the "New X" disclosure, the records region
  * wired through `read`, and the empty state. Deterministic, data-free, label canonicalized.
  */
-function renderCapabilityCollection(row: CapabilityRow): string {
-  const capability: RenderableCapability = renderableFromRow(row);
+function renderCapabilityCollection(row: CapabilityRow, catalog: readonly CapabilityRow[]): string {
+  const capability: RenderableCapability = renderableFromRow(row, catalog);
   return renderCollection({
     capability,
     layout: collectionLayoutForRow(row),
@@ -61,9 +61,20 @@ function renderCapabilityCollection(row: CapabilityRow): string {
   });
 }
 
-/** Render the committed capability's platform list scaffolding as an in-window fragment. */
-export function renderCachedCapabilitySurface(row: CapabilityRow): string {
-  return renderCapabilitySurface(row, renderCapabilityCollection(row));
+/**
+ * Render the committed capability's platform list scaffolding as an in-window fragment. The
+ * registry is read for the desk around it, which decides which of its fields are dropdowns.
+ */
+export function renderCachedCapabilitySurface(row: CapabilityRow, registry: Database): string {
+  return renderCachedCapabilitySurfaceIn(row, listCapabilities(registry));
+}
+
+/** The same, against the active catalog a caller already read beside the row, under its token. */
+export function renderCachedCapabilitySurfaceIn(
+  row: CapabilityRow,
+  catalog: readonly CapabilityRow[],
+): string {
+  return renderCapabilitySurface(row, renderCapabilityCollection(row, catalog));
 }
 
 /**
@@ -128,7 +139,9 @@ export function renderRehydratedShellPage(
  */
 export function renderCachedCapabilityCommitSwap(
   row: CapabilityRow,
+  registry: Database,
   previousLabel?: string,
 ): string {
-  return renderCapabilityCommitSwap(row, renderCapabilityCollection(row), previousLabel);
+  const collection = renderCapabilityCollection(row, listCapabilities(registry));
+  return renderCapabilityCommitSwap(row, collection, previousLabel);
 }

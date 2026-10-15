@@ -1,9 +1,10 @@
 // Where the renderer draws the chain, and what it draws. It sits in every unlinked single-line text
 // field of both forms and nowhere else, carries its name and an empty panel but none of the chooser's
-// words, and the Edit form's copy of it survives the scrub a Handler's fragment passes through.
+// words, and the Edit form's copy of it survives the scrub a Handler's fragment passes through. A
+// linked field carries none: its shell stands in the wrapper its dropdown is drawn in.
 
 import { describe, expect, test } from "bun:test";
-import { capabilityLinkUrl } from "#shell/core/routes.js";
+import { capabilityLinkUrl, capabilityPickUrl } from "#shell/core/routes.js";
 import { SECOND_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import type { FieldType, Relation, SpecField } from "../../../registry/index.ts";
 import { probeField, sampleFieldValue } from "../../fields/field-renderer.test-support.ts";
@@ -44,12 +45,19 @@ const AUTHOR_RELATION: Relation = {
   to: { capability: "authors", incarnation: SECOND_INCARNATION_ID, field: "name" },
 };
 
-function books(relations: readonly Relation[] | undefined): RenderableCapability {
+/** Books with `relations`, each holding unless `dormant` names its field. */
+function books(
+  relations: readonly Relation[] | undefined,
+  dormant: readonly string[] = [],
+): RenderableCapability {
+  const linkedFields = relations
+    ?.map((relation) => relation.field)
+    .filter((name) => !dormant.includes(name));
   return {
     id: "books",
     label: "Books",
     noun: "book",
-    ...(relations === undefined ? {} : { relations }),
+    ...(relations === undefined ? {} : { relations, linkedFields }),
     schema: { fields: FIELDS },
     form: {
       list_inputs: [
@@ -100,9 +108,38 @@ describe("which fields carry the chain", () => {
       expect(root.querySelectorAll(".link-control__button")).toEqual([]);
     });
 
-    test(`${mode}: a linked field keeps its plain shell around its input`, () => {
+    test(`${mode}: a linked field's shell stands in its dropdown's wrapper, which reads its records`, () => {
       const root = parsed(render(books([AUTHOR_RELATION])));
       const input = root.querySelector('[name="author"]') as El;
+      expect(input.parent?.className).toBe("field__control");
+      expect(input.parent?.children).toEqual([input]);
+      const wrapper = input.parent?.parent as El;
+      expect(wrapper.hasAttribute("data-linked-field")).toBe(true);
+      expect(wrapper.getAttribute("data-pick-url")).toBe(capabilityPickUrl("books", "author"));
+      expect(wrapper.children).toEqual([input.parent as El]);
+      expect(root.querySelectorAll("[data-linked-field]")).toEqual([wrapper]);
+    });
+
+    test(`${mode}: an unlinked field, and a form only inspected, draw no dropdown`, () => {
+      for (const relations of [[], undefined]) {
+        expect(parsed(render(books(relations))).querySelectorAll("[data-linked-field]")).toEqual(
+          [],
+        );
+      }
+    });
+
+    test(`${mode}: a relation on a field that is no longer single-line text draws no dropdown`, () => {
+      const summary: Relation = { ...AUTHOR_RELATION, field: "summary" };
+      const retired: Relation = { ...AUTHOR_RELATION, field: "retired" };
+      const root = parsed(render(books([summary, retired])));
+      expect(root.querySelectorAll("[data-linked-field]")).toEqual([]);
+    });
+
+    test(`${mode}: a dormant relation draws neither a dropdown nor a chain, only the plain field`, () => {
+      const root = parsed(render(books([AUTHOR_RELATION], ["author"])));
+      const input = root.querySelector('[name="author"]') as El;
+      expect(root.querySelectorAll("[data-linked-field]")).toEqual([]);
+      expect(chained(root)).toEqual(["title", "isbn"]);
       expect(input.parent?.className).toBe("field__control");
       expect(input.parent?.children).toEqual([input]);
     });

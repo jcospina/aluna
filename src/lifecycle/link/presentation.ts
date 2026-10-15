@@ -13,6 +13,9 @@ export const LINK_STALE_CODE = "link_stale";
 /** A press whose form names no versions: only a forged one, since the chooser always writes them. */
 export const LINK_UNREADABLE_CODE = "link_unreadable";
 
+/** A dropdown asked for its records by a field holding no relation that still holds. */
+export const FIELD_NOT_LINKED_CODE = "field_not_linked";
+
 /** What the person is told instead of a link: which rule refused, or which end moved. */
 export type LinkNotice =
   | { readonly code: LinkRefusalCode; readonly source: LinkEnd; readonly target?: LinkEnd }
@@ -22,7 +25,8 @@ export type LinkNotice =
       /** The chooser was being opened, so nothing was about to be connected. */
       readonly opening?: true;
     }
-  | { readonly code: typeof LINK_UNREADABLE_CODE };
+  | { readonly code: typeof LINK_UNREADABLE_CODE }
+  | { readonly code: typeof FIELD_NOT_LINKED_CODE; readonly source: LinkEnd };
 
 /**
  * Why a field was not connected, in the product's voice. The chooser never offers a pick a rule
@@ -32,6 +36,9 @@ export function linkNoticeSentence(notice: LinkNotice): string {
   if (notice.code === LINK_UNREADABLE_CODE) return "I couldn’t read that pick. Try again?";
   if (notice.code === LINK_STALE_CODE) {
     return notice.opening ? "That was deleted after you opened this." : staleSentence(notice.moved);
+  }
+  if (notice.code === FIELD_NOT_LINKED_CODE) {
+    return capitalized(`${phraseOf(notice.source, "this field")} isn’t connected anymore.`);
   }
   const pressed = phraseOf(notice.source, "this field");
   const picked = notice.target ? nameOf(notice.target) : "that field";

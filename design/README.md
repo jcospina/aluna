@@ -105,8 +105,10 @@ design/
                           and the pointer that owns one
     desk/                 desk.js, the window manager, with desk-geometry.js, desk-logo.js,
                           devpanel.js, patterns.js, prompt-bar.js and wallpaper.js
-    controls/             listbox.js, the custom dropdown replacing <select>, and
-                          list-rows.js, the repeatable rows a string[] field is typed into
+    controls/             listbox.js, the custom dropdown replacing <select>;
+                          listbox-search.js, the search typed into a picker or a linked
+                          field, which the desk's picker shares; and list-rows.js, the
+                          repeatable rows a string[] field is typed into
     files/                the file field, its list, its player and the voice recorder
     sections/             the interactive demos embedded in the pages, and the benches
                           that stand in for the upload route and the microphone

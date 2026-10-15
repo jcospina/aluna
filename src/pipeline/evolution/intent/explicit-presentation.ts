@@ -56,7 +56,7 @@ async function presentActivated(
   const delivered = await deliverActivatedPresentation(
     input.send,
     JSON.stringify(buildCommitPreview(commit, activation.assembly.behavioralTierTransition)),
-    renderCachedCapabilityCommitSwap(commit.row, commit.previousLabel),
+    renderCachedCapabilityCommitSwap(commit.row, input.database, commit.previousLabel),
     boundFor(input),
     JSON.stringify(input.recordMetrics.get(input.job.id, input.active.incarnation_id)),
   );

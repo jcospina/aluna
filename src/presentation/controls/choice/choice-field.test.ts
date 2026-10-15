@@ -95,17 +95,20 @@ describe("the three presentations are three drawings of one field", () => {
     }
   });
 
-  test("each one is named by the field's label rather than a label element", () => {
+  test("each one is named by the field's label, a label element only where it labels an input", () => {
     for (const presentation of PRESENTATIONS) {
       const one = created(presentation);
       const named = one.field.querySelectorAll("[aria-labelledby]");
       expect(named.length).toBeGreaterThan(0);
       const label = one.byId(named[0]?.getAttribute("aria-labelledby") ?? null) as El;
-      expect(label.tag).toBe("span");
       // The optional marker rides inside the label, because the exception is what is
       // marked: marking required would spend an asterisk on most of a form.
       expect(label.textContent.replace(/\s+/g, " ").trim()).toBe("Value optional");
-      expect(one.field.querySelector("label[for]")).toBeNull();
+      // The picker's input is a form element a label can point at, so a press on the label
+      // reaches it; a radio group and a segmented row are not.
+      const labels = presentation === "picker" ? one.role("combobox")[0]?.id : undefined;
+      expect(label.tag).toBe(labels ? "label" : "span");
+      expect(label.getAttribute("for") ?? undefined).toBe(labels);
     }
   });
 
@@ -145,31 +148,36 @@ describe("the three presentations are three drawings of one field", () => {
 /* ── the picker ────────────────────────────────────────────────────────────── */
 
 describe("the picker draws the design's listbox", () => {
-  test("a closed combobox button reporting the panel it controls", () => {
+  test("a closed combobox input that searches the list it controls, and posts nothing itself", () => {
     const one = created("picker");
-    const [button] = one.role("combobox");
-    const [panel] = one.role("listbox");
-    expect(button?.tag).toBe("button");
-    expect(button?.getAttribute("type")).toBe("button");
-    expect(button?.getAttribute("aria-haspopup")).toBe("listbox");
-    expect(button?.getAttribute("aria-expanded")).toBe("false");
-    expect(button?.getAttribute("aria-controls")).toBe(panel?.id ?? "");
-    expect(panel?.hidden).toBe(true);
-    expect(panel?.getAttribute("aria-labelledby")).toBe(button?.getAttribute("aria-labelledby"));
-    expect(one.byId(button?.getAttribute("aria-describedby") ?? null)).not.toBeNull();
+    const [input] = one.role("combobox");
+    const [list] = one.role("listbox");
+    expect(input?.tag).toBe("input");
+    expect(input?.getAttribute("type")).toBe("text");
+    expect(input?.hasAttribute("name")).toBe(false);
+    expect(input?.getAttribute("aria-autocomplete")).toBe("list");
+    expect(input?.getAttribute("autocomplete")).toBe("off");
+    expect(input?.getAttribute("aria-expanded")).toBe("false");
+    expect(input?.getAttribute("aria-controls")).toBe(list?.id ?? "");
+    expect(list?.closest(".listbox__panel")?.hidden).toBe(true);
+    expect(one.byId(list?.getAttribute("aria-labelledby") ?? null)?.getAttribute("for")).toBe(
+      input?.id ?? "",
+    );
+    expect(one.byId(input?.getAttribute("aria-describedby") ?? null)).not.toBeNull();
   });
 
   test("nothing chosen shows the placeholder, and the carrier is empty", () => {
     const one = created("picker");
-    const [button] = one.role("combobox");
-    expect(button?.textContent.trim()).not.toBe("");
+    const [input] = one.role("combobox");
+    expect(input?.value).toBe("");
+    expect(input?.getAttribute("placeholder")).toBeTruthy();
     expect(one.posted().map((input) => input.value)).toEqual([""]);
     expect(one.field.querySelector('[aria-selected="true"]')).toBeNull();
   });
 
   test("the stored value is chosen, shown and carried without a script running", () => {
     const one = edited("picker", "second");
-    expect(one.role("combobox")[0]?.textContent.trim()).toBe("Second");
+    expect(one.role("combobox")[0]?.getAttribute("value")).toBe("Second");
     expect(one.posted().map((input) => input.value)).toEqual(["second"]);
     expect(one.option("second").getAttribute("aria-selected")).toBe("true");
     expect(one.option("first").getAttribute("aria-selected")).toBe("false");
@@ -362,7 +370,7 @@ describe("a disabled option is announced as disabled", () => {
     expect(picker.option("third").getAttribute("aria-selected")).toBe("true");
     expect(picker.option("third").hasAttribute("aria-disabled")).toBe(false);
     expect(picker.posted().map((input) => input.value)).toEqual(["third"]);
-    expect(picker.role("combobox")[0]?.textContent.trim()).toBe("Third");
+    expect(picker.role("combobox")[0]?.getAttribute("value")).toBe("Third");
 
     const radio = edited("radio", "third", rich);
     expect(radio.radio("third").checked).toBe(true);

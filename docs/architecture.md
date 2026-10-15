@@ -905,16 +905,19 @@ model-authored `behavioral_errors`. Older active rows may omit Module 5's new fo
 collections; omission canonicalizes to empty without rewriting historical
 snapshots, while new specs emit the complete form shape.
 
-Until Module 8's 8.1/03, the drawn picker implements the select-only combobox keyboard
-and ARIA contract: open keys, arrow/Home/End movement, typeahead, commit,
-Escape/click-away, focus held on the button and active-descendant reporting, with
-disabled options skipped. The Link control's chooser (8.1/02) is drawn on the same
-listbox and keeps that contract after 8.1/03 too, typeahead included, with no search.
-From 8.1/03 a linked field and a choice field's picker are fields you type into rather
-than select-only buttons: Space, Home and End are typing, a search takes the place of
-typeahead, and the list narrows to the options whose label contains every typed word,
-ignoring case and accents and never reading an option's note. It says "No results" when
-nothing matches. Radio uses native radio inputs; segmented remains a mutually
+A choice field's picker and a linked field are fields you type into, drawn on one
+listbox. They implement the ARIA combobox contract with a list the field searches: a
+press, Enter or an arrow opens it, the arrows walk it, Enter or a press picks,
+Escape, Tab or a press outside puts back what was chosen (an optional field emptied
+and left by Tab or a press outside stays empty), focus stays on the field,
+the active option is reported through active-descendant, and disabled options are
+skipped. Space, Home and End are typing, and a search takes the place of typeahead:
+the list narrows to the options whose label contains every typed word, ignoring case
+and accents as a capability's own search does and never reading an option's note,
+and says "No results" when nothing matches. A hidden input carries the value, so the
+typed search never posts. The Link control's chooser (8.1/02) is drawn on the same
+listbox's select-only button and keeps the select-only contract, typeahead included,
+with no search. Radio uses native radio inputs; segmented remains a mutually
 exclusive, keyboard-operable button set. Presentation changes do not change the stored
 wire value.
 

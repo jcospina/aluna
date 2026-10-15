@@ -102,8 +102,11 @@ export {
   resolveLogoShades,
 } from "./logo.ts";
 export {
+  fitsLength,
+  holdingRelations,
   isLinkableField,
   isSingleLineTextField,
+  type RelatedCapability,
   type Relation,
   relationOf,
   relationSchema,

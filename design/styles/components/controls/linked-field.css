@@ -4,10 +4,11 @@
  *
  * Unlinked, the field is the shared shell with one glyph button inside it, the chain, and
  * that button is a drawn listbox's own button: its panel is the chooser, headed with what
- * picking a target will do. Linked, the field is the drawn listbox, with Unlink's broken
- * chain laid over a slot kept free inside its button, before the chevron, because a button
- * cannot hold another. Both build on `choice-field.css` and override the listbox button's
- * width and the panel's padding at the same specificity, so this sheet must load after it.
+ * picking a target will do. Linked, the field is the drawn listbox that searches, its input
+ * in the shell, with Unlink's broken chain laid over a slot kept free inside the shell before
+ * the chevron, because an input cannot hold a button. Both build on `choice-field.css`, and the
+ * chooser overrides the listbox button's width and the panel's padding at the same specificity,
+ * so this sheet must load after it.
  *
  * The broken-link mark is here too. The platform's item wrapper draws it on a card for a
  * linked field holding text no record stands behind.
@@ -127,11 +128,6 @@
   z-index: 1;
   top: calc((var(--control-h) - var(--control-h-sm)) / 2);
   right: calc(var(--line) + var(--control-pad-x) + 12px + var(--space-2));
-}
-
-/* Text that matched no record is still the field's value, so it reads in ink. */
-.linked-field.is-unmatched .listbox__value.is-placeholder {
-  color: var(--ink);
 }
 
 /* ── The broken-link mark ─────────────────────────────────────────────────── */

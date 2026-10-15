@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { capabilityLinkUrl } from "#shell/core/routes.js";
+import { capabilityLinkUrl, capabilityPickUrl } from "#shell/core/routes.js";
 import { FROZEN_BEHAVIORAL_TEST_FILE } from "../../builder/artifacts/publication/snapshot-contract.ts";
 import {
   committedSpecView,
@@ -27,7 +27,6 @@ import {
   versionDirectory,
 } from "../../pipeline/evolution/run/evolution-run.test-support.ts";
 import { linkableShell } from "../../presentation/controls/link/link-control.ts";
-import { controlShell } from "../../presentation/fields/chrome/field-chrome.ts";
 import { renderableFromRow } from "../../presentation/fields/renderable-capability.ts";
 import { SIXTH_INCARNATION_ID } from "../../registry/incarnations.test-support.ts";
 import {
@@ -147,17 +146,24 @@ function anonymous(html: string, id: string): string {
 
 /**
  * What a page drawn before the link looks like with the field linked: every chain around the
- * field's input in an Edit form is its plain shell, written by the same two renderers.
+ * field's input in an Edit form is the shell its dropdown is drawn from, written by the same
+ * renderer for the row before the link and the row after it.
  */
-function unchained(html: string, capability: CapabilityRow, field: SpecField): string {
-  const inputId = `edit-${capability.id}-${field.name}`;
+function unchained(
+  html: string,
+  rows: { before: CapabilityRow; after: CapabilityRow; target: CapabilityRow },
+): string {
+  const catalog = [rows.after, rows.target];
+  const field = rows.after.schema.fields.find((one) => one.name === "text") as SpecField;
+  const inputId = `edit-${rows.after.id}-${field.name}`;
   const inputs = new Set(
     html.match(new RegExp(`<input class="field__input" id="${inputId}"[^>]*>`, "g")),
   );
   let drawn = html;
   for (const input of inputs) {
-    const chained = linkableShell(renderableFromRow(capability), field, inputId, input);
-    drawn = drawn.replaceAll(chained, controlShell(input));
+    const chained = linkableShell(renderableFromRow(rows.before, catalog), field, inputId, input);
+    const linked = linkableShell(renderableFromRow(rows.after, catalog), field, inputId, input);
+    drawn = drawn.replaceAll(chained, linked);
   }
   return drawn;
 }
@@ -277,23 +283,34 @@ describe("no version is made", () => {
 });
 
 describe("Handlers and cards run as they did", () => {
-  const text = () => after.notes.schema.fields.find((field) => field.name === "text") as SpecField;
-
   test("every route answers with the status it gave before", () => {
     expect(answeredAfter.statuses).toEqual(answeredBefore.statuses);
     expect(answeredAfter.statuses.every((status) => status === 200)).toBe(true);
   });
 
-  test("read, search, update, create and delete draw what they drew, with the chain gone", () => {
+  test("read, search, update, create and delete draw what they drew, the chain now a dropdown's", () => {
     const routes = ["read", "search", "update", "create", "delete"] as const;
     for (const route of routes) {
-      expect(answeredAfter[route]).toBe(unchained(answeredBefore[route], before.notes, text()));
+      expect(answeredAfter[route]).toBe(
+        unchained(answeredBefore[route], {
+          before: before.notes,
+          after: after.notes,
+          target: after.shelves,
+        }),
+      );
     }
   });
 
   test("the chain was there to go: the linked field's Edit forms lost it, and nothing else did", () => {
     expect(answeredBefore.read).toContain(`data-link-url="${LINK_URL}"`);
     expect(answeredAfter.read).not.toContain("data-link-control");
-    expect(unchained(answeredBefore.read, before.notes, text())).not.toBe(answeredBefore.read);
+    expect(answeredAfter.read).toContain(`data-pick-url="${capabilityPickUrl("notes", "text")}"`);
+    expect(
+      unchained(answeredBefore.read, {
+        before: before.notes,
+        after: after.notes,
+        target: after.shelves,
+      }),
+    ).not.toBe(answeredBefore.read);
   });
 });

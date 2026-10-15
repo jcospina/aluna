@@ -62,6 +62,8 @@ export interface RenderableCapability {
   readonly noun: string;
   /** The row's relations, which decide where the chain is drawn; a spec that is only inspected has none. */
   readonly relations?: readonly Relation[];
+  /** The fields whose relation holds, each drawn as a dropdown. */
+  readonly linkedFields?: readonly string[];
   readonly schema: { readonly fields: readonly SpecField[] };
   readonly form: UiFormIntent;
   /** The committed closed Action inventory; platform chrome fails closed against it. */

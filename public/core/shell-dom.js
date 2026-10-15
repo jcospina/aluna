@@ -93,7 +93,7 @@ export const DEFAULT_SEARCH_DEBOUNCE_MS = 300;
  */
 export const FIRST_FIELD_SELECTOR =
   "input:not([type=hidden]):not([hidden]), textarea, select," +
-  " .listbox__button, .segmented button:not([disabled]), [data-file-focus]";
+  " .segmented button:not([disabled]), [data-file-focus]";
 
 /* A comment, not markup: the fragment enforcer passes one straight through, so a generated
    Handler could open a mutation's answer with a forged sidecar. `readsThisRegion` refuses it. */

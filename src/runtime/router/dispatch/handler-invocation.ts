@@ -10,7 +10,6 @@ import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import {
   createPresentationAdapter,
   type PresentationAdapter,
-  type RenderableCapability,
   renderableFromRow,
 } from "../../../presentation/index.ts";
 import {
@@ -48,13 +47,19 @@ import {
 } from "../wire/wire-protocol.ts";
 import type { HandlerLoader, ItemRendererLoader } from "./generated-code.ts";
 
+/** What a Handler's request read: its declared dependencies, and the active desk around it. */
+export interface HandlerRead {
+  readonly dependencies: readonly CapabilityRow[];
+  readonly catalog: readonly CapabilityRow[];
+}
+
 export async function invokeCapabilityHandler(
   databases: PlatformDatabase,
   loadHandler: HandlerLoader,
   loadItemRenderer: ItemRendererLoader,
   row: CapabilityRow,
   spec: CapabilitySpec,
-  dependencies: readonly CapabilityRow[],
+  read: HandlerRead,
   action: WireProtocolAction,
   parsedRequest: ParsedCapabilityRequest,
   signal: AbortSignal,
@@ -62,7 +67,7 @@ export async function invokeCapabilityHandler(
   const { input, recordTarget, drawnFiles } = parsedRequest;
   const query = createCapabilityQueryPort(databases.readonly, {
     target: spec,
-    dependencies: dependencies.map(capabilitySpecFromRow),
+    dependencies: read.dependencies.map(capabilitySpecFromRow),
     signal,
   });
   const writes = writeWindow();
@@ -81,7 +86,7 @@ export async function invokeCapabilityHandler(
     const fields = activeSpecFields(spec.schema.fields);
     const submitted = resolveSubmittedFiles(fields, input.values, save, scope);
     const mutation = writes.guard(bind({ scope, submitted }));
-    const present = await buildPresentationAdapter(row, loadItemRenderer);
+    const present = await buildPresentationAdapter(row, read.catalog, loadItemRenderer);
     assertReadOwnership(signal);
     const handler = await loadHandler(row.artifacts_path, save);
     assertReadOwnership(signal);
@@ -129,7 +134,7 @@ export async function invokeCapabilityHandler(
   }
 
   assertReadOwnership(signal);
-  const present = await buildPresentationAdapter(row, loadItemRenderer);
+  const present = await buildPresentationAdapter(row, read.catalog, loadItemRenderer);
   assertReadOwnership(signal);
   const handler = await loadHandler(row.artifacts_path, action);
   assertReadOwnership(signal);
@@ -194,14 +199,10 @@ function requireRecordTarget(
 // because the renderer resolves here, once, before the handler runs; a missing one fails the read.
 async function buildPresentationAdapter(
   row: CapabilityRow,
+  catalog: readonly CapabilityRow[],
   loadItemRenderer: ItemRendererLoader,
 ): Promise<PresentationAdapter> {
   const renderItem = await loadItemRenderer(row.artifacts_path);
-  return createPresentationAdapter({ capability: renderableForHandler(row), renderItem });
-}
-
-// The slice of a row the adapter needs: the id, the effective label — what the user renamed this
-// to — and the fields. The same canonical reading serves `src/server/http/cached-view.ts`.
-function renderableForHandler(row: CapabilityRow): RenderableCapability {
-  return { ...renderableFromRow(row), item: row.ui_intent.item };
+  const capability = { ...renderableFromRow(row, catalog), item: row.ui_intent.item };
+  return createPresentationAdapter({ capability, renderItem });
 }

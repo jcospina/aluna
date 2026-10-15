@@ -4,48 +4,38 @@
  * The Link control's chooser. The chain inside a single-line text
  * field is the drawn listbox's button, and its panel says what the field could come from: read whole
  * each time it opens, because those are other capabilities' fields and values, which move. A pick
- * writes the relation; the prompt bar says nothing on success and speaks only a refusal.
+ * writes the relation; the prompt bar says nothing on success and speaks only a refusal. Once the
+ * field is linked, every copy of it becomes a dropdown in place (`linked-field.js`).
  */
 
 import { watchArrivals } from "../core/dom-arrivals.js";
+import { linkedRecordsUrl } from "../core/routes.js";
 import { onCreateFinished } from "../core/shell-dom.js";
-import { PROMPT_BAR_MESSAGE_EVENT, PROMPT_NOTICE_ID } from "../desk/prompt-bar.js";
 import {
   ChoicePicker,
   closeOnPressOutside,
   MAX_PANEL_HEIGHT,
   watchPlacement,
 } from "./choice-picker.js";
+import { bodyOf, CHOOSER_UNREAD, noticeIn, pageOf, say, withdraw } from "./link-notices.js";
+
+export { CHOOSER_UNREAD };
 
 const CHOOSER_SELECTOR = "[data-link-control]";
 
-/** What the bar says when the server could not be asked, or answered without a notice. */
-export const CHOOSER_UNREAD = "I couldn’t open that list. Try again?";
 export const PICK_UNWRITTEN = "I couldn’t connect that. Try again?";
 /** A write whose connection was lost may have landed or not, and only a reload can say. */
 export const PICK_UNKNOWN = "I can’t tell whether that connected. Reload the page to see.";
 
-/** The refusal a notice carries, when the server sent one. */
-const NOTICE_SELECTOR = '[data-role="error"][data-error-code]';
-/** The refusals that mean this field's chain is finished: linked already, or no longer linkable. */
-const CHAIN_GONE = new Set(["source_already_linked", "source_not_linkable"]);
-
 /**
- * Per document: the pick being written for each field, so two copies of one field cannot both
- * send one, and the refusal a chooser said last.
- * @type {WeakMap<Document, { writing: Set<string>, standing: string | null }>}
+ * The refusals that mean this field's chain is finished: it was linked meanwhile, so it becomes a
+ * dropdown as a pick here would have made it, or it can no longer be linked and stays plain text.
+ * @type {ReadonlyMap<string, "linked" | "plain">}
  */
-const pages = new WeakMap();
-
-/** @param {Document} doc */
-function pageOf(doc) {
-  let page = pages.get(doc);
-  if (!page) {
-    page = { writing: new Set(), standing: null };
-    pages.set(doc, page);
-  }
-  return page;
-}
+const CHAIN_GONE = new Map([
+  ["source_already_linked", "linked"],
+  ["source_not_linkable", "plain"],
+]);
 
 /** One mounted chooser: the picker's keyboard and pointer, with a panel read on opening. */
 export class LinkChooser extends ChoicePicker {
@@ -66,7 +56,7 @@ export class LinkChooser extends ChoicePicker {
     /** A read in flight: it opens the panel when it lands unless it was let go first. */
     this.reading = false;
     this.wanted = false;
-    this.button.addEventListener("keydown", (event) => {
+    this.control.addEventListener("keydown", (/** @type {KeyboardEvent} */ event) => {
       if (!this.open && (event.key === "Escape" || event.key === "Tab")) this.wanted = false;
     });
   }
@@ -98,7 +88,7 @@ export class LinkChooser extends ChoicePicker {
    * @override
    */
   holds(node) {
-    return this.button.contains(node) || this.panel.contains(node);
+    return this.control.contains(node) || this.panel.contains(node);
   }
 
   /**
@@ -216,28 +206,27 @@ export class LinkChooser extends ChoicePicker {
    */
   refuse(body, fallback, picked = false) {
     const doc = this.root.ownerDocument;
-    const template = doc.createElement("template");
-    template.innerHTML = body;
-    const notice = template.content.querySelector(NOTICE_SELECTOR);
-    if (picked || this.wanted) say(doc, notice?.textContent?.trim() || fallback);
-    if (CHAIN_GONE.has(notice?.getAttribute("data-error-code") ?? "")) {
-      const held = unwrapEverywhere(doc, this.root.dataset.linkUrl ?? "", doc.activeElement);
+    const notice = noticeIn(doc, body);
+    if (picked || this.wanted) say(doc, notice.sentence || fallback);
+    const gone = CHAIN_GONE.get(notice.code);
+    if (gone) {
+      const held = replaceEverywhere(doc, this.root.dataset.linkUrl ?? "", gone, doc.activeElement);
       held?.focus();
     }
     return null;
   }
 
   /**
-   * The field is linked: the chain goes, and the text input stays until the field is drawn as
-   * a dropdown. Focus returns to the input only if it was still on the chooser: a pick that waited
-   * behind a build must not pull the person back from wherever they went meanwhile.
+   * The field is linked, and every copy of it becomes a dropdown. Focus returns to the input only
+   * if it was still on the chooser: a pick that waited behind a build must not pull the person
+   * back from wherever they went meanwhile.
    */
   linked() {
     const { ownerDocument, dataset } = this.root;
     const active = ownerDocument.activeElement;
     const nowhere = active === null || active === ownerDocument.body;
     this.hide(false);
-    const held = unwrapEverywhere(ownerDocument, dataset.linkUrl ?? "", active);
+    const held = replaceEverywhere(ownerDocument, dataset.linkUrl ?? "", "linked", active);
     (held ?? (nowhere ? this.shell.querySelector("input") : null))?.focus();
   }
 }
@@ -259,72 +248,61 @@ function emptySentence(panel) {
 }
 
 /**
- * @param {Document} doc
- * @param {string} sentence
- */
-function say(doc, sentence) {
-  pageOf(doc).standing = sentence;
-  doc.dispatchEvent(
-    new CustomEvent(PROMPT_BAR_MESSAGE_EVENT, { detail: { sentence, refused: true } }),
-  );
-}
-
-/**
- * Take back the refusal a chooser said last, once a retry has worked, if the bar still says it:
- * "Try again?" left standing after the try worked is no longer true. Anything the bar says now in
- * its place, however it got there, stays.
- * @param {Document} doc
- */
-function withdraw(doc) {
-  const page = pageOf(doc);
-  const standing = page.standing;
-  page.standing = null;
-  const slot = doc.getElementById(PROMPT_NOTICE_ID);
-  if (standing === null || slot?.textContent?.trim() !== standing) return;
-  doc.dispatchEvent(new CustomEvent(PROMPT_BAR_MESSAGE_EVENT, { detail: { sentence: "" } }));
-}
-
-/**
- * Every copy of a linked field's chain goes, this one and the others: the other form and each
- * record's Edit template were drawn before the link, and a press on their chain would be refused.
+ * Every copy of a field's chain goes, this one and the others: the other form and each record's
+ * Edit template were drawn before the link, and a press on their chain would be refused.
  *
  * @param {Document} doc
  * @param {string} url
+ * @param {"linked" | "plain"} next what each copy becomes: a dropdown, or a plain text field
  * @param {Element | null} [active] where focus stands, so a copy holding it can hand it on
  * @returns {HTMLElement | null} the input of the copy that held focus, which is where it goes now
  */
-function unwrapEverywhere(doc, url, active = null) {
+function replaceEverywhere(doc, url, next, active = null) {
   /** @type {HTMLElement | null} */
   let held = null;
-  const roots = [doc, ...[...doc.querySelectorAll("template")].map((template) => template.content)];
-  for (const root of roots) {
-    for (const wrapper of root.querySelectorAll(CHOOSER_SELECTOR)) {
-      if (wrapper.getAttribute("data-link-url") !== url) continue;
-      const input = wrapper.querySelector(".field__control input");
-      if (active && wrapper.contains(active) && input instanceof HTMLElement) held = input;
-      unwrap(wrapper);
-    }
+  const pickUrl = next === "linked" ? linkedRecordsUrl(url) : null;
+  for (const wrapper of copiesOf(doc, url)) {
+    const input = wrapper.querySelector(".field__control input");
+    if (active && wrapper.contains(active) && input instanceof HTMLElement) held = input;
+    unwrap(doc, wrapper, pickUrl);
   }
   return held;
 }
 
 /**
- * A failed answer's words, or none when they never arrived.
- * @param {Response} response
+ * Every chooser for `url`, on the page and in every record's template.
+ * @param {Document} doc
+ * @param {string} url
  */
-function bodyOf(response) {
-  return response.text().catch(() => "");
+function copiesOf(doc, url) {
+  const roots = [doc, ...[...doc.querySelectorAll("template")].map((template) => template.content)];
+  return roots.flatMap((root) =>
+    [...root.querySelectorAll(CHOOSER_SELECTOR)].filter(
+      (wrapper) => wrapper.getAttribute("data-link-url") === url,
+    ),
+  );
 }
 
 /**
- * Put a field's plain shell where its chooser stood: the chain and the panel go with the wrapper.
+ * Put a field's shell where its chooser stood: the chain and the panel go with the wrapper. A
+ * linked field's shell goes into the wrapper `linked-field.js` draws its dropdown in, as the
+ * server draws one.
+ *
+ * @param {Document} doc
  * @param {Element} wrapper
+ * @param {string | null} pickUrl where the dropdown reads its records, when the field is linked
  */
-function unwrap(wrapper) {
+function unwrap(doc, wrapper, pickUrl) {
   const shell = wrapper.querySelector(".field__control");
   if (!shell) return;
   shell.querySelector(".link-control__button")?.remove();
-  wrapper.replaceWith(shell);
+  if (pickUrl === null) return wrapper.replaceWith(shell);
+  const linked = doc.createElement("div");
+  linked.className = "listbox linked-field";
+  linked.setAttribute("data-linked-field", "");
+  linked.setAttribute("data-pick-url", pickUrl);
+  linked.append(shell);
+  wrapper.replaceWith(linked);
 }
 
 /**

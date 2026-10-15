@@ -6,6 +6,7 @@
 export {
   renderCachedCapabilityCommitSwap,
   renderCachedCapabilitySurface,
+  renderCachedCapabilitySurfaceIn,
   renderRehydratedShellPage,
 } from "./cached-view.ts";
 export {

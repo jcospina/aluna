@@ -1,14 +1,15 @@
 // The drawn picker at its edges, run through the real `public/controls/choice-picker.js` on the markup the
-// renderer writes: labels with space around them, keys held with a modifier, the typing clock, a
-// field missing a part, and what closes a panel. Placement lives in `choice-picker.placing.test.ts`.
+// renderer writes: labels with space around them, keys held with a modifier, a field missing a part,
+// and what closes a panel. Placement lives in `choice-picker.placing.test.ts`; the jump to a typed
+// letter, which only the Link control's chooser keeps, in `link/link-chooser.keyboard.test.ts`.
 
 import { describe, expect, test } from "bun:test";
 
 import { RECORD_CREATED_EVENT } from "#shell/core/shell-dom.js";
+import { startFieldErrors } from "#shell/fields/field-errors.js";
 import {
   activeOf,
   form,
-  idOf,
   installDomGlobals,
   labelOf,
   longList,
@@ -19,26 +20,17 @@ import { El, parseHtml } from "../double/choice-picker.test-support.ts";
 
 installDomGlobals();
 
-/** `run` with `Date.now` reading `clock`, put back exactly as it was afterwards. */
-async function atTimes(run: (at: (ms: number) => void) => Promise<void> | void) {
-  const standing = Reflect.getOwnPropertyDescriptor(Date, "now") as PropertyDescriptor;
-  let clock = 1_000_000;
-  Object.defineProperty(Date, "now", { value: () => clock, configurable: true, writable: true });
-  try {
-    await run((ms) => {
-      clock += ms;
-    });
-  } finally {
-    Object.defineProperty(Date, "now", standing);
-  }
-}
-
 const values = (...labels: string[]) =>
   labels.map((label, index) => ({ value: `v${index + 1}`, label }));
 
+/** What a person typing into a field leaves behind: its new text, and the `input` it hears. */
+function type(picker: { doc: { fire: (type: string, on: El) => unknown } }, on: El, text: string) {
+  on.value = text;
+  picker.doc.fire("input", on);
+}
+
 describe("what an option is called", () => {
   test("space around a label is not part of it, noted or not", async () => {
-    const picker = await openPicker();
     const spaced = await scene(
       form("picker", undefined, {
         values: [
@@ -47,35 +39,33 @@ describe("what an option is called", () => {
         ],
       }),
     );
-    spaced.press(spaced.button as El);
-    spaced.key("p", spaced.button as El);
-    expect(activeOf(spaced.button as El)).toBe(spaced.options()[1]?.id);
-    spaced.key("Enter", spaced.button as El);
-    expect(spaced.valueEl?.textContent).toBe("Paid");
-    spaced.press(spaced.button as El);
+    const input = spaced.button as El;
+    spaced.press(input);
+    type(spaced, input, "pai");
+    expect(activeOf(input)).toBe(spaced.options()[1]?.id);
+    spaced.key("Enter", input);
+    expect(input.value).toBe("Paid");
+    spaced.press(input);
     spaced.press(spaced.options()[0] as El);
-    expect(spaced.valueEl?.textContent).toBe("Apple");
-    expect(picker.valueEl).not.toBeNull();
+    expect(input.value).toBe("Apple");
   });
 });
 
 describe("typing, and the keys that are not typing", () => {
-  test("a key held with Cmd, Ctrl or Alt is a shortcut, never a jump", async () => {
-    for (const modifier of ["metaKey", "ctrlKey", "altKey"]) {
+  test("a key held with Cmd or Ctrl is a shortcut the field keeps, never a step or a pick", async () => {
+    for (const modifier of ["metaKey", "ctrlKey"]) {
       const picker = await openPicker();
       const before = activeOf(picker.button);
-      picker.doc.fire("keydown", picker.button, { key: "f", [modifier]: true });
+      for (const key of ["ArrowDown", "Enter"]) {
+        const { prevented } = picker.doc.fire("keydown", picker.button, { key, [modifier]: true });
+        expect(prevented).toBe(false);
+      }
       expect(activeOf(picker.button)).toBe(before);
+      expect(picker.carrier?.value).toBe("");
     }
-    // A named key is not a letter, even one that spells the start of an option.
-    const named = await scene(form("picker", undefined, { values: values("Apple", "Delete me") }));
-    named.press(named.button as El);
-    const first = activeOf(named.button as El);
-    named.key("Delete", named.button as El);
-    expect(activeOf(named.button as El)).toBe(first);
   });
 
-  test("Home and End reach an end even when it is the only option that can be chosen", async () => {
+  test("a list where one option can be chosen opens onto it, wherever it stands", async () => {
     const lone = (choosable: number) =>
       values("One", "Two", "Three").map((one, index) =>
         index === choosable ? one : { ...one, disabled: true as const },
@@ -84,7 +74,7 @@ describe("typing, and the keys that are not typing", () => {
     last.press(last.button as El);
     expect(activeOf(last.button as El)).toBe(last.options()[2]?.id);
     const first = await scene(form("picker", undefined, { values: lone(0) }));
-    first.key("End", first.button as El);
+    first.key("ArrowUp", first.button as El);
     expect(activeOf(first.button as El)).toBe(first.options()[0]?.id);
   });
 
@@ -95,51 +85,20 @@ describe("typing, and the keys that are not typing", () => {
     expect(left.classList.contains("is-active")).toBe(false);
   });
 
-  test("a pause of more than the typing window starts a new word; exactly the window does not", async () => {
-    await atTimes(async (after) => {
-      const picker = await openPicker();
-      picker.key("f", picker.button);
-      after(701);
-      picker.key("s", picker.button);
-      expect(activeOf(picker.button)).toBe(idOf(picker, "second"));
-
-      const again = await openPicker();
-      again.key("f", again.button);
-      expect(activeOf(again.button)).toBe(idOf(again, "fourth"));
-      after(700);
-      again.key("i", again.button);
-      expect(activeOf(again.button)).toBe(idOf(again, "first"));
-    });
-  });
-
-  test("a growing word searches from the top, even past the row the first letter reached", async () => {
-    await atTimes(async () => {
-      const picker = await scene(
-        form("picker", undefined, { values: values("Apple", "Avocado", "Apricot") }),
-      );
-      const button = picker.button as El;
-      picker.press(button);
-      picker.key("a", button);
-      expect(activeOf(button)).toBe(picker.options()[1]?.id);
-      picker.key("p", button);
-      expect(activeOf(button)).toBe(picker.options()[0]?.id);
-    });
-  });
-
-  test("the keys that open, and the keys that walk, keep their browser meaning to themselves", async () => {
+  test("the keys that open and walk keep their browser meaning to themselves, and typing does not", async () => {
     const picker = await scene(form("picker"));
-    const button = picker.button as El;
-    expect(picker.key("Enter", button).prevented).toBe(true);
-    expect(picker.key("ArrowDown", button).prevented).toBe(true);
-    expect(picker.key("End", button).prevented).toBe(true);
+    const input = picker.button as El;
+    expect(picker.key("Enter", input).prevented).toBe(true);
+    expect(picker.key("ArrowDown", input).prevented).toBe(true);
+    expect(picker.key("End", input).prevented).toBe(false);
+    expect(picker.key("a", input).prevented).toBe(false);
   });
 });
 
 describe("a field missing a part refuses to become a picker, and says which", () => {
   for (const [part, said] of [
-    [".listbox__button", /listbox__button/],
+    ['[role="combobox"]', /input it searches/],
     [".listbox__panel", /listbox__panel/],
-    [".listbox__value", /listbox__value/],
     [".listbox__scroll", /listbox__scroll/],
   ] as const) {
     test(`without its ${part}`, async () => {
@@ -151,6 +110,16 @@ describe("a field missing a part refuses to become a picker, and says which", ()
       expect(() => mountChoicePickers(held as never)).toThrow(said);
     });
   }
+
+  test("drawn as a button, without the .listbox__value that names its choice", async () => {
+    const { mountChoicePickers } = await import("#shell/controls/choice-picker.js");
+    const held = parseHtml(form("picker"), new El("div"));
+    const input = held.querySelector('[role="combobox"]') as El;
+    input.replaceWith(
+      parseHtml('<button class="listbox__button"></button>', new El("div")).children[0] as El,
+    );
+    expect(() => mountChoicePickers(held as never)).toThrow(/listbox__value/);
+  });
 });
 
 describe("the open panel's own marks", () => {
@@ -206,7 +175,7 @@ describe("the list moving under a still pointer", () => {
     const picker = await longList();
     picker.scroll.scrollWidth = 400;
     picker.hidden.box = { ...picker.hidden.box, top: 136, bottom: 172, left: 40, right: 340 };
-    picker.key("End", picker.button);
+    picker.key("ArrowUp", picker.button);
     expect(picker.scroll.scrollLeft).toBeGreaterThan(0);
     picker.doc.fire("pointerover", picker.visible);
     expect(activeOf(picker.button)).toBe(picker.hidden.id);
@@ -218,7 +187,6 @@ describe("bringing a row into the list", () => {
     const picker = await longList();
     picker.scroll.scrollTop = 100;
     picker.visible.box = { ...picker.visible.box, top: 80, bottom: 116 };
-    picker.key("Home", picker.button);
     picker.key("ArrowDown", picker.button);
     expect(picker.scroll.scrollTop).toBe(80);
   });
@@ -230,12 +198,11 @@ describe("bringing a row into the list", () => {
     picker.scroll.clientLeft = 10;
     picker.scroll.scrollLeft = 50;
     picker.visible.box = { ...picker.visible.box, left: -30, right: 10 };
-    picker.key("Home", picker.button);
     picker.key("ArrowDown", picker.button);
     expect(picker.scroll.scrollLeft).toBe(10);
     picker.scroll.scrollLeft = 0;
     picker.hidden.box = { ...picker.hidden.box, top: 136, bottom: 172, left: 150, right: 260 };
-    picker.key("End", picker.button);
+    picker.key("ArrowDown", picker.button);
     expect(picker.scroll.scrollLeft).toBe(50);
   });
 
@@ -244,20 +211,22 @@ describe("bringing a row into the list", () => {
     picker.scroll.scrollWidth = 400;
     picker.scroll.scrollLeft = 30;
     picker.hidden.box = { ...picker.hidden.box, left: 20, right: 120 };
-    picker.key("End", picker.button);
+    picker.key("ArrowUp", picker.button);
     expect(picker.scroll.scrollLeft).toBe(30);
   });
 });
 
 describe("what closes an open panel, and where focus is left", () => {
-  test("the window resizing closes it without taking focus", async () => {
+  test("the window resizing measures a search again rather than closing it and dropping the typing", async () => {
+    // A phone's keyboard rising under the field resizes the page the moment the field is pressed.
     const picker = await openPicker();
-    const elsewhere = parseHtml("<button>elsewhere</button>", picker.doc).querySelector(
-      "button:not([aria-haspopup])",
-    ) as El;
-    elsewhere.focus();
+    picker.button.focus();
+    type(picker, picker.button, "fo");
+    (picker.panel as El).style.top = "-9999px";
     picker.doc.fire("resize", picker.doc);
-    expect([picker.panel?.hidden, picker.doc.activeElement]).toEqual([true, elsewhere]);
+    expect(picker.panel?.hidden).toBe(false);
+    expect(picker.panel?.style.top).not.toBe("-9999px");
+    expect([picker.button.value, picker.doc.activeElement]).toEqual(["fo", picker.button]);
   });
 
   test("a field taken off the page closes its panel on the next scroll", async () => {
@@ -284,12 +253,13 @@ describe("putting a finished form back", () => {
     const other = parseHtml(form("picker"), new El("div")).querySelector("form") as El;
     picker.doc.append(other);
     await picker.doc.arrivals();
-    const theirs = other.querySelector(".listbox__button") as El;
+    const theirs = other.querySelector('[role="combobox"]') as El;
     picker.press(theirs);
     picker.press(other.querySelectorAll('[role="option"]')[0] as El);
-    const kept = (other.querySelector(".listbox__value") as El).textContent;
+    const kept = theirs.value;
     picker.doc.fire(RECORD_CREATED_EVENT, picker.form);
-    expect((other.querySelector(".listbox__value") as El).textContent).toBe(kept);
+    expect(theirs.value).toBe(kept);
+    expect(kept).not.toBe("");
   });
 
   test("a picker still on the page after other arrivals is still put back", async () => {
@@ -316,5 +286,69 @@ describe("putting a finished form back", () => {
     row.press(first);
     row.press(first);
     expect(row.doc.changes).toEqual([{ value: "v1" }]);
+  });
+});
+
+describe("searching, at its edges", () => {
+  test("a required picker's error stands while a search finds nothing, and a pick clears it", async () => {
+    const one = await scene(form("picker", undefined, { required: true }));
+    startFieldErrors(one.doc as never);
+    expect(one.doc.fire("submit", one.form).prevented).toBe(true);
+    expect(one.field.classList.contains("is-invalid")).toBe(true);
+    const input = one.button as El;
+    type(one, input, "zzz");
+    one.key("Escape", input);
+    expect(one.field.classList.contains("is-invalid")).toBe(true);
+    type(one, input, "fou");
+    one.key("Enter", input);
+    expect(one.field.classList.contains("is-invalid")).toBe(false);
+  });
+
+  test("the Enter that ends an input method's composition picks nothing", async () => {
+    const one = await scene(form("picker"));
+    const input = one.button as El;
+    type(one, input, "fou");
+    for (const extra of [{ isComposing: true }, { keyCode: 229 }]) {
+      expect(one.doc.fire("keydown", input, { key: "Enter", ...extra }).prevented).toBe(false);
+    }
+    expect(one.carrier?.value).toBe("");
+  });
+
+  test("a field outside the box that paints it does not open, and leaves no active row behind", async () => {
+    const one = await scene(form("picker", "first"));
+    const input = one.button as El;
+    (one.shell as El).box = { top: 950, bottom: 980, left: 10, right: 210, width: 200, height: 30 };
+    type(one, input, "fou");
+    expect(input.getAttribute("aria-expanded")).toBe("false");
+    expect(input.getAttribute("aria-activedescendant")).toBeNull();
+    expect(input.value).toBe("First");
+  });
+
+  test("an optional picker emptied and left chooses nothing; Escape puts the choice back", async () => {
+    const one = await scene(form("picker", "second"));
+    const input = one.button as El;
+    type(one, input, "");
+    one.key("Tab", input);
+    expect(one.carrier?.value).toBe("");
+    expect(input.value).toBe("");
+    expect(one.options().every((option) => option.getAttribute("aria-selected") === "false")).toBe(
+      true,
+    );
+    expect(one.doc.changes).toEqual([{ value: "" }]);
+
+    const kept = await scene(form("picker", "second"));
+    const field = kept.button as El;
+    type(kept, field, "");
+    kept.key("Escape", field);
+    expect(kept.carrier?.value).toBe("second");
+  });
+
+  test("a required picker emptied and left keeps its choice", async () => {
+    const one = await scene(form("picker", "second", { required: true }));
+    const input = one.button as El;
+    type(one, input, "");
+    one.doc.fire("pointerdown", one.form);
+    expect(one.carrier?.value).toBe("second");
+    expect(input.value).toBe("Second");
   });
 });

@@ -102,7 +102,7 @@ export function alreadyGoneResponse(
   return c.html(
     renderCapabilityDeletionAlreadyGone(
       capabilityId,
-      restored ? renderCachedCapabilitySurface(restored) : "",
+      restored ? renderCachedCapabilitySurface(restored, database) : "",
       after,
     ),
     200,
@@ -297,7 +297,7 @@ function committedCapabilityDeletionResponse(
 ): Response {
   const currentRestoration = resolveCurrentCapabilityDeletionRestoration(restoration, database);
   const restoredSurface = currentRestoration
-    ? renderCachedCapabilitySurface(currentRestoration)
+    ? renderCachedCapabilitySurface(currentRestoration, database)
     : "";
   return c.html(renderCapabilityDeletionCommitted(target, restoredSurface, cleanupPending), 200, {
     "cache-control": "no-store",

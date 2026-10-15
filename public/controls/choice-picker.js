@@ -3,17 +3,32 @@
 /**
  * The choice controls that need a script — the drawn picker and the segmented row. No stylesheet
  * reaches inside a `<select>`'s popup, so `design/scripts/controls/listbox.js` is the contract instead.
+ * A picker drawn as a field you type into searches; one drawn as a button, as the Link control's
+ * chooser is, keeps the select-only keyboard and its jump to a typed letter.
  */
 
+import {
+  keyIsNotOurs,
+  narrow,
+  optionLabel,
+  searchIntent,
+} from "../../design/scripts/controls/listbox-search.js";
 import { watchArrivals } from "../core/dom-arrivals.js";
 import { onCreateFinished } from "../core/shell-dom.js";
+import { clamp, clipBounds, inset } from "./panel-placement.js";
+
+export { clipBounds };
 
 /** The field a picker is drawn on, which is what both mounting and the arrival watch look for. */
 const PICKER_SELECTOR = '[data-choice-presentation="picker"]';
 
+/** The control of a picker that searches: the field's own input, which takes the typing. */
+const SEARCH_CONTROL = 'input[role="combobox"]';
+
 /**
- * The pattern's roving-focus keys. Focus stays on the button throughout and the active option is
- * reported by `aria-activedescendant`, or all five exit paths would restore focus by hand.
+ * The select-only keyboard's opening keys, which the chooser keeps. Focus stays on the control
+ * throughout and the active option is reported by `aria-activedescendant`, or every exit path
+ * would restore focus by hand.
  */
 const OPEN_KEYS = new Set(["ArrowDown", "ArrowUp", "Enter", " ", "Home", "End"]);
 
@@ -41,23 +56,6 @@ function optionsIn(panel) {
 const isDisabled = (option) => option.getAttribute("aria-disabled") === "true";
 
 /**
- * What an option is called, as against everything written on its row. A trailing note belongs to
- * the row, not the value: in typeahead it would make `c` match a status called Paid.
- *
- * @param {HTMLElement} option
- * @returns {string}
- */
-function optionLabel(option) {
-  const note = option.querySelector(".listbox__note");
-  if (!note) return option.textContent?.trim() ?? "";
-  return [...option.childNodes]
-    .filter((node) => node !== note)
-    .map((node) => node.textContent ?? "")
-    .join("")
-    .trim();
-}
-
-/**
  * The first option whose label starts with `needle`, searching forward from `start` and wrapping.
  * Null when nothing matches, so the active row stays where it was.
  *
@@ -74,6 +72,30 @@ function matchFrom(options, needle, start) {
   return null;
 }
 
+/**
+ * What a picker is drawn with. A button names its choice in `.listbox__value`; a picker that
+ * searches has no button, and its input both shows the choice and takes the typing.
+ *
+ * @param {HTMLElement} root
+ * @returns {{ control: HTMLElement, input: HTMLInputElement | null, panel: HTMLElement,
+ *   valueEl: HTMLElement | null }}
+ */
+function pickerParts(root) {
+  const button = root.querySelector(".listbox__button");
+  const control = button ?? root.querySelector(SEARCH_CONTROL);
+  const input = !button && control instanceof HTMLInputElement ? control : null;
+  const panel = root.querySelector(".listbox__panel");
+  const value = root.querySelector(".listbox__value");
+  const valueEl = value instanceof HTMLElement ? value : null;
+  if (!(control instanceof HTMLElement) || !(panel instanceof HTMLElement) || !(input || valueEl)) {
+    throw new Error(
+      "A picker needs a .listbox__button with its .listbox__value, or an input it searches" +
+        " from, and a .listbox__panel",
+    );
+  }
+  return { control, input, panel, valueEl };
+}
+
 /** One mounted picker. */
 export class ChoicePicker {
   /**
@@ -81,30 +103,16 @@ export class ChoicePicker {
    * @param {Set<ChoicePicker>} open the pickers standing open on this document
    */
   constructor(root, open) {
-    const button = root.querySelector(".listbox__button");
-    const panel = root.querySelector(".listbox__panel");
-    const value = root.querySelector(".listbox__value");
-    if (
-      !(button instanceof HTMLButtonElement) ||
-      !(panel instanceof HTMLElement) ||
-      !(value instanceof HTMLElement)
-    ) {
-      throw new Error("A picker needs a .listbox__button, a .listbox__panel and a .listbox__value");
-    }
-
+    const { control, input, panel, valueEl } = pickerParts(root);
     this.root = root;
     /** The open set this picker belongs to — one per document, never module-wide. */
     this.openPickers = open;
-    this.button = button;
+    /** The button, or the input a picker that searches takes its typing in. */
+    this.control = control;
+    this.input = input;
     this.panel = panel;
-    this.valueEl = value;
+    this.valueEl = valueEl;
     this.open = false;
-
-    /**
-     * What the closed control shows when nothing is chosen. Read off the field rather than
-     * off the rendered value, which is the *chosen* label whenever there is one.
-     */
-    this.placeholder = root.dataset.choicePlaceholder ?? "Choose…";
 
     /**
      * The option the keyboard is on, distinct from the selected one: you can walk a list and
@@ -116,6 +124,9 @@ export class ChoicePicker {
     /** Typeahead buffer, cleared after a pause. */
     this.typed = "";
     this.typedAt = 0;
+
+    /** What the list is searched by: what was typed since it opened, nothing until then. */
+    this.query = "";
 
     /**
      * Whether the list has moved since the pointer last did. A `pointerover` fires for a scroll
@@ -152,7 +163,16 @@ export class ChoicePicker {
     /** The panel's own padding and line, so the scroller can be sized to fit a space. */
     this.chrome = 0;
 
+    /** Every listener this picker holds, let go of at once when it is retired. */
+    this.wiring = new AbortController();
     this.#wire();
+  }
+
+  /** Stop answering for good, every listener with it: the field it drew is plain text again. */
+  retire() {
+    this.hide(false);
+    this.openPickers.delete(this);
+    this.wiring.abort();
   }
 
   /** Whether a choice posts through a carrier. The Link control's chooser writes, and posts nothing. */
@@ -160,9 +180,9 @@ export class ChoicePicker {
     return true;
   }
 
-  /** The box the panel hangs from and is as wide as: the drawn control. */
+  /** The box the panel hangs from and is as wide as: the drawn control, the input's shell. */
   controlBox() {
-    return this.button.getBoundingClientRect();
+    return (this.input?.closest(".field__control") ?? this.control).getBoundingClientRect();
   }
 
   /** The tallest the panel may stand. A panel that heads its list measures the heading on. */
@@ -207,12 +227,36 @@ export class ChoicePicker {
     if (changed) announceChange(this.field);
   }
 
+  /** Choose nothing, as an optional field that was emptied and left does. */
+  clear() {
+    const changed = this.selectedOption !== null;
+    for (const option of optionsIn(this.panel)) option.setAttribute("aria-selected", "false");
+    this.paint();
+    if (changed) announceChange(this.field);
+  }
+
+  /**
+   * The person left the field, by Tab, a press elsewhere or focus moving on. An optional field they
+   * emptied stays empty, since emptying is not typing a value; anything else is put back.
+   */
+  leave() {
+    const emptied = this.input?.value.trim() === "" && this.shownLabel() !== "";
+    if (emptied && !this.field?.hasAttribute("data-choice-required")) this.clear();
+    this.hide(false);
+  }
+
+  /** What the closed control shows: the chosen option's label, or nothing. */
+  shownLabel() {
+    const option = this.selectedOption;
+    return option ? optionLabel(option) : "";
+  }
+
   /** Put the closed control and the carrier back in step with what is selected. */
   paint() {
-    const option = this.selectedOption;
-    const label = option ? optionLabel(option) : "";
-    this.valueEl.textContent = label || this.placeholder;
-    this.valueEl.classList.toggle("is-placeholder", !label);
+    const label = this.shownLabel();
+    if (this.input) this.input.value = label;
+    this.valueEl?.classList.toggle("is-placeholder", !label);
+    if (this.valueEl) this.valueEl.textContent = label;
     if (this.field) this.field.value = this.value ?? "";
   }
 
@@ -239,29 +283,34 @@ export class ChoicePicker {
     this.open = true;
     this.openPickers.add(this);
     this.panel.hidden = false;
-    this.button.setAttribute("aria-expanded", "true");
+    this.control.setAttribute("aria-expanded", "true");
     this.root.classList.add("is-open");
+    this.query = "";
+    if (this.input) narrow(this.panel, "");
     this.anchor();
+    // Placing it can close it again, when its control stands outside the box that paints it.
+    if (!this.open) return;
     this.#setActive(startAt ?? this.selectedOption ?? this.#step(null, 1));
   }
 
   /** @param {boolean} [refocus] */
   hide(refocus = true) {
+    // Leaving without a pick puts back what was chosen, even before a list was ever shown: typing
+    // only ever searched.
+    if (this.input) this.input.value = this.shownLabel();
     if (!this.open) return;
     this.open = false;
     this.origin = null;
     this.bounds = null;
     this.openPickers.delete(this);
     this.panel.hidden = true;
-    this.button.setAttribute("aria-expanded", "false");
-    this.button.removeAttribute("aria-activedescendant");
+    this.control.setAttribute("aria-expanded", "false");
     this.root.classList.remove("is-open");
-    this.active?.classList.remove("is-active");
-    this.active = null;
+    this.#dropActive();
     // Per-opening state, cleared with the rest of it: a list disarmed by its last scroll
     // would otherwise open again with the pointer still not trusted.
     this.listMoved = false;
-    if (refocus) this.button.focus();
+    if (refocus) this.control.focus();
   }
 
   /**
@@ -355,7 +404,7 @@ export class ChoicePicker {
    * @returns {HTMLElement | null}
    */
   #step(from, direction) {
-    const all = optionsIn(this.panel);
+    const all = optionsIn(this.panel).filter((option) => !option.hidden);
     if (all.length === 0) return null;
     const start = from ? all.indexOf(from) : direction === 1 ? -1 : all.length;
 
@@ -380,8 +429,15 @@ export class ChoicePicker {
     this.active?.classList.remove("is-active");
     this.active = option;
     option.classList.add("is-active");
-    this.button.setAttribute("aria-activedescendant", option.id);
+    this.control.setAttribute("aria-activedescendant", option.id);
     if (reveal) this.#reveal(option);
+  }
+
+  /** No row is active: the list is closed, or a search kept nothing Enter could take. */
+  #dropActive() {
+    this.active?.classList.remove("is-active");
+    this.active = null;
+    this.control.removeAttribute("aria-activedescendant");
   }
 
   /**
@@ -484,42 +540,120 @@ export class ChoicePicker {
     }
   }
 
+  /**
+   * Narrow the list to what is typed, opening it on the first keystroke, and land on the first
+   * option the search kept, which is where Enter picks.
+   */
+  #search() {
+    if (!this.input) return;
+    if (!this.open) this.show();
+    this.query = this.input.value;
+    this.relist();
+  }
+
+  /**
+   * Search the options again, as they are drawn now: after a keystroke, or when a list read while
+   * it stood open is drawn again. With nothing typed the keyboard lands on the chosen option.
+   *
+   * @param {string} [keep] the value of the row the keyboard was on before the options were drawn
+   *   again, which it stays on while the search still keeps it
+   */
+  relist(keep) {
+    if (!this.open || !this.input) return;
+    const kept = narrow(this.panel, this.query).filter((option) => !isDisabled(option));
+    const held = kept.find((option) => keep !== undefined && option.dataset.value === keep);
+    const chosen = this.query.trim() === "" ? this.selectedOption : null;
+    const landing = held ?? (chosen && kept.includes(chosen) ? chosen : kept[0]);
+    if (landing) this.#setActive(landing);
+    else this.#dropActive();
+    this.place();
+  }
+
+  /**
+   * A picker that searches: the arrows walk and Enter picks, Escape and Tab leave, and every other
+   * key is typing, which the input takes and {@link ChoicePicker#search} hears.
+   *
+   * @param {KeyboardEvent} event
+   */
+  #keyWhileSearching(event) {
+    if (keyIsNotOurs(event)) return;
+    const intent = searchIntent(event.key, this.open);
+    if (intent === null) return;
+    if (intent === "leave") return event.key === "Tab" ? this.leave() : this.hide(false);
+    event.preventDefault();
+    if (intent === "open") return this.show();
+    if (intent === "pick") return this.#pick(this.active);
+    this.#setActive(this.#step(this.active, intent === "next" ? 1 : -1));
+  }
+
+  /** @param {HTMLElement | null} option */
+  #pick(option) {
+    if (!option) return;
+    this.select(option);
+    this.hide();
+  }
+
+  /**
+   * A press on the field opens it with its text chosen, so typing replaces it, and a press on the
+   * chevron opens or closes it. Focus leaving the field puts back what was chosen.
+   *
+   * @param {HTMLInputElement} input
+   */
+  #wireSearch(input) {
+    const on = { signal: this.wiring.signal };
+    input.addEventListener("keydown", (event) => this.#keyWhileSearching(event), on);
+    input.addEventListener("input", () => this.#search(), on);
+    const shell = input.closest(".field__control");
+    const press = (/** @type {Event} */ event) => {
+      if (event.target !== input) input.focus();
+      if (this.open) return event.target === input ? undefined : this.hide();
+      this.show();
+      input.select();
+    };
+    shell?.addEventListener("click", press, on);
+    // A press on the chevron or on a row would take focus off the input, closing the list first.
+    for (const part of [shell, this.panel]) {
+      part?.addEventListener(
+        "mousedown",
+        (event) => {
+          if (event.target !== input) event.preventDefault();
+        },
+        on,
+      );
+    }
+    const left = (/** @type {FocusEvent} */ event) => {
+      const next = event.relatedTarget;
+      if (!(next instanceof Node) || !this.root.contains(next)) this.leave();
+    };
+    this.root.addEventListener("focusout", left, on);
+  }
+
   #wire() {
-    this.button.addEventListener("click", () => {
-      if (this.open) this.hide();
-      else this.show();
-    });
+    const on = { signal: this.wiring.signal };
+    if (this.input) this.#wireSearch(this.input);
+    else {
+      const toggle = () => (this.open ? this.hide() : this.show());
+      this.control.addEventListener("click", toggle, on);
+      const key = (/** @type {KeyboardEvent} */ event) =>
+        this.open ? this.#keyWhileOpen(event) : this.#keyWhileClosed(event);
+      this.control.addEventListener("keydown", key, on);
+    }
 
-    this.button.addEventListener("keydown", (event) => {
-      if (this.open) this.#keyWhileOpen(event);
-      else this.#keyWhileClosed(event);
-    });
-
-    this.panel.addEventListener("click", (event) => {
-      const option = optionFrom(event.target);
-      if (!option) return;
-      this.select(option);
-      this.hide();
-    });
+    this.panel.addEventListener("click", (event) => this.#pick(optionFrom(event.target)), on);
 
     /*
      * Pointer-over sets the active option so the keyboard and the mouse never disagree: a list
      * showing two highlights has lost track of which one Enter will take.
      */
-    this.panel.addEventListener("pointerover", (event) => {
+    const hover = (/** @type {Event} */ event) => {
       if (this.listMoved) return;
       const option = optionFrom(event.target);
       /* No reveal: the pointer is on the row already, so there is nowhere to bring it. */
       if (option && !isDisabled(option)) this.#setActive(option, false);
-    });
-
-    this.panel.addEventListener("pointermove", () => {
-      this.listMoved = false;
-    });
-
-    this.scroll.addEventListener("scroll", () => {
-      this.listMoved = true;
-    });
+    };
+    this.panel.addEventListener("pointerover", hover, on);
+    this.panel.addEventListener("pointermove", () => (this.listMoved = false), on);
+    this.scroll.addEventListener("scroll", () => (this.listMoved = true), on);
   }
 }
 
@@ -545,9 +679,13 @@ export function watchPlacement(root, openPickers) {
     true,
   );
   // A resize can move the containing block the panel was measured against, so the honest answer
-  // is to close rather than place it somewhere guessed.
+  // is to close rather than place it somewhere guessed. A search is measured again instead: a
+  // phone's keyboard rising under the field resizes the page, and closing would drop the typing.
   root.defaultView?.addEventListener("resize", () => {
-    for (const picker of [...openPickers]) picker.hide(false);
+    for (const picker of [...openPickers]) {
+      if (picker.input) picker.anchor();
+      else picker.hide(false);
+    }
   });
 }
 
@@ -566,89 +704,9 @@ export function closeOnPressOutside(root, openPickers) {
         openPickers.delete(picker);
         continue;
       }
-      if (target instanceof Node && !picker.holds(target)) picker.hide(false);
+      if (target instanceof Node && !picker.holds(target)) picker.leave();
     }
   });
-}
-
-/**
- * @param {{ top: number, left: number, right: number, bottom: number }} box
- * @param {number} by
- */
-function inset(box, by) {
-  return {
-    top: box.top + by,
-    left: box.left + by,
-    right: box.right - by,
-    bottom: box.bottom - by,
-  };
-}
-
-/** @param {number} value @param {number} low @param {number} high */
-function clamp(value, low, high) {
-  return Math.min(Math.max(value, low), Math.max(low, high));
-}
-
-/**
- * The box a fixed panel is actually painted inside — not its containing block, but any ancestor
- * up to it that both hides overflow and is positioned. A static scroller does not clip.
- *
- * @param {HTMLElement} panel
- */
-export function clipBounds(panel) {
-  const view = panel.ownerDocument.defaultView;
-  let bounds = { top: 0, left: 0, right: view?.innerWidth ?? 0, bottom: view?.innerHeight ?? 0 };
-  for (const node of clippingAncestors(panel)) {
-    bounds = intersect(bounds, node.getBoundingClientRect());
-  }
-  return bounds;
-}
-
-/**
- * The ancestors that clip a fixed panel: those hiding their overflow, up to and including
- * the one that is its containing block.
- *
- * @param {HTMLElement} panel
- * @returns {HTMLElement[]}
- */
-function clippingAncestors(panel) {
-  const view = panel.ownerDocument.defaultView;
-  /** @type {HTMLElement[]} */
-  const clippers = [];
-  for (let node = panel.parentElement; node; node = node.parentElement) {
-    const style = view?.getComputedStyle(node);
-    if (!style) break;
-    // `translate`/`scale`/`rotate` make a containing block exactly as `transform` does, and a
-    // dragged row carries a `translate` (design/styles/tokens.css).
-    const containing =
-      style.transform !== "none" ||
-      style.filter !== "none" ||
-      style.translate !== "none" ||
-      style.scale !== "none" ||
-      style.rotate !== "none";
-    if (clips(style, containing)) clippers.push(node);
-    if (containing) break;
-  }
-  return clippers;
-}
-
-/** @param {CSSStyleDeclaration} style @param {boolean} containing */
-function clips(style, containing) {
-  if (!containing && style.position === "static") return false;
-  return style.overflowX !== "visible" || style.overflowY !== "visible";
-}
-
-/**
- * @param {{ top: number, left: number, right: number, bottom: number }} box
- * @param {DOMRect} other
- */
-function intersect(box, other) {
-  return {
-    top: Math.max(box.top, other.top),
-    left: Math.max(box.left, other.left),
-    right: Math.min(box.right, other.right),
-    bottom: Math.min(box.bottom, other.bottom),
-  };
 }
 
 /** @param {EventTarget | null} target @returns {HTMLElement | null} */

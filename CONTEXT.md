@@ -595,9 +595,8 @@ _Avoid_: optgroup, category, section
 **Option note**:
 One short phrase beside an option that qualifies it — "closes the record",
 "needs a reason". It belongs to the row and not to the value: it never follows a
-choice onto the closed control, never enters typeahead or the search a picker gains in
-8.1/03, and is exposed as the option's accessible description rather than as visual-only
-text.
+choice onto the closed control, never enters a picker's search or the chooser's typeahead,
+and is exposed as the option's accessible description rather than as visual-only text.
 _Avoid_: hint, help text, subtitle
 
 **Retired option**:

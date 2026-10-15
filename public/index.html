@@ -97,7 +97,7 @@
     <script type="module" src="/static/controls/list-field.js"></script>
 
     <!--
-      The drawn choice controls — the picker's panel, keyboard and typeahead, and the
+      The drawn choice controls — the picker's panel, keyboard and search, and the
       segmented row's exclusive press. Mounted after every htmx landing, because the forms
       they stand in arrive long after page load. The radio group needs nothing here: native
       radio inputs already are the control.
@@ -110,6 +110,13 @@
       A pick writes the relation in place; only a refusal reaches the prompt bar.
     -->
     <script type="module" src="/static/controls/link-control.js"></script>
+
+    <!--
+      A linked field: the dropdown of the records it is linked to, drawn around the field's
+      own input and searched by typing into it. The records and the words it says are read
+      from the server, and a field linked from an open form becomes one where it stands.
+    -->
+    <script type="module" src="/static/controls/linked-field.js"></script>
 
     <!--
       The multi-line control and the character counter. A long-text field grows with what

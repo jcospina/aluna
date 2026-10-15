@@ -92,7 +92,7 @@ import {
   WireProtocolError,
 } from "../wire/wire-protocol.ts";
 import { registerCapabilityViews } from "./address/capability-views.ts";
-import { invokeCapabilityHandler } from "./handler-invocation.ts";
+import { type HandlerRead, invokeCapabilityHandler } from "./handler-invocation.ts";
 
 /**
  * Registry lookup seam. Production uses the validated registry store; route tests
@@ -246,7 +246,7 @@ async function handleCapabilityRequest(
         row,
         spec,
         parsedRequest,
-        dependencies,
+        { dependencies, catalog },
         action,
         tokens.signal,
         () => readGates.release(tokens),
@@ -263,7 +263,7 @@ async function handleCapabilityRequest(
       row,
       spec,
       parsedRequest,
-      dependencies,
+      { dependencies, catalog },
       action,
       tokens.signal,
       handlerTimeoutMs,
@@ -311,7 +311,7 @@ async function handleRecordMutation(
   row: CapabilityRow,
   spec: CapabilitySpec,
   parsedRequest: ParsedCapabilityRequest,
-  dependencies: readonly CapabilityRow[],
+  read: HandlerRead,
   action: MutationAction,
   signal: AbortSignal,
   releaseOwnership: () => void,
@@ -332,7 +332,7 @@ async function handleRecordMutation(
       row,
       spec,
       parsedRequest,
-      dependencies,
+      read,
       action,
       signal,
       handlerTimeoutMs,
@@ -360,7 +360,7 @@ async function executeCapabilityHandler(
   row: CapabilityRow,
   spec: CapabilitySpec,
   parsedRequest: ParsedCapabilityRequest,
-  dependencies: readonly CapabilityRow[],
+  read: HandlerRead,
   action: WireProtocolAction,
   signal: AbortSignal,
   handlerTimeoutMs: number,
@@ -380,7 +380,7 @@ async function executeCapabilityHandler(
         loadItemRenderer,
         row,
         spec,
-        dependencies,
+        read,
         action,
         parsedRequest,
         signal,

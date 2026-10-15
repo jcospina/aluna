@@ -43,10 +43,12 @@
           state it can be in, plus the two that did not exist yet.
         </p>
         <p class="lede">
-          Everything here is real, so you can type into the fields, open the listboxes, tick the
-          boxes and watch the long-text field grow. A control that only looks right in a screenshot
-          is what this page is meant to catch. The one exception is Links, drawn before it is built:
-          its choosers and dropdowns open, and the states around them are pictures.
+          Everything here is real, so you can type into the fields, open and search the listboxes,
+          tick the boxes and watch the long-text field grow. A control that only looks right in a
+          screenshot is what this page is meant to catch. The one exception is in Links. Its
+          choosers open, and its dropdowns open and search as they do on the desk, but a few of its
+          drawings are held still to show a single moment: an open list, the fade while Aluna
+          connects a field, and the question the broken chain asks.
         </p>
 
         <div class="note note--sky">
@@ -807,22 +809,19 @@
         <div class="forms">
           <div>
             <h3 class="kicker">Ours · a drawn listbox</h3>
-            <div
-              class="field listbox"
-              data-listbox
-              data-name="status"
-              data-placeholder="Choose a status…"
-            >
-              <span class="field__label caps" id="status-label">Status</span>
-              <button
-                class="field__control field__control--select listbox__button"
-                type="button"
-                role="combobox"
-                aria-expanded="false"
-                aria-labelledby="status-label"
-              >
-                <span class="listbox__value"></span>
-                <span class="listbox__chevron"
+            <div class="field listbox" data-listbox data-name="status">
+              <label class="field__label caps" id="status-label" for="status-input">Status</label>
+              <span class="field__control field__control--select"
+                ><input
+                  class="field__input"
+                  id="status-input"
+                  type="text"
+                  role="combobox"
+                  aria-expanded="false"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="Choose a status…"
+                ><span class="listbox__chevron"
                   ><svg
                     viewBox="0 0 24 24"
                     width="12"
@@ -836,10 +835,10 @@
                   >
                     <path d="M6 9l6 6 6-6"></path>
                   </svg></span
-                >
-              </button>
+                ></span
+              >
               <div class="listbox__panel" hidden>
-                <div class="listbox__scroll">
+                <div class="listbox__scroll" aria-labelledby="status-label">
                   <div class="listbox__option" role="option" data-value="draft">Draft</div>
                   <div class="listbox__option" role="option" data-value="sent" aria-selected="true">
                     Sent
@@ -874,36 +873,34 @@
             </div>
 
             <p class="xs" style="margin-top: 18px">
-              Open it with <strong>Enter</strong>, <strong>Space</strong> or an arrow key. Walk the
-              list with the arrows or <strong>Home</strong> and <strong>End</strong>, jump by typing
-              a letter, commit with <strong>Enter</strong>, and leave with <strong>Escape</strong>.
-              Focus never moves off the button, and the active row is reported through
-              <code>aria-activedescendant</code>. That keeps the five ways out of the panel from
-              each needing their own focus-restoring code.
-            </p>
-            <p class="xs">
-              From Module 8 typing searches instead of jumping: the list narrows to the options
-              whose label contains every typed word, as <a href="#link">Links</a> draws it. 8.1/03
-              builds that and rewrites this paragraph.
+              Open it with a press, <strong>Enter</strong> or an arrow key, or just start typing.
+              Typing searches: the list keeps the options whose label contains every typed word,
+              ignoring case and accents, and never reads an option's note. When nothing matches it
+              says so. <strong>Enter</strong> picks the first match, the arrows walk the list, and
+              <strong>Space</strong>, <strong>Home</strong> and <strong>End</strong> are typing.
+              <strong>Escape</strong>, <strong>Tab</strong> or a press outside puts back what was
+              chosen, except that an optional field you emptied and left stays empty; Escape always
+              puts it back. Focus never leaves the field, and the active row is reported through
+              <code>aria-activedescendant</code>. That keeps the ways out of the panel from each
+              needing their own focus-restoring code.
             </p>
 
             <div class="row" style="margin-top: 16px">
-              <div
-                class="field listbox"
-                data-listbox
-                data-placeholder="Choose a currency…"
-                style="min-width: 220px"
-              >
-                <span class="field__label caps" id="ccy-label">A long one, scrolling</span>
-                <button
-                  class="field__control field__control--select listbox__button"
-                  type="button"
-                  role="combobox"
-                  aria-expanded="false"
-                  aria-labelledby="ccy-label"
+              <div class="field listbox" data-listbox style="min-width: 220px">
+                <label class="field__label caps" id="ccy-label" for="ccy-input"
+                  >A long one, scrolling</label
                 >
-                  <span class="listbox__value"></span>
-                  <span class="listbox__chevron"
+                <span class="field__control field__control--select"
+                  ><input
+                    class="field__input"
+                    id="ccy-input"
+                    type="text"
+                    role="combobox"
+                    aria-expanded="false"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Choose a currency…"
+                  ><span class="listbox__chevron"
                     ><svg
                       viewBox="0 0 24 24"
                       width="12"
@@ -917,10 +914,10 @@
                     >
                       <path d="M6 9l6 6 6-6"></path>
                     </svg></span
-                  >
-                </button>
+                  ></span
+                >
                 <div class="listbox__panel" hidden>
-                  <div class="listbox__scroll">
+                  <div class="listbox__scroll" aria-labelledby="ccy-label">
                     <div role="group" aria-labelledby="ccy-group-americas">
                       <div class="listbox__group caps" role="presentation" id="ccy-group-americas">
                         Americas
@@ -1022,9 +1019,9 @@
           <div class="note">
             <h4>What it costs</h4>
             <p class="sm">
-              About 300 well-trodden lines: the ARIA select-only combobox pattern, arrow keys,
-              typeahead, click-outside handling, and a flip when there is no room below. In
-              exchange, an enum stops being a text field with a rule attached, and the control
+              About 300 well-trodden lines: the ARIA combobox pattern with a list the field
+              searches, arrow keys, click-outside handling, and a flip when there is no room below.
+              In exchange, an enum stops being a text field with a rule attached, and the control
               generation reaches for most often no longer breaks the surface.
             </p>
           </div>
@@ -2272,7 +2269,7 @@
       <section class="window--section" id="link" data-window data-title="Links">
         <div class="note note--sky">
           <p>
-            <strong>New in Module 8, and drawn before it is built.</strong>
+            <strong>New in Module 8.</strong>
             A single-line text field can be linked to a field of another capability. A book's author
             linked to Authors still shows the author's name, but the name follows her record, and
             the book knows which record it is. The Link control is the chain inside the field, and
@@ -2280,9 +2277,11 @@
             <em>disconnect</em>, never <em>link</em> (ADR-0011).
           </p>
           <p>
-            Nothing in this section talks to a server. 8.1/02 builds the chooser, 8.1/03 the linked
-            field, its search and the line under an unmatched name, 8.1/05 what fades while Aluna
-            links a field, the report and the broken-link mark, and 8.1/07 Unlink and its question.
+            Nothing in this section talks to a server: every list holds names written into the page,
+            and a pick in a chooser only closes it. The linked field, with its search and the line
+            under an unmatched name, works here as it does on the desk. What fades while Aluna links
+            a field, the report and the broken-link mark come with 8.1/05, and Unlink and its
+            question with 8.1/07, so they are drawn held still.
           </p>
         </div>
         <h3 class="kicker" style="margin-top: 22px">Before it is linked</h3>
@@ -3514,16 +3513,24 @@
                   </div>
                 </div>
                 <div class="field">
-                  <span class="field__label caps" id="link-busy-author-label">Author</span>
+                  <label
+                    class="field__label caps"
+                    id="link-busy-author-label"
+                    for="link-busy-author-input"
+                    >Author</label
+                  >
                   <div class="listbox linked-field">
-                    <button
-                      class="field__control field__control--select listbox__button"
-                      type="button"
-                      role="combobox"
-                      aria-expanded="false"
-                      aria-labelledby="link-busy-author-label"
-                    >
-                      <span class="listbox__value">Brandon Sanderson</span
+                    <span class="field__control field__control--select"
+                      ><input
+                        class="field__input"
+                        id="link-busy-author-input"
+                        type="text"
+                        role="combobox"
+                        aria-expanded="false"
+                        autocomplete="off"
+                        spellcheck="false"
+                        placeholder="Choose the author…"
+                        value="Brandon Sanderson"
                       ><span class="linked-field__slot" aria-hidden="true"></span
                       ><span class="listbox__chevron"
                         ><svg
@@ -3539,8 +3546,8 @@
                         >
                           <path d="M6 9l6 6 6-6"></path>
                         </svg></span
-                      >
-                    </button><button
+                      ></span
+                    ><button
                       class="linked-field__unlink"
                       type="button"
                       aria-label="Disconnect every book’s author"
@@ -3687,24 +3694,29 @@
         <p class="sm">
           A linked field is the drawn listbox, holding the target's records shown by the field the
           link names. It cannot be free-typed: typing into it only searches those records, and
-          leaving without a pick puts back its value. In a new record it starts empty and asks for a
-          pick. The broken chain sits inside its boundary, before the chevron; it is laid over a gap
-          kept free in the button, because a button cannot hold another.
+          leaving without a pick puts back its value. Emptying it is no typing, so an optional field
+          emptied and left stays empty. In a new record it starts empty and asks for a pick. The
+          broken chain sits inside its boundary, before the chevron; it is laid over a gap kept free
+          in the field's shell, because an input cannot hold a button.
         </p>
         <div class="forms">
           <div>
             <h3 class="kicker">In a new record</h3>
             <div class="field">
-              <span class="field__label caps" id="link-on-new-label">Author</span>
-              <div class="listbox linked-field" data-listbox data-placeholder="Choose the author…">
-                <button
-                  class="field__control field__control--select listbox__button"
-                  type="button"
-                  role="combobox"
-                  aria-expanded="false"
-                  aria-labelledby="link-on-new-label"
-                >
-                  <span class="listbox__value"></span
+              <label class="field__label caps" id="link-on-new-label" for="link-on-new-input"
+                >Author</label
+              >
+              <div class="listbox linked-field" data-listbox>
+                <span class="field__control field__control--select"
+                  ><input
+                    class="field__input"
+                    id="link-on-new-input"
+                    type="text"
+                    role="combobox"
+                    aria-expanded="false"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Choose the author…"
                   ><span class="linked-field__slot" aria-hidden="true"></span
                   ><span class="listbox__chevron"
                     ><svg
@@ -3720,8 +3732,8 @@
                     >
                       <path d="M6 9l6 6 6-6"></path>
                     </svg></span
-                  >
-                </button><button
+                  ></span
+                ><button
                   class="linked-field__unlink"
                   type="button"
                   aria-label="Disconnect every book’s author"
@@ -3743,7 +3755,7 @@
                   </svg>
                 </button>
                 <div class="listbox__panel" hidden>
-                  <div class="listbox__scroll">
+                  <div class="listbox__scroll" aria-labelledby="link-on-new-label">
                     <div class="listbox__option" role="option" data-value="Ann Leckie">
                       Ann Leckie
                     </div>
@@ -3785,16 +3797,18 @@
           <div>
             <h3 class="kicker">In Edit</h3>
             <div class="field">
-              <span class="field__label caps" id="link-on-label">Author</span>
-              <div class="listbox linked-field" data-listbox data-placeholder="Choose the author…">
-                <button
-                  class="field__control field__control--select listbox__button"
-                  type="button"
-                  role="combobox"
-                  aria-expanded="false"
-                  aria-labelledby="link-on-label"
-                >
-                  <span class="listbox__value"></span
+              <label class="field__label caps" id="link-on-label" for="link-on-input">Author</label>
+              <div class="listbox linked-field" data-listbox>
+                <span class="field__control field__control--select"
+                  ><input
+                    class="field__input"
+                    id="link-on-input"
+                    type="text"
+                    role="combobox"
+                    aria-expanded="false"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Choose the author…"
                   ><span class="linked-field__slot" aria-hidden="true"></span
                   ><span class="listbox__chevron"
                     ><svg
@@ -3810,8 +3824,8 @@
                     >
                       <path d="M6 9l6 6 6-6"></path>
                     </svg></span
-                  >
-                </button><button
+                  ></span
+                ><button
                   class="linked-field__unlink"
                   type="button"
                   aria-label="Disconnect every book’s author"
@@ -3833,7 +3847,7 @@
                   </svg>
                 </button>
                 <div class="listbox__panel" hidden>
-                  <div class="listbox__scroll">
+                  <div class="listbox__scroll" aria-labelledby="link-on-label">
                     <div class="listbox__option" role="option" data-value="Ann Leckie">
                       Ann Leckie
                     </div>
@@ -3881,16 +3895,21 @@
             <h3 class="kicker">Open</h3>
             <div inert>
               <div class="field">
-                <span class="field__label caps" id="link-open-label">Author</span>
+                <label class="field__label caps" id="link-open-label" for="link-open-input"
+                  >Author</label
+                >
                 <div class="listbox linked-field is-open">
-                  <button
-                    class="field__control field__control--select listbox__button"
-                    type="button"
-                    role="combobox"
-                    aria-expanded="true"
-                    aria-labelledby="link-open-label"
-                  >
-                    <span class="listbox__value">Brandon Sanderson</span
+                  <span class="field__control field__control--select"
+                    ><input
+                      class="field__input"
+                      id="link-open-input"
+                      type="text"
+                      role="combobox"
+                      aria-expanded="true"
+                      autocomplete="off"
+                      spellcheck="false"
+                      placeholder="Choose the author…"
+                      value="Brandon Sanderson"
                     ><span class="linked-field__slot" aria-hidden="true"></span
                     ><span class="listbox__chevron"
                       ><svg
@@ -3906,8 +3925,8 @@
                       >
                         <path d="M6 9l6 6 6-6"></path>
                       </svg></span
-                    >
-                  </button><button
+                    ></span
+                  ><button
                     class="linked-field__unlink"
                     type="button"
                     aria-label="Disconnect every book’s author"
@@ -3979,154 +3998,32 @@
         <p class="sm">
           Typing goes into the field itself and narrows the list to the options whose label contains
           every typed word, ignoring case and accents, as a capability's own search does; an
-          option's note is never searched. The first match is where Enter lands. When nothing
-          matches, the list says so. The linked field and a choice field's picker both search this
-          way, and the chooser does not. 8.1/03 builds it, so these two are pictures.
+          option's note is never searched. The first match is where Enter lands, and the arrows walk
+          the matches. When nothing matches, the list says so. Escape, Tab or a press outside puts
+          back the name the field held, unless an optional field was emptied: left by Tab or a press
+          outside, it stays empty. The linked field and a choice field's picker both search this
+          way, and the chooser does not. Both fields below are live. Each time they come into view
+          the first opens holding "le" and the second "Tolkien", and either takes whatever you type
+          next.
         </p>
         <div class="forms">
           <div style="min-height: 13rem">
             <h3 class="kicker">Narrowing</h3>
-            <div inert>
-              <div class="field">
-                <label class="field__label caps" id="link-search-label" for="link-search"
-                  >Author</label
-                >
-                <div class="listbox linked-field is-open">
-                  <span class="field__control field__control--select"
-                    ><input class="field__input" id="link-search" type="text" value="le">
-                    <span class="linked-field__slot" aria-hidden="true"></span
-                    ><span class="listbox__chevron"
-                      ><svg
-                        viewBox="0 0 24 24"
-                        width="12"
-                        height="12"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="3"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="M6 9l6 6 6-6"></path>
-                      </svg></span
-                    ></span
-                  ><button
-                    class="linked-field__unlink"
-                    type="button"
-                    aria-label="Disconnect every book’s author"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="14"
-                      height="14"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2.25"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
-                      <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
-                      <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
-                    </svg>
-                  </button>
-                  <div class="listbox__panel">
-                    <div class="listbox__scroll" role="listbox" aria-labelledby="link-search-label">
-                      <div class="listbox__option is-active" role="option" data-value="Ann Leckie">
-                        Ann Leckie
-                      </div>
-                      <div class="listbox__option" role="option" data-value="Octavia E. Butler">
-                        Octavia E. Butler
-                      </div>
-                      <div class="listbox__option" role="option" data-value="Ursula K. Le Guin">
-                        Ursula K. Le Guin
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div style="min-height: 13rem">
-            <h3 class="kicker">Nothing matches</h3>
-            <div inert>
-              <div class="field">
-                <label class="field__label caps" id="link-search-none-label" for="link-search-none"
-                  >Author</label
-                >
-                <div class="listbox linked-field is-open">
-                  <span class="field__control field__control--select"
-                    ><input class="field__input" id="link-search-none" type="text" value="Tolkien">
-                    <span class="linked-field__slot" aria-hidden="true"></span
-                    ><span class="listbox__chevron"
-                      ><svg
-                        viewBox="0 0 24 24"
-                        width="12"
-                        height="12"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="3"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="M6 9l6 6 6-6"></path>
-                      </svg></span
-                    ></span
-                  ><button
-                    class="linked-field__unlink"
-                    type="button"
-                    aria-label="Disconnect every book’s author"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="14"
-                      height="14"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2.25"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
-                      <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
-                      <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
-                    </svg>
-                  </button>
-                  <div class="listbox__panel">
-                    <p class="listbox__empty" role="status">No results</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <h3 class="kicker" style="margin-top: 30px">A name that matched no record</h3>
-        <p class="sm">
-          A book typed as "Ursula Le Guin" before the field was linked matches no author, so it
-          keeps its text, and the field shows that text in ink as its value. The line under it asks
-          for a pick. Nothing stops the record saving as it is.
-        </p>
-        <div class="forms" style="max-width: 26rem">
-          <div>
             <div class="field">
-              <span class="field__label caps" id="link-unmatched-label">Author</span>
-              <div
-                class="listbox linked-field is-unmatched"
-                data-listbox
-                data-placeholder="Ursula Le Guin"
+              <label class="field__label caps" id="link-search-label" for="link-search"
+                >Author</label
               >
-                <button
-                  class="field__control field__control--select listbox__button"
-                  type="button"
-                  role="combobox"
-                  aria-expanded="false"
-                  aria-labelledby="link-unmatched-label"
-                  aria-describedby="link-unmatched-guidance"
-                >
-                  <span class="listbox__value"></span
+              <div class="listbox linked-field" data-listbox data-listbox-typed="le">
+                <span class="field__control field__control--select"
+                  ><input
+                    class="field__input"
+                    id="link-search"
+                    type="text"
+                    role="combobox"
+                    aria-expanded="false"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Choose the author…"
                   ><span class="linked-field__slot" aria-hidden="true"></span
                   ><span class="listbox__chevron"
                     ><svg
@@ -4142,8 +4039,8 @@
                     >
                       <path d="M6 9l6 6 6-6"></path>
                     </svg></span
-                  >
-                </button><button
+                  ></span
+                ><button
                   class="linked-field__unlink"
                   type="button"
                   aria-label="Disconnect every book’s author"
@@ -4165,7 +4062,204 @@
                   </svg>
                 </button>
                 <div class="listbox__panel" hidden>
-                  <div class="listbox__scroll">
+                  <div class="listbox__scroll" aria-labelledby="link-search-label">
+                    <div class="listbox__option" role="option" data-value="Ann Leckie">
+                      Ann Leckie
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Becky Chambers">
+                      Becky Chambers
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Brandon Sanderson">
+                      Brandon Sanderson
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Martha Wells">
+                      Martha Wells
+                    </div>
+                    <div class="listbox__option" role="option" data-value="N. K. Jemisin">
+                      N. K. Jemisin
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Neil Gaiman">
+                      Neil Gaiman
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Octavia E. Butler">
+                      Octavia E. Butler
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Susanna Clarke">
+                      Susanna Clarke
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Ted Chiang">
+                      Ted Chiang
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Terry Pratchett">
+                      Terry Pratchett
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Ursula K. Le Guin">
+                      Ursula K. Le Guin
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="min-height: 13rem">
+            <h3 class="kicker">Nothing matches</h3>
+            <div class="field">
+              <label class="field__label caps" id="link-search-none-label" for="link-search-none"
+                >Author</label
+              >
+              <div class="listbox linked-field" data-listbox data-listbox-typed="Tolkien">
+                <span class="field__control field__control--select"
+                  ><input
+                    class="field__input"
+                    id="link-search-none"
+                    type="text"
+                    role="combobox"
+                    aria-expanded="false"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Choose the author…"
+                  ><span class="linked-field__slot" aria-hidden="true"></span
+                  ><span class="listbox__chevron"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg></span
+                  ></span
+                ><button
+                  class="linked-field__unlink"
+                  type="button"
+                  aria-label="Disconnect every book’s author"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                    <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                    <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                  </svg>
+                </button>
+                <div class="listbox__panel" hidden>
+                  <div class="listbox__scroll" aria-labelledby="link-search-none-label">
+                    <div class="listbox__option" role="option" data-value="Ann Leckie">
+                      Ann Leckie
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Becky Chambers">
+                      Becky Chambers
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Brandon Sanderson">
+                      Brandon Sanderson
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Martha Wells">
+                      Martha Wells
+                    </div>
+                    <div class="listbox__option" role="option" data-value="N. K. Jemisin">
+                      N. K. Jemisin
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Neil Gaiman">
+                      Neil Gaiman
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Octavia E. Butler">
+                      Octavia E. Butler
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Susanna Clarke">
+                      Susanna Clarke
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Ted Chiang">
+                      Ted Chiang
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Terry Pratchett">
+                      Terry Pratchett
+                    </div>
+                    <div class="listbox__option" role="option" data-value="Ursula K. Le Guin">
+                      Ursula K. Le Guin
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <h3 class="kicker" style="margin-top: 30px">A name that matched no record</h3>
+        <p class="sm">
+          A book typed as "Ursula Le Guin" before the field was linked matches no author, so it
+          keeps its text, and the field shows that text in ink as its value. The line under it asks
+          for a pick. Nothing stops the record saving as it is.
+        </p>
+        <div class="forms" style="max-width: 26rem">
+          <div>
+            <div class="field">
+              <label class="field__label caps" id="link-unmatched-label" for="link-unmatched-input"
+                >Author</label
+              >
+              <div class="listbox linked-field" data-listbox data-listbox-unmatched>
+                <span class="field__control field__control--select"
+                  ><input
+                    class="field__input"
+                    id="link-unmatched-input"
+                    type="text"
+                    role="combobox"
+                    aria-expanded="false"
+                    aria-describedby="link-unmatched-guidance"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Choose the author…"
+                    value="Ursula Le Guin"
+                  ><span class="linked-field__slot" aria-hidden="true"></span
+                  ><span class="listbox__chevron"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg></span
+                  ></span
+                ><button
+                  class="linked-field__unlink"
+                  type="button"
+                  aria-label="Disconnect every book’s author"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                    <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                    <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                  </svg>
+                </button>
+                <div class="listbox__panel" hidden>
+                  <div class="listbox__scroll" aria-labelledby="link-unmatched-label">
                     <div class="listbox__option" role="option" data-value="Ann Leckie">
                       Ann Leckie
                     </div>
@@ -4388,16 +4482,24 @@
                   </div>
                 </div>
                 <div class="field">
-                  <span class="field__label caps" id="link-ask-author-label">Author</span>
+                  <label
+                    class="field__label caps"
+                    id="link-ask-author-label"
+                    for="link-ask-author-input"
+                    >Author</label
+                  >
                   <div class="listbox linked-field">
-                    <button
-                      class="field__control field__control--select listbox__button"
-                      type="button"
-                      role="combobox"
-                      aria-expanded="false"
-                      aria-labelledby="link-ask-author-label"
-                    >
-                      <span class="listbox__value">Brandon Sanderson</span
+                    <span class="field__control field__control--select"
+                      ><input
+                        class="field__input"
+                        id="link-ask-author-input"
+                        type="text"
+                        role="combobox"
+                        aria-expanded="false"
+                        autocomplete="off"
+                        spellcheck="false"
+                        placeholder="Choose the author…"
+                        value="Brandon Sanderson"
                       ><span class="linked-field__slot" aria-hidden="true"></span
                       ><span class="listbox__chevron"
                         ><svg
@@ -4413,8 +4515,8 @@
                         >
                           <path d="M6 9l6 6 6-6"></path>
                         </svg></span
-                      >
-                    </button><button
+                      ></span
+                    ><button
                       class="linked-field__unlink"
                       type="button"
                       aria-label="Disconnect every book’s author"
@@ -4627,22 +4729,21 @@
             </label>
 
             <div class="form__pair">
-              <div
-                class="field listbox"
-                data-listbox
-                data-name="status2"
-                data-placeholder="Choose…"
-              >
-                <span class="field__label caps" id="assembled-status">Status</span>
-                <button
-                  class="field__control field__control--select listbox__button"
-                  type="button"
-                  role="combobox"
-                  aria-expanded="false"
-                  aria-labelledby="assembled-status"
+              <div class="field listbox" data-listbox data-name="status2">
+                <label class="field__label caps" id="assembled-status" for="assembled-status-input"
+                  >Status</label
                 >
-                  <span class="listbox__value"></span>
-                  <span class="listbox__chevron"
+                <span class="field__control field__control--select"
+                  ><input
+                    class="field__input"
+                    id="assembled-status-input"
+                    type="text"
+                    role="combobox"
+                    aria-expanded="false"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Choose…"
+                  ><span class="listbox__chevron"
                     ><svg
                       viewBox="0 0 24 24"
                       width="12"
@@ -4656,10 +4757,10 @@
                     >
                       <path d="M6 9l6 6 6-6"></path>
                     </svg></span
-                  >
-                </button>
+                  ></span
+                >
                 <div class="listbox__panel" hidden>
-                  <div class="listbox__scroll">
+                  <div class="listbox__scroll" aria-labelledby="assembled-status">
                     <div class="listbox__option" role="option" data-value="draft">Draft</div>
                     <div
                       class="listbox__option"
@@ -5122,10 +5223,11 @@
                   <td>
                     <strong>A text field links to another capability from inside itself.</strong>
                     Every single-line text field carries a chain that opens the chooser, the drawn
-                    listbox as a panel. A linked field is the drawn listbox, with a broken chain
-                    before its chevron that asks once, over the window, before it unlinks. A card
-                    whose linked field holds a name no record stands behind carries a sun mark the
-                    platform draws. On screen it is connect and disconnect, never link
+                    listbox as a panel. A linked field is the drawn listbox, typed into to search
+                    its records, with a broken chain before its chevron that asks once, over the
+                    window, before it unlinks. A card whose linked field holds a name no record
+                    stands behind carries a sun mark the platform draws. On screen it is connect and
+                    disconnect, never link
                   </td>
                   <td class="sm"><a href="#link">Links</a></td>
                 </tr>

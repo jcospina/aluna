@@ -3,11 +3,13 @@
 // All three draw the same declared options in the same order and post the same wire value; what
 // differs is the shape on screen. The picker is the drawn listbox (`public/controls/choice-picker.js`) —
 // a `<select>` is a replaced element whose popup no stylesheet reaches inside, so on a surface
-// where every boundary is drawn the panel has to be ours. Radio is native radio inputs in one
+// where every boundary is drawn the panel has to be ours. It is a field you type into, and typing
+// searches its options. Radio is native radio inputs in one
 // labelled radiogroup. Segmented is the joined button row, which carries neither a group heading
 // nor an option note and is refused a spec that declares one. Create and edit share every path
 // here; the only difference is which option arrives already chosen.
 
+import { CHEVRON } from "#shell/controls/listbox-glyphs.js";
 import { assertNever } from "../../../platform/errors.ts";
 import {
   type ChoiceOption,
@@ -55,8 +57,7 @@ export function renderChoiceField(
 
   return (
     `<div class="field field--choice${presentation === "picker" ? " listbox" : ""}"` +
-    ` data-choice-presentation="${presentation}"${placeholderAttribute(presentation, field)}` +
-    `${initialAttribute(presentation, chosen)}>` +
+    ` data-choice-presentation="${presentation}"${initialAttribute(presentation, chosen)}>` +
     `<input type="hidden" name="${ALUNA_PRESENT_MARKER}" value="${escapeHtml(field.name)}">` +
     body +
     chrome.trailing +
@@ -88,13 +89,19 @@ function controlFor(presentation: ChoicePresentation): ChoiceControl {
 /* ── shared parts ──────────────────────────────────────────────────────────── */
 
 /**
- * The field's own label, which every presentation names its control by. None of the three is a
- * form element a `<label for>` can point at, so all three are named by reference instead.
+ * The field's own label, which every presentation names its control by. Only the picker's input
+ * is a form element a `<label for>` can point at, so radio and segmented are named by reference.
  */
-function fieldLabel(inputId: string, field: SpecField, chrome: FieldChrome): string {
+function fieldLabel(
+  inputId: string,
+  field: SpecField,
+  chrome: FieldChrome,
+  labels = false,
+): string {
+  const tag = labels ? "label" : "span";
   return (
-    `<span class="field__label caps" id="${inputId}-label">` +
-    `${escapeHtml(field.label)}${chrome.labelSuffix}</span>`
+    `<${tag} class="field__label caps" id="${inputId}-label"${labels ? ` for="${inputId}"` : ""}>` +
+    `${escapeHtml(field.label)}${chrome.labelSuffix}</${tag}>`
   );
 }
 
@@ -107,8 +114,9 @@ function requiredAttribute(field: SpecField): string {
 }
 
 /**
- * The one value the whole control posts, for the two presentations that draw no input. A hidden
- * input is barred from constraint validation, so `data-choice-required` is what the client reads.
+ * The one value the whole control posts, for the picker, whose input only searches, and the
+ * segmented row, which draws none. A hidden input is barred from constraint validation, so
+ * `data-choice-required` is what the client reads.
  */
 function valueCarrier(field: SpecField, chosen: string): string {
   return (
@@ -127,32 +135,16 @@ function initialAttribute(presentation: ChoicePresentation, chosen: string): str
   return ` data-choice-initial="${escapeHtml(chosen)}"`;
 }
 
-/**
- * What the picker's closed control reads with nothing chosen. It rides the field rather than the
- * rendered value, which is the chosen label and would come back the next time it was emptied.
- */
-function placeholderAttribute(presentation: ChoicePresentation, field: SpecField): string {
-  if (presentation !== "picker") return "";
-  return ` data-choice-placeholder="${escapeHtml(placeholderFor(field))}"`;
-}
-
 function placeholderFor(field: SpecField): string {
   return `Choose ${field.label}…`;
 }
 
-/** The design's caret for the select shell (`design/controls.html`, "Enums"). */
-const CHOICE_CHEVRON =
-  `<span class="listbox__chevron">` +
-  `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"` +
-  ` stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
-  `<path d="M6 9l6 6 6-6"></path>` +
-  `</svg></span>`;
-
 /* ── the picker ────────────────────────────────────────────────────────────── */
 
 /**
- * The drawn listbox: a closed `role="combobox"` button, a hidden panel, and a hidden input
- * carrying the value. Server-rendered complete, so the chosen label reads before any script runs.
+ * The drawn listbox: a `role="combobox"` input that shows the chosen label and searches when typed
+ * into, a hidden panel, and a hidden input carrying the value, so the input posts nothing itself.
+ * Server-rendered complete, so the chosen label reads before any script runs.
  */
 function renderPicker(
   inputId: string,
@@ -161,21 +153,21 @@ function renderPicker(
   chrome: FieldChrome,
 ): string {
   const chosenOption = choiceFieldOptions(field).find((option) => option.value === chosen);
-  const shown = escapeHtml(chosenOption ? chosenOption.label : placeholderFor(field));
 
   return (
-    fieldLabel(inputId, field, chrome) +
+    fieldLabel(inputId, field, chrome, true) +
     valueCarrier(field, chosen) +
-    `<button class="field__control field__control--select listbox__button" type="button"` +
-    ` id="${inputId}" role="combobox" aria-haspopup="listbox" aria-expanded="false"` +
-    ` aria-controls="${inputId}-panel" aria-labelledby="${inputId}-label"` +
+    `<span class="field__control field__control--select">` +
+    `<input class="field__input" id="${inputId}" type="text" role="combobox"` +
+    ` aria-autocomplete="list" aria-expanded="false" aria-controls="${inputId}-panel"` +
+    ` autocomplete="off" spellcheck="false" value="${escapeHtml(chosenOption?.label ?? "")}"` +
+    ` placeholder="${escapeHtml(placeholderFor(field))}"` +
     `${chrome.describedBy}${requiredAttribute(field)}>` +
-    `<span class="listbox__value${chosenOption ? "" : " is-placeholder"}">${shown}</span>` +
-    CHOICE_CHEVRON +
-    `</button>` +
-    `<div class="listbox__panel" id="${inputId}-panel" role="listbox" tabindex="-1"` +
-    ` aria-labelledby="${inputId}-label" hidden>` +
-    `<div class="listbox__scroll">${pickerRuns(inputId, field, chosen)}</div>` +
+    CHEVRON +
+    `</span>` +
+    `<div class="listbox__panel" hidden>` +
+    `<div class="listbox__scroll" id="${inputId}-panel" role="listbox" tabindex="-1"` +
+    ` aria-labelledby="${inputId}-label">${pickerRuns(inputId, field, chosen)}</div>` +
     `</div>`
   );
 }

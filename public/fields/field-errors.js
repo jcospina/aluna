@@ -49,10 +49,9 @@ const ERROR_REGION = '[aria-live="polite"]';
  * The elements a field's state is said on: the ones that take `aria-invalid`, the first of which
  * is where focus lands. A repeatable list is the one field that answers with more than one.
  */
-const SPEAKS_FOR =
-  ".listbox__button, .field__textarea, .field__input, .field__checkbox, .choice-set, .segmented";
-/** The Link control's chain: a listbox button, but in a text field's well, where the input speaks. */
-const NEVER_SPEAKS = "link-control__button";
+const SPEAKS_FOR = ".field__textarea, .field__input, .field__checkbox, .choice-set, .segmented";
+/** The input a picker or a linked field searches from, which posts nothing of its own. */
+const SEARCH_INPUT = 'input[role="combobox"]';
 /** The photo control's own buttons, which a refusal reaches but a button cannot be invalid. */
 const FILE_FOCUS = `[${FILE_FIELD_HOOKS.focus}]`;
 
@@ -69,9 +68,7 @@ const FIELD_NAME = /^[a-z][a-z0-9_]*$/;
 function speaksFor(field) {
   const controls = [];
   for (const control of field.querySelectorAll(SPEAKS_FOR)) {
-    if (control instanceof HTMLElement && !control.classList.contains(NEVER_SPEAKS)) {
-      controls.push(control);
-    }
+    if (control instanceof HTMLElement) controls.push(control);
   }
   return controls;
 }
@@ -372,9 +369,11 @@ export function startFieldErrors(root) {
 
   // Correcting the field clears it, whatever correcting means: typing, ticking, choosing a radio,
   // or the bubbling `change` the picker and the segmented row announce (`public/controls/choice-picker.js`).
+  // Typing into a picker's search is not one: it only searches, and only a pick's `change` corrects.
   const corrected = (/** @type {Event} */ event) => {
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
+    if (event.type === "input" && target.matches(SEARCH_INPUT)) return;
     const field = target.closest(FIELD);
     if (field) clearFieldError(field);
   };

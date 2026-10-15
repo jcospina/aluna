@@ -6,8 +6,8 @@
  * (`scripts/controls/listbox.js`), and the native one stays drawn beside it as the
  * evidence. The radio group and the checkbox are one drawn mark, `.choice`, over a hidden
  * real input. The segmented presentation is `.segmented`, in `controls.css`. A linked
- * field and its chooser are this listbox too, and `linked-field.css` overrides its button's
- * width and its panel's padding, so it loads after this file. Two rules for these controls
+ * field and its chooser are this listbox too, and `linked-field.css` overrides the chooser's
+ * button width and its panel's padding, so it loads after this file. Two rules for these controls
  * live in `form-controls.css` because they are combined with every field's: the disabled
  * fade (`.choice:has(:disabled)`) and the invalid placeholder's step-up.
  */
@@ -117,6 +117,12 @@
   background: transparent;
 }
 
+/* Restated because `display: flex` above outranks the user agent's own `[hidden]`, and a search
+ * hides every option it does not keep. */
+.listbox__option[hidden] {
+  display: none;
+}
+
 .listbox__note {
   font-size: var(--type-sm);
   color: var(--ink-2);
@@ -134,6 +140,11 @@
   padding: 0.4375rem 0.5625rem;
   font-size: var(--type-sm);
   color: var(--ink-2);
+}
+
+/* A list that searches keeps the sentence standing, empty, so a reader hears it when it speaks. */
+.listbox__empty:empty {
+  padding-block: 0;
 }
 
 /* ── The native select, for comparison ────────────────────────────────────── */

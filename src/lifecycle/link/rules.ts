@@ -3,6 +3,7 @@
 
 import {
   type CapabilityRow,
+  fitsLength,
   isLinkableField,
   relationOf,
   type SpecField,
@@ -50,15 +51,11 @@ export function linkRefusal(
   if (target.row.id === source.row.id) return "target_is_source";
   const targetField = linkableField(target);
   if (!targetField) return "target_not_linkable";
-  if (!fits(linkableField(source)?.max_length, targetField.max_length)) return "target_too_long";
+  if (!fitsLength(linkableField(source)?.max_length, targetField.max_length)) {
+    return "target_too_long";
+  }
   if (reaches(target, source, catalog)) return "link_would_loop";
   return null;
-}
-
-/** A source with no length limit takes anything; one with a limit takes a target held to it. */
-function fits(sourceLimit: number | undefined, targetLimit: number | undefined): boolean {
-  if (sourceLimit === undefined) return true;
-  return targetLimit !== undefined && targetLimit <= sourceLimit;
 }
 
 /**

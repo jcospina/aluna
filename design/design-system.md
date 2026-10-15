@@ -297,7 +297,17 @@ renders through the drawn listbox, since a native `<select>`'s popup belongs to
 the browser and no stylesheet reaches inside it; it carries grouped options, a
 note per option, and a disabled state per option. Which control it uses — picker,
 radio group or segmented — is declared per field in the spec rather than inferred
-from how many options there are. Long text is the other, and it is what every
+from how many options there are. The picker is a field you type into, and typing
+searches: the list keeps the options whose label contains every typed word,
+ignoring case and accents as a capability's own search does, and never reads an
+option's note. When nothing is kept, `.listbox__empty` says "No results". Enter
+picks the first match, the arrows walk the list, and Space, Home and End are
+typing; Escape, Tab or a press outside puts back what was chosen, though an
+optional field emptied and left by Tab or a press outside stays empty. Search is a
+mode of the one listbox, opted into by drawing an input where the button would
+be (`design/scripts/controls/listbox-search.js`), so a listbox drawn on a button,
+as the chooser is, keeps the select-only keyboard and its jump to a typed letter.
+Long text is the other, and it is what every
 notes, description, review and journal field has been missing. Long text grows to
 fit what is typed, then scrolls. It is never dragged: the resize grip is the
 operating system's mark and the only one on the surface that would not be ours.
@@ -365,9 +375,12 @@ drawn listbox's own button, always there in the new-record form and in Edit and 
 text. Its panel, `.link-control__panel`, is the chooser. `.link-control__head` says what
 picking a target does, the suggested target comes first, then each capability's fields with a
 few of their values; a target that cannot be picked is left out, and there is no search and no
-Cancel. Linked, the field is the drawn listbox, with Unlink's broken chain,
-`.linked-field__unlink`, laid over `.linked-field__slot` before the chevron, because a button
-cannot hold another; it asks once, over the window, before it unlinks. While Aluna links a
+Cancel. Linked, the field is the drawn listbox that searches, holding the target's records
+shown by the field the link names. It cannot be free-typed: typing into it only searches those
+records, and leaving without a pick puts back its text; an optional one emptied and
+left stays empty. Unlink's broken chain,
+`.linked-field__unlink`, is laid over `.linked-field__slot` before the chevron, because an input
+cannot hold a button; it asks once, over the window, before it unlinks. While Aluna links a
 field, `.link-control__note` stands atop the form and the glyphs fade with Save and Delete.
 Text that matched no record stays the field's value, in ink, with a line asking for a pick,
 and its card in the list carries `.link-mark`, a sun pill with the broken chain and no words,

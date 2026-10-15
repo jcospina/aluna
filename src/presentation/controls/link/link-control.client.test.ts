@@ -1,7 +1,8 @@
 // The chooser behind the chain, run through the shipped `public/controls/link-control.js` on the
 // markup the renderer writes, with the platform's own panel and notices standing in for the server.
 // What it owes beyond the picker it extends: a panel read whole each time it opens, a pick that is a
-// write rather than a value, a refusal spoken on the prompt bar, and a field left plain once linked.
+// write rather than a value, a refusal spoken on the prompt bar, and every copy of a linked field
+// left in the wrapper its dropdown is drawn in, as the server draws a linked field.
 
 import { describe, expect, test } from "bun:test";
 import {
@@ -20,7 +21,6 @@ import { readSource } from "../../safety/source.test-support.ts";
 import { Doc, type El, parseHtml } from "../double/choice-picker.test-support.ts";
 import { startedOn } from "../double/started-module.test-support.ts";
 import {
-  ALREADY_LINKED,
   AUTHOR,
   bookCapability,
   cutOff,
@@ -31,7 +31,6 @@ import {
   linkScene,
   listed,
   NAMES,
-  NOT_LINKABLE,
   noticed,
   openScene,
   REFUSED,
@@ -372,137 +371,6 @@ describe("a pick writes the relation", () => {
     await scene.key("ArrowDown", scene.button);
     await scene.key("Enter", scene.button);
     expect(scene.exchanges[1]?.body).toBe(SHELF.press.toString());
-  });
-
-  test("once written, the chain and its chooser go and the input stands in its shell, focused", async () => {
-    const scene = await openScene([written]);
-    const field = scene.root.parent as El;
-    await scene.press(scene.options()[0] as El);
-    expect(scene.doc.querySelector("[data-link-control]")).toBeNull();
-    expect(scene.doc.querySelector(".link-control__button")).toBeNull();
-    expect(scene.doc.querySelector(".listbox__panel")).toBeNull();
-    expect(scene.shell.parent).toBe(field);
-    expect(scene.shell.children).toEqual([scene.input]);
-    expect(scene.doc.activeElement).toBe(scene.input);
-  });
-});
-
-describe("once a pick is written", () => {
-  test("focus goes to the input from the page itself, but stays where the person took it", async () => {
-    for (const [elsewhere, lands] of [
-      [false, "input"],
-      [true, "title"],
-    ] as const) {
-      const write = held(written);
-      const scene = await openScene(
-        [write.reply],
-        renderCreateForm(bookCapability([AUTHOR, TITLE])),
-      );
-      await scene.press(scene.options()[0] as El);
-      const title = scene.doc.getElementById("cap-books-title") as El;
-      if (elsewhere) title.focus();
-      else scene.button.blur();
-      write.release();
-      await settle();
-      expect(scene.doc.activeElement).toBe(lands === "input" ? scene.input : title);
-    }
-  });
-
-  test("focus on another copy's chain lands in that copy's input, not on the page", async () => {
-    const write = held(written);
-    const page =
-      renderCreateForm(bookCapability()) + renderEditForm(bookCapability(), { id: "book-1" });
-    const scene = await openScene([write.reply], page);
-    await scene.press(scene.options()[0] as El);
-    const copy = scene.chooserOf("edit-books-author");
-    copy.button.focus();
-    write.release();
-    await settle();
-    expect(scene.doc.activeElement).toBe(scene.doc.getElementById("edit-books-author") as El);
-  });
-
-  test("every other copy of the field gives up its chain too, templates included", async () => {
-    const scene = await openScene([written], deskWithTemplate());
-    await scene.press(scene.options()[0] as El);
-    const template = scene.doc.querySelector("template") as El;
-    const chained = (root: El) =>
-      root
-        .querySelectorAll("[data-link-control]")
-        .map((control) => control.getAttribute("data-link-url"));
-    expect(chained(scene.doc)).toEqual([capabilityLinkUrl("books", TITLE.name)]);
-    expect(chained(template.content as El)).toEqual([capabilityLinkUrl("books", TITLE.name)]);
-    const copy = (template.content as El).querySelector('[name="author"]') as El;
-    expect(copy.parent?.className).toBe("field__control");
-    expect(copy.parent?.children).toEqual([copy]);
-  });
-
-  test("a field another tab already linked gives up its chain everywhere, on open or on a pick", async () => {
-    for (const replies of [
-      [noticed(ALREADY_LINKED, 422)],
-      [listed(), noticed(ALREADY_LINKED, 422)],
-    ]) {
-      const scene = await linkScene(replies, deskWithTemplate());
-      await scene.press(scene.button);
-      if (scene.options().length > 0) await scene.press(scene.options()[0] as El);
-      expect(scene.said).toEqual([refusal(linkNoticeSentence(ALREADY_LINKED))]);
-      const template = scene.doc.querySelector("template") as El;
-      for (const root of [scene.doc, template.content as El]) {
-        expect(
-          root
-            .querySelectorAll("[data-link-control]")
-            .map((control) => control.getAttribute("data-link-url")),
-        ).toEqual([capabilityLinkUrl("books", TITLE.name)]);
-      }
-      expect(scene.input.parent).toBe(scene.shell);
-    }
-  });
-
-  test("a field no longer linkable gives up its chain too, and the refusal is still said", async () => {
-    const scene = await linkScene([noticed(NOT_LINKABLE, 422)], deskWithTemplate());
-    await scene.press(scene.button);
-    expect(scene.said).toEqual([refusal(linkNoticeSentence(NOT_LINKABLE))]);
-    expect(scene.doc.querySelector(`[data-link-url="${LINK_URL}"]`)).toBeNull();
-  });
-
-  test("a refusal that takes the chain away leaves focus in the field, on open or on a pick", async () => {
-    for (const replies of [
-      [noticed(ALREADY_LINKED, 422)],
-      [listed(), noticed(ALREADY_LINKED, 422)],
-    ]) {
-      const scene = await linkScene(replies);
-      scene.button.focus();
-      await scene.key("Enter", scene.button);
-      if (scene.options().length > 0) await scene.key("Enter", scene.button);
-      expect(scene.root.isConnected).toBe(false);
-      expect(scene.doc.activeElement).toBe(scene.input);
-    }
-  });
-
-  test("while the write is in flight the chain stays shut, so no second pick is made", async () => {
-    const write = held(written);
-    const scene = await openScene([write.reply]);
-    await scene.press(scene.options()[0] as El);
-    await scene.press(scene.button);
-    expect(scene.panel.hidden).toBe(true);
-    expect(scene.exchanges.map((exchange) => exchange.method)).toEqual(["GET", "POST"]);
-    write.release();
-    await settle();
-    expect(scene.doc.querySelector("[data-link-control]")).toBeNull();
-  });
-
-  test("nor does another copy of the same field open while it is written", async () => {
-    const write = held(written);
-    const page =
-      renderCreateForm(bookCapability()) + renderEditForm(bookCapability(), { id: "book-1" });
-    const scene = await openScene([write.reply], page);
-    const copy = scene.chooserOf("edit-books-author");
-    await scene.press(scene.options()[0] as El);
-    await scene.press(copy.button);
-    expect(copy.button.getAttribute("aria-expanded")).toBe("false");
-    expect(scene.exchanges.map((exchange) => exchange.method)).toEqual(["GET", "POST"]);
-    write.release();
-    await settle();
-    expect(scene.doc.querySelector("[data-link-control]")).toBeNull();
   });
 });
 

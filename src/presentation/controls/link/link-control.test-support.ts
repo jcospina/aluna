@@ -26,7 +26,7 @@ export interface Exchange {
   readonly body: string;
 }
 
-type Reply = (exchange: Exchange) => Response | Promise<Response>;
+export type Reply = (exchange: Exchange) => Response | Promise<Response>;
 
 /** The single-line text fields the chain is drawn in. */
 export const AUTHOR = probeField("string", { name: "author", label: "Author", required: false });

@@ -148,9 +148,11 @@ export async function scene(formHtml: string) {
     doc,
     form,
     field,
-    button: field.querySelector(".listbox__button"),
+    /** The picker's control: the input it searches from, which is where its keys land. */
+    button: field.querySelector('[role="combobox"]'),
+    /** The drawn shell the input sits in, which the panel hangs from and is as wide as. */
+    shell: field.querySelector(".field__control"),
     panel: field.querySelector(".listbox__panel"),
-    valueEl: field.querySelector(".listbox__value"),
     carrier: field.querySelector("[data-choice-value]"),
     options: () => field.querySelectorAll('[role="option"]'),
     press: (on: El) => doc.fire("click", on),
