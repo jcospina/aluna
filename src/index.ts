@@ -9,6 +9,7 @@
 // before serving, so the db is ready the moment the first request arrives.
 
 import { reconcileCapabilityArtifacts, resolveArtifactsRoot } from "./builder/index.ts";
+import { matchLinkedFieldsAtStartup } from "./lifecycle/link/index.ts";
 import { recoverCapabilityLogos } from "./lifecycle/logo/index.ts";
 import { errorDetail } from "./platform/errors.ts";
 import { db, dbReadonly } from "./platform/persistence/db.ts";
@@ -109,6 +110,18 @@ try {
   // An unhandled rejection at module top level means `Bun.serve` below is never reached, and
   // this module has shipped that failure once (`lifecycle/logo/artifact-names.ts`).
   console.error("omni-crud could not reconcile capability logos at boot:", errorDetail(error));
+}
+
+// Names in fields linked before matching existed, matched before any save can land.
+for (const match of matchLinkedFieldsAtStartup(db)) {
+  if ("error" in match) {
+    console.error(
+      `omni-crud could not match names in ${match.capability}.${match.field}:`,
+      errorDetail(match.error),
+    );
+  } else {
+    console.log(`omni-crud matched ${match.linked} name(s) in ${match.capability}.${match.field}`);
+  }
 }
 
 // A malformed `OMNI_MAX_FILE_BYTES` never gets this far: importing the app resolves it and throws.

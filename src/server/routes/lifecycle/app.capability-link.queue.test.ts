@@ -85,7 +85,9 @@ describe("a press while a build holds the lease", () => {
     expect(relations()).toEqual([]);
     finish();
 
-    expect((await answer).status).toBe(204);
+    const answered = await answer;
+    expect(answered.status).toBe(200);
+    await answered.text();
     expect(relations()).toEqual([
       {
         field: "author",

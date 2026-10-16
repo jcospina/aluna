@@ -1,14 +1,16 @@
 // A relation change makes no version: `notes` v1 is published and activated tier-on with frozen
 // tests, `shelves` beside it, and its `text` is linked to `shelves.text` through the real chooser
-// and route. The row's pointer, every published byte, the model-facing spec views and the frozen
-// suite are the same afterwards, and the capability's own routes answer as they did: the one change
-// on the page is the chain leaving the linked field. A pick saved through the router leaves the
-// Gate's inputs as they were, and the Gate passes on both ends.
+// and route, whose matching scan links the note a shelf names. The row's pointer, every published
+// byte, every stored note, the model-facing spec views and the frozen suite are the same
+// afterwards, and the capability's own routes answer as they did: the changes on the page are the
+// chain leaving the linked field and the mark on each unlinked card. A pick saved through the
+// router leaves the Gate's inputs as they were, and the Gate passes on both ends.
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { LINK_MARK_CHAIN } from "#shell/controls/listbox-glyphs.js";
 import { capabilityLinkUrl, capabilityPickUrl } from "#shell/core/routes.js";
 import {
   assertSuccessfulGate,
@@ -31,7 +33,10 @@ import {
   versionDirectory,
 } from "../../pipeline/evolution/run/evolution-run.test-support.ts";
 import { linkableShell } from "../../presentation/controls/link/link-control.ts";
+import { pickTargetMark } from "../../presentation/controls/link/link-copy.ts";
 import { renderableFromRow } from "../../presentation/fields/renderable-capability.ts";
+import { ITEM_BODY_CLASS } from "../../presentation/records/collection/list-container.ts";
+import { CARD_BODY_TAG } from "../../presentation/safety/markup/contained-markup.ts";
 import { SIXTH_INCARNATION_ID } from "../../registry/incarnations.test-support.ts";
 import {
   type CapabilityRow,
@@ -51,6 +56,8 @@ import { createTestApp } from "../../server/isolated-app.test-support.ts";
 const SHELVES = notesSpec({ id: "shelves", label: "Shelves", prompt_context: "Stores shelves." });
 const LINK_URL = capabilityLinkUrl("notes", "text");
 const NEW_TEXT = "Written on either side of a link";
+/** The shelf the scan links the historical note to: the same name, but for case and outer spaces. */
+const NAMED_SHELF = "shelf-0";
 
 let env: EngineEnv;
 let app: ReturnType<typeof createTestApp>;
@@ -59,6 +66,8 @@ let after: Standing;
 let linkStatus: number;
 let answeredBefore: Answers;
 let answeredAfter: Answers;
+let notesBefore: unknown[];
+let notesAfter: unknown[];
 
 /** Everything a version is made of, as it stands at one moment. */
 interface Standing {
@@ -186,21 +195,59 @@ async function pressFor(target: string): Promise<string> {
   return press;
 }
 
+/** Every stored note, as its own table holds it. */
+function storedNotes(): unknown[] {
+  return env.conns.readonly.query('SELECT * FROM "cap_notes" ORDER BY "id"').all();
+}
+
+/**
+ * The page with what the scan left taken off: the pick the matched note's Edit form starts on, and
+ * each mark with the element it stands beside.
+ */
+function unmatched(html: string): string {
+  const mark = `<span class="link-mark" role="img" aria-label="[^"]*">${escapeRegExp(LINK_MARK_CHAIN)}</span>`;
+  return html
+    .replaceAll(` data-picked-record="${NAMED_SHELF}"`, "")
+    .replace(
+      new RegExp(
+        `${mark}<${CARD_BODY_TAG} class="${ITEM_BODY_CLASS}">([\\s\\S]*?)</${CARD_BODY_TAG}>(</button>)`,
+        "g",
+      ),
+      "$1$2",
+    );
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 beforeAll(async () => {
   env = await setUpCommitted(await committedTierOnGate());
   await addCommittedDependency(env, SHELVES, SIXTH_INCARNATION_ID);
+  env.conns.readwrite.run('INSERT INTO "cap_shelves" ("id", "text") VALUES (?, ?)', [
+    NAMED_SHELF,
+    `  ${HISTORICAL_TEXT.toUpperCase()} `,
+  ]);
+  env.conns.readwrite.run('INSERT INTO "cap_notes" ("id", "text") VALUES (?, ?)', [
+    "note-unshelved",
+    "No shelf holds this",
+  ]);
   app = createTestApp({
     capabilityRouter: { databases: env.conns },
     artifactsRoot: env.artifactsRoot,
   });
   before = standing();
   answeredBefore = await exercise();
+  notesBefore = storedNotes();
   const linked = await app.request(LINK_URL, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: await pressFor("shelves.text"),
   });
   linkStatus = linked.status;
+  // The answer ends once the names are matched, and no save lands before it does.
+  await linked.text();
+  notesAfter = storedNotes();
   after = standing();
   answeredAfter = await exercise();
 }, 60_000);
@@ -208,8 +255,22 @@ beforeAll(async () => {
 afterAll(() => tearDownCommitted(env));
 
 describe("the relation is written in place", () => {
+  test("the scan links the note a shelf names, and every other card carries the mark", () => {
+    const relations = holdingRelations(after.notes, listCapabilities(env.conns.readonly));
+    const notes = notesAfter as { id: string; text: string | null }[];
+    const unlinked = notes.filter((note) => note.text?.trim() && note.text !== HISTORICAL_TEXT);
+    expect(notes.some((note) => note.text === HISTORICAL_TEXT)).toBe(true);
+    expect(unlinked.length).toBeGreaterThan(0);
+    for (const note of notes) {
+      const picked = heldPicks(env.conns.readonly, "notes", note.id, relations).get("text");
+      expect(picked ?? null).toBe(note.text === HISTORICAL_TEXT ? NAMED_SHELF : null);
+    }
+    const marks = answeredAfter.read.split(`aria-label="${pickTargetMark([SHELVES.noun])}"`);
+    expect(marks.length - 1).toBe(unlinked.length);
+  });
+
   test("the press is taken, and the relation pins the target's incarnation", () => {
-    expect(linkStatus).toBe(204);
+    expect(linkStatus).toBe(200);
     expect(before.notes.relations).toEqual([]);
     expect(after.notes.relations).toEqual([
       {
@@ -222,6 +283,7 @@ describe("the relation is written in place", () => {
 
   test("the row is the row it was, but for its relations, and the target is untouched", () => {
     const { relations: _was, ...rowBefore } = before.notes;
+    expect(notesAfter).toEqual(notesBefore);
     const { relations: _is, ...rowAfter } = after.notes;
     expect(rowAfter).toEqual(rowBefore);
     expect([after.notes.version, after.notes.incarnation_id, after.notes.artifacts_path]).toEqual([
@@ -298,7 +360,7 @@ describe("Handlers and cards run as they did", () => {
   test("read, search, update, create and delete draw what they drew, the chain now a dropdown's", () => {
     const routes = ["read", "search", "update", "create", "delete"] as const;
     for (const route of routes) {
-      expect(answeredAfter[route]).toBe(
+      expect(unmatched(answeredAfter[route])).toBe(
         unchained(answeredBefore[route], {
           before: before.notes,
           after: after.notes,

@@ -5,6 +5,7 @@
 import { afterEach } from "bun:test";
 import { startLinkControls } from "#shell/controls/link-control.js";
 import { PROMPT_BAR_MESSAGE_EVENT, PROMPT_NOTICE_ID } from "#shell/desk/prompt-bar.js";
+import type { MatchingLine } from "../../../lifecycle/link/matching/matching-answer.ts";
 import { type LinkNotice, renderLinkNotice } from "../../../lifecycle/link/presentation.ts";
 import { SECOND_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import type { SpecField } from "../../../registry/index.ts";
@@ -18,6 +19,7 @@ import {
 import { installDomGlobals } from "../double/choice-picker.fixture.test-support.ts";
 import { Doc, type El, parseHtml } from "../double/choice-picker.test-support.ts";
 import { type ChooserList, type ChooserTarget, renderChooserPanel } from "./link-chooser.ts";
+import { connectingNote, matchingReport } from "./link-copy.ts";
 
 /** One request the client made, as the server would read it. */
 export interface Exchange {
@@ -93,7 +95,32 @@ export const listed =
     return new Response(panel, { status: 200 });
   };
 
-export const written: Reply = () => new Response(null, { status: 204 });
+/** The note a written pick's answer opens with, and the report it ends with. */
+export const NOTE = connectingNote("books", "authors");
+export const REPORT = matchingReport({ noun: "book", plural: "books" }, "author", {
+  linked: 2,
+  unmatched: 1,
+});
+
+/** A written pick's answer, each line as the route sends one; a line may be held back. */
+export function matched(lines: readonly MatchingLine[] = [{ note: NOTE }, { report: REPORT }]) {
+  let send: (line: MatchingLine) => void = () => {};
+  let end = () => {};
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      send = (line) => controller.enqueue(new TextEncoder().encode(`${JSON.stringify(line)}\n`));
+      end = () => controller.close();
+    },
+  });
+  for (const line of lines) send(line);
+  return { response: new Response(body, { status: 200 }), send, end };
+}
+
+export const written: Reply = () => {
+  const answer = matched();
+  answer.end();
+  return answer.response;
+};
 
 /** A notice the platform answers instead, at the status its route gives it. */
 export const noticed =

@@ -123,6 +123,12 @@ export const LINK_FIELD = "__aluna_link";
 export const PICKED_RECORD_ATTRIBUTE = "data-picked-record";
 
 /**
+ * On a pick the platform posts for text that names one record, not one the person made: a leave
+ * loses nothing the person did, so the question before leaving does not count it.
+ */
+export const NAMED_PICK_ATTRIBUTE = "data-named-pick";
+
+/**
  * The {@link LINK_FIELD} value naming the record `field` picked: `field:id`.
  *
  * @param {string} field

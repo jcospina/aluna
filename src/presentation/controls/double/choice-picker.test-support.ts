@@ -141,6 +141,16 @@ export class El extends LaidOut implements EventNode {
     return this;
   }
 
+  /** `ParentNode.prepend`: each node moved out of wherever it was, ahead of every child, in order. */
+  prepend(...nodes: El[]): void {
+    for (const [offset, node] of nodes.entries()) {
+      node.remove();
+      this.children.splice(offset, 0, node);
+      node.parent = this;
+    }
+    this.ownerDoc?.report(nodes);
+  }
+
   /** `ChildNode.before`: each node moved out of wherever it was, to just ahead of this one. */
   before(...nodes: El[]): void {
     const host = this.parent;

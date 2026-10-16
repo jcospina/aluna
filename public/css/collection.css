@@ -355,6 +355,36 @@ button.capability-item:hover {
 button.capability-item:active {
   translate: var(--travel-press) var(--travel-press);
 }
+/* A card whose linked field names no record carries the broken-link mark. The wrapper writes it
+   ahead of the card's markup, which one element holds whole, so no tag the card leaves open takes
+   it in; the grid sets it at the row's end in a feed and under the record in a grid, as `.record`
+   sets it (design/controls.html, "After linking"). */
+.capability-item:has(> .link-mark) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--space-3);
+}
+.capability-item:has(> .link-mark) > .link-mark {
+  grid-column: 2;
+  grid-row: 1;
+}
+.capability-item__body {
+  display: block;
+  grid-column: 1;
+  min-width: 0;
+}
+.capability-records--grid .capability-item:has(> .link-mark) {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: space-between;
+  row-gap: var(--space-2);
+}
+.capability-records--grid .capability-item:has(> .link-mark) > .link-mark {
+  grid-column: 1;
+  grid-row: auto;
+  order: 1;
+  justify-self: start;
+}
 /* No ring rule here: the card takes the one global `:focus-visible`
    (design/styles/base.css) unchanged. The ring is the whole signal — recolouring
    the border instead would outrank `.is-ink` and paint a true edge back beside

@@ -43,6 +43,7 @@ export {
   applyCapabilityTableDdl,
   CAPABILITY_TABLE_PREFIX,
   type CapabilityTableDdl,
+  capabilityTableName,
   deriveAdditiveCapabilityMigration,
   deriveCapabilityTableDdl,
   SQLITE_TYPE_BY_FIELD_TYPE,

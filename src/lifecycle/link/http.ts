@@ -20,7 +20,13 @@ import { READ_UNAVAILABLE_FRAGMENT } from "../../runtime/router/index.ts";
 import { NO_STORE } from "../../server/http/cache-headers.ts";
 import { guardWritingRoute } from "../../server/http/writing-route-guard.ts";
 import { singleFormValue } from "../form-values.ts";
-import { type CapabilityLinkOutcome, type LinkPress, linkCapabilityField } from "./front-half.ts";
+import {
+  type AdmittedEnds,
+  type CapabilityLinkOutcome,
+  type LinkPress,
+  linkCapabilityField,
+} from "./front-half.ts";
+import { afterTheNoteGoesOut, answerMatching } from "./matching/matching-answer.ts";
 import { readPickList } from "./pick/pick.ts";
 import {
   FIELD_NOT_LINKED_CODE,
@@ -135,16 +141,25 @@ function pressFor(source: CapabilityRow, target: LinkTarget): URLSearchParams {
   });
 }
 
-/** A pick, written in place. The prompt bar says nothing on success (owner ruling, 2026-10-08). */
+/**
+ * A pick, written in place: a refusal as a notice, or once the pair is admitted, the note the form
+ * shows while the relation is written and its names matched, then the report (`matching-answer.ts`).
+ */
 async function answerPress(c: Context, deps: CapabilityLinkHttpDeps): Promise<Response> {
   const press = pressFrom(c, await c.req.raw.formData());
   if (!press) return answerNotice(c, { code: LINK_UNREADABLE_CODE });
-  const outcome = await admit(press, deps, c.req.raw.signal);
-  if (outcome.status === "linked") return c.body(null, 204, NO_STORE);
-  if (outcome.status === "stale") {
-    return answerNotice(c, { code: LINK_STALE_CODE, moved: outcome.moved });
+  const admitted = Promise.withResolvers<AdmittedEnds>();
+  const outcome = admit(press, deps, c.req.raw.signal, (ends) => {
+    admitted.resolve(ends);
+    return afterTheNoteGoesOut();
+  });
+  // An admitted pair is told before it is written, so a linked outcome never comes first.
+  const first = await Promise.race([admitted.promise, outcome]);
+  if (!("status" in first) || first.status === "linked") return answerMatching(first, outcome);
+  if (first.status === "stale") {
+    return answerNotice(c, { code: LINK_STALE_CODE, moved: first.moved });
   }
-  return answerNotice(c, outcome);
+  return answerNotice(c, first);
 }
 
 /** Both versions, as integers; a form without them was not written by the chooser. */
@@ -179,6 +194,7 @@ async function admit(
   press: LinkPress,
   deps: CapabilityLinkHttpDeps,
   signal: AbortSignal,
+  onAdmitted: (ends: AdmittedEnds) => Promise<void>,
 ): Promise<CapabilityLinkOutcome> {
   try {
     return await linkCapabilityField(press, {
@@ -186,6 +202,7 @@ async function admit(
       readonlyDatabase: deps.registryReadonly,
       mutationCoordinator: deps.mutationCoordinator,
       signal,
+      onAdmitted,
     });
   } catch (error) {
     if (error instanceof MutationAdmissionError) return { status: "stale", moved: null };

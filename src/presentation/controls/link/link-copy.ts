@@ -42,14 +42,63 @@ export function unmatchedTargetLine(targetNoun: string): string {
 
 /**
  * What a save says under each linked field whose pick names no record: one forged, or one deleted
- * while the form was open. Fields picking from two kinds of record share a sentence naming neither.
+ * while the form was open, whether the person picked it or the field's text named it. Fields
+ * picking from two kinds of record share a sentence naming neither.
  */
 export function pickAgainLine(targetNouns: readonly string[]): string {
   const [noun] = targetNouns;
   if (noun === undefined || targetNouns.some((each) => each !== noun)) {
-    return "I couldn’t find what you picked. Mind picking again?";
+    return "I couldn’t find that anymore. Mind picking again?";
   }
-  return `I couldn’t find the ${noun} you picked. Mind picking one again?`;
+  return `I couldn’t find that ${noun} anymore. Mind picking one again?`;
+}
+
+/** The one note atop the form while the names a field holds are matched. */
+export function connectingNote(sourcePlural: string, targetPlural: string): string {
+  return `Connecting your ${sourcePlural} to ${targetPlural}…`;
+}
+
+/** How the matching scan went, counted over the records whose linked field holds a name. */
+export interface MatchCounts {
+  /** Records whose name is exactly one target record's, each now linked to it. */
+  readonly linked: number;
+  /** Records whose name no target record holds, or several do: each keeps its text, unlinked. */
+  readonly unmatched: number;
+}
+
+/**
+ * What the prompt bar says once the names are matched, in the source's record nouns and the
+ * target's: "45 books found their author. 5 still need you to pick one." Nothing when no record
+ * held a name, since nothing was matched.
+ */
+export function matchingReport(
+  source: { readonly noun: string; readonly plural: string },
+  targetNoun: string,
+  { linked, unmatched }: MatchCounts,
+): string {
+  const found = (count: number) =>
+    count === 1
+      ? `${written(count)} ${source.noun} found its ${targetNoun}.`
+      : `${written(count)} ${source.plural} found their ${targetNoun}.`;
+  const need = (count: number) => (count === 1 ? "needs" : "need");
+  if (linked === 0 && unmatched === 0) return "";
+  if (linked === 0) {
+    const all = unmatched === 1 ? "" : "All ";
+    return `No ${source.noun} found its ${targetNoun} yet. ${all}${written(unmatched)} ${need(unmatched)} you to pick one.`;
+  }
+  if (unmatched === 0) return linked === 1 ? found(linked) : `All ${found(linked)}`;
+  return `${found(linked)} ${written(unmatched)} still ${need(unmatched)} you to pick one.`;
+}
+
+/** The broken-link mark's accessible name: "Pick the author", naming each target it asks for. */
+export function pickTargetMark(targetNouns: readonly string[]): string {
+  const asked = [...new Set(targetNouns)].map((noun) => `the ${noun}`);
+  const last = asked.pop() ?? "";
+  return `Pick ${asked.length > 0 ? `${asked.join(", ")} and ${last}` : last}`;
+}
+
+function written(count: number): string {
+  return count.toLocaleString("en-US");
 }
 
 export const SUGGESTED_GROUP = "Suggested";

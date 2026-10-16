@@ -194,7 +194,9 @@ export async function refreshCommittedRecords({
  */
 export async function refreshCommittedRecordsForMutation({ form, request, process }) {
   // Attributes, not `form.dataset`: a create form answers to its fields' names first.
-  const region = document.getElementById(form.getAttribute("data-records-target-id") ?? "");
+  const region = form.ownerDocument.getElementById(
+    form.getAttribute("data-records-target-id") ?? "",
+  );
   const readUrl = form.getAttribute("data-read-url");
   if (!(region instanceof HTMLElement) || !readUrl) return null;
   return refreshCommittedRecords({

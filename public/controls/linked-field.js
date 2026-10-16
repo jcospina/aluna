@@ -13,9 +13,11 @@
 
 import { keyIsNotOurs } from "../../design/scripts/controls/listbox-search.js";
 import { watchArrivals } from "../core/dom-arrivals.js";
+import { matchKey, sameText } from "../core/same-text.js";
 import {
   LINK_FIELD,
   linkFieldValue,
+  NAMED_PICK_ATTRIBUTE,
   onCreateFinished,
   PICKED_RECORD_ATTRIBUTE,
 } from "../core/shell-dom.js";
@@ -57,18 +59,6 @@ const SEARCH_ATTRIBUTES = [
  * @typedef {{ placeholder: string, unmatched: string, disconnect: string,
  *   records: PickRecord[] }} PickList
  */
-
-/**
- * Whether two texts name the same record: spaces at either end and case aside, as the matching
- * scan compares them. Accents count, since "Pena" and "Peña" are two names.
- *
- * @param {string} a
- * @param {string} b
- */
-export function sameText(a, b) {
-  const fold = (/** @type {string} */ text) => text.normalize("NFC").trim().toLowerCase();
-  return fold(a) === fold(b);
-}
 
 /**
  * Draw the listbox around a linked field's input. The input becomes the search, a hidden carrier
@@ -271,6 +261,16 @@ export class LinkedDropdown extends ChoicePicker {
       if (event.key === "Escape") this.hide(false);
     };
     this.control.addEventListener("keydown", letGo, { signal: this.wiring.signal });
+    // A refused save reads the list again: a pick whose record went is then one the field's text
+    // no longer names, and the next save does not post it again.
+    root.closest("form")?.addEventListener(
+      "htmx:afterRequest",
+      (event) => {
+        const answer = /** @type {CustomEvent<{ xhr?: XMLHttpRequest }>} */ (event).detail;
+        if ((answer?.xhr?.status ?? 0) >= 400) this.read();
+      },
+      { signal: this.wiring.signal },
+    );
     this.mark();
     this.read();
   }
@@ -341,26 +341,59 @@ export class LinkedDropdown extends ChoicePicker {
   }
 
   /**
-   * The record the field picked, or else the one its text names, chosen in the list; the line
-   * asking for a pick under text that names none; and the pick the save posts. Nothing is said
-   * before the records are read.
+   * The record the field picked, or else the one record its text names, chosen in the list; the
+   * line asking for a pick under text that names none, or names several; and the pick the save
+   * posts, which is the named record, as the matching scan links it. Nothing is said before the
+   * records are read.
    */
   mark() {
-    const { picked, pick } = this;
-    pick.disabled = picked === "";
-    pick.value =
-      picked === "" ? "" : linkFieldValue(this.field?.getAttribute("name") ?? "", picked);
     const text = this.field?.value ?? "";
-    const named = this.options().find((option) =>
-      picked === "" ? sameText(option.dataset.value ?? "", text) : option.dataset.record === picked,
-    );
+    const spoken = this.namedBy(text);
+    const named = this.picked === "" ? spoken : this.recordOption(this.picked);
+    this.post(this.picked === "" ? (spoken?.dataset.record ?? "") : this.picked, spoken);
     for (const option of this.options()) {
       option.setAttribute("aria-selected", String(option === named));
     }
     if (!this.line || !this.input) return;
-    const shows = this.loaded && text.trim() !== "" && !named;
+    const shows = this.loaded && matchKey(text) !== "" && !named;
     this.line.hidden = !shows;
     describedBy(this.input, this.line.id, shows);
+  }
+
+  /**
+   * Post `record` as the field's pick, or none. The record the form was drawn on, and the one the
+   * text names, post whether or not they are pressed and however late the list arrives, so
+   * neither is a change of the person's.
+   *
+   * @param {string} record
+   * @param {HTMLElement | undefined} spoken the option the field's text names
+   */
+  post(record, spoken) {
+    this.pick.disabled = record === "";
+    this.pick.value =
+      record === "" ? "" : linkFieldValue(this.field?.getAttribute("name") ?? "", record);
+    // What the form posts untouched: the record it was drawn on, else the one its text names.
+    const standing = record === (this.pickedInitially || spoken?.dataset.record);
+    if (record !== "" && standing) {
+      this.pick.setAttribute(NAMED_PICK_ATTRIBUTE, "");
+    } else this.pick.removeAttribute(NAMED_PICK_ATTRIBUTE);
+  }
+
+  /**
+   * The one record `text` names. Text two records share names neither, as the matching scan links
+   * neither, and text with nothing in it to match names none.
+   *
+   * @param {string} text
+   */
+  namedBy(text) {
+    if (matchKey(text) === "") return undefined;
+    const matching = this.options().filter((option) => sameText(option.dataset.value ?? "", text));
+    return matching.length === 1 ? matching[0] : undefined;
+  }
+
+  /** @param {string} record */
+  recordOption(record) {
+    return this.options().find((option) => option.dataset.record === record);
   }
 
   /**

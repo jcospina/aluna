@@ -1417,7 +1417,9 @@
             own table, and the author a book picked is kept in a platform table beside it, the link
             table, so there is still no foreign key. Books' handlers read and write the author as
             the text it always was, and their queries cannot open the link table. Linking a field
-            writes no code and makes no version.
+            writes no code and makes no version. A field that already holds names is matched as it
+            is linked: each name exactly one author holds is linked to that author, and the card of
+            every other typed name carries a mark asking for a pick.
           </p>
 
           <details class="aside">

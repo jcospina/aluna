@@ -11,6 +11,7 @@
 // reaches this wrapper: `renderItemWrapper` frames already-safe markup and never re-parses it.
 // The container is data-free — live records arrive through the `read` action.
 
+import { LINK_MARK_CHAIN } from "#shell/controls/listbox-glyphs.js";
 import { capabilityActionUrl } from "#shell/core/routes.js";
 import {
   CREATE_CANCELLED_EVENT,
@@ -27,6 +28,7 @@ import {
   type RenderableCapability,
   renderCreateForm,
 } from "../../fields/field-renderer.ts";
+import { CARD_BODY_TAG } from "../../safety/markup/contained-markup.ts";
 import {
   itemElementIdForTemplate,
   recordTitleAttribute,
@@ -231,23 +233,41 @@ export function renderCollection(options: CollectionOptions): string {
 /**
  * Wrap one record's already-safe inner markup in the standardized trigger, with the client
  * projection as an escaped `data-item` payload. The caller has enforced `innerHtml`; this frames.
+ * `mark` names the broken-link mark the card carries, when a linked field of it names no record.
  */
 export function renderItemWrapper(
   innerHtml: string,
   record: Readonly<Record<string, unknown>>,
   recordView?: ItemRecordViewRef,
+  mark?: string,
 ): string {
   const payload = escapeHtml(serializeItemPayload(record));
   // `data-ink-seed` derives the record's drawn hand from its id, and the boundary is drawn on
   // this wrapper, so generated markup never learns the ink system exists.
   const attributes = `class="${ITEM_TRIGGER_CLASS}" ${ITEM_PAYLOAD_ATTR}="${payload}"${inkSeedAttr(record.id)}`;
+  const content = mark === undefined ? innerHtml : withLinkMark(innerHtml, mark);
   // Nothing to open is not a button: opening one is the only thing a record does, so a frame
   // with no record surface behind it is a card rather than a control that does nothing.
-  if (!recordView) return `<article ${attributes}>${innerHtml}</article>`;
+  if (!recordView) return `<article ${attributes}>${content}</article>`;
   const itemId = escapeHtml(itemElementIdForTemplate(recordView.templateId));
   return (
     `<button type="button" id="${itemId}" ${attributes}` +
-    ` ${ITEM_RECORD_VIEW_ATTR}="${escapeHtml(recordView.templateId)}">${innerHtml}</button>`
+    ` ${ITEM_RECORD_VIEW_ATTR}="${escapeHtml(recordView.templateId)}">${content}</button>`
+  );
+}
+
+/** The class of the element a marked card's own markup is held in, beside the mark. */
+export const ITEM_BODY_CLASS = "capability-item__body";
+
+/**
+ * The broken-link mark and the card's markup, drawn by the wrapper and
+ * never by the generated card. The mark comes first, so no tag the card leaves open can take it
+ * in, and `collection.css` places it after the card's markup, held whole in `CARD_BODY_TAG`.
+ */
+function withLinkMark(innerHtml: string, mark: string): string {
+  return (
+    `<span class="link-mark" role="img" aria-label="${escapeHtml(mark)}">${LINK_MARK_CHAIN}</span>` +
+    `<${CARD_BODY_TAG} class="${ITEM_BODY_CLASS}">${innerHtml}</${CARD_BODY_TAG}>`
   );
 }
 

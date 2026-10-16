@@ -1,23 +1,26 @@
 // @ts-check
 
 /**
- * The Link control's chooser. The chain inside a single-line text
- * field is the drawn listbox's button, and its panel says what the field could come from: read whole
- * each time it opens, because those are other capabilities' fields and values, which move. A pick
- * writes the relation; the prompt bar says nothing on success and speaks only a refusal. Once the
- * field is linked, every copy of it becomes a dropdown in place (`linked-field.js`).
+ * The Link control's chooser. The chain inside a single-line text field is the drawn listbox's
+ * button, and its panel says what the field could come from: read whole each time it opens,
+ * because those are other capabilities' fields and values, which move. A pick writes the
+ * relation, and every copy of the field becomes a dropdown in place (`linked-field.js`) while the
+ * names it held are matched (`link-matching.js`); the prompt bar then says how the matching went,
+ * or why nothing was connected.
  */
 
 import { watchArrivals } from "../core/dom-arrivals.js";
-import { linkedRecordsUrl } from "../core/routes.js";
+import { linkedCapabilityId, linkedRecordsUrl } from "../core/routes.js";
 import { onCreateFinished } from "../core/shell-dom.js";
+import { refreshCommittedRecordsForMutation } from "../records/records-refresh.js";
 import {
   ChoicePicker,
   closeOnPressOutside,
   MAX_PANEL_HEIGHT,
   watchPlacement,
 } from "./choice-picker.js";
-import { bodyOf, CHOOSER_UNREAD, noticeIn, pageOf, say, withdraw } from "./link-notices.js";
+import { answerLines, fadeWhileMatching, holdWhileMatching } from "./link-matching.js";
+import { bodyOf, CHOOSER_UNREAD, noticeIn, pageOf, report, say, withdraw } from "./link-notices.js";
 
 export { CHOOSER_UNREAD };
 
@@ -111,7 +114,7 @@ export class LinkChooser extends ChoicePicker {
   show(startAt) {
     // While its field's pick is being written there is nothing to choose: the chain stays shut.
     const writing = pageOf(this.root.ownerDocument).writing.has(this.root.dataset.linkUrl ?? "");
-    if (this.open || writing) return;
+    if (this.open || writing || this.control.hasAttribute("disabled")) return;
     // Pressed again while a read it let go of is still out: that read opens it after all.
     if (this.reading) {
       this.wanted = true;
@@ -173,7 +176,8 @@ export class LinkChooser extends ChoicePicker {
     const press = option?.dataset.linkPress;
     const url = this.root.dataset.linkUrl ?? "";
     const { writing } = pageOf(this.root.ownerDocument);
-    if (!press || writing.has(url)) return;
+    // A chain faded while another field's names are matched takes no pick from a panel left open.
+    if (!press || writing.has(url) || this.control.hasAttribute("disabled")) return;
     writing.add(url);
     this.write(url, new URLSearchParams(press))
       .catch(() => this.refuse("", PICK_UNKNOWN, true))
@@ -186,12 +190,25 @@ export class LinkChooser extends ChoicePicker {
    */
   async write(url, press) {
     const doc = this.root.ownerDocument;
+    const form = this.root.closest("form");
     const response = await fetch(url, { method: "POST", body: press }).catch(() => null);
     if (response === null) return this.refuse("", PICK_UNKNOWN, true);
     // A refusal's status already says nothing was written, whether or not its words arrive.
     if (!response.ok) return this.refuse(await bodyOf(response), PICK_UNWRITTEN, true);
     withdraw(doc);
+    const line = answerLines(response);
+    const note = await line();
+    // An answer that opens on no note is none the route sends, and says nothing of what happened.
+    if (typeof note?.note !== "string") return this.refuse("", PICK_UNKNOWN, true);
+    for (const chooser of [...this.openPickers]) chooser.hide(false);
     this.linked();
+    const release = holdWhileMatching(form, note.note, this.shell.querySelector("input"));
+    const matched = await line();
+    release();
+    // The relation and its link rows are written together or not at all, and nothing said which.
+    if (typeof matched?.report !== "string") return say(doc, PICK_UNKNOWN);
+    if (matched.report !== "") report(doc, matched.report);
+    await refreshMarks(doc, linkedCapabilityId(url));
   }
 
   /**
@@ -229,6 +246,32 @@ export class LinkChooser extends ChoicePicker {
     const held = replaceEverywhere(ownerDocument, dataset.linkUrl ?? "", "linked", active);
     (held ?? (nowhere ? this.shell.querySelector("input") : null))?.focus();
   }
+}
+
+/**
+ * Re-read the linked capability's records where its list is on the page, so each card carries
+ * the mark its matching left, and a card that held focus holds it again. A record that is open
+ * re-reads its list on the way out.
+ *
+ * @param {Document} doc
+ * @param {string} capabilityId
+ */
+async function refreshMarks(doc, capabilityId) {
+  const create = [...doc.querySelectorAll("form[data-records-target-id]")].find(
+    (form) => form.getAttribute("data-capability-id") === capabilityId,
+  );
+  if (!(create instanceof HTMLFormElement)) return;
+  const region = doc.getElementById(create.getAttribute("data-records-target-id") ?? "");
+  const focused = region?.contains(doc.activeElement) ? doc.activeElement?.id : "";
+  const htmx = /** @type {Window & { htmx?: { process(node: Element): void } }} */ (doc.defaultView)
+    ?.htmx;
+  await refreshCommittedRecordsForMutation({
+    form: create,
+    process: (refreshed) => htmx?.process(refreshed),
+  }).catch(() => null);
+  // Only focus the refresh took: a person who went elsewhere meanwhile stays there.
+  const free = doc.activeElement === null || doc.activeElement === doc.body;
+  if (focused && free) doc.getElementById(focused)?.focus();
 }
 
 /**
@@ -335,7 +378,10 @@ export function startLinkControls(root) {
   /** @type {Set<ChoicePicker>} */
   const open = new Set();
   const arrived = (/** @type {readonly (Document | Element)[]} */ nodes) => {
-    for (const node of nodes) mountLinkChoosers(node, open);
+    for (const node of nodes) {
+      mountLinkChoosers(node, open);
+      fadeWhileMatching(node);
+    }
   };
   arrived([root]);
   watchArrivals(root, arrived);

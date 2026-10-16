@@ -1019,13 +1019,34 @@ field the form did not submit keeps its row. A deleted record's rows as a source
 in the delete's savepoint. The rows of a dormant relation stay until a
 save changes its field's text, and reactivating the field revives them.
 
+The matching scan runs when the Link control writes a relation, in the transaction that
+writes it, under its lease. At startup, before the server listens, it runs again for every
+relation that holds, over the records whose link leads to no record of the target: a field
+linked before the scan existed has its names matched, and a link that works stands
+(`matchLinkedFieldsAtStartup`). It drops whatever rows the field still held from a relation
+since taken away, and writes a row for each record whose name is exactly one target
+record's. Names are compared composed one way (NFC), trimmed of spaces and invisible
+marks at both ends, and case-folded in code, by `public/core/same-text.js`, which the
+dropdown compares by too: an Edit form posts the one record its text names. The press's
+answer is two lines of JSON. The first carries the note, sent once the lease admits the
+pair; the page fades every chain, Save and Delete while the transaction runs, and the
+form shows the note. The second carries the prompt bar's report. An answer that ends
+with no report wrote nothing, and the field can be linked again. The presentation
+adapter decides which cards carry the broken-link mark, those whose dropdown field
+stores a name and no pick, and the item wrapper draws it, named for the target's record
+noun, ahead of the card's markup, which `aluna-card-body` holds. Before framing, the
+adapter keeps that markup inside its card (`contained-markup.ts`): it drops end tags for
+elements the card stands in that the markup never opened, and closes the formatting
+elements and tables it leaves open, which a browser would carry to the next card. Markup
+left open or misnested closes each formatting element again, once for every eight
+elements, since a browser's adoption agency gives up after eight blocks.
+
 Capability deletion removes the relations pointing at the deleted capability and
-leaves link rows as they are. The matching scan (8.1/05), the removal of a deleted
-target record's rows (8.1/06), and Unlink with the removal of a deleted capability's
-rows (8.1/07) are still to come. Once they land, capability deletion removes the
-deleted capability's relations and link rows on both sides in the tombstone
-transaction, so every relation pointing at it goes as Unlink takes one and each linked
-field keeps its text (ADR-0011).
+leaves link rows as they are. The removal of a deleted target record's rows (8.1/06),
+and Unlink with the removal of a deleted capability's rows (8.1/07) are still to come.
+Once they land, capability deletion removes the deleted capability's relations and
+link rows on both sides in the tombstone transaction, so every relation pointing at it
+goes as Unlink takes one and each linked field keeps its text (ADR-0011).
 
 #### Generation Metrics — the experiment's measurements
 

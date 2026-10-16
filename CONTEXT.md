@@ -682,9 +682,10 @@ choice presentation
 **Link row**:
 One row of the **link table**: a source capability, record and field, and the target
 capability, incarnation and record that field picked. A save writes it in the record's
-own transaction, and so does the matching scan; Unlink, deleting either record, clearing
-the target's text (proposed in ADR-0011) and capability deletion remove it. A dormant
-relation keeps its link rows (ADR-0011).
+own transaction, and the matching scan writes its rows in the transaction that writes
+the relation; Unlink, deleting either record, clearing the target's text (proposed in
+ADR-0011) and capability deletion remove it. A dormant relation keeps its link rows
+(ADR-0011).
 _Avoid_: reference row, pointer, foreign key
 
 **Link table**:
@@ -717,11 +718,13 @@ _Avoid_: relation detection, dependency flag; overlap, which is the separate
 extend-or-separate decision
 
 **Matching scan**:
-What links the values already typed when a field is linked. Under the lease of the write
-that made the relation, it trims spaces at both ends, folds case with Unicode case
-folding and no accent folding, and writes a link row for each value that matches exactly
-one target record. Ambiguous and unmatched values keep their text and carry the
-broken-link mark, and no stored text changes. The prompt bar reports how many records
+What links the values already typed when a field is linked, and at startup those of a
+field linked before it existed. In the transaction that writes the relation, under its lease, it trims spaces and invisible marks at both ends,
+folds case with Unicode case folding and no accent folding, reads an accent the same
+however it was composed, and writes a link row for each value that matches exactly one
+target record. Ambiguous and
+unmatched values keep their text and carry the broken-link mark, and no stored text
+changes. The prompt bar reports how many records
 were connected and how many need a pick (ADR-0011; M8 plan 22, 25).
 _Avoid_: backfill, migration, auto-link, fuzzy match
 

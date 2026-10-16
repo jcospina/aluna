@@ -4,6 +4,7 @@
 // cannot race the read. It answers with each record's id and text, and with the sentences the
 // dropdown says, which name the target's record noun: the form that draws the field cannot know it.
 
+import { matchKey } from "#shell/core/same-text.js";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import {
@@ -119,13 +120,14 @@ function targetRecords(
       `SELECT "id" AS "target_id" FROM ${table}` +
       ` WHERE ${column} IS NOT NULL AND trim(${column}) <> ''`,
   });
-  // SQLite's `trim` takes spaces only; a save refuses a pick whose text is blank by JavaScript's.
+  // SQLite's `trim` takes spaces only: a record whose text holds nothing a match could compare,
+  // invisible marks and all, is left out, as the matching scan leaves it.
   return rows
     .map(({ record }) => {
       const stored = storedCapabilityActionRecord(record);
       return { id: String(stored.id), text: String(stored[field.name]) };
     })
-    .filter((record) => record.text.trim() !== "")
+    .filter((record) => matchKey(record.text) !== "")
     .sort((a, b) => collator.compare(a.text, b.text) || order(a.text, b.text) || order(a.id, b.id));
 }
 

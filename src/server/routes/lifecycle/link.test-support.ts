@@ -2,6 +2,7 @@
 // name, and Reading Log, whose 300-character title cannot fit a 120-character field. Built as
 // registry rows with data tables, the way a committed build leaves them.
 
+import type { MatchingLine } from "../../../lifecycle/link/matching/matching-answer.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { REGISTRY_TABLE } from "../../../platform/persistence/table-names.ts";
 import {
@@ -178,4 +179,10 @@ function unescapeAmpersands(text: string): string {
 /** The code a notice names: the rule that refused, or `link_stale`. */
 export function noticeCode(html: string): string | undefined {
   return /data-error-code="([^"]*)"/.exec(html)?.[1];
+}
+
+/** A written press's answer, line by line as the client reads it: the note, then the report. */
+export async function answerLines(response: Response): Promise<MatchingLine[]> {
+  const lines = (await response.text()).split("\n").filter((line) => line !== "");
+  return lines.map((line) => JSON.parse(line) as MatchingLine);
 }

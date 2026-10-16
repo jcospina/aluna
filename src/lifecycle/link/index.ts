@@ -7,4 +7,5 @@
  * takes it, so the list never offers what the write refuses.
  */
 export { type CapabilityLinkHttpDeps, registerCapabilityLinkRoutes } from "./http.ts";
+export { matchLinkedFieldsAtStartup } from "./matching/match-at-startup.ts";
 export { type LinkRefusalCode, linkRefusal, linkTargets } from "./rules.ts";

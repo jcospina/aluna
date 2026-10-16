@@ -9,7 +9,7 @@
 
 import { losesIn } from "../../design/scripts/files/file-field.js";
 import { holdsUpload } from "../controls/held-uploads.js";
-import { RECORD_FORM_SELECTOR } from "../core/shell-dom.js";
+import { NAMED_PICK_ATTRIBUTE, RECORD_FORM_SELECTOR } from "../core/shell-dom.js";
 
 export { RECORD_FORM_SELECTOR };
 
@@ -82,6 +82,7 @@ export function formState(form) {
 function leftOut(field) {
   const type = field.getAttribute("type");
   if (field.disabled || type === "file" || field.getAttribute(DATETIME_TWIN) !== null) return true;
+  if (field.getAttribute(NAMED_PICK_ATTRIBUTE) !== null) return true;
   if ((type === "checkbox" || type === "radio") && !field.checked) return true;
   return (field.value ?? "").trim() === "" && field.closest?.(LIST_ROW) != null;
 }

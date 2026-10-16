@@ -10,6 +10,7 @@ import {
   linkFieldValue,
   PICKED_RECORD_ATTRIBUTE,
 } from "#shell/core/shell-dom.js";
+import { formState } from "#shell/records/unsaved-changes.js";
 import { FIELD_NOT_LINKED_CODE } from "../../../../lifecycle/link/presentation.ts";
 import { notesRow } from "../../../../runtime/router/dispatch/router.test-support.ts";
 import type { El } from "../../double/choice-picker.test-support.ts";
@@ -82,6 +83,92 @@ describe("a pick", () => {
     const chosen = scene.options().map((option) => option.getAttribute("aria-selected"));
     expect(chosen).toEqual(["false", "true"]);
     expect(scene.line.hidden).toBe(true);
+  });
+});
+
+describe("text an Edit form was drawn with, and no pick", () => {
+  test("that two records share names neither: the line asks for a pick, and none posts", async () => {
+    const twins = records(["Kindred", "Kindred"]);
+    const scene = await dropdownScene([twins], editBook("Kindred", linkedBooks()));
+    await settle();
+    const chosen = scene.options().map((option) => option.getAttribute("aria-selected"));
+    expect(chosen).toEqual(["false", "false"]);
+    expect(scene.line.hidden).toBe(false);
+    expect(pickPosted(scene)).toEqual([]);
+  });
+
+  test("that one record holds names it, and posts it, as the matching scan links it", async () => {
+    const scene = await dropdownScene([records()], editBook("  octavia E. BUTLER ", linkedBooks()));
+    await settle();
+    expect(scene.line.hidden).toBe(true);
+    expect(pickPosted(scene)).toEqual([linkFieldValue("author", idOf("Octavia E. Butler"))]);
+  });
+
+  test("that holds nothing to match names nothing, beside a record whose name is invisible", async () => {
+    for (const html of [newBook(), editBook("", linkedBooks()), editBook(" ", linkedBooks())]) {
+      const scene = await dropdownScene([records(["Brandon Sanderson", "\u200b"])], html);
+      await settle();
+      expect(pickPosted(scene)).toEqual([]);
+      expect(
+        scene.options().some((option) => option.getAttribute("aria-selected") === "true"),
+      ).toBe(false);
+    }
+  });
+
+  test("drawn on its record, asks nothing on leaving however late its list arrives", async () => {
+    const html = editBook("Octavia E. Butler", linkedBooks(), idOf("Octavia E. Butler"));
+    const late = held(records());
+    const scene = await dropdownScene([late.reply], html);
+    const form = scene.root.closest("form") as El;
+    const touched = formState(form as never);
+    late.release();
+    await settle();
+    expect(pickPosted(scene)).toEqual([linkFieldValue("author", idOf("Octavia E. Butler"))]);
+    expect(formState(form as never)).toBe(touched);
+  });
+
+  test("drawn on one record and naming another, counts a pick of the named one as a change", async () => {
+    const drawnOn = idOf("Brandon Sanderson");
+    const html = editBook("Octavia E. Butler", linkedBooks(), drawnOn);
+    const scene = await dropdownScene([records(), records()], html);
+    await settle();
+    const form = scene.root.closest("form") as El;
+    const untouched = formState(form as never);
+    scene.type("octavia");
+    await settle();
+    scene.key("Enter");
+    expect(pickPosted(scene)).toEqual([linkFieldValue("author", idOf("Octavia E. Butler"))]);
+    expect(formState(form as never)).not.toBe(untouched);
+  });
+
+  test("whose record went is read again once a save is refused, and posted no more", async () => {
+    const without = records(NAMES.filter((name) => name !== "Octavia E. Butler"));
+    const scene = await dropdownScene([records(), without], editBook("Octavia E. Butler"));
+    await settle();
+    expect(pickPosted(scene)).toEqual([linkFieldValue("author", idOf("Octavia E. Butler"))]);
+    const form = scene.root.closest("form") as El;
+    scene.doc.fire("htmx:afterRequest", form, { detail: { xhr: { status: 422 } } });
+    await settle();
+    expect(scene.asked).toHaveLength(2);
+    expect(pickPosted(scene)).toEqual([]);
+  });
+
+  test("posts it as no change of the person's, picked or not: leaving asks nothing for it", async () => {
+    const html = editBook("Octavia E. Butler", linkedBooks());
+    const unread = await dropdownScene([], html);
+    const form = (scene: typeof unread) => scene.root.closest("form") as El;
+    const read = await dropdownScene([records()], html);
+    await settle();
+    expect(pickPosted(read)).toEqual([linkFieldValue("author", idOf("Octavia E. Butler"))]);
+    expect(formState(form(read) as never)).toBe(formState(form(unread) as never));
+    read.type("octavia");
+    await settle();
+    read.key("Enter");
+    expect(formState(form(read) as never)).toBe(formState(form(unread) as never));
+    read.type("le guin");
+    await settle();
+    read.key("Enter");
+    expect(formState(form(read) as never)).not.toBe(formState(form(unread) as never));
   });
 });
 

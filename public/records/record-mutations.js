@@ -7,6 +7,7 @@
 
 import { FILE_FIELD_HOOKS } from "../../design/scripts/files/file-field.js";
 import { keepSavedFileFields } from "../controls/file-field.js";
+import { giveBackAfterSave, heldWhileMatching } from "../controls/link-matching.js";
 import { registerRegionRelease } from "../core/region-scope.js";
 import {
   BUSY_LABEL_ATTRIBUTE,
@@ -102,7 +103,8 @@ export function setPending(form, pending, cancelSelector) {
   const submit = form.querySelector(SUBMIT_BUTTON_SELECTOR);
   if (submit instanceof HTMLButtonElement) {
     sayWhatItIsDoing(submit, pending);
-    submit.disabled = pending;
+    // A save that ends while a field's names are matched leaves Save faded with the rest.
+    submit.disabled = pending || heldWhileMatching(submit);
   }
   const cancel = form.querySelector(cancelSelector);
   if (cancel instanceof HTMLButtonElement) cancel.disabled = pending;
@@ -111,6 +113,7 @@ export function setPending(form, pending, cancelSelector) {
   // while a mutation runs, like Cancel: a save the server may have committed is not cancellable.
   const back = form.parentElement?.querySelector(BACK_SELECTOR);
   if (back instanceof HTMLButtonElement) back.disabled = pending;
+  if (!pending) giveBackAfterSave(form);
 }
 
 /** @param {HTMLFormElement} form @param {boolean} pending */

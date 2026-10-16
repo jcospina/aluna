@@ -1,8 +1,8 @@
 // @ts-check
 
 /**
- * What the Link control and a linked field say on the prompt bar. Each says only a refusal, and
- * takes it back once a retry works, so "Try again?" never stands after the try has worked.
+ * What the Link control and a linked field say on the prompt bar: a refusal, taken back once a
+ * retry works so "Try again?" never stands after the try has worked, and how a link's matching went.
  */
 
 import { PROMPT_BAR_MESSAGE_EVENT, PROMPT_NOTICE_ID } from "../desk/prompt-bar.js";
@@ -61,6 +61,17 @@ export function say(doc, sentence) {
   pageOf(doc).standing = sentence;
   doc.dispatchEvent(
     new CustomEvent(PROMPT_BAR_MESSAGE_EVENT, { detail: { sentence, refused: true } }),
+  );
+}
+
+/**
+ * Say how something went, with no refusal's cue.
+ * @param {Document} doc
+ * @param {string} sentence
+ */
+export function report(doc, sentence) {
+  doc.dispatchEvent(
+    new CustomEvent(PROMPT_BAR_MESSAGE_EVENT, { detail: { sentence, refused: false } }),
   );
 }
 

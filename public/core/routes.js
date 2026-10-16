@@ -83,6 +83,12 @@ export function capabilityLinkUrl(/** @type {string} */ capabilityId, /** @type 
   return `${CAPABILITY_LINK_PATH_PREFIX}/${encodeURIComponent(capabilityId)}/${encodeURIComponent(field)}`;
 }
 
+/** The capability one field's Link control address names. */
+export function linkedCapabilityId(/** @type {string} */ linkUrl) {
+  const [, capabilityId = ""] = linkUrl.slice(CAPABILITY_LINK_PATH_PREFIX.length).split("/");
+  return decodeURIComponent(capabilityId);
+}
+
 /** Where a linked field reads the records it is a dropdown of, beside its Link control's address. */
 export function linkedRecordsUrl(/** @type {string} */ linkUrl) {
   return `${linkUrl}/records`;

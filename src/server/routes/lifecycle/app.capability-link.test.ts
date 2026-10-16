@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { capabilityLinkUrl } from "#shell/core/routes.js";
+import { MATCHING_CONTENT_TYPE } from "../../../lifecycle/link/matching/matching-answer.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { connectingNote, matchingReport } from "../../../presentation/controls/link/link-copy.ts";
 import { UNKNOWN_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import { compareAndSwapCapability, getCapability, type Relation } from "../../../registry/index.ts";
 import { createReadGateCoordinator } from "../../../runtime/concurrency/read-gates.ts";
@@ -13,6 +15,7 @@ import { createTestApp } from "../../isolated-app.test-support.ts";
 import {
   AUTHORS,
   AUTHORS_INCARNATION,
+  answerLines,
   BOOKS,
   deskRow,
   installDesk,
@@ -87,8 +90,12 @@ describe("linking a field by hand", () => {
     );
     const response = await press("books", "author", new URLSearchParams(name?.press));
 
-    expect(response.status).toBe(204);
-    expect(await response.text()).toBe("");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(MATCHING_CONTENT_TYPE);
+    expect(await answerLines(response)).toEqual([
+      { note: connectingNote(BOOKS.plural, AUTHORS.plural) },
+      { report: matchingReport(BOOKS, AUTHORS.noun, { linked: 0, unmatched: 0 }) },
+    ]);
     const after = getCapability("books", conns.readonly);
     expect(after?.relations).toEqual([AUTHOR_TO_NAME]);
     expect(after?.version).toBe(1);
@@ -101,7 +108,8 @@ describe("linking a field by hand", () => {
     storeRelations(conns, "books", [AUTHOR_TO_NAME]);
     const response = await press("books", "title", pressBody(READING_LOG, "title"));
 
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(200);
+    await response.text();
     expect(relationsOf("books")).toEqual([
       AUTHOR_TO_NAME,
       {
@@ -176,7 +184,8 @@ describe("the rules a press is held to, whatever the form sent", () => {
   test("a target that is itself linked is allowed, and the chain may run on", async () => {
     storeRelations(conns, "books", [AUTHOR_TO_NAME]);
     const response = await press("reading_log", "title", pressBody(BOOKS, "title", READING_LOG));
-    expect(response.status).toBe(204);
+    expect(response.status).toBe(200);
+    await response.text();
   });
 
   test("a relation that would close a loop is refused", async () => {

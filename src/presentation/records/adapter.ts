@@ -5,27 +5,28 @@
 //
 // The composition per record, in one place: the item renderer produces inner markup; the runtime
 // enforcer runs on it, on every record, so a hostile field value can never become executable
-// markup; `renderItemWrapper` frames the result; and `renderRecordViewTemplate` emits the inert
+// markup; it is kept inside its card, with no end tag of what it never opened and nothing left
+// open;
+// `renderItemWrapper` frames the result; and `renderRecordViewTemplate` emits the inert
 // `<template>` the swap clones, so the full record's form shows even when the card truncates.
 //
 // Synchronous: the enforcer parses with Bun's native HTMLRewriter and the rest is string
 // composition. The router resolves the item renderer once, which is why it loads it eagerly. The
 // one read is the router's link lookup, since a Handler hands over a record's text, not its picks.
 
+import { matchKey } from "#shell/core/same-text.js";
 import { isFileFieldType } from "../../registry/index.ts";
 import {
   type CapabilityActionRecord,
   materializeCapabilityActionRecord,
   storedCapabilityActionRecord,
 } from "../../runtime/data/index.ts";
+import { pickTargetMark } from "../controls/link/link-copy.ts";
 import type { RenderableCapability } from "../fields/field-renderer.ts";
 import { enforceItemMarkup } from "../safety/enforcer/enforcer.ts";
+import { containedMarkup } from "../safety/markup/contained-markup.ts";
 import { type ItemRecordViewRef, renderItemWrapper } from "./collection/list-container.ts";
-import {
-  hasRecordView,
-  renderRecordView,
-  renderRecordViewTemplate,
-} from "./record-view/record-view.ts";
+import { renderRecordView, renderRecordViewTemplate } from "./record-view/record-view.ts";
 
 /**
  * A record as it reaches presentation: the spec fields plus the platform-populated `id` and
@@ -56,6 +57,8 @@ export interface PresentationAdapterOptions {
   readonly renderItem: ItemRenderer;
   /** What each record's Edit form says its linked fields picked; the Gate's adapter has none. */
   readonly links?: RecordLinks;
+  /** Each linked field's target record noun, which its card's broken-link mark asks for. */
+  readonly linkNouns?: ReadonlyMap<string, string>;
 }
 
 /**
@@ -72,19 +75,36 @@ export function createPresentationAdapter(
   options: PresentationAdapterOptions,
 ): PresentationAdapter {
   const { capability, renderItem } = options;
-  // Only a record's Edit form carries picks, and only for a field whose relation holds.
-  const draws = hasRecordView(capability) && (capability.linkedFields?.length ?? 0) > 0;
-  const links = draws ? options.links : undefined;
+  // Picks are read for a field whose relation holds: its Edit form starts on them, and its card
+  // is marked without one.
+  const links = (capability.linkedFields?.length ?? 0) > 0 ? options.links : undefined;
   return (record) => {
     const materialized = materializeCapabilityActionRecord(record);
-    return present(
-      capability,
-      renderItem,
-      materialized,
-      storedFiles(capability, storedCapabilityActionRecord(record)),
-      links?.(String(materialized.id)),
-    );
+    const picks = links?.(String(materialized.id));
+    const stored = storedCapabilityActionRecord(record);
+    const files = storedFiles(capability, stored);
+    const mark = picks && linkMark(stored, picks, capability.linkedFields, options.linkNouns);
+    return present(capability, renderItem, materialized, files, picks, mark);
   };
+}
+
+/**
+ * The broken-link mark's name, when a field the form draws as a dropdown holds a name as stored,
+ * whatever the Handler presents, and no pick: a field holding none asks for nothing, as the
+ * matching scan counts it, and one whose pick stands is linked.
+ */
+function linkMark(
+  stored: PresentableRecord,
+  picks: ReadonlyMap<string, string>,
+  linkedFields: readonly string[] = [],
+  nouns: ReadonlyMap<string, string> = new Map(),
+): string | undefined {
+  const asked = linkedFields.filter((field) => {
+    const text = stored[field];
+    return typeof text === "string" && matchKey(text) !== "" && !picks.has(field);
+  });
+  if (asked.length === 0) return undefined;
+  return pickTargetMark(asked.map((field) => nouns.get(field) ?? "record"));
 }
 
 /**
@@ -134,6 +154,7 @@ function present(
   record: PresentableRecord,
   files: PresentableRecord = {},
   picks?: ReadonlyMap<string, string>,
+  mark?: string,
 ): string {
   const templateId = recordTemplateId(capability.id, record);
   const drawn = { ...record, ...files };
@@ -141,11 +162,14 @@ function present(
   const recordView: ItemRecordViewRef | undefined =
     recordTemplate === "" ? undefined : { templateId };
 
-  const safeInnerHtml = enforceItemMarkup(renderItem(projectItemRecord(capability, record)));
+  const safeInnerHtml = containedMarkup(
+    enforceItemMarkup(renderItem(projectItemRecord(capability, record))),
+  );
   const item = renderItemWrapper(
     safeInnerHtml,
     projectClientRecord(capability, record),
     recordView,
+    mark,
   );
 
   return item + recordTemplate;

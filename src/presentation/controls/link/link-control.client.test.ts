@@ -34,6 +34,7 @@ import {
   noticed,
   openScene,
   REFUSED,
+  REPORT,
   SHELF,
   STALE,
   settle,
@@ -48,6 +49,8 @@ installLinkGlobals();
 const LINK_URL = capabilityLinkUrl("books", AUTHOR.name);
 const refusal = (sentence: string) => ({ sentence, refused: true });
 const WITHDRAWN = { sentence: "" };
+/** How the matching went, said with no refusal's cue. */
+const REPORTED = { sentence: REPORT, refused: false };
 
 describe("the shipped page runs the client against what the server writes", () => {
   test("the shell loads it as a module, and it starts itself on the document it finds", async () => {
@@ -320,7 +323,7 @@ describe("a refusal is taken back once a retry works", () => {
       "POST",
       "POST",
     ]);
-    expect(scene.said).toEqual([refusal(linkNoticeSentence(REFUSED)), WITHDRAWN]);
+    expect(scene.said).toEqual([refusal(linkNoticeSentence(REFUSED)), WITHDRAWN, REPORTED]);
   });
 
   test("but not when something else was said on the bar since", async () => {
@@ -348,10 +351,10 @@ describe("a refusal is taken back once a retry works", () => {
     expect(scene.notice.textContent).toBe("I deleted Reading Log permanently.");
   });
 
-  test("and nothing is taken back when nothing was refused", async () => {
+  test("and nothing is taken back when nothing was refused: the bar only reports", async () => {
     const scene = await openScene([written]);
     await scene.press(scene.options()[0] as El);
-    expect(scene.said).toEqual([]);
+    expect(scene.said).toEqual([REPORTED]);
   });
 });
 

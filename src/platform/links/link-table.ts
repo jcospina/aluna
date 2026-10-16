@@ -89,6 +89,13 @@ export function deleteSourceLinkRows(database: Database, capability: string, rec
     .run(capability, record);
 }
 
+/** Forget every pick one field holds, whichever record made it. */
+export function deleteFieldLinkRows(database: Database, capability: string, field: string): void {
+  database
+    .query(`DELETE FROM ${LINK_TABLE} WHERE source_capability = ? AND source_field = ?`)
+    .run(capability, field);
+}
+
 /** What each of one record's fields picked, by field. */
 export function readSourceLinkRows(
   database: Database,

@@ -72,8 +72,12 @@ export function pickScope(
   action: "create" | "update",
   catalog: readonly CapabilityRow[],
 ): PickScope {
-  const targetNoun = (id: string) => catalog.find((row) => row.id === id)?.noun ?? "record";
-  return { database, capabilityId, action, targetNoun };
+  return { database, capabilityId, action, targetNoun: targetNounIn(catalog) };
+}
+
+/** The record noun of the capability a relation points at, as its row stores it. */
+function targetNounIn(catalog: readonly CapabilityRow[]): (capabilityId: string) => string {
+  return (id) => catalog.find((row) => row.id === id)?.noun ?? "record";
 }
 
 export async function invokeCapabilityHandler(
@@ -253,5 +257,7 @@ async function buildPresentationAdapter(
   const renderItem = await loadItemRenderer(row.artifacts_path);
   const capability = { ...renderableFromRow(row, read.catalog), item: row.ui_intent.item };
   const links = (recordId: string) => heldPicks(database, row.id, recordId, read.relations);
-  return createPresentationAdapter({ capability, renderItem, links });
+  const nounOf = targetNounIn(read.catalog);
+  const linkNouns = new Map(read.relations.map(({ field, to }) => [field, nounOf(to.capability)]));
+  return createPresentationAdapter({ capability, renderItem, links, linkNouns });
 }

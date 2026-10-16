@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import type { MatchCounts } from "../../presentation/controls/link/link-copy.ts";
 import {
   addCapabilityRelation,
   type CapabilityRow,
@@ -6,6 +7,7 @@ import {
   listCapabilities,
 } from "../../registry/index.ts";
 import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
+import { matchTypedNames } from "./matching/matching-scan.ts";
 import { type LinkEnd, type LinkRefusalCode, linkRefusal } from "./rules.ts";
 
 /** One end of a press, as the chooser read it: the write is conditional on exactly this. */
@@ -28,11 +30,22 @@ export interface CapabilityLinkDeps {
   readonly readonlyDatabase?: Database;
   /** Dropped if the caller goes away before this write reaches the head of the queue. */
   readonly signal?: AbortSignal;
+  /**
+   * Told once the rules admit the pair under the lease, before the relation and its link rows are
+   * written; the write waits for what it returns, so the person can be told it is under way.
+   */
+  readonly onAdmitted?: (ends: AdmittedEnds) => Promise<void> | void;
+}
+
+/** Both ends of a pair the rules admitted, as the lease read them. */
+export interface AdmittedEnds {
+  readonly source: CapabilityRow;
+  readonly target: CapabilityRow;
 }
 
 export type CapabilityLinkOutcome =
-  /** Written. The row is what the registry now holds, the new relation included. */
-  | { readonly status: "linked"; readonly row: CapabilityRow }
+  /** Written with the names the field held matched. `source` holds the new relation. */
+  | (AdmittedEnds & { readonly status: "linked"; readonly matched: MatchCounts })
   /** A rule refused the pair, read under the lease. Nothing was written. */
   | {
       readonly status: "refused";
@@ -60,8 +73,15 @@ export async function linkCapabilityField(
   );
 }
 
-/** Both ends read again under the lease, the rules decided on what was read, then one write. */
-function linkUnderLease(press: LinkPress, deps: CapabilityLinkDeps): CapabilityLinkOutcome {
+/**
+ * Both ends read again under the lease and the rules decided on what was read, then the relation
+ * and the matching scan's link rows in one transaction: a scan that fails leaves
+ * the field as it was, to be linked again.
+ */
+async function linkUnderLease(
+  press: LinkPress,
+  deps: CapabilityLinkDeps,
+): Promise<CapabilityLinkOutcome> {
   // Admitted, but nobody is left to hear it: a press that outlived its connection writes nothing.
   if (deps.signal?.aborted) return { status: "stale", moved: null };
   const catalog = listCapabilities(deps.database);
@@ -82,10 +102,14 @@ function linkUnderLease(press: LinkPress, deps: CapabilityLinkDeps): CapabilityL
     version: source.row.version,
     relations: source.row.relations,
   };
-  const row = addCapabilityRelation(expectation, relation, deps.database);
-  return row
-    ? { status: "linked", row }
-    : { status: "stale", moved: getCapability(source.row.id, deps.database) };
+  await deps.onAdmitted?.({ source: source.row, target: target.row });
+  // Nothing that moves either end writes without the lease this holds, so the rules still stand.
+  const written = deps.database.transaction(() => {
+    const row = addCapabilityRelation(expectation, relation, deps.database);
+    return row && { row, matched: matchTypedNames(deps.database, row, target.row, relation) };
+  })();
+  if (!written) return { status: "stale", moved: getCapability(source.row.id, deps.database) };
+  return { status: "linked", source: written.row, target: target.row, matched: written.matched };
 }
 
 type StaleOutcome = Extract<CapabilityLinkOutcome, { status: "stale" }>;
