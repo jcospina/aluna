@@ -88,7 +88,7 @@ writer never sees it. Changing a relation never makes a version. Aluna updates t
 in place, the way Rename updates a label, so no code regenerates and no frozen test moves,
 and a test proves it as equal artifact digests before and after. Every evolution carries
 relations forward unchanged, and the link step never re-decides a committed relation.
-Only Unlink, or deleting the target capability, removes one. A relation diff of its own
+Only Unlink, or deleting either capability, removes one. A relation diff of its own
 maps every relation change to platform work, so the Diff Engine's change-fact contract
 does not grow. Hiding the source or the target field makes the relation dormant: the text
 stays, Aluna treats the relation as absent, and reactivating the field revives it with its
@@ -267,7 +267,9 @@ that name, so the deletion only removes the link row. Until 8.4 lands, deleting 
 record removes its link rows and nothing else. Deleting a target capability works like
 Unlink on every relation pointing at it: the relations and link rows go, every record keeps
 the text it shows, and the field is plain text again, with no mark, because nothing is left
-to pick. A relation is no `read_dependency` and never blocks a capability's deletion.
+to pick. Deleting a capability whose own fields are linked takes those relations and their
+link rows with it, in the same transaction. A relation is no `read_dependency` and never
+blocks a capability's deletion.
 
 **Search follows links, in platform code.** Searching Inventory for "sanderson" finds the
 copies of his books, though Inventory holds only titles and counts. The generated search

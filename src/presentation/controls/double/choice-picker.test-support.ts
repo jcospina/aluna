@@ -204,12 +204,14 @@ export class El extends LaidOut implements EventNode {
     return copy;
   }
 
-  /** What puts a record view where its collection was. */
+  /** What puts a record view where its collection was; focus leaves with the node it was in. */
   replaceWith(incoming: El): void {
     const siblings = this.parent?.children;
     const at = siblings?.indexOf(this) ?? -1;
     if (!siblings || at < 0) return;
     const host = this.parent as El;
+    const doc = this.ownerDoc;
+    if (doc && this.contains(doc.activeElement)) doc.focusOn(null);
     incoming.remove();
     siblings.splice(at, 1, incoming);
     incoming.parent = host;
@@ -291,9 +293,12 @@ export class El extends LaidOut implements EventNode {
     return this.hasAttribute("disabled");
   }
 
+  /** A control disabled while it holds focus loses it, as a browser's focus fixup takes it. */
   set disabled(next: boolean) {
     if (next) this.setAttribute("disabled", "");
     else this.removeAttribute("disabled");
+    const doc = this.ownerDoc;
+    if (next && doc?.activeElement === this) doc.focusOn(null);
   }
 
   get dataset(): Record<string, string | undefined> {

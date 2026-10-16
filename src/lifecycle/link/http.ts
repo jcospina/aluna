@@ -11,29 +11,27 @@ import {
   listCapabilities,
   type SpecField,
 } from "../../registry/index.ts";
-import {
-  MutationAdmissionError,
-  type MutationCoordinator,
-} from "../../runtime/concurrency/mutation-coordinator.ts";
+import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 import type { ReadGateCoordinator } from "../../runtime/concurrency/read-gates.ts";
 import { READ_UNAVAILABLE_FRAGMENT } from "../../runtime/router/index.ts";
 import { NO_STORE } from "../../server/http/cache-headers.ts";
 import { guardWritingRoute } from "../../server/http/writing-route-guard.ts";
-import { singleFormValue } from "../form-values.ts";
 import {
   type AdmittedEnds,
   type CapabilityLinkOutcome,
   type LinkPress,
   linkCapabilityField,
+  pressFields,
+  pressFrom,
+  staleIfDropped,
 } from "./front-half.ts";
 import { afterTheNoteGoesOut, answerMatching } from "./matching/matching-answer.ts";
 import { readPickList } from "./pick/pick.ts";
 import {
-  FIELD_NOT_LINKED_CODE,
+  answerLinkNotice,
   LINK_STALE_CODE,
   LINK_UNREADABLE_CODE,
-  type LinkNotice,
-  renderLinkNotice,
+  notLinkedNotice,
 } from "./presentation.ts";
 import { readPreviews } from "./previews.ts";
 import {
@@ -44,6 +42,7 @@ import {
   sourceRefusal,
 } from "./rules.ts";
 import { suggestedTarget } from "./suggestion.ts";
+import { answerUnlink } from "./unlink/unlink-http.ts";
 
 export interface CapabilityLinkHttpDeps {
   readonly registryReadwrite: Database;
@@ -64,6 +63,7 @@ export function registerCapabilityLinkRoutes(app: Hono, deps: CapabilityLinkHttp
   app.get("/capability-link/:id/:field", (c) => answerChooser(c, deps));
   app.post("/capability-link/:id/:field", guardWritingRoute(), (c) => answerPress(c, deps));
   app.get("/capability-link/:id/:field/records", (c) => answerPick(c, deps));
+  app.post("/capability-link/:id/:field/unlink", guardWritingRoute(), (c) => answerUnlink(c, deps));
 }
 
 /** The records a linked field's dropdown holds, read as the desk is now each time it opens. */
@@ -76,11 +76,11 @@ function answerPick(c: Context, deps: CapabilityLinkHttpDeps): Response {
     case "read":
       return c.json(answer.list, 200, NO_STORE);
     case "not_linked":
-      return answerNotice(c, { code: FIELD_NOT_LINKED_CODE, source: answer.source });
+      return answerLinkNotice(c, notLinkedNotice(answer.source));
     case "unavailable":
       return c.html(READ_UNAVAILABLE_FRAGMENT, 409, NO_STORE);
     case "gone":
-      return answerNotice(c, { code: LINK_STALE_CODE, moved: null, opening: true });
+      return answerLinkNotice(c, { code: LINK_STALE_CODE, moved: null, opening: true });
   }
 }
 
@@ -90,12 +90,12 @@ function answerChooser(c: Context, deps: CapabilityLinkHttpDeps): Response {
   if (!ID_PREFIX.test(prefix)) return c.text("", 400, NO_STORE);
   const catalog = listCapabilities(deps.registryReadonly);
   const row = catalog.find((candidate) => candidate.id === c.req.param("id"));
-  if (!row) return answerNotice(c, { code: LINK_STALE_CODE, moved: null, opening: true });
+  if (!row) return answerLinkNotice(c, { code: LINK_STALE_CODE, moved: null, opening: true });
   const source = { row, field: c.req.param("field") ?? "" };
   const clicked = linkableField(source);
   const refused = sourceRefusal(source);
   if (refused || !clicked) {
-    return answerNotice(c, { code: refused ?? "source_not_linkable", source });
+    return answerLinkNotice(c, { code: refused ?? "source_not_linkable", source });
   }
   const list = chooserList(source, clicked, catalog, deps);
   const panel = renderChooserPanel(prefix, { noun: row.noun, field: clicked }, list);
@@ -131,14 +131,7 @@ function chooserList(
 
 /** What a press on one option posts: both ends, each as the chooser read it. */
 function pressFor(source: CapabilityRow, target: LinkTarget): URLSearchParams {
-  return new URLSearchParams({
-    incarnation_id: source.incarnation_id,
-    version: String(source.version),
-    target: target.row.id,
-    target_field: target.field,
-    target_incarnation_id: target.row.incarnation_id,
-    target_version: String(target.row.version),
-  });
+  return new URLSearchParams(pressFields(source, target.row, target.field));
 }
 
 /**
@@ -146,8 +139,9 @@ function pressFor(source: CapabilityRow, target: LinkTarget): URLSearchParams {
  * shows while the relation is written and its names matched, then the report (`matching-answer.ts`).
  */
 async function answerPress(c: Context, deps: CapabilityLinkHttpDeps): Promise<Response> {
-  const press = pressFrom(c, await c.req.raw.formData());
-  if (!press) return answerNotice(c, { code: LINK_UNREADABLE_CODE });
+  const form = await c.req.raw.formData().catch(() => null);
+  const press = form && pressFrom(c.req.param("id") ?? "", c.req.param("field") ?? "", form);
+  if (!press) return answerLinkNotice(c, { code: LINK_UNREADABLE_CODE });
   const admitted = Promise.withResolvers<AdmittedEnds>();
   const outcome = admit(press, deps, c.req.raw.signal, (ends) => {
     admitted.resolve(ends);
@@ -157,61 +151,24 @@ async function answerPress(c: Context, deps: CapabilityLinkHttpDeps): Promise<Re
   const first = await Promise.race([admitted.promise, outcome]);
   if (!("status" in first) || first.status === "linked") return answerMatching(first, outcome);
   if (first.status === "stale") {
-    return answerNotice(c, { code: LINK_STALE_CODE, moved: first.moved });
+    return answerLinkNotice(c, { code: LINK_STALE_CODE, moved: first.moved });
   }
-  return answerNotice(c, first);
+  return answerLinkNotice(c, first);
 }
 
-/** Both versions, as integers; a form without them was not written by the chooser. */
-function pressFrom(c: Context, form: Parameters<typeof singleFormValue>[0]): LinkPress | null {
-  const version = versionIn(singleFormValue(form, "version"));
-  const targetVersion = versionIn(singleFormValue(form, "target_version"));
-  if (version === null || targetVersion === null) return null;
-  return {
-    source: {
-      capabilityId: c.req.param("id") ?? "",
-      field: c.req.param("field") ?? "",
-      incarnationId: singleFormValue(form, "incarnation_id"),
-      version,
-    },
-    target: {
-      capabilityId: singleFormValue(form, "target"),
-      field: singleFormValue(form, "target_field"),
-      incarnationId: singleFormValue(form, "target_incarnation_id"),
-      version: targetVersion,
-    },
-  };
-}
-
-/** A version as the chooser writes one: digits, nothing else. `Number` would read "" and "0x1". */
-function versionIn(text: string): number | null {
-  if (!/^[0-9]{1,15}$/.test(text)) return null;
-  return Number(text);
-}
-
-/** A press whose caller went away while it queued leaves the queue; nobody reads the answer. */
-async function admit(
+function admit(
   press: LinkPress,
   deps: CapabilityLinkHttpDeps,
   signal: AbortSignal,
   onAdmitted: (ends: AdmittedEnds) => Promise<void>,
 ): Promise<CapabilityLinkOutcome> {
-  try {
-    return await linkCapabilityField(press, {
+  return staleIfDropped(() =>
+    linkCapabilityField(press, {
       database: deps.registryReadwrite,
       readonlyDatabase: deps.registryReadonly,
       mutationCoordinator: deps.mutationCoordinator,
       signal,
       onAdmitted,
-    });
-  } catch (error) {
-    if (error instanceof MutationAdmissionError) return { status: "stale", moved: null };
-    throw error;
-  }
-}
-
-/** A refusal is spoken on the prompt bar by `public/controls/link-control.js`, never swapped in. */
-function answerNotice(c: Context, notice: LinkNotice): Response {
-  const status = notice.code === LINK_STALE_CODE ? 409 : 422;
-  return c.html(renderLinkNotice(notice), status, NO_STORE);
+    }),
+  );
 }

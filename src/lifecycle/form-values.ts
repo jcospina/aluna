@@ -11,3 +11,9 @@ export function singleFormValue(
   const only = values.length === 1 ? values[0] : undefined;
   return typeof only === "string" ? only : "";
 }
+
+/** A version as a press writes one: digits, nothing else. `Number` would read "" and "0x1". */
+export function versionIn(text: string): number | null {
+  if (!/^[0-9]{1,15}$/.test(text)) return null;
+  return Number(text);
+}

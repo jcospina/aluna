@@ -25,6 +25,7 @@ import {
   insertCapability,
   listCapabilities,
   REGISTRY_TABLE,
+  removeCapabilityRelation,
   removeRelationsTo,
 } from "./store.ts";
 
@@ -116,6 +117,35 @@ describe("a capability's relations are written in place", () => {
       second,
       AUTHOR_TO_NAME,
     ]);
+  });
+
+  test("one field's is taken off in place by Unlink: no version, the others kept", () => {
+    insertCapability(booksWrite(), conns.readwrite);
+    const second = { ...AUTHOR_TO_NAME, field: "title" };
+    const linked = expectation({ relations: [AUTHOR_TO_NAME, second] });
+    storeRaw(JSON.stringify(linked.relations));
+    const before = books();
+
+    const after = removeCapabilityRelation(linked, "author", conns.readwrite);
+
+    expect(after?.relations).toEqual([second]);
+    expect(after && { ...after, relations: before?.relations }).toEqual(before);
+    expect(books()).toEqual(after);
+  });
+
+  test("Unlink is conditional on the row as it was read, as a link is", () => {
+    insertCapability(booksWrite(), conns.readwrite);
+    storeRaw(JSON.stringify([AUTHOR_TO_NAME]));
+    const read = { relations: [AUTHOR_TO_NAME] };
+    for (const moved of [
+      { ...read, version: 2 },
+      { ...read, incarnationId: UNKNOWN_INCARNATION_ID },
+      { relations: [] },
+      { ...read, capabilityId: "authors" },
+    ]) {
+      expect(removeCapabilityRelation(expectation(moved), "author", conns.readwrite)).toBeNull();
+    }
+    expect(books()?.relations).toEqual([AUTHOR_TO_NAME]);
   });
 
   test("relations stored with their keys in another order are the same relations", () => {

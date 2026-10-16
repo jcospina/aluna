@@ -30,6 +30,16 @@ export function disconnectFieldName(noun: string, field: Pick<SpecField, "label"
   return `Disconnect ${everyRecordsField(noun, field)}`;
 }
 
+/** What the broken chain asks first, in both record nouns: "Disconnect books from authors?" */
+export function disconnectQuestion(sourcePlural: string, targetPlural: string): string {
+  return `Disconnect ${sourcePlural} from ${targetPlural}?`;
+}
+
+/** The line under it, saying what every record keeps: "Books will still keep the author as text". */
+export function disconnectDetail(sourcePlural: string, field: Pick<SpecField, "label">): string {
+  return capitalized(`${sourcePlural} will still keep the ${labelInSentence(field.label)} as text`);
+}
+
 /** What an empty linked field says, around the target's record noun: "Choose the author…". */
 export function chooseTargetRecord(targetNoun: string): string {
   return `Choose the ${targetNoun}…`;

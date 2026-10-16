@@ -1,5 +1,6 @@
 /**
- * Linking a field by hand, from the chain inside it (ADR-0011).
+ * Linking a field by hand, from the chain inside it, and unlinking it from the broken chain
+ * (ADR-0011).
  *
  * One short platform write, the way Rename is one: the relation lands on the registry row beside
  * the logo seed, no model is asked and no version is made. The rules that decide which fields can

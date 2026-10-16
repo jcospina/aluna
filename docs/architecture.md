@@ -1047,12 +1047,14 @@ elements and tables it leaves open, which a browser would carry to the next card
 left open or misnested closes each formatting element again, once for every eight
 elements, since a browser's adoption agency gives up after eight blocks.
 
-Capability deletion removes the relations pointing at the deleted capability and
-leaves link rows as they are. Deleting a target record removes the rows that name it,
-in the delete's own savepoint. Unlink, and the removal of a deleted capability's rows,
-are still to come (8.1/07). Once they land, capability deletion removes the deleted capability's relations and
-link rows on both sides in the tombstone transaction, so every relation pointing at it
-goes as Unlink takes one and each linked field keeps its text (ADR-0011).
+Unlink takes one field's relation off its registry row and deletes every link row the
+field made, in one platform write under the platform-write lease; every record keeps
+its text and no version is made. Capability deletion does the same on both sides in
+the tombstone transaction. Every relation pointing at the deleted capability comes off
+the other rows, and every link row naming one of its records goes. Its own relations
+go with its row as it becomes the tombstone, and so do the link rows its fields made.
+Each linked field keeps its text, unmarked, since nothing is left to pick (ADR-0011).
+Deleting a target record removes the rows that name it, in the delete's own savepoint.
 
 #### Generation Metrics — the experiment's measurements
 

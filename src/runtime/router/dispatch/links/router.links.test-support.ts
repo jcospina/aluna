@@ -2,6 +2,7 @@
 // the real router: what a linked field's form posts, and the link rows a save leaves. Not a test file.
 
 import { linkFieldValue } from "#shell/core/shell-dom.js";
+import { until } from "../../../../platform/async.test-support.ts";
 import { LINK_TABLE, writeLinkRow } from "../../../../platform/links/link-table.ts";
 import type { PlatformDatabase } from "../../../../platform/persistence/db.ts";
 import type { CapabilityRow, Relation } from "../../../../registry/index.ts";
@@ -11,6 +12,7 @@ import {
   installDesk,
   storeRelations,
 } from "../../../../server/routes/lifecycle/link.test-support.ts";
+import type { MutationCoordinator } from "../../../concurrency/mutation-coordinator.ts";
 import type { CapabilityHandler, CapabilityInput } from "../../contract.ts";
 import { ALUNA_LINK_MARKER, ALUNA_PRESENT_MARKER } from "../../wire/wire-protocol.ts";
 import { defaultLoadHandler, type HandlerLoader } from "../generated-code.ts";
@@ -19,6 +21,11 @@ import type { CapabilityRouterDeps } from "../router.ts";
 
 export const TEXT_TO_NAME: Relation = {
   field: "text",
+  to: { capability: "authors", incarnation: AUTHORS_INCARNATION, field: "name" },
+};
+
+export const BOOK_AUTHOR: Relation = {
+  field: "author",
   to: { capability: "authors", incarnation: AUTHORS_INCARNATION, field: "name" },
 };
 
@@ -73,6 +80,35 @@ export interface StoredLink {
   readonly target_capability: string;
   readonly target_incarnation: string;
   readonly target_record: string;
+}
+
+/** The link row of the one book `seedLinkedBook` seeds, which picked Le Guin. */
+export const BOOK_LINK: StoredLink = {
+  source_capability: "books",
+  source_record: "book-1",
+  source_field: "author",
+  target_capability: "authors",
+  target_incarnation: AUTHORS_INCARNATION,
+  target_record: LE_GUIN,
+};
+
+/** Books' author linked to Authors · Name beside the notes, and one book that picked Le Guin. */
+export function seedLinkedBook(conns: PlatformDatabase): void {
+  storeRelations(conns, "books", [BOOK_AUTHOR]);
+  conns.readwrite.run('INSERT INTO "cap_books" ("id", "author") VALUES (?, ?)', [
+    BOOK_LINK.source_record,
+    "Ursula K. Le Guin",
+  ]);
+  writeLinkRow(
+    conns.readwrite,
+    { capability: "books", record: BOOK_LINK.source_record, field: "author" },
+    { capability: "authors", incarnation: AUTHORS_INCARNATION, record: LE_GUIN },
+  );
+}
+
+/** Until a platform write waits its turn in the queue, behind whatever `coordinator` holds. */
+export function queuedPlatformWrite(coordinator: MutationCoordinator): Promise<void> {
+  return until(() => coordinator.snapshot().queuedTickets.some(({ kind }) => kind === "platform"));
 }
 
 /** Every link row, in a stable order. */

@@ -5,7 +5,10 @@
 
 import { startLinkedFields } from "#shell/controls/linked-field.js";
 import { PROMPT_BAR_MESSAGE_EVENT, PROMPT_NOTICE_ID } from "#shell/desk/prompt-bar.js";
-import { SECOND_INCARNATION_ID } from "../../../../registry/incarnations.test-support.ts";
+import {
+  FIRST_INCARNATION_ID,
+  SECOND_INCARNATION_ID,
+} from "../../../../registry/incarnations.test-support.ts";
 import type { Relation, SpecField } from "../../../../registry/index.ts";
 import { probeField } from "../../../fields/field-renderer.test-support.ts";
 import {
@@ -15,7 +18,14 @@ import {
 } from "../../../fields/field-renderer.ts";
 import { Doc, type El, parseHtml } from "../../double/choice-picker.test-support.ts";
 import { type Reply, settle } from "../link-control.test-support.ts";
-import { chooseTargetRecord, disconnectFieldName, unmatchedTargetLine } from "../link-copy.ts";
+import {
+  chooseTargetRecord,
+  connectFieldName,
+  disconnectDetail,
+  disconnectFieldName,
+  disconnectQuestion,
+  unmatchedTargetLine,
+} from "../link-copy.ts";
 
 export const AUTHOR = probeField("string", { name: "author", label: "Author", required: false });
 export const TITLE = probeField("string", { name: "title", label: "Title", required: false });
@@ -55,6 +65,21 @@ export const editBook = (author: string | null, capability = linkedBooks(), pick
     new Map(picked === undefined ? [] : [["author", picked]]),
   );
 
+/** What the broken chain asks and posts, as the pick route writes it for Books · Author. */
+export const UNLINKING = {
+  lead: disconnectQuestion("books", "authors"),
+  detail: disconnectDetail("books", AUTHOR),
+  connect: connectFieldName("book", AUTHOR),
+  press: {
+    incarnation_id: FIRST_INCARNATION_ID,
+    version: "1",
+    target: AUTHOR_TO_NAME.to.capability,
+    target_field: AUTHOR_TO_NAME.to.field,
+    target_incarnation_id: AUTHOR_TO_NAME.to.incarnation,
+    target_version: "1",
+  },
+};
+
 /** The pick route's answer, written with the platform's own sentences. */
 export const records =
   (names: readonly string[] = NAMES): Reply =>
@@ -63,6 +88,7 @@ export const records =
       placeholder: chooseTargetRecord("author"),
       unmatched: unmatchedTargetLine("author"),
       disconnect: disconnectFieldName("book", AUTHOR),
+      unlinking: UNLINKING,
       records: names.map((text, index) => ({ id: `author-${index}`, text })),
     });
 

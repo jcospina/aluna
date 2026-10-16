@@ -4,14 +4,15 @@
 // byte, every stored note, the model-facing spec views and the frozen suite are the same
 // afterwards, and the capability's own routes answer as they did: the changes on the page are the
 // chain leaving the linked field and the mark on each unlinked card. A pick saved through the
-// router leaves the Gate's inputs as they were, and the Gate passes on both ends.
+// router leaves the Gate's inputs as they were, and the Gate passes on both ends. Unlink then takes
+// the relation off as it came, and every page is the page it was before the link.
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { LINK_MARK_CHAIN } from "#shell/controls/listbox-glyphs.js";
-import { capabilityLinkUrl, capabilityPickUrl } from "#shell/core/routes.js";
+import { capabilityLinkUrl, capabilityPickUrl, unlinkFieldUrl } from "#shell/core/routes.js";
 import {
   assertSuccessfulGate,
   FROZEN_BEHAVIORAL_TEST_FILE,
@@ -52,6 +53,7 @@ import { saveBody } from "../../runtime/router/dispatch/links/router.links.test-
 import { formBody } from "../../runtime/router/dispatch/router.test-support.ts";
 import { elementsOf } from "../../server/http/served-page.test-support.ts";
 import { createTestApp } from "../../server/isolated-app.test-support.ts";
+import type { PickList } from "./pick/pick.ts";
 
 const SHELVES = notesSpec({ id: "shelves", label: "Shelves", prompt_context: "Stores shelves." });
 const LINK_URL = capabilityLinkUrl("notes", "text");
@@ -434,4 +436,48 @@ describe("a pick saved on the linked capability", () => {
     expect(() => assertSuccessfulGate(shelvesGate)).not.toThrow();
     expect(notesGate.behavioral.tier).toBe(env.gate.behavioral.tier);
   }, 60_000);
+});
+
+describe("Unlink, on the same capability", () => {
+  let unlinkStatus: number;
+  let unlinked: Standing;
+  let answeredUnlinked: Answers;
+  let notesBeforeUnlink: unknown[];
+  let notesAfterUnlink: unknown[];
+
+  beforeAll(async () => {
+    // The note the pick above saved goes, so each page can be read against the one before the link.
+    env.conns.readwrite.run(`DELETE FROM "cap_notes" WHERE "text" = 'Top shelf'`);
+    notesBeforeUnlink = storedNotes();
+    const list = (await (await app.request(capabilityPickUrl("notes", "text"))).json()) as PickList;
+    const response = await app.request(unlinkFieldUrl(LINK_URL), {
+      method: "POST",
+      body: new URLSearchParams(list.unlinking.press),
+    });
+    unlinkStatus = response.status;
+    notesAfterUnlink = storedNotes();
+    unlinked = standing();
+    answeredUnlinked = await exercise();
+  }, 60_000);
+
+  test("takes the relation off in place, and leaves every stored note as it was", () => {
+    expect(unlinkStatus).toBe(204);
+    expect(unlinked.notes).toEqual(before.notes);
+    expect(unlinked.shelves).toEqual(before.shelves);
+    expect(notesAfterUnlink).toEqual(notesBeforeUnlink);
+  });
+
+  test("makes no version: every published byte, every version and the frozen suite stay", () => {
+    expect(unlinked.files).toEqual(before.files);
+    expect(unlinked.versions).toEqual(before.versions);
+    expect(unlinked.frozen).toEqual(before.frozen);
+    for (const view of [capabilitySpecFromRow, committedSpecView]) {
+      expect(view(unlinked.notes)).toEqual(view(before.notes));
+    }
+  });
+
+  test("every route draws what it drew before the link: the chain back, and no mark", () => {
+    expect(answeredBefore.read).toContain(`data-link-url="${LINK_URL}"`);
+    expect(answeredUnlinked).toEqual(answeredBefore);
+  });
 });

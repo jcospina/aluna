@@ -29,6 +29,7 @@ import {
 } from "../generated-code.ts";
 import type { CapabilityRouterDeps } from "../router.ts";
 import {
+  BOOK_AUTHOR,
   BUTLER,
   LE_GUIN,
   linkedNotesDesk,
@@ -38,10 +39,7 @@ import {
   seedNote,
 } from "./router.links.test-support.ts";
 
-export const BOOK_AUTHOR: Relation = {
-  field: "author",
-  to: { capability: "authors", incarnation: AUTHORS_INCARNATION, field: "name" },
-};
+export { BOOK_AUTHOR };
 export const MEMO_SUBJECT: Relation = {
   field: "subject",
   to: { capability: "books", incarnation: BOOKS_INCARNATION, field: "author" },

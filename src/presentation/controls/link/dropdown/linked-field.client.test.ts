@@ -82,7 +82,7 @@ describe("a linked field is drawn as a dropdown around its own input", () => {
     ]);
   });
 
-  test("the broken chain sits inside its boundary before the chevron, and does nothing yet", async () => {
+  test("the broken chain sits inside its boundary before the chevron, pressable once read", async () => {
     const scene = await dropdownScene([records()]);
     const shell = scene.input.parent as El;
     expect(shell.children.map((child) => child.className)).toEqual([
@@ -90,7 +90,7 @@ describe("a linked field is drawn as a dropdown around its own input", () => {
       "linked-field__slot",
       "listbox__chevron",
     ]);
-    expect(scene.unlink.hasAttribute("disabled")).toBe(true);
+    expect(scene.unlink.hasAttribute("disabled")).toBe(false);
     expect(scene.unlink.getAttribute("aria-label")).toBe(disconnectFieldName("book", AUTHOR));
     expect(scene.panel.hidden).toBe(true);
     // The label names the list, so a reader hears the field's name over its records.

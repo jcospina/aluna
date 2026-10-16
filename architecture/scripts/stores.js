@@ -13,7 +13,8 @@ if (storesRoot) {
     tables: {
       normal:
         "Your records, one isolated table per capability, with no foreign keys between tables. The link table, a platform table beside them, keeps which record each linked field picked.",
-      deleted: "Dropped, with any records in it. The link table is the platform's, so it stays.",
+      deleted:
+        "Dropped, with any records in it. The link table is the platform's, so it stays, but every row naming the deleted capability goes in the same transaction as the drop.",
     },
     snapshots: {
       normal:

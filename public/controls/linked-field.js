@@ -13,6 +13,7 @@
 
 import { keyIsNotOurs } from "../../design/scripts/controls/listbox-search.js";
 import { watchArrivals } from "../core/dom-arrivals.js";
+import { linkUrlOfRecords } from "../core/routes.js";
 import { matchKey, sameText } from "../core/same-text.js";
 import {
   LINK_FIELD,
@@ -22,13 +23,22 @@ import {
   PICKED_RECORD_ATTRIBUTE,
 } from "../core/shell-dom.js";
 import { ChoicePicker, closeOnPressOutside, watchPlacement } from "./choice-picker.js";
-import { bodyOf, CHOOSER_UNREAD, noticeIn, say, withdraw } from "./link-notices.js";
+import { FIELD_UNLINKED_EVENT, unlinkedEverywhere } from "./link-control.js";
+import { fadeWhileMatching } from "./link-matching.js";
+import {
+  bodyOf,
+  CHOOSER_UNREAD,
+  NOT_LINKED,
+  noticeIn,
+  pageOf,
+  say,
+  UNLINKED,
+  withdraw,
+} from "./link-notices.js";
 import { BROKEN_CHAIN, CHEVRON } from "./listbox-glyphs.js";
+import { askToUnlink } from "./unlink/unlink-field.js";
 
 const LINKED_SELECTOR = "[data-linked-field]";
-
-/** The refusal that means the field holds no relation that still holds: it is plain text again. */
-const NOT_LINKED = "field_not_linked";
 
 /** What the input carries as a text field, and gives up while it only searches. */
 const TEXT_ATTRIBUTES = [
@@ -56,7 +66,8 @@ const SEARCH_ATTRIBUTES = [
 
 /**
  * @typedef {{ id: string, text: string }} PickRecord
- * @typedef {{ placeholder: string, unmatched: string, disconnect: string,
+ * @typedef {import("./unlink/unlink-field.js").Unlinking} Unlinking
+ * @typedef {{ placeholder: string, unmatched: string, disconnect: string, unlinking: Unlinking,
  *   records: PickRecord[] }} PickList
  */
 
@@ -244,7 +255,11 @@ export class LinkedDropdown extends ChoicePicker {
     const line = root.nextElementSibling;
     /** The line under the field asking for a pick. */
     this.line = line instanceof HTMLElement && line.id.endsWith("-unmatched") ? line : null;
-    this.unlink = root.querySelector(".linked-field__unlink");
+    const unlink = root.querySelector(".linked-field__unlink");
+    /** The broken chain, which can be pressed once the records say what it asks and posts. */
+    this.unlink = unlink instanceof HTMLButtonElement ? unlink : null;
+    /** @type {Unlinking | null} */
+    this.unlinking = null;
     /** Whether the records have been read, and so whether the field's text names one of them. */
     this.loaded = false;
     /** @type {Promise<void> | null} */
@@ -262,6 +277,13 @@ export class LinkedDropdown extends ChoicePicker {
       if (event.key === "Escape") this.hide(false);
     };
     this.control.addEventListener("keydown", letGo, { signal: this.wiring.signal });
+    this.unlink?.addEventListener("click", () => this.askToUnlink(), {
+      signal: this.wiring.signal,
+    });
+    // Unlinked from this copy or another, the field is plain text again, its chain back.
+    root.addEventListener(FIELD_UNLINKED_EVENT, () => this.becomePlain(), {
+      signal: this.wiring.signal,
+    });
     // A refused save reads the list again: a pick whose record went is then one the field's text
     // no longer names, and the next save does not post it again.
     root.closest("form")?.addEventListener(
@@ -467,20 +489,55 @@ export class LinkedDropdown extends ChoicePicker {
     if (this.retired || !this.root.isConnected) return;
     const doc = this.root.ownerDocument;
     const notice = noticeIn(doc, body);
+    const linking = this.readOnceLinked(notice);
+    if (linking) return linking;
     // A list standing open keeps what it read last, so only one that goes for good says why.
-    const gone = notice.code === NOT_LINKED;
+    const gone = notice.code === NOT_LINKED || notice.code === UNLINKED;
     const waiting = this.wanted || (gone && this.open);
-    if (gone) this.becomePlain();
+    if (gone) this.unlinked(notice);
     if (!waiting) return;
     this.said = true;
     say(doc, notice.sentence || CHOOSER_UNREAD);
   }
 
+  /**
+   * A list read while this page was still linking the field is read again once the press lets go
+   * of it: the press's note comes before its relation lands, so a read in between finds none. The
+   * read in flight stands until then, so an opening waiting on it opens on the list.
+   * @param {{ code: string }} notice
+   * @returns {Promise<void> | null}
+   */
+  readOnceLinked(notice) {
+    const { writing } = pageOf(this.root.ownerDocument);
+    const url = linkUrlOfRecords(this.pickUrl);
+    if (notice.code !== UNLINKED || !writing.has(url)) return null;
+    return writing.letGo(url).then(() => (this.retired ? undefined : this.fetchList()));
+  }
+
+  /**
+   * The field is no dropdown: plain text, and when it holds no relation at all, unlinked from
+   * another tab, every copy of it takes its chain back.
+   * @param {{ code: string, connect: string }} notice
+   */
+  unlinked(notice) {
+    const connect = notice.connect || this.unlinking?.connect || "";
+    if (notice.code !== UNLINKED || connect === "") return this.becomePlain();
+    unlinkedEverywhere(this.root.ownerDocument, this.pickUrl, connect);
+  }
+
   /** The field is plain text again: this lets go of it, every listener with it, and undraws. */
   becomePlain() {
+    if (this.retired) return;
     this.retired = true;
     this.retire();
     this.undraw();
+  }
+
+  /** The broken chain closes the list, then asks before it unlinks the field. */
+  askToUnlink() {
+    if (this.retired || !this.unlink || this.unlink.disabled || !this.unlinking) return;
+    this.hide(false);
+    askToUnlink(this.unlink, this.pickUrl, this.unlinking, () => this.read());
   }
 
   /** @param {PickList} list */
@@ -490,7 +547,14 @@ export class LinkedDropdown extends ChoicePicker {
     const keep = this.open && this.active ? this.identity(this.active) : undefined;
     this.input?.setAttribute("placeholder", list.placeholder);
     if (this.line) this.line.textContent = list.unmatched;
-    this.unlink?.setAttribute("aria-label", list.disconnect);
+    this.unlinking = list.unlinking;
+    if (this.unlink) {
+      this.unlink.setAttribute("aria-label", list.disconnect);
+      // Held still until the list gives it a name and a press; it then fades only while names are
+      // being matched.
+      if (!this.loaded) this.unlink.disabled = false;
+      fadeWhileMatching(this.unlink);
+    }
     const prefix = this.scroll.id;
     this.scroll.replaceChildren(
       ...list.records.map((record, index) => {
@@ -513,11 +577,11 @@ export class LinkedDropdown extends ChoicePicker {
 /** @param {unknown} list @returns {list is PickList} */
 function isPickList(list) {
   if (typeof list !== "object" || list === null) return false;
-  const { placeholder, unmatched, disconnect, records } = /** @type {Record<string, unknown>} */ (
-    list
-  );
+  const { placeholder, unmatched, disconnect, unlinking, records } =
+    /** @type {Record<string, unknown>} */ (list);
   return (
     [placeholder, unmatched, disconnect].every((words) => typeof words === "string") &&
+    isUnlinking(unlinking) &&
     Array.isArray(records) &&
     records.every(
       (record) =>
@@ -526,6 +590,18 @@ function isPickList(list) {
         typeof record.id === "string" &&
         typeof record.text === "string",
     )
+  );
+}
+
+/** @param {unknown} unlinking @returns {unlinking is Unlinking} */
+function isUnlinking(unlinking) {
+  if (typeof unlinking !== "object" || unlinking === null) return false;
+  const { lead, detail, connect, press } = /** @type {Record<string, unknown>} */ (unlinking);
+  return (
+    [lead, detail, connect].every((words) => typeof words === "string") &&
+    typeof press === "object" &&
+    press !== null &&
+    Object.values(press).every((value) => typeof value === "string")
   );
 }
 

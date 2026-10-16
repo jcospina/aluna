@@ -17,6 +17,7 @@ import {
   teardownScratchDbEnv,
 } from "../persistence/scratch-db.test-support.ts";
 import {
+  deleteCapabilityLinkRows,
   deleteFieldLinkRowsTo,
   deleteLinkRow,
   deleteSourceLinkRows,
@@ -139,6 +140,22 @@ describe("a row", () => {
     expect(readSourceLinkRows(database, "quotes", "quote-1")).toEqual(new Map());
     expect(picked("book-2")).toEqual(new Map([["author", LE_GUIN]]));
     expect(picked("book-3")).toEqual(new Map([["author", elsewhere]]));
+  });
+
+  test("goes with its capability at either end, in every lifetime, and no other's (8.1/07)", () => {
+    const database = env.conns.readwrite;
+    const byAuthor = { capability: "authors", record: "author-0", field: "mentor" };
+    const people = { capability: "people", incarnation: "people-1", record: "person-1" };
+    const quote = { capability: "quotes", record: "quote-1", field: "by" };
+    writeLinkRow(database, MISTBORN_AUTHOR, SANDERSON);
+    writeLinkRow(database, byAuthor, people);
+    writeLinkRow(database, quote, { ...SANDERSON, incarnation: "authors-0" });
+    writeLinkRow(database, { ...quote, record: "quote-2" }, people);
+    deleteCapabilityLinkRows(database, "authors");
+    expect(readSourceLinkRows(database, "books", "book-1")).toEqual(new Map());
+    expect(readSourceLinkRows(database, "authors", "author-0")).toEqual(new Map());
+    expect(readSourceLinkRows(database, "quotes", "quote-1")).toEqual(new Map());
+    expect(readSourceLinkRows(database, "quotes", "quote-2")).toEqual(new Map([["by", people]]));
   });
 });
 

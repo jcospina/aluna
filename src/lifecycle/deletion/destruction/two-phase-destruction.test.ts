@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { LINK_TABLE, writeLinkRow } from "../../../platform/links/link-table.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { REGISTRY_TABLE } from "../../../platform/persistence/table-names.ts";
 import {
@@ -324,7 +325,7 @@ describe("two-phase capability destruction", () => {
     expect(readGates.snapshot()[0]).toMatchObject({ state: "active", readerCount: 0 });
   });
 
-  test("the relations pointing at the deleted lifetime go with it, rolled back if the commit is", async () => {
+  test("the relations and link rows of the deleted lifetime go with it, rolled back if the commit is", async () => {
     const target = notesRow();
     install(conns, target);
     const linker = notesRow({ id: "books", incarnation_id: SECOND_INCARNATION_ID });
@@ -338,6 +339,18 @@ describe("two-phase capability destruction", () => {
     conns.readwrite
       .query(`UPDATE ${REGISTRY_TABLE} SET relations = ? WHERE id = 'books'`)
       .run(JSON.stringify(relations));
+    const toNotes = { capability: "notes", incarnation: target.incarnation_id, record: "note-1" };
+    writeLinkRow(
+      conns.readwrite,
+      { capability: "books", record: "book-1", field: "text" },
+      toNotes,
+    );
+    writeLinkRow(
+      conns.readwrite,
+      { capability: "notes", record: "note-1", field: "text" },
+      { capability: "authors", incarnation: THIRD_INCARNATION_ID, record: "author-1" },
+    );
+    const rows = () => conns.readonly.query(`SELECT source_capability FROM ${LINK_TABLE}`).all();
     const destroy = (faults = {}) =>
       destroyCapability({
         target,
@@ -355,9 +368,11 @@ describe("two-phase capability destruction", () => {
     };
     await expect(destroy(failing)).rejects.toThrow("before commit");
     expect(getCapability("books", conns.readonly)?.relations).toEqual(relations);
+    expect(rows()).toHaveLength(2);
 
     await destroy();
     expect(getCapability("books", conns.readonly)?.relations).toEqual(relations.slice(1));
+    expect(rows()).toEqual([]);
   });
 
   test("artifact cleanup refuses a symlinked parent without touching the outside directory", async () => {

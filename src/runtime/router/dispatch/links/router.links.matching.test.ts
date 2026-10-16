@@ -5,7 +5,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { capabilityActionUrl, capabilityLinkUrl } from "#shell/core/routes.js";
 import { RECORD_ID_FIELD } from "#shell/core/shell-dom.js";
-import { until } from "../../../../platform/async.test-support.ts";
 import type { PlatformDatabase } from "../../../../platform/persistence/db.ts";
 import {
   connectingNote,
@@ -39,6 +38,7 @@ import {
   linkRows,
   noteLink,
   notes,
+  queuedPlatformWrite,
   routerApp,
   SANDERSON,
   saveBody,
@@ -180,7 +180,7 @@ describe("linking a field that holds names", () => {
       answered = true;
       return response;
     });
-    await until(() => coordinator.snapshot().queuedTickets.some(({ kind }) => kind === "platform"));
+    await queuedPlatformWrite(coordinator);
     expect(answered).toBe(false);
     coordinator.release(lease);
     expect(await answerLines(await answer)).toHaveLength(2);

@@ -10,7 +10,7 @@
  */
 
 import { watchArrivals } from "../core/dom-arrivals.js";
-import { linkedCapabilityId, linkedRecordsUrl } from "../core/routes.js";
+import { linkedCapabilityId, linkedRecordsUrl, linkUrlOfRecords } from "../core/routes.js";
 import { onCreateFinished } from "../core/shell-dom.js";
 import { refreshCommittedRecordsForMutation } from "../records/records-refresh.js";
 import {
@@ -21,10 +21,15 @@ import {
 } from "./choice-picker.js";
 import { answerLines, fadeWhileMatching, holdWhileMatching } from "./link-matching.js";
 import { bodyOf, CHOOSER_UNREAD, noticeIn, pageOf, report, say, withdraw } from "./link-notices.js";
+import { CHAIN } from "./listbox-glyphs.js";
 
 export { CHOOSER_UNREAD };
 
 const CHOOSER_SELECTOR = "[data-link-control]";
+const LINKED_SELECTOR = "[data-linked-field]";
+
+/** Said on each copy of a field once it is unlinked, so the dropdown drawn in it lets go. */
+export const FIELD_UNLINKED_EVENT = "aluna:field-unlinked";
 
 export const PICK_UNWRITTEN = "I couldn’t connect that. Try again?";
 /** A write whose connection was lost may have landed or not, and only a reload can say. */
@@ -208,7 +213,9 @@ export class LinkChooser extends ChoicePicker {
     // The relation and its link rows are written together or not at all, and nothing said which.
     if (typeof matched?.report !== "string") return say(doc, PICK_UNKNOWN);
     if (matched.report !== "") report(doc, matched.report);
-    await refreshMarks(doc, linkedCapabilityId(url));
+    // Written whole, so the press lets go of the field now: the broken chain that came back can
+    // be pressed while the list is read again.
+    void refreshMarks(doc, linkedCapabilityId(url));
   }
 
   /**
@@ -249,14 +256,14 @@ export class LinkChooser extends ChoicePicker {
 }
 
 /**
- * Re-read the linked capability's records where its list is on the page, so each card carries
- * the mark its matching left, and a card that held focus holds it again. A record that is open
- * re-reads its list on the way out.
+ * Re-read the linked capability's records where its list is on the page, so each card carries the
+ * mark its matching left, or none once it is unlinked, and a card that held focus holds it again.
+ * A record that is open re-reads its list on the way out.
  *
  * @param {Document} doc
  * @param {string} capabilityId
  */
-async function refreshMarks(doc, capabilityId) {
+export async function refreshMarks(doc, capabilityId) {
   const create = [...doc.querySelectorAll("form[data-records-target-id]")].find(
     (form) => form.getAttribute("data-capability-id") === capabilityId,
   );
@@ -304,7 +311,7 @@ function replaceEverywhere(doc, url, next, active = null) {
   /** @type {HTMLElement | null} */
   let held = null;
   const pickUrl = next === "linked" ? linkedRecordsUrl(url) : null;
-  for (const wrapper of copiesOf(doc, url)) {
+  for (const wrapper of copiesOf(doc, CHOOSER_SELECTOR, "data-link-url", url)) {
     const input = wrapper.querySelector(".field__control input");
     if (active && wrapper.contains(active) && input instanceof HTMLElement) held = input;
     unwrap(doc, wrapper, pickUrl);
@@ -313,17 +320,124 @@ function replaceEverywhere(doc, url, next, active = null) {
 }
 
 /**
- * Every chooser for `url`, on the page and in every record's template.
+ * Every copy of one field's wrapper, on the page and in every record's template: those `selector`
+ * finds whose `attribute` names `url`.
  * @param {Document} doc
+ * @param {string} selector
+ * @param {string} attribute
  * @param {string} url
  */
-function copiesOf(doc, url) {
+function copiesOf(doc, selector, attribute, url) {
   const roots = [doc, ...[...doc.querySelectorAll("template")].map((template) => template.content)];
   return roots.flatMap((root) =>
-    [...root.querySelectorAll(CHOOSER_SELECTOR)].filter(
-      (wrapper) => wrapper.getAttribute("data-link-url") === url,
+    [...root.querySelectorAll(selector)].filter(
+      (wrapper) => wrapper.getAttribute(attribute) === url,
     ),
   );
+}
+
+/**
+ * The way back from `unwrap`: every copy of a linked field is the plain text field it was, with
+ * its chain. Each dropdown drawn for it lets go of it, and a copy none was drawn in, a record's
+ * template, gives up its wrapper. Focus that was on the broken chain, or nowhere after `pressed`,
+ * moves to the chain that replaces it; focus in the field's input stays there.
+ *
+ * @param {Document} doc
+ * @param {string} pickUrl the field's pick route, which its linked copies carry
+ * @param {string} connect the chain's accessible name
+ * @param {Element | null} [pressed] the broken chain pressed, which focus may have left meanwhile
+ */
+export function unlinkedEverywhere(doc, pickUrl, connect, pressed = null) {
+  const url = linkUrlOfRecords(pickUrl);
+  const anchor = focusIsNowhere(doc) ? pressed : doc.activeElement;
+  const copies = copiesOf(doc, LINKED_SELECTOR, "data-pick-url", pickUrl).map((wrapper) => ({
+    wrapper,
+    shell: wrapper.querySelector(":scope > .field__control"),
+  }));
+  const holding = copies.find(({ wrapper }) => anchor !== null && wrapper.contains(anchor));
+  for (const { wrapper } of copies) wrapper.dispatchEvent(new CustomEvent(FIELD_UNLINKED_EVENT));
+  /** @type {HTMLElement | null} */
+  let held = null;
+  for (const copy of copies) {
+    const chain = chainedAgain(doc, copy, url, connect);
+    if (copy === holding) held = chain;
+  }
+  if (holding !== undefined && focusIsNowhere(doc))
+    focusAfterUnlinking(anchor, holding.shell, held);
+}
+
+/**
+ * Where focus goes in the copy that held it: the input is the field's own and comes back, so it
+ * keeps focus; the broken chain does not, so the chain that replaced it takes focus, or the input
+ * while names are matched and the chain is faded.
+ *
+ * @param {Element | null} anchor
+ * @param {Element | null} shell
+ * @param {HTMLElement | null} chain
+ */
+function focusAfterUnlinking(anchor, shell, chain) {
+  if (anchor instanceof HTMLElement && anchor.isConnected) return anchor.focus();
+  const faded = chain instanceof HTMLButtonElement && chain.disabled;
+  const input = shell?.querySelector("input");
+  (faded && input instanceof HTMLElement ? input : chain)?.focus();
+}
+
+/**
+ * One copy of a linked field as the plain text field with its chain, its dropdown already let go,
+ * faded at once if names are being matched.
+ *
+ * @param {Document} doc
+ * @param {{ wrapper: Element, shell: Element | null }} copy
+ * @param {string} url
+ * @param {string} connect
+ */
+function chainedAgain(doc, { wrapper, shell }, url, connect) {
+  if (!(shell instanceof HTMLElement)) return null;
+  if (shell.parentNode === wrapper) wrapper.replaceWith(shell);
+  const chain = chainAround(doc, shell, url, connect);
+  fadeWhileMatching(chain);
+  return chain;
+}
+
+/** Whether focus rests on nothing a person put it on: the page itself. */
+export function focusIsNowhere(/** @type {Document} */ doc) {
+  return doc.activeElement === null || doc.activeElement === doc.body;
+}
+
+/**
+ * The chain and its chooser around a field's shell, as the server draws a field that can be
+ * connected (`linkableShell`), so this control mounts on it as on any other.
+ *
+ * @param {Document} doc
+ * @param {HTMLElement} shell
+ * @param {string} url
+ * @param {string} connect
+ * @returns {HTMLElement} the chain
+ */
+function chainAround(doc, shell, url, connect) {
+  const list = `${shell.querySelector("input")?.id ?? ""}-link-list`;
+  const control = doc.createElement("div");
+  control.className = "listbox link-control";
+  control.setAttribute("data-link-control", "");
+  control.setAttribute("data-link-url", url);
+  const template = doc.createElement("template");
+  template.innerHTML =
+    `<button class="listbox__button link-control__button" type="button" aria-haspopup="listbox"` +
+    ` aria-expanded="false">${CHAIN}<span class="listbox__value" hidden></span></button>`;
+  const chain = /** @type {HTMLElement} */ (template.content.firstElementChild);
+  chain.setAttribute("aria-label", connect);
+  chain.setAttribute("aria-controls", list);
+  const panel = doc.createElement("div");
+  panel.className = "listbox__panel link-control__panel";
+  panel.hidden = true;
+  const scroll = doc.createElement("div");
+  scroll.className = "listbox__scroll";
+  scroll.id = list;
+  panel.append(scroll);
+  shell.append(chain);
+  shell.replaceWith(control);
+  control.append(shell, panel);
+  return chain;
 }
 
 /**

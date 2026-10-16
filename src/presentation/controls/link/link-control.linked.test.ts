@@ -5,6 +5,7 @@
 // the same, or leaves the field plain text when it can no longer be linked.
 
 import { describe, expect, test } from "bun:test";
+import { pageOf } from "#shell/controls/link-notices.js";
 import { startLinkedFields } from "#shell/controls/linked-field.js";
 import { capabilityLinkUrl, capabilityPickUrl } from "#shell/core/routes.js";
 import { linkNoticeSentence } from "../../../lifecycle/link/presentation.ts";
@@ -197,6 +198,26 @@ describe("while a pick is written", () => {
     write.release();
     await settle();
     expect(scene.doc.querySelector("[data-link-control]")).toBeNull();
+  });
+});
+
+describe("once a pick is written whole", () => {
+  /** The new-record form with the collection region it reads its records back into. */
+  const WITH_RECORDS = `${renderCreateForm(bookCapability())}<div id="books-records"></div>`;
+
+  test("the field is let go while its records are read again, and a press taken then is kept", async () => {
+    const read = held(() => new Response("", { status: 200 }));
+    const scene = await openScene([written, read.reply], WITH_RECORDS);
+    await scene.press(scene.options()[0] as El);
+    await settle();
+    expect(scene.exchanges.at(-1)?.url).toBe("/capability/books/read");
+    const { writing } = pageOf(scene.doc as never);
+    expect(writing.has(LINK_URL)).toBe(false);
+    // An Unlink of the field, pressed while the records are still being read, holds the field.
+    writing.add(LINK_URL);
+    read.release();
+    await settle();
+    expect(writing.has(LINK_URL)).toBe(true);
   });
 });
 

@@ -6,7 +6,11 @@ import {
   getCapability,
   listCapabilities,
 } from "../../registry/index.ts";
-import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
+import {
+  MutationAdmissionError,
+  type MutationCoordinator,
+} from "../../runtime/concurrency/mutation-coordinator.ts";
+import { singleFormValue, versionIn } from "../form-values.ts";
 import { matchTypedNames } from "./matching/matching-scan.ts";
 import { type LinkEnd, type LinkRefusalCode, linkRefusal } from "./rules.ts";
 
@@ -18,9 +22,61 @@ export interface PressedEnd {
   readonly version: number;
 }
 
+/** Both ends of a press, each as it was read: Link's chooser posts one, and so does Unlink's chain. */
 export interface LinkPress {
   readonly source: PressedEnd;
   readonly target: PressedEnd;
+}
+
+/** What a press on `target`'s field posts, `source` and `target` as they were read. */
+export function pressFields(
+  source: CapabilityRow,
+  target: CapabilityRow,
+  targetField: string,
+): Record<string, string> {
+  return {
+    incarnation_id: source.incarnation_id,
+    version: String(source.version),
+    target: target.id,
+    target_field: targetField,
+    target_incarnation_id: target.incarnation_id,
+    target_version: String(target.version),
+  };
+}
+
+/** The press a form carries, or null when one of its values is missing or repeated: forged. */
+export function pressFrom(
+  capabilityId: string,
+  field: string,
+  form: Parameters<typeof singleFormValue>[0],
+): LinkPress | null {
+  const value = (name: string) => singleFormValue(form, name);
+  const version = versionIn(value("version"));
+  const targetVersion = versionIn(value("target_version"));
+  const named = ["incarnation_id", "target", "target_field", "target_incarnation_id"].map(value);
+  if (version === null || targetVersion === null || named.includes("")) return null;
+  const [incarnationId = "", target = "", targetField = "", targetIncarnationId = ""] = named;
+  return {
+    source: { capabilityId, field, incarnationId, version },
+    target: {
+      capabilityId: target,
+      field: targetField,
+      incarnationId: targetIncarnationId,
+      version: targetVersion,
+    },
+  };
+}
+
+/** A press whose caller went away while it queued leaves the queue; nobody reads the answer. */
+export async function staleIfDropped<Outcome>(
+  write: () => Promise<Outcome>,
+): Promise<Outcome | { readonly status: "stale"; readonly moved: null }> {
+  try {
+    return await write();
+  } catch (error) {
+    if (error instanceof MutationAdmissionError) return { status: "stale", moved: null };
+    throw error;
+  }
 }
 
 export interface CapabilityLinkDeps {
@@ -126,6 +182,6 @@ function readEnds(
   return { source, target };
 }
 
-function isAsRead(row: CapabilityRow | undefined, end: PressedEnd): row is CapabilityRow {
+export function isAsRead(row: CapabilityRow | undefined, end: PressedEnd): row is CapabilityRow {
   return row?.incarnation_id === end.incarnationId && row.version === end.version;
 }

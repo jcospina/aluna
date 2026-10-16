@@ -109,6 +109,7 @@ export function isCapabilityIdReservedByDeletion(
   );
 }
 
+/** The row stops being routable, and the relations it held go with it. */
 export function insertCapabilityDeletionTombstone(
   tombstone: Pick<CapabilityDeletionTombstone, "capabilityId" | "incarnationId" | "manifest">,
   database: Database,
@@ -116,7 +117,8 @@ export function insertCapabilityDeletionTombstone(
   const manifest = tombstone.manifest.map((entry) => ownedResourceEntrySchema.parse(entry));
   const result = database.run(
     `UPDATE ${REGISTRY_TABLE}
-     SET lifecycle_state = ?, deletion_manifest = ?, deletion_created_at = datetime('now')
+     SET lifecycle_state = ?, deletion_manifest = ?, deletion_created_at = datetime('now'),
+         relations = '[]'
      WHERE id = ? AND incarnation_id = ? AND lifecycle_state = 'active'`,
     [
       DELETION_TOMBSTONE_STATE,

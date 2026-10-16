@@ -283,21 +283,42 @@ export function renameCapability(
   return stored ? parseStoredRow(stored) : null;
 }
 
+/** A row's relations as read under the platform-write lease, which a relation write is bound to. */
+export interface RelationsExpectation {
+  readonly capabilityId: string;
+  readonly incarnationId: string;
+  readonly version: number;
+  readonly relations: readonly Relation[];
+}
+
 /**
  * Add one relation in place and nothing else: no version, no artifact.
  * Bound to the incarnation, version and relations read under the lease, so a moved row is `null`.
  */
 export function addCapabilityRelation(
-  expectation: {
-    readonly capabilityId: string;
-    readonly incarnationId: string;
-    readonly version: number;
-    readonly relations: readonly Relation[];
-  },
+  expectation: RelationsExpectation,
   relation: Relation,
   database: Database = db,
 ): CapabilityRow | null {
-  const next = JSON.stringify(relationsSchema.parse([...expectation.relations, relation]));
+  return replaceRelations(expectation, [...expectation.relations, relation], database);
+}
+
+/** Take one field's relation off in place, bound as `addCapabilityRelation` is (Unlink). */
+export function removeCapabilityRelation(
+  expectation: RelationsExpectation,
+  field: string,
+  database: Database = db,
+): CapabilityRow | null {
+  const kept = expectation.relations.filter((relation) => relation.field !== field);
+  return replaceRelations(expectation, kept, database);
+}
+
+function replaceRelations(
+  expectation: RelationsExpectation,
+  relations: readonly Relation[],
+  database: Database,
+): CapabilityRow | null {
+  const next = JSON.stringify(relationsSchema.parse(relations));
   const bound = [expectation.capabilityId, expectation.incarnationId, expectation.version];
   return database.transaction((): CapabilityRow | null => {
     const read = database

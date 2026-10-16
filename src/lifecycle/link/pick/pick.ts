@@ -9,7 +9,10 @@ import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import {
   chooseTargetRecord,
+  connectFieldName,
+  disconnectDetail,
   disconnectFieldName,
+  disconnectQuestion,
   unmatchedTargetLine,
 } from "../../../presentation/controls/link/link-copy.ts";
 import {
@@ -30,6 +33,7 @@ import {
   deriveCapabilityTableDdl,
   storedCapabilityActionRecord,
 } from "../../../runtime/data/index.ts";
+import { pressFields } from "../front-half.ts";
 import { type LinkEnd, linkableField } from "../rules.ts";
 
 /** One record a dropdown holds: its id, and the target field's text it is shown and saved by. */
@@ -43,7 +47,19 @@ export interface PickList {
   readonly placeholder: string;
   readonly unmatched: string;
   readonly disconnect: string;
+  readonly unlinking: Unlinking;
   readonly records: readonly PickRecord[];
+}
+
+/**
+ * What the broken chain asks before it unlinks, the accessible name of the chain that replaces it,
+ * and the press it posts, bound to both ends as this read them.
+ */
+export interface Unlinking {
+  readonly lead: string;
+  readonly detail: string;
+  readonly connect: string;
+  readonly press: Readonly<Record<string, string>>;
 }
 
 export type PickAnswer =
@@ -84,6 +100,12 @@ export function readPickList(capabilityId: string, fieldName: string, deps: Pick
         placeholder: chooseTargetRecord(ends.target.noun),
         unmatched: unmatchedTargetLine(ends.target.noun),
         disconnect: disconnectFieldName(row.noun, ends.sourceField),
+        unlinking: {
+          lead: disconnectQuestion(row.plural_noun, ends.target.plural_noun),
+          detail: disconnectDetail(row.plural_noun, ends.sourceField),
+          connect: connectFieldName(row.noun, ends.sourceField),
+          press: pressFields(row, ends.target, ends.relation.to.field),
+        },
         records,
       },
     };
@@ -101,8 +123,8 @@ function linkedEnds(source: LinkEnd, catalog: readonly CapabilityRow[]) {
   const target = catalog.find((candidate) => candidate.id === relation?.to.capability);
   const sourceField = linkableField(source);
   const targetField = target && linkableField({ row: target, field: relation?.to.field ?? "" });
-  if (!target || !sourceField || !targetField) return null;
-  return { sourceField, target, targetField };
+  if (!relation || !target || !sourceField || !targetField) return null;
+  return { relation, sourceField, target, targetField };
 }
 
 /** Every record whose target field holds text, in the order a reader looks a name up in. */

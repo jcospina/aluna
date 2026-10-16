@@ -5,11 +5,19 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { capabilityPickUrl } from "#shell/core/routes.js";
+import type { PickList } from "../../../lifecycle/link/pick/pick.ts";
+import {
+  FIELD_NOT_LINKED_CODE,
+  FIELD_UNLINKED_CODE,
+} from "../../../lifecycle/link/presentation.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { REGISTRY_TABLE } from "../../../platform/persistence/table-names.ts";
 import {
   chooseTargetRecord,
+  connectFieldName,
+  disconnectDetail,
   disconnectFieldName,
+  disconnectQuestion,
   unmatchedTargetLine,
 } from "../../../presentation/controls/link/link-copy.ts";
 import { renderCreateForm } from "../../../presentation/fields/field-renderer.ts";
@@ -21,6 +29,7 @@ import {
   setupRouterTest,
   teardownRouterTest,
 } from "../../../runtime/router/dispatch/router.test-support.ts";
+import { escapeHtml } from "../../http/html.ts";
 import { createTestApp } from "../../isolated-app.test-support.ts";
 import {
   AUTHORS,
@@ -60,12 +69,7 @@ function pick(capability: string, field: string, deps: Parameters<typeof createT
 async function picked(capability = "books", field = "author") {
   const response = await pick(capability, field);
   expect(response.status).toBe(200);
-  return (await response.json()) as {
-    placeholder: string;
-    unmatched: string;
-    disconnect: string;
-    records: { id: string; text: string }[];
-  };
+  return (await response.json()) as PickList;
 }
 
 function addAuthor(id: string, name: string | null, penName: string | null = null): void {
@@ -95,6 +99,25 @@ describe("the records a dropdown holds", () => {
     expect(list.unmatched).toBe(unmatchedTargetLine(AUTHORS.noun));
     expect(list.disconnect).toBe(disconnectFieldName(BOOKS.noun, field(BOOKS, "author")));
     expect(list.placeholder).toContain(AUTHORS.noun);
+  });
+
+  test("with what the broken chain asks, in both capabilities' record nouns", async () => {
+    // A rename changes the name the desk shows, never the nouns a sentence is built from.
+    conns.readwrite.run(
+      `UPDATE ${REGISTRY_TABLE} SET display_label_override = 'Writers' WHERE id = 'authors'`,
+    );
+    const { unlinking } = await picked();
+    expect(unlinking.lead).toBe(disconnectQuestion(BOOKS.plural, AUTHORS.plural));
+    expect(unlinking.detail).toBe(disconnectDetail(BOOKS.plural, field(BOOKS, "author")));
+    expect(unlinking.connect).toBe(connectFieldName(BOOKS.noun, field(BOOKS, "author")));
+    expect(unlinking.press).toEqual({
+      incarnation_id: BOOKS_INCARNATION,
+      version: "1",
+      target: AUTHORS.id,
+      target_field: "name",
+      target_incarnation_id: AUTHORS_INCARNATION,
+      target_version: "1",
+    });
   });
 
   test("a record holding no text in the field is no option", async () => {
@@ -142,12 +165,18 @@ describe("the records a dropdown holds", () => {
 });
 
 describe("what the route refuses", () => {
-  test("a field holding no relation is no dropdown", async () => {
-    for (const name of ["title", "nothing_here"]) {
-      const response = await pick("books", name);
-      expect(response.status).toBe(422);
-      expect(noticeCode(await response.text())).toBe("field_not_linked");
-    }
+  test("a field holding no relation is no dropdown, and one that can be connected says its chain", async () => {
+    const unlinked = await pick("books", "title");
+    expect(unlinked.status).toBe(422);
+    const notice = await unlinked.text();
+    expect(noticeCode(notice)).toBe(FIELD_UNLINKED_CODE);
+    const chain = escapeHtml(connectFieldName(BOOKS.noun, field(BOOKS, "title")));
+    expect(notice).toContain(`data-connect-name="${chain}"`);
+    const nothing = await pick("books", "nothing_here");
+    expect(nothing.status).toBe(422);
+    const plain = await nothing.text();
+    expect(noticeCode(plain)).toBe(FIELD_NOT_LINKED_CODE);
+    expect(plain).not.toContain("data-connect-name");
   });
 
   test("a relation whose rules no longer hold is no dropdown either", async () => {
@@ -170,7 +199,7 @@ describe("what the route refuses", () => {
       const fieldName = relations[0]?.field ?? "";
       const response = await pick("books", fieldName);
       expect(response.status).toBe(422);
-      expect(noticeCode(await response.text())).toBe("field_not_linked");
+      expect(noticeCode(await response.text())).toBe(FIELD_NOT_LINKED_CODE);
     }
   });
 

@@ -96,6 +96,16 @@ export function deleteFieldLinkRows(database: Database, capability: string, fiel
     .run(capability, field);
 }
 
+/**
+ * Forget every pick a capability is an end of: those its own fields made, and those naming one of
+ * its records in any lifetime. Its deletion runs this in the tombstone transaction, while only the
+ * lifetime being deleted is live under its id, so a row naming an earlier one is debris.
+ */
+export function deleteCapabilityLinkRows(database: Database, capability: string): void {
+  database.query(`DELETE FROM ${LINK_TABLE} WHERE source_capability = ?`).run(capability);
+  database.query(`DELETE FROM ${LINK_TABLE} WHERE target_capability = ?`).run(capability);
+}
+
 /** Forget every pick that names `target`, whichever record and field made it. */
 export function deleteTargetLinkRows(database: Database, target: LinkTarget): void {
   database

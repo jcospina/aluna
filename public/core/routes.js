@@ -89,9 +89,23 @@ export function linkedCapabilityId(/** @type {string} */ linkUrl) {
   return decodeURIComponent(capabilityId);
 }
 
+const LINKED_RECORDS_SUFFIX = "/records";
+
 /** Where a linked field reads the records it is a dropdown of, beside its Link control's address. */
 export function linkedRecordsUrl(/** @type {string} */ linkUrl) {
-  return `${linkUrl}/records`;
+  return `${linkUrl}${LINKED_RECORDS_SUFFIX}`;
+}
+
+/** The Link control's address beside which a linked field reads its records. */
+export function linkUrlOfRecords(/** @type {string} */ recordsUrl) {
+  return recordsUrl.endsWith(LINKED_RECORDS_SUFFIX)
+    ? recordsUrl.slice(0, -LINKED_RECORDS_SUFFIX.length)
+    : recordsUrl;
+}
+
+/** Where a linked field's broken chain unlinks it, beside its Link control's address. */
+export function unlinkFieldUrl(/** @type {string} */ linkUrl) {
+  return `${linkUrl}/unlink`;
 }
 
 /** The pick route of one linked field. */

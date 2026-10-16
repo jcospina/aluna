@@ -1422,7 +1422,9 @@
             every other typed name carries a mark asking for a pick. The name a book shows is its
             author's: picking an author stores that author's name, whatever the handler made of it,
             and renaming the author rewrites every book that picked them in the same save. Deleting
-            the author leaves the name on the book and marks its card for a new pick.
+            the author leaves the name on the book and marks its card for a new pick. Unlinking the
+            field forgets every pick in one write and leaves each book the name it shows, and
+            deleting Authors does the same to every field linked to it.
           </p>
 
           <details class="aside">

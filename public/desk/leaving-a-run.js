@@ -493,6 +493,18 @@ export function leavingIsBeingAsked() {
 }
 
 /**
+ * Whether a question already stands. A second ask while it does is dropped rather than queued, and
+ * focus goes back to the question, so the press is answered rather than looking broken.
+ *
+ * @returns {boolean}
+ */
+function sentBackToTheQuestion() {
+  if (!leavingIsBeingAsked() || asking === null) return false;
+  asking.question.backOut()?.focus?.();
+  return true;
+}
+
+/**
  * Ask before leaving, if there is a run or an unsaved change to lose.
  *
  * @param {WindowNode | null} el the window the navigation would take
@@ -505,14 +517,31 @@ export function leavingIsBeingAsked() {
  *   when it is not, so a desk with nothing to lose behaves exactly as it always has
  */
 export function askBeforeLeaving(el, go, scope = el, how = {}) {
-  if (leavingIsBeingAsked() && asking !== null) {
-    /* A second navigation while the question stands is dropped rather than queued. Focus goes
-     * back to the question, so the press is answered rather than looking broken. */
-    asking.question.backOut()?.focus?.();
-    return true;
-  }
+  if (sentBackToTheQuestion()) return true;
   const question = el === null ? null : questionFor(el, scope, how);
   if (question === null) return false;
+  asking = { question, go };
+  return true;
+}
+
+/**
+ * Ask a form's own question over `el`, as a form with unsaved changes asks, and `go` on a yes.
+ * It is one question like the others, so a navigation while it stands is
+ * held off the same way, and either answer leaves the form exactly as it is.
+ *
+ * @param {WindowNode | null} el the window the form stands in
+ * @param {() => unknown} go what the yes does, answering `PLACES_ITS_OWN_FOCUS` as a navigation would
+ * @param {unknown} scope the form the question is about
+ * @param {{ draw: () => import("./leaving-unsaved-changes.js").Veil, pressed?: unknown }} how what
+ *   the question says, and what was pressed
+ * @returns {boolean} whether it is being asked
+ */
+export function askOverTheWindow(el, go, scope, { draw, pressed = null }) {
+  if (sentBackToTheQuestion()) return true;
+  const how = { unsaved: () => true, keep: true, draw, pressed };
+  const question = el === null ? null : unsavedQuestionIn(el, /** @type {never} */ (scope), how);
+  if (question === null) return false;
+  question.show(true);
   asking = { question, go };
   return true;
 }

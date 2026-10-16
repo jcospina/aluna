@@ -34,6 +34,21 @@ const QUESTION_ID = "window-leaving-unsaved";
 const WINDOW_BODY_SELECTOR = ":scope > .window__body";
 
 /**
+ * What a question over the window says: its lines, each with its id and class, and its two
+ * answers, each with its label and its button's kind. The first answer is the one focus lands on.
+ *
+ * @typedef {{ id: string, text: string, className?: string }} VeilLine
+ * @typedef {{ lines: VeilLine[], back: [string, string], go: [string, string] }} VeilWords
+ */
+
+/** @type {VeilWords} */
+const UNSAVED_WORDS = {
+  lines: [{ id: QUESTION_ID, text: LEAVING_UNSAVED_QUESTION }],
+  back: [LEAVING_UNSAVED_BACK_OUT, "btn--warm"],
+  go: [LEAVING_UNSAVED_GO_AHEAD, "btn--outline"],
+};
+
+/**
  * The window, the document and the bookkeeping, as much of each as the question reaches for, so a
  * plain object stands in for any of them in Bun.
  *
@@ -65,9 +80,10 @@ const WINDOW_BODY_SELECTOR = ":scope > .window__body";
 /**
  * The question's markup: the run's own, word for word in structure, so one stylesheet draws both.
  *
+ * @param {VeilWords} [words]
  * @returns {Veil}
  */
-function drawVeil() {
+function drawVeil(words = UNSAVED_WORDS) {
   const make = (/** @type {string} */ tag, /** @type {string} */ className) => {
     const node = document.createElement(tag);
     if (className !== "") node.className = className;
@@ -76,23 +92,37 @@ function drawVeil() {
   const veil = make("div", "window__leaving");
   veil.setAttribute(MARK.question, "");
   const panel = make("div", "window__leaving-panel");
-  const question = make("p", "");
-  question.id = QUESTION_ID;
-  question.textContent = LEAVING_UNSAVED_QUESTION;
+  const lines = words.lines.map(({ id, text, className = "" }) => {
+    const line = make("p", className);
+    line.id = id;
+    line.textContent = text;
+    return line;
+  });
+  const described = words.lines.map(({ id }) => id).join(" ");
   const actions = make("div", "window__leaving-actions");
-  const answer = (/** @type {string} */ label, /** @type {string} */ kind, mark = "") => {
+  const answer = (/** @type {[string, string]} */ [label, kind], /** @type {string} */ mark) => {
     const button = make("button", `btn ${kind}`);
     Object.assign(button, { type: "button", textContent: label });
     button.setAttribute(mark, "");
-    button.setAttribute("aria-describedby", QUESTION_ID);
+    button.setAttribute("aria-describedby", described);
     return button;
   };
-  const back = answer(LEAVING_UNSAVED_BACK_OUT, "btn--warm", MARK.back);
-  const go = answer(LEAVING_UNSAVED_GO_AHEAD, "btn--outline", MARK.go);
+  const back = answer(words.back, MARK.back);
+  const go = answer(words.go, MARK.go);
   actions.append(back, go);
-  panel.append(question, actions);
+  panel.append(...lines, actions);
   veil.append(panel);
   return { remove: () => veil.remove(), back, node: veil };
+}
+
+/**
+ * A question of a form's own, drawn over the window as the unsaved-changes question is.
+ *
+ * @param {VeilWords} words
+ * @returns {() => Veil}
+ */
+export function veilAsking(words) {
+  return () => drawVeil(words);
 }
 
 /**
@@ -115,7 +145,7 @@ export function unsavedQuestionIn(el, scope, how = {}) {
       letGoOfChanges(s);
     },
     revert = (/** @type {Scope} */ s) => settleFileFields(/** @type {Element} */ (s), "revert"),
-    draw = drawVeil,
+    draw = () => drawVeil(),
     focused = () => globalThis.document?.activeElement ?? null,
     raise = raiseWindow,
     keep = false,
