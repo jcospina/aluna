@@ -27,7 +27,10 @@ export { assertReadOwnership } from "./access/read-ownership.ts";
 export { countCapabilityRecords } from "./access/record-count.ts";
 export { MAX_SEARCH_QUERY_LENGTH, MAX_SEARCH_TERMS } from "./access/search-bounds.ts";
 export { assertSubmittedFieldValues } from "./access/submitted-values.ts";
+export { NO_REACH, type RefreshReach } from "./links/linked-text.ts";
 export {
+  type CheckedPicks,
+  fieldsDrawnUnlinked,
   heldPicks,
   type LinkBinding,
   NO_LINKS,

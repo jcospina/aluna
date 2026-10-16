@@ -1,15 +1,18 @@
 // What a save does with the records its linked fields picked (ADR-0011). The form posts each
 // pick beside the field's text; the router checks it before generated
 // code runs and again inside the save's transaction, and the mutation ports write the link row in
-// the record's own savepoint. The field's column is the Handler's as it always was.
+// the record's own savepoint. A picked field stores its target's text (`linked-text.ts`).
 //
 // The ports read no relation of their own: the router hands them the ones that hold, and the Gate
 // hands them none, so a Gate run writes no link row whatever its scratch saves post.
 
 import { type Database, SQLiteError } from "bun:sqlite";
+import { holdsName } from "#shell/core/same-text.js";
 import {
   deleteLinkRow,
   deleteSourceLinkRows,
+  deleteTargetLinkRows,
+  type LinkTarget,
   readSourceLinkRows,
   writeLinkRow,
 } from "../../../platform/links/link-table.ts";
@@ -17,6 +20,7 @@ import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import { PICK_NOT_FOUND_ERROR_CODE, type Relation, relationOf } from "../../../registry/index.ts";
 import { CapabilityDataValidationError } from "../internal.ts";
 import { capabilityTableName } from "../schema/ddl.ts";
+import { NO_REACH, type RefreshReach, targetText } from "./linked-text.ts";
 
 /** A capability's relations as a save finds them: those that hold, and those asleep. */
 export interface SaveRelations {
@@ -25,10 +29,16 @@ export interface SaveRelations {
   readonly dormant: readonly Relation[];
 }
 
-/** What a save's ports are handed: its relations, and the picks the router checked. */
-export interface LinkBinding extends SaveRelations {
+/** A save's relations, and the picks the router checked against them. */
+export interface CheckedPicks extends SaveRelations {
   /** Each linked field's pick, as the id of the target record it names. */
   readonly picks: ReadonlyMap<string, string>;
+}
+
+/** What a save's ports are handed: its relations and checked picks, and its refresh's reach. */
+export interface LinkBinding extends CheckedPicks {
+  /** What an edit's linked-text refresh reaches; nothing for any other save. */
+  readonly reach: RefreshReach;
 }
 
 /** No relation and no pick: the Gate's binding, and every save of a capability with no link. */
@@ -36,6 +46,7 @@ export const NO_LINKS: LinkBinding = Object.freeze({
   relations: [],
   dormant: [],
   picks: new Map(),
+  reach: NO_REACH,
 });
 
 /** A second create from a save whose picks its first create already linked. */
@@ -48,8 +59,8 @@ export class PickWriteError extends CapabilityDataValidationError {
 }
 
 /**
- * A pick naming no record of its field's target: forged, or a record deleted while the form was
- * open. Refused before anything is written, and the field asks for a new pick.
+ * A pick naming no record of its field's target: forged, or a record deleted or its text cleared
+ * while the form was open. Refused before anything is written, and the field asks for a new pick.
  */
 export class PickNotFoundError extends CapabilityDataValidationError {
   override readonly name = "PickNotFoundError";
@@ -82,25 +93,33 @@ export interface PickScope {
 
 /**
  * The picks a save writes: each posted one whose field holds a relation, its id naming a record of
- * the target. A pick for a field whose relation is gone or dormant is dropped, and the text saves
- * as plain text. One naming no record, forged or deleted while the form was open, refuses the save
- * with every such field named.
+ * the target whose text a pick can show. A pick for a field whose relation is gone or dormant is
+ * dropped, and the text saves as plain text. One naming no such record, forged, deleted or cleared
+ * while the form was open, refuses the save with every such field named.
  */
 export function resolveSubmittedPicks(
   scope: PickScope,
   held: SaveRelations,
   posted: ReadonlyMap<string, string> | undefined,
-): LinkBinding {
+): CheckedPicks {
   const picks = new Map<string, string>();
   const refused: { field: string; noun: string }[] = [];
   for (const [field, id] of posted ?? []) {
-    const target = relationOf(held.relations, field)?.to.capability;
-    if (target === undefined) continue;
-    if (recordExists(scope.database, target, id)) picks.set(field, id);
-    else refused.push({ field, noun: scope.targetNoun(target) });
+    const relation = relationOf(held.relations, field);
+    if (relation === undefined) continue;
+    if (pickable(scope.database, relation, id)) picks.set(field, id);
+    else refused.push({ field, noun: scope.targetNoun(relation.to.capability) });
   }
   if (refused.length > 0) throw new PickNotFoundError(scope.capabilityId, refused, scope.action);
   return { relations: held.relations, dormant: held.dormant, picks };
+}
+
+/**
+ * Whether `record` is a record of the relation's target whose text a pick can show. Read under the
+ * target's read token, which the router takes for every pick, so its table stands.
+ */
+function pickable(database: Database, relation: Relation, record: string): boolean {
+  return holdsName(targetText(database, relation, record));
 }
 
 /**
@@ -174,9 +193,51 @@ function relinkField(
   else if (!standsUnpicked(database, edit, relation)) deleteLinkRow(database, from);
 }
 
-/** Every link row a deleted record held as a source, gone with it. */
-export function unlinkDeletedRecord(database: Database, capabilityId: string, recordId: string) {
-  deleteSourceLinkRows(database, capabilityId, recordId);
+/**
+ * Every link row a deleted record held as a source, and every one naming it as a target, gone with
+ * it. The records that pointed at it keep their text.
+ */
+export function unlinkDeletedRecord(database: Database, deleted: LinkTarget) {
+  deleteSourceLinkRows(database, deleted.capability, deleted.record);
+  deleteTargetLinkRows(database, deleted);
+}
+
+/** An Edit form as it posted: each field's text, the fields it submitted, those it drew linked. */
+export interface PostedEdit {
+  readonly values: Readonly<Record<string, unknown>>;
+  readonly submittedFields: ReadonlySet<string>;
+  readonly drawnLinked?: ReadonlySet<string>;
+}
+
+/**
+ * The linked fields an Edit form drew as plain text, before they were linked, and submitted holding
+ * other text than the record's while the record's pick stands: any other, a change of case
+ * included, since the save would store it and let the link go. The linked-text refresh may have
+ * moved the text under the form, so saving would write an old name over the link.
+ */
+export function fieldsDrawnUnlinked(
+  database: Database,
+  edited: { readonly capabilityId: string; readonly recordId: string },
+  relations: readonly Relation[],
+  form: PostedEdit,
+): string[] {
+  const plain = relations.filter(
+    ({ field }) => form.submittedFields.has(field) && !form.drawnLinked?.has(field),
+  );
+  const held = heldPicks(database, edited.capabilityId, edited.recordId, plain);
+  if (held.size === 0) return [];
+  const table = sqlIdentifier(capabilityTableName(edited.capabilityId));
+  const stored = database
+    .query(`SELECT * FROM ${table} WHERE "id" = ?`)
+    .get(edited.recordId) as Record<string, unknown> | null;
+  return plain
+    .map(({ field }) => field)
+    .filter((field) => held.has(field) && !postedAsStored(form.values[field], stored?.[field]));
+}
+
+/** Whether a form posted the text the record holds, an empty field matching none. */
+function postedAsStored(posted: unknown, stored: unknown): boolean {
+  return (posted ?? "") === (stored ?? "");
 }
 
 /** Whether a linked field submitted without a pick keeps its row: its text and its pick stand. */

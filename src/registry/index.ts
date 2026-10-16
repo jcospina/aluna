@@ -107,10 +107,12 @@ export {
   holdingRelations,
   isLinkableField,
   isSingleLineTextField,
+  type ReachingRelation,
   type RelatedCapability,
   type Relation,
   relationOf,
   relationSchema,
+  relationsReaching,
   relationsSchema,
   sameRelation,
 } from "./relations.ts";

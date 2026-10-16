@@ -114,8 +114,9 @@ export const WINDOW_TOOK_CAPABILITY_EVENT = "aluna:window-took-capability";
 export const RECORD_ID_FIELD = "__aluna_record_id";
 
 /**
- * The field a linked field posts its pick in, beside its text. The router reads it by this name
- * (`ALUNA_LINK_MARKER`), checks the record it names, and keeps it from generated code.
+ * The field a linked field posts its pick in, beside its text, and posts with no record while it
+ * picks none. The router reads it by this name (`ALUNA_LINK_MARKER`), checks the record it names,
+ * and keeps it from generated code.
  */
 export const LINK_FIELD = "__aluna_link";
 
@@ -123,13 +124,13 @@ export const LINK_FIELD = "__aluna_link";
 export const PICKED_RECORD_ATTRIBUTE = "data-picked-record";
 
 /**
- * On a pick the platform posts for text that names one record, not one the person made: a leave
- * loses nothing the person did, so the question before leaving does not count it.
+ * On a pick the platform posts for text that names one record, or for no record, not one the person
+ * made: a leave loses nothing the person did, so the question before leaving does not count it.
  */
 export const NAMED_PICK_ATTRIBUTE = "data-named-pick";
 
 /**
- * The {@link LINK_FIELD} value naming the record `field` picked: `field:id`.
+ * The {@link LINK_FIELD} value naming the record `field` picked, `field:id`, or none, `field:`.
  *
  * @param {string} field
  * @param {string} recordId

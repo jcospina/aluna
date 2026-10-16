@@ -67,6 +67,7 @@ export {
   type ItemRendererLoader,
 } from "./generated-code.ts";
 
+import { admitLinkingCapabilities, type LinkingAdmission } from "../admission/linking-tokens.ts";
 import { type CapturedCapabilityRead, captureCapabilityRead } from "../admission/read-admission.ts";
 import { collectionCountSidecar } from "../wire/collection-count.ts";
 import {
@@ -232,14 +233,21 @@ async function handleCapabilityRequest(
   // A pick reads its target's records, so the save holds the target's read token beside its own.
   const relations = holdingRelations(row, catalog);
   const dormant = row.relations.filter((relation) => !relations.includes(relation));
-  const read: HandlerRead = { dependencies, catalog, relations, dormant };
   const tokens = readGates.tryAcquire({
     catalog: catalog.map(capabilityIncarnation),
-    incarnations: [...captured.incarnations, ...pickedTargets(read.relations, parsedRequest)],
+    incarnations: [...captured.incarnations, ...pickedTargets(relations, parsedRequest)],
   });
   if (!tokens) return readUnavailable(c, row.id, action);
+  let linking: LinkingAdmission | undefined;
+  const releaseAll = () => {
+    readGates.release(tokens);
+    linking?.release();
+  };
 
   try {
+    linking = admitLinkingCapabilities(readGates, row, catalog, action);
+    const settleReach = linking.settle;
+    const read: HandlerRead = { dependencies, catalog, relations, dormant, settleReach };
     // The refusals the platform owns — an undeclared choice value, an over-long string, a file it
     // may not claim or keep, a pick naming no record — settle before any generated code loads, so
     // a Handler cannot answer 200. Under the read tokens: an edit's file check reads the
@@ -259,7 +267,7 @@ async function handleCapabilityRequest(
         read,
         action,
         tokens.signal,
-        () => readGates.release(tokens),
+        releaseAll,
         handlerTimeoutMs,
       );
     }
@@ -280,7 +288,7 @@ async function handleCapabilityRequest(
       c.req.raw.signal,
     );
   } finally {
-    readGates.release(tokens);
+    releaseAll();
   }
 }
 

@@ -29,10 +29,12 @@ import {
   createCapabilityQueryPort,
   createCapabilityUpdateMutationPort,
   type FileSubmissionBinding,
+  fieldsDrawnUnlinked,
   fileClaimScope,
   heldPicks,
   type LinkBinding,
   type PickScope,
+  type RefreshReach,
   releaseUnclaimedFiles,
   resolveSubmittedFiles,
   resolveSubmittedPicks,
@@ -50,6 +52,7 @@ import type {
 import { withFileProjections } from "../save-input.ts";
 import { assertReadOwnership } from "../wire/failure-responses.ts";
 import {
+  FormChangedError,
   type ParsedCapabilityRequest,
   type WireProtocolAction,
   WireProtocolError,
@@ -63,6 +66,8 @@ import type { HandlerLoader, ItemRendererLoader } from "./generated-code.ts";
 export interface HandlerRead extends SaveRelations {
   readonly dependencies: readonly CapabilityRow[];
   readonly catalog: readonly CapabilityRow[];
+  /** What an edit's linked-text refresh reaches, read on the save's connection once it is open. */
+  readonly settleReach: (database: Database) => RefreshReach;
 }
 
 /** Where a save's picks are checked, each target's records named by the noun its row stores. */
@@ -114,7 +119,9 @@ export async function invokeCapabilityHandler(
     const submitted = resolveSubmittedFiles(fields, input.values, save, scope);
     const held = settledRelations(scope.database, row, read);
     const picks = pickScope(scope.database, spec.id, save, read.catalog);
-    const links = resolveSubmittedPicks(picks, held, parsedRequest.picks);
+    const checked = resolveSubmittedPicks(picks, held, parsedRequest.picks);
+    if (save === "update") refuseDrawnUnlinked(scope.database, row.id, held, parsedRequest);
+    const links: LinkBinding = { ...checked, reach: read.settleReach(scope.database) };
     const mutation = writes.guard(bind({ scope, submitted }, links));
     // On the save's own connection: the link row it writes is not committed when `present` reads.
     const drawn = { ...read, ...held };
@@ -191,6 +198,22 @@ function settledRelations(
   const relations = read.relations.filter(standing);
   const dormant = now.filter((each) => !relations.some((held) => sameRelation(held, each)));
   return { relations, dormant };
+}
+
+/**
+ * Refuse an edit from a form drawn before one of its fields was linked, as a form drawn before an
+ * evolution is: its text for that field would write an old name over the link.
+ */
+function refuseDrawnUnlinked(
+  database: Database,
+  capabilityId: string,
+  held: SaveRelations,
+  parsed: ParsedCapabilityRequest,
+): void {
+  const recordId = requireRecordTarget(parsed.recordTarget, "update");
+  const form = { ...parsed.input, drawnLinked: parsed.drawnLinked };
+  const stale = fieldsDrawnUnlinked(database, { capabilityId, recordId }, held.relations, form);
+  if (stale.length > 0) throw new FormChangedError("update", stale);
 }
 
 /** A save's context over the mutation port it binds; each save checks it against its own Handler. */

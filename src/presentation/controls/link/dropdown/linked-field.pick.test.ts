@@ -31,6 +31,11 @@ installLinkGlobals();
 
 /** What `scene`'s form posts as the field's pick, if it posts one. */
 function pickPosted(scene: Awaited<ReturnType<typeof dropdownScene>>): string[] {
+  return markersPosted(scene).filter((value) => value !== linkFieldValue("author", ""));
+}
+
+/** Every link marker `scene`'s form posts, a pick or the field's marker with no record. */
+function markersPosted(scene: Awaited<ReturnType<typeof dropdownScene>>): string[] {
   const form = scene.root.closest("form") as El;
   return posted(form)
     .filter(([name]) => name === LINK_FIELD)
@@ -52,6 +57,15 @@ describe("the Edit form", () => {
 });
 
 describe("a pick", () => {
+  test("is posted as the field's marker, which names no record while the field picks none", async () => {
+    const scene = await dropdownScene([records(), records()], newBook());
+    expect(markersPosted(scene)).toEqual([linkFieldValue("author", "")]);
+    scene.type("oct");
+    await settle();
+    scene.key("Enter");
+    expect(markersPosted(scene)).toEqual([linkFieldValue("author", idOf("Octavia E. Butler"))]);
+  });
+
   test("posts the record's id beside its text, and never the words typed to find it", async () => {
     const scene = await dropdownScene([records(), records()], newBook());
     expect(pickPosted(scene)).toEqual([]);

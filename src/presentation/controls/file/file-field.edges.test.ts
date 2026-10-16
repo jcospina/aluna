@@ -3,7 +3,7 @@
 // mounting the fields there now and every field that lands later. Run through the real
 // `public/controls/file-field.js` over a request double, since Bun has no XMLHttpRequest.
 
-import { afterAll, describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, spyOn, test } from "bun:test";
 
 import { FILE_FIELD_HOOKS, FileRefusal, pickInto, uploadingIn } from "#design/files/file-field.js";
 import { settleUpload, uploadTransfer } from "#shell/controls/file-field.js";
@@ -185,14 +185,33 @@ describe("the transfer's own events", () => {
   });
 
   test("progress is heard off the upload's own progress, and the claim goes once it settles", async () => {
-    const uploads = () => regionScopeReport().filter(({ label }) => label === "file upload").length;
-    const before = uploads();
-    const moving = sending();
-    expect(moving.request.progress.map(([type]) => type)).toEqual(["progress"]);
-    expect(uploads()).toBe(before + 1);
-    moving.request.answer(201, JSON.stringify(ADMITTED));
-    await moving.upload.done;
-    expect(uploads()).toBe(before);
+    // No control here comes to hold the admitted key, so it is given back: answered by this test,
+    // never left to a later suite's `fetch` and the retries a failure there would schedule.
+    let givenBack: (keys: unknown) => void = () => {};
+    const returned = new Promise((resolve) => {
+      givenBack = resolve;
+    });
+    const discard = spyOn(globalThis, "fetch").mockImplementation((async (
+      _url: unknown,
+      init?: RequestInit,
+    ) => {
+      givenBack(JSON.parse(String(init?.body)).keys);
+      return new Response(null, { status: 204 });
+    }) as typeof fetch);
+    try {
+      const uploads = () =>
+        regionScopeReport().filter(({ label }) => label === "file upload").length;
+      const before = uploads();
+      const moving = sending();
+      expect(moving.request.progress.map(([type]) => type)).toEqual(["progress"]);
+      expect(uploads()).toBe(before + 1);
+      moving.request.answer(201, JSON.stringify(ADMITTED));
+      await moving.upload.done;
+      expect(uploads()).toBe(before);
+      expect(await returned).toEqual([ADMITTED.key]);
+    } finally {
+      discard.mockRestore();
+    }
   });
 });
 

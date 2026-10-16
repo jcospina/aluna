@@ -406,9 +406,10 @@ cannot use the reserved `__aluna_` prefix. The router validates and strips repea
 delete; missing, duplicate, or unexpected target markers fail before generated code.
 Those two and `__aluna_drawn`, which an edit's file field posts, form the router's
 closed set of reserved keys, and any other `__aluna_` key is refused. A linked field
-adds `__aluna_link`, carrying the field and the picked record's id: the router strips
-it, checks that the id names a live record of the relation's target before generated
-code runs, and checks again inside the save's transaction, so a forged or stale pick
+adds `__aluna_link`, carrying the field and the picked record's id, or no id while the
+field picks none, which tells the router the form drew it linked: the router strips
+it, checks that the id names a record of the relation's target that holds text before
+generated code runs, and checks again inside the save's transaction, so a forged or stale pick
 refuses the save and never reaches a Handler. A marker for a field whose relation is
 gone or dormant is dropped, and the text saves as plain text (ADR-0011). The
 update/delete record target reaches the Handler and mutation context separately from
@@ -1005,7 +1006,8 @@ no list of names to maintain, and the Gate's scratch database creates it beside 
 ledger.
 
 Only the platform writes it. The router hands the mutation ports the relations that
-hold, those asleep, and the picks it checked; the Gate hands them none, so no port
+hold, those asleep, the picks it checked and, for an edit, the relations the linked-text
+refresh reaches with the capabilities it may write; the Gate hands them none, so no port
 reads a relation of its own and a Gate run writes no row. A create writes a row for
 each pick in the record's savepoint. Every record's Edit form carries what its linked
 fields picked, read by the presentation adapter on the save's own connection during a
@@ -1013,11 +1015,15 @@ save, so an edit that changes another field posts the pick again and keeps the l
 The form draws no pick whose record is gone, and a pick whose record went while the
 form was open refuses the save. An edit replaces the row of each submitted linked
 field that carries a pick. A submitted linked field that carries none keeps its row
-while its text stands and the row's record exists, as a form drawn before the link
-existed posts no pick, and loses it once the text changes or the record is gone; a
-field the form did not submit keeps its row. A deleted record's rows as a source go
-in the delete's savepoint. The rows of a dormant relation stay until a
-save changes its field's text, and reactivating the field revives them.
+while its text stands and the row's record exists, and loses it once the text changes
+or the record is gone; a field the form did not submit keeps its row. A form drawn
+before the link existed posts no marker for the field at all. Its text may since have
+been rewritten by the linked-text refresh, so an edit from it that holds other text
+than the record's, while the record's pick stands, is refused as a form drawn before
+the field changed, and the person opens it again. A deleted record's rows go in the
+delete's savepoint, those it held as a source and those naming it as a target. The
+rows of a dormant relation stay until a save changes its field's text, and
+reactivating the field revives them.
 
 The matching scan runs when the Link control writes a relation, in the transaction that
 writes it, under its lease. At startup, before the server listens, it runs again for every
@@ -1042,9 +1048,9 @@ left open or misnested closes each formatting element again, once for every eigh
 elements, since a browser's adoption agency gives up after eight blocks.
 
 Capability deletion removes the relations pointing at the deleted capability and
-leaves link rows as they are. The removal of a deleted target record's rows (8.1/06),
-and Unlink with the removal of a deleted capability's rows (8.1/07) are still to come.
-Once they land, capability deletion removes the deleted capability's relations and
+leaves link rows as they are. Deleting a target record removes the rows that name it,
+in the delete's own savepoint. Unlink, and the removal of a deleted capability's rows,
+are still to come (8.1/07). Once they land, capability deletion removes the deleted capability's relations and
 link rows on both sides in the tombstone transaction, so every relation pointing at it
 goes as Unlink takes one and each linked field keeps its text (ADR-0011).
 
@@ -1172,8 +1178,8 @@ written value is always the router-checked submission, whether the Handler passe
 back or leaves it out, any other value is refused, and only the platform control's
 explicit clear empties it, or for a `file[]` its naming each file it removes
 (ADR-0009). A linked field is soft: text with no matching record still saves, and the
-only save a link refuses is a forged or stale pick, after which the field asks for a
-new one. A valid pick wins over the Handler. Inside the record's own transaction,
+only save a link refuses is a forged or stale pick, one naming a record deleted or
+emptied of text since the form was drawn, after which the field asks for a new one. A valid pick wins over the Handler. Inside the record's own transaction,
 where a new record's id is minted, the mutation interface writes the link row and
 makes the stored text the target field's current text, checked again against the
 field's length limit, which always holds while the relation is active under the
@@ -1191,7 +1197,9 @@ once (proposed in ADR-0011). Deleting a target record never deletes or holds up 
 records pointing at it: an optional linked field is cleared, and a required one keeps
 the last text it showed as plain text with the broken-link mark. ADR-0011 proposes
 that clearing a target's text breaks the link the same way, so a required field is
-never rewritten to empty. A generated Handler still never writes outside its own
+never rewritten to empty. Until 8.4 lands, deleting a target record or clearing its
+text removes the link rows naming it and nothing else: each linked field keeps the
+text it showed, and its card carries the broken-link mark. A generated Handler still never writes outside its own
 capability (ADR-0011).
 
 ### Reads — free
@@ -1534,7 +1542,8 @@ clearing a target record's deletion brings are an exception to taking the set al
 once: the save or deletion also takes the token of every capability its refresh or
 clearing reaches, down the chain where ADR-0011's proposed chain rule applies, apart
 from its own set, so a linking capability closed by its own deletion is skipped
-instead of refusing the save (ADR-0011).
+instead of refusing the save (ADR-0011). Until 8.4, deleting a target record writes
+only the link table, so it takes no token beyond its own.
 
 Cross-capability reads need no invalidation channel. A capability may read another
 capability's table and never writes to it (the linked-text refresh and the clearing

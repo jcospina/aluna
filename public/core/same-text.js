@@ -46,3 +46,14 @@ function trimmed(text) {
 export function sameText(a, b) {
   return matchKey(a) === matchKey(b);
 }
+
+/**
+ * Whether `text` names anything a match could compare: a string holding more than spaces and
+ * invisible marks.
+ *
+ * @param {unknown} text
+ * @returns {text is string}
+ */
+export function holdsName(text) {
+  return typeof text === "string" && matchKey(text) !== "";
+}

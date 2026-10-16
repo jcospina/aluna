@@ -4,7 +4,12 @@
 
 import { describe, expect, test } from "bun:test";
 
-import { holdingRelations, type RelatedCapability, type Relation } from "./relations.ts";
+import {
+  holdingRelations,
+  type RelatedCapability,
+  type Relation,
+  relationsReaching,
+} from "./relations.ts";
 import type { SpecField } from "./spec/spec.ts";
 
 const text = (name: string, extra: Partial<SpecField> = {}): SpecField => ({
@@ -80,5 +85,39 @@ describe("a relation is dormant once either end stops being one it could hold", 
     for (const target of [authors({ max_length: 120 }), authors()]) {
       expect(holdingRelations(limited, [limited, target])).toEqual([]);
     }
+  });
+});
+
+describe("what shows a capability's text", () => {
+  const shown = (catalog: readonly RelatedCapability[]) =>
+    relationsReaching(authors(), catalog).map(({ source, relation }) => [
+      source.capability,
+      relation.field,
+    ]);
+
+  test("names each relation once, a capability reached twice or linked to itself included", () => {
+    const toPenName: Relation = { field: "title", to: { ...TO_NAME.to, field: "pen_name" } };
+    const own: Relation = { field: "name", to: { ...TO_NAME.to, field: "pen_name" } };
+    const twice = books({}, [TO_NAME, toPenName]);
+    const self = capability("authors", [text("name"), text("pen_name")], { relations: [own] });
+    const quotes = capability("quotes", [text("by")], {
+      relations: [
+        {
+          field: "by",
+          to: { capability: "books", incarnation: "books-lifetime", field: "author" },
+        },
+      ],
+    });
+    expect(shown([twice, self, quotes])).toEqual([
+      ["books", "author"],
+      ["books", "title"],
+      ["authors", "name"],
+      ["quotes", "by"],
+    ]);
+  });
+
+  test("leaves out a relation into a lifetime the capability no longer lives", () => {
+    const earlier: Relation = { ...TO_NAME, to: { ...TO_NAME.to, incarnation: "authors-earlier" } };
+    expect(shown([books({}, [earlier]), authors()])).toEqual([]);
   });
 });

@@ -96,6 +96,31 @@ export function deleteFieldLinkRows(database: Database, capability: string, fiel
     .run(capability, field);
 }
 
+/** Forget every pick that names `target`, whichever record and field made it. */
+export function deleteTargetLinkRows(database: Database, target: LinkTarget): void {
+  database
+    .query(
+      `DELETE FROM ${LINK_TABLE}
+       WHERE target_capability = ? AND target_incarnation = ? AND target_record = ?`,
+    )
+    .run(target.capability, target.incarnation, target.record);
+}
+
+/** Forget every pick one field made of `target`, whichever record made it. */
+export function deleteFieldLinkRowsTo(
+  database: Database,
+  source: Omit<LinkSource, "record">,
+  target: LinkTarget,
+): void {
+  database
+    .query(
+      `DELETE FROM ${LINK_TABLE}
+       WHERE target_capability = ? AND target_incarnation = ? AND target_record = ?
+         AND source_capability = ? AND source_field = ?`,
+    )
+    .run(target.capability, target.incarnation, target.record, source.capability, source.field);
+}
+
 /** What each of one record's fields picked, by field. */
 export function readSourceLinkRows(
   database: Database,

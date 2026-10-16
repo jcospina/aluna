@@ -41,6 +41,8 @@ export interface ParsedCapabilityRequest {
   readonly drawnFiles?: ReadonlyMap<string, readonly string[]>;
   /** On a save, the record id each submitted field's pick names, not yet checked. */
   readonly picks?: ReadonlyMap<string, string>;
+  /** On a save, each submitted field its form drew linked, whether it picks a record or none. */
+  readonly drawnLinked?: ReadonlySet<string>;
 }
 
 export class WireProtocolError extends Error {
@@ -97,16 +99,16 @@ export async function parseCapabilityRequest(
   const recordTarget = validateRecordTarget(action, targetMarkers);
   const submittedFields = validatePresenceMarkers(action, presentMarkers, formFields);
   const drawnFiles = validateDrawnMarkers(action, drawnMarkers, formFields, submittedFields);
-  const picks = validateLinkMarkers(action, linkMarkers, submittedFields);
+  const links = validateLinkMarkers(action, linkMarkers, submittedFields);
   const values = normalizeValues(action, grouped, formFields, submittedFields, spec.ui_intent.form);
-  refuseEmptyPicks(picks, values, submittedFields);
+  refuseEmptyPicks(links?.picks, values, submittedFields);
   refuseStaleForm(action, spec, submittedFields);
 
   return {
     input: { values: Object.freeze(values), submittedFields },
     ...(recordTarget === undefined ? {} : { recordTarget }),
     ...(drawnFiles === undefined ? {} : { drawnFiles }),
-    ...(picks === undefined ? {} : { picks }),
+    ...(links === undefined ? {} : { picks: links.picks, drawnLinked: links.drawn }),
   };
 }
 
@@ -263,30 +265,39 @@ function validateDrawnMarkers(
 }
 
 /**
- * A save names, at most once, the record each submitted field picked; nothing else does. Whether
- * the field holds a relation, and the id a record, is the router's to judge against the desk.
+ * A save names, at most once, the record each submitted field picked, or none for a field drawn
+ * linked that picks nothing; nothing else does. Whether the field holds a relation, and the id a
+ * record, is the router's to judge against the desk.
  */
 function validateLinkMarkers(
   action: WireProtocolAction,
   markers: readonly string[],
   submittedFields: ReadonlySet<string>,
-): ReadonlyMap<string, string> | undefined {
+): { picks: ReadonlyMap<string, string>; drawn: ReadonlySet<string> } | undefined {
   if (markers.length === 0) return undefined;
   if (action !== "create" && action !== "update") {
     throw new WireProtocolError(`Link markers are not accepted for ${action}.`);
   }
   const picks = new Map<string, string>();
+  const drawn = new Set<string>();
   for (const marker of markers) {
-    const colon = marker.indexOf(":");
-    const name = marker.slice(0, colon);
-    const id = marker.slice(colon + 1);
-    if (colon < 0 || !submittedFields.has(name) || id.trim() === "") {
-      throw new WireProtocolError(`Invalid link marker "${marker}".`);
-    }
-    if (picks.has(name)) throw new WireProtocolError(`Duplicate link marker "${name}".`);
-    picks.set(name, id);
+    const [name, id] = parseLinkMarker(marker, submittedFields);
+    if (drawn.has(name)) throw new WireProtocolError(`Duplicate link marker "${name}".`);
+    drawn.add(name);
+    if (id !== "") picks.set(name, id);
   }
-  return picks;
+  return { picks, drawn };
+}
+
+/** A marker's field and the id it names: empty for a field drawn linked that picks nothing. */
+function parseLinkMarker(marker: string, submittedFields: ReadonlySet<string>): [string, string] {
+  const colon = marker.indexOf(":");
+  const name = marker.slice(0, colon);
+  const id = marker.slice(colon + 1);
+  if (colon < 0 || !submittedFields.has(name) || (id !== "" && id.trim() === "")) {
+    throw new WireProtocolError(`Invalid link marker "${marker}".`);
+  }
+  return [name, id];
 }
 
 /**

@@ -16,7 +16,7 @@ import { renderableFromRow } from "../../../presentation/fields/renderable-capab
 import { createPresentationAdapter } from "../../../presentation/records/adapter.ts";
 import { getCapability, holdingRelations, listCapabilities } from "../../../registry/index.ts";
 import { createCapabilityActionRecord, heldPicks } from "../../../runtime/data/index.ts";
-import { relinkUpdatedRecord } from "../../../runtime/data/links/picks.ts";
+import { NO_LINKS, relinkUpdatedRecord } from "../../../runtime/data/links/picks.ts";
 import {
   setupRouterTest,
   teardownRouterTest,
@@ -118,7 +118,7 @@ test("Reading Log · Title linked to Books · Title links three entries and mark
   relinkUpdatedRecord(
     conns.readwrite,
     { capabilityId: "reading_log", recordId: "entry-kindred", changed: () => false },
-    { relations, dormant: [], picks: new Map([["title", "kindred-2"]]) },
+    { ...NO_LINKS, relations, picks: new Map([["title", "kindred-2"]]) },
     new Set(["title"]),
   );
   expect(marks()["entry-kindred"]).toBeNull();

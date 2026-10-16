@@ -3,7 +3,7 @@
 // relation, under its lease, and at startup for fields linked before.
 
 import type { Database } from "bun:sqlite";
-import { matchKey } from "#shell/core/same-text.js";
+import { holdsName, matchKey } from "#shell/core/same-text.js";
 import {
   deleteFieldLinkRows,
   LINK_TABLE,
@@ -116,7 +116,5 @@ function namedRecords(database: Database, row: CapabilityRow, field: string): Na
       `SELECT "id" AS "id", ${column} AS "name" FROM ${table} WHERE ${column} IS NOT NULL`,
     )
     .all();
-  return rows.flatMap(({ id, name }) =>
-    typeof name === "string" && matchKey(name) !== "" ? [{ id: String(id), name }] : [],
-  );
+  return rows.flatMap(({ id, name }) => (holdsName(name) ? [{ id: String(id), name }] : []));
 }

@@ -17,8 +17,10 @@ import {
   teardownScratchDbEnv,
 } from "../persistence/scratch-db.test-support.ts";
 import {
+  deleteFieldLinkRowsTo,
   deleteLinkRow,
   deleteSourceLinkRows,
+  deleteTargetLinkRows,
   LINK_TABLE,
   type LinkTarget,
   readSourceLinkRows,
@@ -116,6 +118,27 @@ describe("a row", () => {
     expect(readSourceLinkRows(database, "books", "book-2")).toEqual(
       new Map([["author", SANDERSON]]),
     );
+  });
+
+  test("naming one record goes with it, or only one field's, and no other (8.1/06)", () => {
+    const database = env.conns.readwrite;
+    const editor = { ...MISTBORN_AUTHOR, field: "editor" };
+    const quote = { capability: "quotes", record: "quote-1", field: "by" };
+    const elsewhere = { ...SANDERSON, incarnation: "authors-0" };
+    writeLinkRow(database, MISTBORN_AUTHOR, SANDERSON);
+    writeLinkRow(database, editor, SANDERSON);
+    writeLinkRow(database, quote, SANDERSON);
+    writeLinkRow(database, { ...MISTBORN_AUTHOR, record: "book-2" }, LE_GUIN);
+    writeLinkRow(database, { ...MISTBORN_AUTHOR, record: "book-3" }, elsewhere);
+    const picked = (record: string) => readSourceLinkRows(database, "books", record);
+    deleteFieldLinkRowsTo(database, { capability: "books", field: "author" }, SANDERSON);
+    expect(picked("book-1")).toEqual(new Map([["editor", SANDERSON]]));
+    expect(readSourceLinkRows(database, "quotes", "quote-1")).toEqual(new Map([["by", SANDERSON]]));
+    deleteTargetLinkRows(database, SANDERSON);
+    expect(picked("book-1")).toEqual(new Map());
+    expect(readSourceLinkRows(database, "quotes", "quote-1")).toEqual(new Map());
+    expect(picked("book-2")).toEqual(new Map([["author", LE_GUIN]]));
+    expect(picked("book-3")).toEqual(new Map([["author", elsewhere]]));
   });
 });
 

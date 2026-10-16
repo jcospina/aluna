@@ -360,9 +360,9 @@ describe("a key whose cleanup fails", () => {
 
   test("a delete that hangs counts as a failed attempt, and the pass goes on", async () => {
     const [hung, next] = [enqueued(), enqueued()];
-    const inner = createLocalObjectStore(root());
+    // Only the hung delete may run out the limit: the other settles at once, however busy the host.
     const store: Pick<ObjectStore, "delete"> = {
-      delete: (key) => (key === hung ? new Promise(() => {}) : inner.delete(key)),
+      delete: (key) => (key === hung ? new Promise(() => {}) : Promise.resolve()),
     };
 
     const outcomes = await worker({ objectStore: store, deleteTimeoutMs: 5 }).drain();

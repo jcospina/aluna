@@ -1,6 +1,6 @@
-// The picks a save carries, checked and written by the mutation ports: the ports write
-// only what they are handed, in the record's own savepoint, and a save's picks link one record. A
-// dormant relation's row sleeps until a save changes its field's text.
+// The picks a save carries, checked and written by the mutation ports: the ports write a
+// link row only for a pick they are handed, in the record's own savepoint, and a save's picks link
+// one record. A dormant relation's row sleeps until a save changes its field's text.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { readSourceLinkRows } from "../../../platform/links/link-table.ts";
@@ -22,6 +22,7 @@ import {
   type LinkBinding,
   materializeCapabilityActionRecord,
   NO_LINKS,
+  NO_REACH,
   PickNotFoundError,
   PickWriteError,
   resolveSubmittedPicks,
@@ -39,6 +40,7 @@ const PICKED: LinkBinding = {
   relations: [TEXT_TO_NAME],
   dormant: [],
   picks: new Map([["text", SANDERSON]]),
+  reach: NO_REACH,
 };
 
 let env: ScratchDbEnv;
@@ -204,7 +206,12 @@ describe("the update and delete ports", () => {
   });
 
   test("a field posting no pick keeps its row while its text and its record stand", () => {
-    const unpicked: LinkBinding = { relations: [TEXT_TO_NAME], dormant: [], picks: new Map() };
+    const unpicked: LinkBinding = {
+      relations: [TEXT_TO_NAME],
+      dormant: [],
+      picks: new Map(),
+      reach: NO_REACH,
+    };
     const note = linkedNote();
     updatePort(note, ["text"], unpicked).update({ text: "Brandon Sanderson" });
     expect(linksOf(note)).toEqual(toSanderson);
@@ -218,7 +225,12 @@ describe("the update and delete ports", () => {
   });
 
   test("a dormant relation's row sleeps through an edit, and goes when the edit changes its text", () => {
-    const asleep: LinkBinding = { relations: [], dormant: [TEXT_TO_NAME], picks: new Map() };
+    const asleep: LinkBinding = {
+      relations: [],
+      dormant: [TEXT_TO_NAME],
+      picks: new Map(),
+      reach: NO_REACH,
+    };
     const note = linkedNote();
     updatePort(note, ["text"], asleep).update({ text: "Brandon Sanderson" });
     updatePort(note, ["pinned"], asleep).update({ pinned: true });

@@ -817,10 +817,10 @@ _Avoid_: gate (unqualified), lock, mutex, read lock
 The ownership record one operation holds over the exact incarnations it can observe. An
 operation acquires its *complete* set atomically against one gate/catalog snapshot or
 receives none, and releases the complete set in `finally`. An exception is the
-linked-text refresh and the clearing a target record's deletion brings: the save or
-deletion also takes the token of every capability they reach, down the chain where
-ADR-0011's proposed chain rule applies, apart from its own set, so a linking capability
-closed by its own deletion is skipped instead of refusing the save (ADR-0011). Generated
+linked-text refresh and the clearing a target record's deletion brings: the edit, or
+from 8.4 the deletion, also takes the token of every capability they reach, down the
+chain where ADR-0011's proposed chain rule applies, apart from its own set, so a linking
+capability closed by its own deletion is skipped instead of refusing the save (ADR-0011). Generated
 code never receives the token — it only observes cancellation as a thrown error.
 _Avoid_: read lock, handle, reservation
 

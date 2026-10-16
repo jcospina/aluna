@@ -14,7 +14,7 @@
 // composition. The router resolves the item renderer once, which is why it loads it eagerly. The
 // one read is the router's link lookup, since a Handler hands over a record's text, not its picks.
 
-import { matchKey } from "#shell/core/same-text.js";
+import { holdsName } from "#shell/core/same-text.js";
 import { isFileFieldType } from "../../registry/index.ts";
 import {
   type CapabilityActionRecord,
@@ -101,7 +101,7 @@ function linkMark(
 ): string | undefined {
   const asked = linkedFields.filter((field) => {
     const text = stored[field];
-    return typeof text === "string" && matchKey(text) !== "" && !picks.has(field);
+    return holdsName(text) && !picks.has(field);
   });
   if (asked.length === 0) return undefined;
   return pickTargetMark(asked.map((field) => nouns.get(field) ?? "record"));

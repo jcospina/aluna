@@ -83,7 +83,8 @@ export function drawDropdown(root) {
   const pick = doc.createElement("input");
   pick.setAttribute("type", "hidden");
   pick.setAttribute("name", LINK_FIELD);
-  pick.disabled = true;
+  pick.value = linkFieldValue(input.getAttribute("name") ?? "", "");
+  pick.setAttribute(NAMED_PICK_ATTRIBUTE, "");
   const line = lineFor(doc, input);
   root.dataset.choiceInitial = input.getAttribute("value") ?? "";
   searchFrom(input, counter?.id);
@@ -235,7 +236,7 @@ export class LinkedDropdown extends ChoicePicker {
     this.pickUrl = root.dataset.pickUrl ?? "";
     const pick = root.querySelector(`input[name="${LINK_FIELD}"]`);
     if (!(pick instanceof HTMLInputElement)) throw new Error("A linked field posts its pick");
-    /** What posts the record the field picked, and posts nothing while it picks none. */
+    /** What posts the record the field picked, or no record while it picks none. */
     this.pick = pick;
     /** The record the field picked when it was drawn, which putting it back picks again. */
     this.pickedInitially = root.getAttribute(PICKED_RECORD_ATTRIBUTE) ?? "";
@@ -361,22 +362,20 @@ export class LinkedDropdown extends ChoicePicker {
   }
 
   /**
-   * Post `record` as the field's pick, or none. The record the form was drawn on, and the one the
-   * text names, post whether or not they are pressed and however late the list arrives, so
-   * neither is a change of the person's.
+   * Post `record` as the field's pick, or the marker with no record, which tells the save the form
+   * drew the field linked. The record the form was drawn on, and the one the text names, post
+   * whether or not they are pressed and however late the list arrives, so neither is a change of
+   * the person's, and neither is posting no record.
    *
    * @param {string} record
    * @param {HTMLElement | undefined} spoken the option the field's text names
    */
   post(record, spoken) {
-    this.pick.disabled = record === "";
-    this.pick.value =
-      record === "" ? "" : linkFieldValue(this.field?.getAttribute("name") ?? "", record);
+    this.pick.value = linkFieldValue(this.field?.getAttribute("name") ?? "", record);
     // What the form posts untouched: the record it was drawn on, else the one its text names.
-    const standing = record === (this.pickedInitially || spoken?.dataset.record);
-    if (record !== "" && standing) {
-      this.pick.setAttribute(NAMED_PICK_ATTRIBUTE, "");
-    } else this.pick.removeAttribute(NAMED_PICK_ATTRIBUTE);
+    const standing = record === "" || record === (this.pickedInitially || spoken?.dataset.record);
+    if (standing) this.pick.setAttribute(NAMED_PICK_ATTRIBUTE, "");
+    else this.pick.removeAttribute(NAMED_PICK_ATTRIBUTE);
   }
 
   /**

@@ -86,6 +86,60 @@ export function holdingRelations(
   });
 }
 
+/** A relation on the desk, the capability whose field it is, and whether it holds. */
+export interface ReachingRelation {
+  readonly source: { readonly capability: string; readonly incarnation: string };
+  readonly relation: Relation;
+  readonly holds: boolean;
+}
+
+/**
+ * The relations the linked-text refresh reaches from `row` (ADR-0011): each that holds, down every
+ * chain, and each dormant one pointing at `row` itself, whose link rows a cleared text lets go.
+ */
+export function relationsReaching(
+  row: Pick<RelatedCapability, "id" | "incarnation_id">,
+  catalog: readonly RelatedCapability[],
+): ReachingRelation[] {
+  const holding = new Map(catalog.map((each) => [each.id, holdingRelations(each, catalog)]));
+  const reaching: ReachingRelation[] = [];
+  const reached = new Set([row.id]);
+  const frontier = [row];
+  for (let target = frontier.shift(); target !== undefined; target = frontier.shift()) {
+    const dormantToo = target.id === row.id;
+    for (const { found, source } of relationsInto(target, catalog, holding, dormantToo)) {
+      reaching.push(found);
+      if (!found.holds || reached.has(source.id)) continue;
+      reached.add(source.id);
+      frontier.push(source);
+    }
+  }
+  return reaching;
+}
+
+/** The relations pointing at `target`'s lifetime, with their sources: those that hold, or all. */
+function relationsInto(
+  target: Pick<RelatedCapability, "id" | "incarnation_id">,
+  catalog: readonly RelatedCapability[],
+  holding: ReadonlyMap<string, readonly Relation[]>,
+  dormantToo: boolean,
+): { readonly found: ReachingRelation; readonly source: RelatedCapability }[] {
+  return catalog.flatMap((source) =>
+    source.relations
+      .filter(({ to }) => to.capability === target.id && to.incarnation === target.incarnation_id)
+      .map((relation) => {
+        const holds = holding.get(source.id)?.some((each) => sameRelation(each, relation)) ?? false;
+        const found = {
+          source: { capability: source.id, incarnation: source.incarnation_id },
+          relation,
+          holds,
+        };
+        return { found, source };
+      })
+      .filter(({ found }) => dormantToo || found.holds),
+  );
+}
+
 /** Whether two relations are the same: one field pointing at one target field in one lifetime. */
 export function sameRelation(a: Relation, b: Relation): boolean {
   return (

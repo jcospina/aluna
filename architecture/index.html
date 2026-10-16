@@ -1419,7 +1419,10 @@
             the text it always was, and their queries cannot open the link table. Linking a field
             writes no code and makes no version. A field that already holds names is matched as it
             is linked: each name exactly one author holds is linked to that author, and the card of
-            every other typed name carries a mark asking for a pick.
+            every other typed name carries a mark asking for a pick. The name a book shows is its
+            author's: picking an author stores that author's name, whatever the handler made of it,
+            and renaming the author rewrites every book that picked them in the same save. Deleting
+            the author leaves the name on the book and marks its card for a new pick.
           </p>
 
           <details class="aside">

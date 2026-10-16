@@ -92,14 +92,15 @@ describe("an edit", () => {
   });
 
   test("that empties the linked field loses its row", async () => {
-    const response = await edit({ text: "" });
+    // The dropdown posts its marker with no record once it picks none.
+    const response = await edit({ text: "" }, { text: "" });
     expect(response.status).toBe(200);
     expect(notes(conns)[0]).toEqual({ id: NOTE_ONE, text: null });
     expect(linkRows(conns)).toEqual([noteLink(NOTE_TWO, BUTLER)]);
   });
 
-  test("crafted with text and no pick still saves the text, and loses its row", async () => {
-    const response = await edit({ text: "Someone typed this" });
+  test("with other text and no pick still saves the text, and loses its row", async () => {
+    const response = await edit({ text: "Someone typed this" }, { text: "" });
     expect(response.status).toBe(200);
     expect(notes(conns)[0]).toEqual({ id: NOTE_ONE, text: "Someone typed this" });
     expect(linkRows(conns)).toEqual([noteLink(NOTE_TWO, BUTLER)]);

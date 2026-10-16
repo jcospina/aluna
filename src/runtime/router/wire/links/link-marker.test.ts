@@ -1,5 +1,6 @@
 // The pick a linked field posts beside its text (ADR-0011): one reserved marker per
-// submitted field, parsed and taken out of the input before generated code runs. Whether its field
+// submitted field, naming no record while it picks none, parsed and taken out of the input
+// before generated code runs. Whether its field
 // holds a relation and its id a record is the router's to judge, so neither is judged here.
 
 import { describe, expect, test } from "bun:test";
@@ -63,6 +64,17 @@ describe("a save's pick", () => {
 
   test("is absent from a save that posts none", async () => {
     expect((await parse(save([]))).picks).toBeUndefined();
+    expect((await parse(save([]))).drawnLinked).toBeUndefined();
+  });
+
+  test("names no record for a field drawn linked that picks none, empty or not (8.1/06)", async () => {
+    for (const text of ["Someone typed this", ""]) {
+      const parsed = await parse(save([linkFieldValue("text", "")], text));
+      expect(parsed.picks).toEqual(new Map());
+      expect(parsed.drawnLinked).toEqual(new Set(["text"]));
+    }
+    const picked = await parse(save([linkFieldValue("text", "author-2")]));
+    expect(picked.drawnLinked).toEqual(new Set(["text"]));
   });
 });
 
@@ -70,8 +82,13 @@ describe("a malformed pick is a protocol error", () => {
   const cases: [string, readonly string[]][] = [
     ["a field the capability does not have", [linkFieldValue("author", "author-2")]],
     ["no field at all", ["author-2"]],
+    ["no colon, though all but its last letter names a field", ["texts"]],
     ["a blank id", [linkFieldValue("text", " ")]],
     ["the same field twice", [linkFieldValue("text", "a"), linkFieldValue("text", "b")]],
+    [
+      "the same field twice, once with no record",
+      [linkFieldValue("text", ""), linkFieldValue("text", "b")],
+    ],
   ];
   for (const [what, markers] of cases) {
     test(`naming ${what}`, async () => {

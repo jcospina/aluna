@@ -16,6 +16,7 @@ import {
   RecordChangedError,
   RecordNotFoundError,
 } from "../internal.ts";
+import { pickedTexts, refreshLinkedText } from "../links/linked-text.ts";
 import {
   type LinkBinding,
   linkCreatedRecord,
@@ -120,15 +121,20 @@ export function createCapabilityMutationPort(
   return {
     create(values) {
       assertReadOwnership(signal);
-      const own = insertValues(parsed.id, allowedInsertFields, values);
+      // The id wins: each picked field holds its target's text, whatever the Handler handed over.
+      const own = {
+        ...insertValues(parsed.id, allowedInsertFields, values),
+        ...pickedTexts(database, links),
+      };
       const keys = writtenFileKeys(fileFields, own, files.submitted, written);
-      if (picked && links.picks.size > 0) throw new PickWriteError();
       assertRequiredFilesHeld(parsed.id, fields, own, keys, "create");
       const normalized = normalizeSpecFieldValues(parsed.id, dataFields, own);
       const id = randomUUID();
       // A savepoint inside the save's transaction: a Handler that catches a failed insert and
       // answers anyway must not commit the key it promoted for a record that was never written.
       const insert = database.transaction((): StoredCapabilityRow => {
+        // Here, past every value a Handler handed over: reading one can start a create of its own.
+        if (picked && links.picks.size > 0) throw new PickWriteError();
         for (const [field, fieldKeys] of keys) {
           normalized[field.name] = claimedColumn(field, fieldKeys, id, scope);
         }
@@ -273,6 +279,15 @@ export function createCapabilityUpdateMutationPort(
     scope: files.scope,
   };
   validateBoundSubmittedFields(input);
+  const edited = {
+    capability: parsed.id,
+    incarnation: files.scope.incarnationId,
+    record: input.target,
+  };
+  // A field of the record's own linked to it is refreshed too, so the edit reads the record again.
+  const linkedToItself = links.reach.relations.some(
+    ({ source, holds }) => holds && source.capability === parsed.id,
+  );
   // How many updates are running: one a Handler starts from inside another commits only with it.
   let depth = 0;
 
@@ -286,6 +301,7 @@ export function createCapabilityUpdateMutationPort(
       }
       const own = { ...values };
       validateUpdateKeys(parsed.id, input.fieldsByName, input.submittedFields, own);
+      Object.assign(own, pickedTexts(input.scope.database, links));
       const fileWrites = submittedFileWrites(input, own);
       // A savepoint inside the save's transaction, as a create's is: a Handler that catches a failed
       // write and answers anyway must not commit a promoted or given-up key without its record.
@@ -293,11 +309,12 @@ export function createCapabilityUpdateMutationPort(
       let updated: CapabilityDataRow;
       try {
         updated = input.scope.database.transaction(() => {
-          const { current, row } = updateBoundTarget(input, own, fileWrites);
-          const changed = (field: string) => current[field] !== row[field];
+          const { before, row } = updateBoundTarget(input, own, fileWrites);
+          const changed = (field: string) => before[field] !== row[field];
           const edit = { capabilityId: parsed.id, recordId: input.target, changed };
           relinkUpdatedRecord(input.scope.database, edit, links, submittedFields);
-          return row;
+          refreshLinkedText(input.scope.database, edited, before, row, links.reach);
+          return linkedToItself ? readBoundTarget(input) : row;
         })();
       } finally {
         depth -= 1;
@@ -332,7 +349,11 @@ export function createCapabilityDeleteMutationPort(
           .get(target);
         if (!deleted) throw new RecordNotFoundError(parsed.id, "delete");
         enqueueRecordFiles(database, scope, target);
-        unlinkDeletedRecord(database, parsed.id, target);
+        unlinkDeletedRecord(database, {
+          capability: parsed.id,
+          incarnation: scope.incarnationId,
+          record: target,
+        });
       })();
     },
   };
@@ -353,18 +374,25 @@ interface BoundUpdateAuthority {
 
 type FileWrites = readonly (readonly [SpecField, SubmittedFile])[];
 
-/** The record as it stood, and as the update leaves it. */
-function updateBoundTarget(
-  authority: BoundUpdateAuthority,
-  values: CapabilityUpdateValues,
-  fileWrites: FileWrites,
-): { readonly current: CapabilityDataRow; readonly row: CapabilityDataRow } {
+/** The bound record as it stands. */
+function readBoundTarget(authority: BoundUpdateAuthority): CapabilityDataRow {
   const stored = authority.scope.database
     .query(`SELECT * FROM ${authority.quotedTable} WHERE "id" = ?`)
     .get(authority.target) as StoredCapabilityRow | null;
   if (!stored) throw new RecordNotFoundError(authority.capabilityId, "update");
+  return normalizeStoredRow(authority.fields, stored);
+}
 
-  const current = normalizeStoredRow(authority.fields, stored);
+/**
+ * The record just before the update writes it, and as the update leaves it. Normalising the values
+ * can run a Handler's code, and so an update of its own, so the record is read again before.
+ */
+function updateBoundTarget(
+  authority: BoundUpdateAuthority,
+  values: CapabilityUpdateValues,
+  fileWrites: FileWrites,
+): { readonly before: CapabilityDataRow; readonly row: CapabilityDataRow } {
+  const current = readBoundTarget(authority);
   const { dataFields } = authority;
   const merged: Record<string, unknown> = Object.fromEntries(
     dataFields.map((field) => [field.name, current[field.name]]),
@@ -398,8 +426,9 @@ function updateBoundTarget(
     ),
     ...writeSubmittedFiles(authority, current, fileWrites),
   };
-  if (Object.keys(columns).length === 0) return { current, row: current };
-  return { current, row: persistBoundUpdate(authority, columns) };
+  const before = readBoundTarget(authority);
+  if (Object.keys(columns).length === 0) return { before, row: before };
+  return { before, row: persistBoundUpdate(authority, columns) };
 }
 
 /**
