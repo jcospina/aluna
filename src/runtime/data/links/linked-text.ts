@@ -1,4 +1,4 @@
-// The id wins and the linked-text refresh (ADR-0011).
+// The id wins, the linked-text refresh and a woken relation's revival (ADR-0011).
 
 import type { Database } from "bun:sqlite";
 import { holdsName } from "#shell/core/same-text.js";
@@ -66,6 +66,53 @@ export function refreshLinkedText(
     if (!holdsName(text)) unlinkClearedTarget(database, origin, edited.record, reach);
     else carryText({ database, text, reach, visited: new Set() }, origin, [edited.record]);
   }
+}
+
+/**
+ * Bring a woken relation's field back to its target's text (ADR-0011): each record whose
+ * link row names a record of the target shows that record's text, carried on down every chain. A
+ * row naming a record that holds no name, cleared or gone, lets go, as a cleared target's rows do.
+ */
+export function reviveLinkedText(
+  database: Database,
+  revived: Pick<ReachingRelation, "source" | "relation">,
+  reach: RefreshReach,
+): void {
+  const { source, relation } = revived;
+  const field = { capability: source.capability, field: relation.field };
+  for (const { record, text } of pickedTargets(database, field, relation.to)) {
+    const target = {
+      capability: relation.to.capability,
+      incarnation: relation.to.incarnation,
+      record,
+    };
+    if (!holdsName(text)) {
+      deleteFieldLinkRowsTo(database, field, target);
+      continue;
+    }
+    const carry = { database, text, reach, visited: new Set<string>() };
+    firstVisit(carry.visited, source.capability, relation.field);
+    const rewritten = rewriteLinkedField(carry, source.capability, relation, [record]);
+    carryText(carry, { ...source, field: relation.field }, rewritten);
+  }
+}
+
+/** Each record of the target's lifetime one field's link rows name, and the text it holds now. */
+function pickedTargets(
+  database: Database,
+  field: { readonly capability: string; readonly field: string },
+  to: Relation["to"],
+): { readonly record: string; readonly text: unknown }[] {
+  const table = sqlIdentifier(capabilityTableName(to.capability));
+  const column = sqlIdentifier(to.field);
+  return database
+    .query<{ record: string; text: unknown }, [string, string, string, string]>(
+      `SELECT DISTINCT link.target_record AS "record", target.${column} AS "text"
+       FROM ${LINK_TABLE} AS link LEFT JOIN ${table} AS target ON target."id" = link.target_record
+       WHERE link.source_capability = ? AND link.source_field = ?
+         AND link.target_capability = ? AND link.target_incarnation = ?`,
+    )
+    .all(field.capability, field.field, to.capability, to.incarnation);
 }
 
 /** The edited capability's fields that a relation reaching it points at. */

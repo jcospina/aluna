@@ -1,17 +1,12 @@
 import type { Database } from "bun:sqlite";
 import type { MatchCounts } from "../../presentation/controls/link/link-copy.ts";
-import {
-  addCapabilityRelation,
-  type CapabilityRow,
-  getCapability,
-  listCapabilities,
-} from "../../registry/index.ts";
+import { type CapabilityRow, getCapability, listCapabilities } from "../../registry/index.ts";
 import {
   MutationAdmissionError,
   type MutationCoordinator,
 } from "../../runtime/concurrency/mutation-coordinator.ts";
+import { applyRelationWork, relationDiff } from "../../runtime/data/index.ts";
 import { singleFormValue, versionIn } from "../form-values.ts";
-import { matchTypedNames } from "./matching/matching-scan.ts";
 import { type LinkEnd, type LinkRefusalCode, linkRefusal } from "./rules.ts";
 
 /** One end of a press, as the chooser read it: the write is conditional on exactly this. */
@@ -131,8 +126,8 @@ export async function linkCapabilityField(
 
 /**
  * Both ends read again under the lease and the rules decided on what was read, then the relation
- * and the matching scan's link rows in one transaction: a scan that fails leaves
- * the field as it was, to be linked again.
+ * diff's work: the relation and the matching scan's link rows in one transaction, so a scan that
+ * fails leaves the field as it was, to be linked again.
  */
 async function linkUnderLease(
   press: LinkPress,
@@ -152,20 +147,13 @@ async function linkUnderLease(
     field: source.field,
     to: { capability: target.row.id, incarnation: target.row.incarnation_id, field: target.field },
   };
-  const expectation = {
-    capabilityId: source.row.id,
-    incarnationId: source.row.incarnation_id,
-    version: source.row.version,
-    relations: source.row.relations,
-  };
   await deps.onAdmitted?.({ source: source.row, target: target.row });
   // Nothing that moves either end writes without the lease this holds, so the rules still stand.
-  const written = deps.database.transaction(() => {
-    const row = addCapabilityRelation(expectation, relation, deps.database);
-    return row && { row, matched: matchTypedNames(deps.database, row, target.row, relation) };
-  })();
-  if (!written) return { status: "stale", moved: getCapability(source.row.id, deps.database) };
-  return { status: "linked", source: written.row, target: target.row, matched: written.matched };
+  const change = { kind: "link", source: source.row, target: target.row, relation } as const;
+  const done = applyRelationWork(deps.database, relationDiff(change));
+  const row = done?.rows.get(source.row.id);
+  if (!done || !row) return { status: "stale", moved: getCapability(source.row.id, deps.database) };
+  return { status: "linked", source: row, target: target.row, matched: done.matched };
 }
 
 type StaleOutcome = Extract<CapabilityLinkOutcome, { status: "stale" }>;

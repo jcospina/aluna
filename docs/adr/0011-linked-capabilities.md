@@ -92,7 +92,9 @@ Only Unlink, or deleting either capability, removes one. A relation diff of its 
 maps every relation change to platform work, so the Diff Engine's change-fact contract
 does not grow. Hiding the source or the target field makes the relation dormant: the text
 stays, Aluna treats the relation as absent, and reactivating the field revives it with its
-link rows.
+link rows. The revival runs in the activation transaction (8.1/08). Each record a link row
+names takes its target's current text, as when the id wins, and the names typed while the
+relation slept are matched, as at startup.
 
 **A relation whose rules stop holding is dormant until they hold again.** *Proposed.* An
 evolution can change a field the relation names: turn it into long text, give the source
@@ -120,7 +122,9 @@ a build. A linked field is a dropdown of the target's records, each shown by the
 field the relation names. Typing into it only searches the records the dropdown holds, so
 it cannot be free-typed while it is linked. The dropdown and the save hold a read token
 for the target's incarnation
-as well as their own, so deleting the target cannot race them. The form posts the text and
+as well as their own, so deleting the target cannot race them. A save whose relation woke
+or was linked after it read the desk checks its pick inside its transaction, under the
+record lease that no deletion can hold beside it (8.1/08). The form posts the text and
 a reserved `__aluna_link` marker, carrying the field and the picked record's id. The marker
 joins the router's closed set of reserved keys and never reaches a Handler. The router
 checks the id before generated code runs and again inside the transaction, as it does for

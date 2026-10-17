@@ -366,11 +366,14 @@ async function handleRecordMutation(
       handlerTimeoutMs,
       undefined,
     );
-    databases.readwrite.exec(response.ok ? "COMMIT" : "ROLLBACK");
+    // SQLite ends the transaction itself after some failed writes, a full disk among them.
+    if (response.ok || databases.readwrite.inTransaction) {
+      databases.readwrite.exec(response.ok ? "COMMIT" : "ROLLBACK");
+    }
     transactionOpen = false;
     return response;
   } catch (error) {
-    if (transactionOpen) databases.readwrite.exec("ROLLBACK");
+    if (transactionOpen && databases.readwrite.inTransaction) databases.readwrite.exec("ROLLBACK");
     throw error;
   } finally {
     // Ownership first, then the lease: an abandoned Handler's mutation port refuses only once read

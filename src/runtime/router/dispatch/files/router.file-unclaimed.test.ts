@@ -1,6 +1,6 @@
 // A save whose Handler answers without claiming the upload it carried:
 // the form counts the upload saved, so nothing would claim it again, and the save gives it up in
-// its own transaction. A save that is refused gives up nothing.
+// its own transaction. A save that is refused, or whose transaction SQLite ended, gives up nothing.
 
 import { describe, expect, test } from "bun:test";
 import type { HandlerLoader } from "../router.ts";
@@ -51,6 +51,19 @@ describe("a save whose Handler never claims the upload it carried", () => {
     const key = photos.mint();
     const response = await photos.request("/capability/photos/create", createBody("Dawn", key), {
       loadHandler: refuses,
+    });
+    expect(response.ok).toBe(false);
+    expect(photos.ledger(key).state).toBe("pending");
+  });
+
+  test("a save whose transaction SQLite ended gives nothing up, whatever its Handler answered", async () => {
+    const key = photos.mint();
+    const endsItsTransaction: HandlerLoader = async () => async () => {
+      photos.conns().readwrite.exec("ROLLBACK");
+      return "<p>card</p>";
+    };
+    const response = await photos.request("/capability/photos/create", createBody("Dawn", key), {
+      loadHandler: endsItsTransaction,
     });
     expect(response.ok).toBe(false);
     expect(photos.ledger(key).state).toBe("pending");

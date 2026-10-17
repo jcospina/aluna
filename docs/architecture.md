@@ -579,8 +579,9 @@ The lifecycle is spec-first and recoverable across SQLite and the filesystem:
    completeness, then atomically publish to the final incarnation/version path
    with no overwrite.
 7. In one SQLite transaction apply additive DDL, compare-and-swap the registry
-   spec/version/pointer, write the link step's relations that pass their checks, and
-   finalize `success/activated` metrics. Commit is the activation point of no return.
+   spec/version/pointer, write the link step's relations that pass their checks, wake
+   each relation whose rules hold again, and finalize `success/activated` metrics.
+   Commit is the activation point of no return.
    Only afterward may the presenter attempt the terminal complete View `commit` swap.
 
 For a newly activated v1, that transaction also commits seed plus logo lifecycle
@@ -719,12 +720,19 @@ The normative matrix lives in the Module 4 PLAN (ADR-0006).
 
 Relations never reach the change-fact contract. They live on the registry row and not
 in the spec, so the evolution writer never sees one and every evolution carries them
-forward unchanged. The Diff Engine gains a relation diff of its own, which maps each
-relation change, such as Link, Unlink or a target capability's deletion, to platform
-work only: the registry row, the matching scan and the link rows. It never maps to a
-version, a unit or Gate work, and the change-fact contract does not grow. An
-evolution that hides a relation's field makes the relation dormant (§6.3), and
-reactivating the field revives it with its link rows (ADR-0011).
+forward unchanged. A relation diff of its own (`relationDiff`) maps every relation
+change to platform work only. Link, Unlink, a capability's deletion and an activation
+all go through it, and the work is the registry row, the matching scan and the link
+rows. One executor does that work in one transaction, a savepoint of the caller's when
+it holds one. The diff never maps to a version, a unit or Gate work, and the
+change-fact contract does not grow. An evolution that hides a relation's field makes
+the relation dormant (§6.3), and the diff finds no work for it. Reactivating the field
+revives the relation with its link rows in the activation transaction: each record a
+row names shows its target's current text, carried down every chain, and the names
+typed into the field while it slept are matched as at startup (ADR-0011). A revival
+that fails is undone alone and logged, and the activation goes on, because no link
+may fail a build. An error after which SQLite ends the whole transaction itself, a full
+disk among them, fails the activation whole.
 
 Test artifact generation follows behavior and error intent, the canonical
 active-schema validation shape, and per-Action dependency identities, while test
@@ -863,8 +871,10 @@ the target field makes the relation dormant: it stays on the row unchanged, Alun
 treats it as absent, and reactivating the field revives it with its link rows.
 ADR-0011 proposes the same when an evolution breaks a rule: a field turned into long
 text, or limits that no longer fit. A source made dormant that way is drawn as plain
-text, and a save that changes its text drops its link row. Fixed platform choices
-such as "a record opens in the window" do not belong in the AI-authored spec.
+text, and a save that changes its text drops its link row. The form gives a dormant
+source no chain, so neither Unlink nor Link reaches the field until the relation wakes
+or either capability is deleted. Fixed platform choices such as "a record opens in the
+window" do not belong in the AI-authored spec.
 
 `ui_intent` records only capability-specific choices: the item's free design
 direction and ordered presentation dependencies, the collection layout (a closed
@@ -1023,12 +1033,15 @@ than the record's, while the record's pick stands, is refused as a form drawn be
 the field changed, and the person opens it again. A deleted record's rows go in the
 delete's savepoint, those it held as a source and those naming it as a target. The
 rows of a dormant relation stay until a save changes its field's text, and
-reactivating the field revives them.
+reactivating the field revives them: each record a row names takes its target's
+current text in the activation transaction, and a row naming a record that holds no
+name goes.
 
 The matching scan runs when the Link control writes a relation, in the transaction that
-writes it, under its lease. At startup, before the server listens, it runs again for every
-relation that holds, over the records whose link leads to no record of the target: a field
-linked before the scan existed has its names matched, and a link that works stands
+writes it, under its lease, and when an activation wakes a relation, in the activation
+transaction under the build lease. At startup, before the server listens, it runs again
+for every relation that holds, over the records whose link leads to no record of the target:
+a field linked before the scan existed has its names matched, and a link that works stands
 (`matchLinkedFieldsAtStartup`). It drops whatever rows the field still held from a relation
 since taken away, and writes a row for each record whose name is exactly one target
 record's. Names are compared composed one way (NFC), trimmed of spaces and invisible
@@ -1539,7 +1552,10 @@ already-admitted reads finish or cancel before the destructive transaction. Any
 operation that can observe multiple incarnations acquires the complete token set
 atomically against one gate/catalog snapshot or receives none, and all tokens release
 in `finally`. A linked field's dropdown and save hold the target's token beside their
-own, so deleting the target cannot race them. The linked-text refresh and the
+own, so deleting the target cannot race them. A save settles its relations again inside
+its transaction, and one whose relation woke or was linked after it read the desk checks
+its pick there, under the record lease that no deletion can hold beside it. The
+linked-text refresh and the
 clearing a target record's deletion brings are an exception to taking the set all at
 once: the save or deletion also takes the token of every capability its refresh or
 clearing reaches, down the chain where ADR-0011's proposed chain rule applies, apart

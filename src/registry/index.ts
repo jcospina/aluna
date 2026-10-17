@@ -181,7 +181,6 @@ export {
 } from "./store/deletion-tombstones.ts";
 export {
   abandonMissingCapabilityLogo,
-  addCapabilityRelation,
   CapabilityIdActiveError,
   type CapabilityRegistryExpectation,
   type CapabilityRegistryWriteInput,
@@ -199,12 +198,12 @@ export {
   type RelationsExpectation,
   readActiveIncarnationCatalog,
   releaseLogoClaim,
-  removeCapabilityRelation,
   removeRelationsTo,
   renameCapability,
   resolveActionReadDependencies,
   StaleCapabilityRegistryError,
   settleLogoGeneration,
+  writeCapabilityRelations,
 } from "./store/store.ts";
 export {
   type CapabilityTool,

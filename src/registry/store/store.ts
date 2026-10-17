@@ -292,28 +292,11 @@ export interface RelationsExpectation {
 }
 
 /**
- * Add one relation in place and nothing else: no version, no artifact.
- * Bound to the incarnation, version and relations read under the lease, so a moved row is `null`.
+ * Write one capability's relations in place and nothing else: no version, no artifact. Only the
+ * relation diff's work calls it. Bound to the incarnation, version and relations read under the
+ * lease, so a moved row is `null`.
  */
-export function addCapabilityRelation(
-  expectation: RelationsExpectation,
-  relation: Relation,
-  database: Database = db,
-): CapabilityRow | null {
-  return replaceRelations(expectation, [...expectation.relations, relation], database);
-}
-
-/** Take one field's relation off in place, bound as `addCapabilityRelation` is (Unlink). */
-export function removeCapabilityRelation(
-  expectation: RelationsExpectation,
-  field: string,
-  database: Database = db,
-): CapabilityRow | null {
-  const kept = expectation.relations.filter((relation) => relation.field !== field);
-  return replaceRelations(expectation, kept, database);
-}
-
-function replaceRelations(
+export function writeCapabilityRelations(
   expectation: RelationsExpectation,
   relations: readonly Relation[],
   database: Database,

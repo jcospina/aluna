@@ -3,8 +3,9 @@
 // documented location without opening it and assert the shared singletons are wired to the
 // configured one. The headline guarantee — a write on the read-only connection is physically
 // impossible — is proven for both DML and DDL, since the boundary must hold regardless of what
-// SQL is issued.
+// SQL is issued. A write transaction that SQLite ended itself is not rolled back a second time.
 
+import { SQLiteError } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -18,6 +19,7 @@ import {
   openDatabase,
   type PlatformDatabase,
   resolveDbPath,
+  withWriteTransaction,
 } from "./db.ts";
 
 describe("dual sqlite connections", () => {
@@ -84,5 +86,50 @@ describe("dual sqlite connections", () => {
     expect(() => dbReadonly.exec("CREATE TABLE shared_write_check (id INTEGER)")).toThrow(
       /readonly database/,
     );
+  });
+});
+
+describe("a write transaction whose body fails after the transaction ended", () => {
+  let dir: string;
+  let conns: PlatformDatabase;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "omni-crud-db-"));
+    conns = openDatabase(join(dir, "test.db"));
+  });
+
+  afterEach(() => {
+    conns.readwrite.close();
+    conns.readonly.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test("rethrows SQLite's own error, as SQLite ended the transaction itself", async () => {
+    const failing = withWriteTransaction(conns.readwrite, () => {
+      conns.readwrite.exec("ROLLBACK");
+      conns.readwrite.exec("SELECT * FROM missing");
+    });
+    await expect(failing).rejects.toBeInstanceOf(SQLiteError);
+    expect(conns.readwrite.inTransaction).toBe(false);
+  });
+
+  test("rethrows an error whose cause SQLite raised, as SQLite ended the transaction then too", async () => {
+    const failing = withWriteTransaction(conns.readwrite, () => {
+      conns.readwrite.exec("ROLLBACK");
+      try {
+        conns.readwrite.exec("SELECT * FROM missing");
+      } catch (cause) {
+        throw new Error("the step failed", { cause });
+      }
+    });
+    await expect(failing).rejects.toMatchObject({ cause: expect.any(SQLiteError) });
+  });
+
+  test("names the failed rollback beside any other error, since nothing says SQLite ended it", async () => {
+    const failing = withWriteTransaction(conns.readwrite, () => {
+      conns.readwrite.exec("ROLLBACK");
+      throw new Error("the body ended its own transaction");
+    });
+    await expect(failing).rejects.toBeInstanceOf(AggregateError);
   });
 });

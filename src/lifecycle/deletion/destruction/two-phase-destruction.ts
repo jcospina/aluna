@@ -3,7 +3,6 @@ import { lstatSync, readdirSync, realpathSync, rmdirSync, rmSync } from "node:fs
 import { join, resolve } from "node:path";
 import { resolveArtifactsRoot } from "../../../builder/index.ts";
 import { deleteIncarnationFiles } from "../../../platform/files/store/ledger.ts";
-import { deleteCapabilityLinkRows } from "../../../platform/links/link-table.ts";
 import { isPathContained } from "../../../platform/path-containment.ts";
 import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import {
@@ -15,13 +14,13 @@ import {
   listCapabilityDeletionTombstones,
   type OwnedResourceEntry,
   removeCapabilityDeletionTombstone,
-  removeRelationsTo,
 } from "../../../registry/index.ts";
 import {
   type ReadGateCloseLease,
   type ReadGateCoordinator,
   ReadGateDrainTimeoutError,
 } from "../../../runtime/concurrency/read-gates.ts";
+import { applyRelationWork, relationDiff } from "../../../runtime/data/index.ts";
 import { deriveCapabilityTableDdl } from "../../../runtime/data/schema/ddl.ts";
 import {
   type InstalledPayloadPurgeResult,
@@ -161,8 +160,8 @@ function commitDeletionTombstone(
     input.faults?.afterTombstoneInserted?.();
     // Every link with this lifetime at either end goes as Unlink takes one: each linking record
     // keeps its text, and no mark is left to ask for a pick.
-    removeRelationsTo({ capabilityId: target.id, incarnationId: target.incarnation_id }, database);
-    deleteCapabilityLinkRows(database, target.id);
+    const deleted = { capabilityId: target.id, incarnationId: target.incarnation_id };
+    applyRelationWork(database, relationDiff({ kind: "deletion", deleted }));
     input.faults?.afterLinkRowsPurged?.();
 
     payloads = purgeInstalledCapabilityPayloads(target, database);

@@ -8,7 +8,12 @@ import {
   type ScratchDbEnv,
   teardownScratchDbEnv,
 } from "../../../platform/persistence/scratch-db.test-support.ts";
-import { type CapabilityRow, type Relation, relationsReaching } from "../../../registry/index.ts";
+import {
+  type CapabilityRow,
+  type Relation,
+  relationsReaching,
+  type SpecField,
+} from "../../../registry/index.ts";
 import {
   AUTHORS,
   AUTHORS_INCARNATION,
@@ -124,13 +129,40 @@ export function desk(
 }
 
 /** `catalog` with one capability's field hidden, which makes its relations dormant. */
-export function hidden(catalog: readonly CapabilityRow[], capability: string, name: string) {
+export function hidden(
+  catalog: readonly CapabilityRow[],
+  capability: string,
+  name: string,
+): CapabilityRow[] {
+  return reshaped(catalog, capability, name, { lifecycle: "inactive" });
+}
+
+/** `catalog` with one field of one capability changed by `change`, as an evolution changes one. */
+export function reshaped(
+  catalog: readonly CapabilityRow[],
+  capability: string,
+  name: string,
+  change: Partial<SpecField>,
+): CapabilityRow[] {
   return catalog.map((row) => {
     if (row.id !== capability) return row;
     const fields = row.schema.fields.map((field) =>
-      field.name === name ? { ...field, lifecycle: "inactive" as const } : field,
+      field.name === name ? { ...field, ...change } : field,
     );
     return { ...row, schema: { fields } };
+  });
+}
+
+/** `catalog` with one capability's field drawn as long text. */
+export function longText(
+  catalog: readonly CapabilityRow[],
+  capability: string,
+  name: string,
+): CapabilityRow[] {
+  return catalog.map((row) => {
+    if (row.id !== capability) return row;
+    const form = { ...row.ui_intent.form, long_text: [...row.ui_intent.form.long_text, name] };
+    return { ...row, ui_intent: { ...row.ui_intent, form } };
   });
 }
 

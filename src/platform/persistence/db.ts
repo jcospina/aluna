@@ -11,7 +11,7 @@
 // another, whose WAL sidecars sit beside it (data/README.md). No domain tables here — those are created at runtime by the
 // modules that need them, and the platform-owned migrations runner builds on `db`.
 
-import { Database } from "bun:sqlite";
+import { Database, SQLiteError } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { resolveDbPath } from "./db-path.ts";
@@ -47,6 +47,8 @@ export async function withWriteTransaction<T>(
     database.exec("COMMIT;");
     return result;
   } catch (err) {
+    // SQLite ends the transaction itself after some of its errors, a full disk among them.
+    if (!database.inTransaction && raisedBySqlite(err)) throw err;
     try {
       database.exec("ROLLBACK;");
     } catch (rollbackErr) {
@@ -54,6 +56,16 @@ export async function withWriteTransaction<T>(
     }
     throw err;
   }
+}
+
+/** Whether SQLite raised `error`, or one somewhere down the chain of causes it carries. */
+function raisedBySqlite(error: unknown): boolean {
+  let cause = error;
+  for (let depth = 0; depth < 8 && cause instanceof Error; depth += 1) {
+    if (cause instanceof SQLiteError) return true;
+    cause = cause.cause;
+  }
+  return false;
 }
 
 /**

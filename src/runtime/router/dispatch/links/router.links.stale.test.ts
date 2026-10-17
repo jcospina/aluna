@@ -1,28 +1,32 @@
 // What the linked-text refresh meets around a save: a link made, or an evolution
 // committed, after the save read the desk and before its transaction, and an Edit form drawn
-// before its field was linked, whose text the refresh may since have moved.
+// before its field was linked, whose text the refresh may since have moved. A save that read the
+// desk before an activation woke or put to sleep its own relation settles on the
+// desk its transaction finds.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { capabilityActionUrl } from "#shell/core/routes.js";
+import { LINK_MARK_CHAIN } from "#shell/controls/listbox-glyphs.js";
+import { capabilityActionUrl, capabilityPickUrl } from "#shell/core/routes.js";
 import { RECORD_ID_FIELD } from "#shell/core/shell-dom.js";
-import { matchTypedNames } from "../../../../lifecycle/link/matching/matching-scan.ts";
 import { LINK_TABLE } from "../../../../platform/links/link-table.ts";
 import type { PlatformDatabase } from "../../../../platform/persistence/db.ts";
 import { REGISTRY_TABLE } from "../../../../platform/persistence/table-names.ts";
 import {
   type ActiveCatalogReader,
-  addCapabilityRelation,
   FORM_CHANGED_ERROR_CODE,
   getCapability,
+  listCapabilities,
   readActiveRegistryCatalog,
 } from "../../../../registry/index.ts";
 import {
   noticeCode,
   storeRelations,
 } from "../../../../server/routes/lifecycle/link.test-support.ts";
+import { applyRelationWork, relationDiff } from "../../../data/index.ts";
 import { teardownRouterTest } from "../router.test-support.ts";
 import { authorsDesk, BOOK_AUTHOR, NOTE_LE_GUIN } from "./router.links.refresh.test-support.ts";
 import {
+  BUTLER,
   LE_GUIN,
   linkRows,
   noteLink,
@@ -62,17 +66,15 @@ describe("a rename that read the desk before", () => {
       const books = getCapability("books", conns.readwrite);
       const authors = getCapability("authors", conns.readwrite);
       if (!books || !authors) throw new Error("the desk is missing a capability");
-      const expectation = {
-        capabilityId: books.id,
-        incarnationId: books.incarnation_id,
-        version: books.version,
-        relations: books.relations,
-      };
-      conns.readwrite.transaction(() => {
-        const row = addCapabilityRelation(expectation, BOOK_AUTHOR, conns.readwrite);
-        if (!row) throw new Error("the link was refused");
-        matchTypedNames(conns.readwrite, row, authors, BOOK_AUTHOR);
-      })();
+      const change = {
+        kind: "link",
+        source: books,
+        target: authors,
+        relation: BOOK_AUTHOR,
+      } as const;
+      if (!applyRelationWork(conns.readwrite, relationDiff(change))) {
+        throw new Error("the link was refused");
+      }
     };
     const deps = { readActiveCatalog: changingAfterRead(link) };
     expect((await desk.rename(LE_GUIN, "Ursula Le Guin", deps)).status).toBe(200);
@@ -140,5 +142,83 @@ describe("an Edit form", () => {
     expect((await editNote("Someone else", { text: "" })).status).toBe(200);
     expect(noteText()).toBe("Someone else");
     expect(noteLinked()).toBe(false);
+  });
+});
+
+describe("a save that read the desk before an activation", () => {
+  /** An activation of one capability drawing `longText` as long text, and the relation diff's work. */
+  const activate = (capability: string, longText: readonly string[]) => () => {
+    conns.readwrite.transaction(() => {
+      const before = listCapabilities(conns.readwrite);
+      conns.readwrite
+        .query(
+          `UPDATE ${REGISTRY_TABLE} SET version = version + 1,
+             ui_intent = json_set(ui_intent, '$.form.long_text', json(?)) WHERE id = ?`,
+        )
+        .run(JSON.stringify(longText), capability);
+      const after = listCapabilities(conns.readwrite);
+      applyRelationWork(conns.readwrite, relationDiff({ kind: "activation", before, after }));
+    })();
+  };
+  /** Authors' name drawn as long text, which puts every relation pointing at it to sleep, or not. */
+  const activateAuthors = (nameIsLong: boolean) =>
+    activate("authors", nameIsLong ? ["name", "bio"] : ["bio"]);
+  const editNote = (
+    text: string,
+    picks: Readonly<Record<string, string>>,
+    activation: () => void,
+  ) =>
+    routerApp(conns, { readActiveCatalog: changingAfterRead(activation) }).request(
+      capabilityActionUrl("notes", "update"),
+      saveBody({ [RECORD_ID_FIELD]: NOTE_LE_GUIN, text }, picks, ["text"]),
+    );
+  const noteText = () => notes(conns).find(({ id }) => id === NOTE_LE_GUIN)?.text;
+  const noteLinks = () => linkRows(conns).filter((row) => row.source_record === NOTE_LE_GUIN);
+
+  test("finds the relation woken since: a form drawn while it slept cannot undo the revival", async () => {
+    activateAuthors(true)();
+    conns.readwrite.run('UPDATE "cap_authors" SET "name" = ? WHERE "id" = ?', [
+      "Ursula Le Guin",
+      LE_GUIN,
+    ]);
+
+    const response = await editNote("Ursula K. Le Guin", {}, activateAuthors(false));
+
+    expect(response.status).toBe(422);
+    expect(noticeCode(await response.text())).toBe(FORM_CHANGED_ERROR_CODE);
+    expect(noteText()).toBe("Ursula Le Guin");
+    expect(noteLinks()).toEqual([noteLink(NOTE_LE_GUIN, LE_GUIN)]);
+  });
+
+  test("finds the relation woken since: a form holding the record's text saves, drawn linked", async () => {
+    activateAuthors(true)();
+    const response = await editNote("Ursula K. Le Guin", {}, activateAuthors(false));
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain(capabilityPickUrl("notes", "text"));
+    expect(noteLinks()).toEqual([noteLink(NOTE_LE_GUIN, LE_GUIN)]);
+  });
+
+  test("finds its own field put to sleep by its activation since, and draws it plain", async () => {
+    const response = await editNote(
+      "Octavia E. Butler",
+      { text: BUTLER },
+      activate("notes", ["text"]),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).not.toContain(capabilityPickUrl("notes", "text"));
+    expect(noteLinks()).toEqual([]);
+  });
+
+  test("finds the relation put to sleep since: the pick is dropped, the text saves as typed", async () => {
+    const response = await editNote("Octavia E. Butler", { text: BUTLER }, activateAuthors(true));
+
+    expect(response.status).toBe(200);
+    const drawn = await response.text();
+    expect(drawn).not.toContain(capabilityPickUrl("notes", "text"));
+    expect(drawn).not.toContain(LINK_MARK_CHAIN);
+    expect(noteText()).toBe("Octavia E. Butler");
+    expect(noteLinks()).toEqual([]);
   });
 });

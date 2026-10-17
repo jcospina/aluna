@@ -1,16 +1,18 @@
 // Registry commit boundary for one already-published immutable snapshot — the pipeline's
 // terminal stage, and the atomic moment a build becomes real.
 //
-// Migration, unit generation and the fail-closed gate have all run inside the write transaction
-// the migration stage opened. Commit reverifies the published snapshot evidence, then inserts the
-// registry row pointing at that directory, in the same transaction. For a new capability the
-// insert is the pointer flip; for an evolution an incarnation/version CAS replaces the live row.
+// Unit generation, the fail-closed Gate and publication have all run before this, outside SQLite.
+// Activation opens the write transaction and applies the additive migration in it; commit then
+// reverifies the published snapshot evidence and inserts the registry row pointing at that
+// directory, in the same transaction. For a new capability the insert is the pointer flip; for an
+// evolution an incarnation/version CAS replaces the live row, and a relation the new spec lets
+// hold again wakes beside it.
 //
 // Atomicity is the SQLite transaction's, not the filesystem's: a failed insert rolls back table
 // and row, leaving a verified never-activated candidate for reconciliation, never a live partial.
 
 import type { Database } from "bun:sqlite";
-
+import { errorDetail } from "../../platform/errors.ts";
 import {
   type CapabilityRegistryExpectation,
   type CapabilityRegistryWrite,
@@ -21,7 +23,9 @@ import {
   createCapabilityLogoSeed,
   getCapability,
   incarnationIdSchema,
+  listCapabilities,
 } from "../../registry/index.ts";
+import { applyRelationWork, relationDiff } from "../../runtime/data/index.ts";
 import {
   assertVerifiedPublishedSnapshot,
   type SnapshotManifest,
@@ -102,6 +106,7 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
     expected,
     input.database,
   );
+  if (previous) wakeRelations(input.database, previous);
 
   return {
     row,
@@ -115,6 +120,28 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
     snapshotContentDigest: manifest.snapshot_content_digest,
     manifest,
   };
+}
+
+/**
+ * The swap carries every relation forward unchanged. One whose rules hold again wakes with its link
+ * rows in this transaction, as the relation diff maps it (ADR-0011). The desk before the swap is the
+ * desk after it with the evolved row as it was. A wake that fails is undone by its savepoint and
+ * logged, and the activation goes on: no link may fail a build. An error after which SQLite has
+ * ended the whole transaction, a full disk among them, has ended the activation too, so it throws.
+ */
+function wakeRelations(database: Database, previous: CapabilityRow): void {
+  const activating = database.inTransaction;
+  try {
+    const after = listCapabilities(database);
+    const before = after.map((row) => (row.id === previous.id ? previous : row));
+    applyRelationWork(database, relationDiff({ kind: "activation", before, after }));
+  } catch (error) {
+    if (activating && !database.inTransaction) throw error;
+    console.error(
+      `omni-crud could not wake the relations ${previous.id}'s activation let hold:`,
+      errorDetail(error),
+    );
+  }
 }
 
 function isExpectedNextVersion(

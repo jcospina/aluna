@@ -19,14 +19,14 @@ import { validSpec } from "../spec/spec.test-support.ts";
 import { capabilitySpecFromRow } from "../spec/spec.ts";
 import { fingerprintActiveRegistryCatalog } from "./active-catalog.ts";
 import {
-  addCapabilityRelation,
   compareAndSwapCapability,
   getCapability,
   insertCapability,
   listCapabilities,
   REGISTRY_TABLE,
-  removeCapabilityRelation,
+  type RelationsExpectation,
   removeRelationsTo,
+  writeCapabilityRelations,
 } from "./store.ts";
 
 const BOOKS_INCARNATION = FIRST_INCARNATION_ID;
@@ -58,7 +58,7 @@ function booksWrite(overrides: Record<string, unknown> = {}) {
   };
 }
 
-const expectation = (overrides: Partial<Parameters<typeof addCapabilityRelation>[0]> = {}) => ({
+const expectation = (overrides: Partial<RelationsExpectation> = {}): RelationsExpectation => ({
   capabilityId: "books",
   incarnationId: BOOKS_INCARNATION,
   version: 1,
@@ -79,6 +79,14 @@ afterEach(() => {
 });
 
 const books = () => getCapability("books", conns.readonly);
+const add = (read: RelationsExpectation, relation: Relation) =>
+  writeCapabilityRelations(read, [...read.relations, relation], conns.readwrite);
+const remove = (read: RelationsExpectation, field: string) =>
+  writeCapabilityRelations(
+    read,
+    read.relations.filter((relation) => relation.field !== field),
+    conns.readwrite,
+  );
 const storeRaw = (value: string) =>
   conns.readwrite.query(`UPDATE ${REGISTRY_TABLE} SET relations = ? WHERE id = 'books'`).run(value);
 
@@ -90,7 +98,7 @@ describe("a capability's relations are written in place", () => {
 
   test("one is added in place: no version, nothing else on the row moves", () => {
     const before = insertCapability(booksWrite(), conns.readwrite);
-    const after = addCapabilityRelation(expectation(), AUTHOR_TO_NAME, conns.readwrite);
+    const after = add(expectation(), AUTHOR_TO_NAME);
 
     expect(after?.relations).toEqual([AUTHOR_TO_NAME]);
     expect(after && { ...after, relations: before.relations }).toEqual(before);
@@ -106,17 +114,14 @@ describe("a capability's relations are written in place", () => {
       { relations: [second] },
       { capabilityId: "authors" },
     ]) {
-      expect(addCapabilityRelation(expectation(moved), AUTHOR_TO_NAME, conns.readwrite)).toBeNull();
+      expect(add(expectation(moved), AUTHOR_TO_NAME)).toBeNull();
     }
     expect(books()?.relations).toEqual([]);
 
-    addCapabilityRelation(expectation(), second, conns.readwrite);
-    expect(addCapabilityRelation(expectation(), AUTHOR_TO_NAME, conns.readwrite)).toBeNull();
+    add(expectation(), second);
+    expect(add(expectation(), AUTHOR_TO_NAME)).toBeNull();
     const read = expectation({ relations: [second] });
-    expect(addCapabilityRelation(read, AUTHOR_TO_NAME, conns.readwrite)?.relations).toEqual([
-      second,
-      AUTHOR_TO_NAME,
-    ]);
+    expect(add(read, AUTHOR_TO_NAME)?.relations).toEqual([second, AUTHOR_TO_NAME]);
   });
 
   test("one field's is taken off in place by Unlink: no version, the others kept", () => {
@@ -126,7 +131,7 @@ describe("a capability's relations are written in place", () => {
     storeRaw(JSON.stringify(linked.relations));
     const before = books();
 
-    const after = removeCapabilityRelation(linked, "author", conns.readwrite);
+    const after = remove(linked, "author");
 
     expect(after?.relations).toEqual([second]);
     expect(after && { ...after, relations: before?.relations }).toEqual(before);
@@ -143,7 +148,7 @@ describe("a capability's relations are written in place", () => {
       { relations: [] },
       { ...read, capabilityId: "authors" },
     ]) {
-      expect(removeCapabilityRelation(expectation(moved), "author", conns.readwrite)).toBeNull();
+      expect(remove(expectation(moved), "author")).toBeNull();
     }
     expect(books()?.relations).toEqual([AUTHOR_TO_NAME]);
   });
@@ -157,17 +162,14 @@ describe("a capability's relations are written in place", () => {
     };
     storeRaw(JSON.stringify([{ ...reordered, field: "title" }]));
     const read = expectation({ relations: [{ field: "title", to }] });
-    expect(addCapabilityRelation(read, AUTHOR_TO_NAME, conns.readwrite)?.relations).toEqual([
-      { field: "title", to },
-      AUTHOR_TO_NAME,
-    ]);
+    expect(add(read, AUTHOR_TO_NAME)?.relations).toEqual([{ field: "title", to }, AUTHOR_TO_NAME]);
   });
 
   test("a field holds at most one: a second relation on it is refused before the write", () => {
     insertCapability(booksWrite(), conns.readwrite);
     const read = expectation({ relations: [AUTHOR_TO_NAME] });
     storeRaw(JSON.stringify([AUTHOR_TO_NAME]));
-    expect(() => addCapabilityRelation(read, AUTHOR_TO_NAME, conns.readwrite)).toThrow();
+    expect(() => add(read, AUTHOR_TO_NAME)).toThrow();
     expect(books()?.relations).toEqual([AUTHOR_TO_NAME]);
   });
 });
@@ -175,7 +177,7 @@ describe("a capability's relations are written in place", () => {
 describe("a capability's relations are kept, read and cleared", () => {
   test("an activation's compare-and-swap carries them forward, and a write cannot set them", () => {
     insertCapability(booksWrite(), conns.readwrite);
-    addCapabilityRelation(expectation(), AUTHOR_TO_NAME, conns.readwrite);
+    add(expectation(), AUTHOR_TO_NAME);
     const evolved = compareAndSwapCapability(
       booksWrite({ version: 2, relations: [] }),
       { state: "active", capabilityId: "books", incarnationId: BOOKS_INCARNATION, version: 1 },
@@ -241,7 +243,7 @@ describe("a capability's relations are kept, read and cleared", () => {
   test("no model-facing view and no resolver fingerprint carries them", () => {
     insertCapability(booksWrite(), conns.readwrite);
     const before = books();
-    const linked = addCapabilityRelation(expectation(), AUTHOR_TO_NAME, conns.readwrite);
+    const linked = add(expectation(), AUTHOR_TO_NAME);
     if (!before || !linked) throw new Error("books was not written");
 
     expect(capabilitySpecFromRow(linked)).toEqual(capabilitySpecFromRow(before));

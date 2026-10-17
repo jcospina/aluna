@@ -1,5 +1,6 @@
 // The write window a writing Handler is handed: its mutation port writes from the call until its
-// answer settles, and refuses every write after, through the router and the notes fixture.
+// answer settles, and refuses every write after, through the router and the notes fixture. A save
+// whose transaction SQLite ended mid-way, as a full disk can, ends the window too.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
@@ -7,6 +8,7 @@ import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { createTestApp } from "../../../server/isolated-app.test-support.ts";
 import { CapabilityDataValidationError } from "../../data/index.ts";
 import type { CapabilityCreateContext } from "../contract.ts";
+import { MUTATION_FAILURE_FRAGMENT } from "../wire/failure-responses.ts";
 import {
   formBody,
   install,
@@ -114,4 +116,40 @@ test("a Handler that answers with a promise holds the window open until it is ad
   expect(outcomes).toEqual(["during written", "after refused"]);
   expect(refused).toEqual([expect.any(CapabilityDataValidationError)]);
   expect(stored()).toEqual([{ text: "during" }]);
+});
+
+/** End the save's transaction under it, as SQLite does itself after some failed writes. */
+const endTheTransaction = () => databases.readwrite.exec("ROLLBACK");
+
+describe("a save whose transaction SQLite has ended", () => {
+  test("is answered with the warm failure, writing nothing", async () => {
+    const response = await create(async () => async (context: CapabilityCreateContext) => {
+      context.mutation.create({ text: "Written before the end" });
+      endTheTransaction();
+      throw new Error("the disk is full");
+    });
+
+    expect(response.status).toBe(500);
+    expect(await response.text()).toBe(MUTATION_FAILURE_FRAGMENT);
+    expect(stored()).toEqual([]);
+  });
+
+  test("refuses every later write, and fails the save whatever the Handler answered", async () => {
+    const refused: unknown[] = [];
+    const response = await create(async () => async (context: CapabilityCreateContext) => {
+      context.mutation.create({ text: "Written before the end" });
+      endTheTransaction();
+      try {
+        context.mutation.create({ text: "Written after the end" });
+      } catch (error) {
+        refused.push(error);
+      }
+      return "<p>answered as if saved</p>";
+    });
+
+    expect(refused).toEqual([expect.any(CapabilityDataValidationError)]);
+    expect(response.status).toBe(500);
+    expect(await response.text()).toBe(MUTATION_FAILURE_FRAGMENT);
+    expect(stored()).toEqual([]);
+  });
 });

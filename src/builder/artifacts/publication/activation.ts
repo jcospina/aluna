@@ -2,7 +2,9 @@
 //
 // Filesystem publication has already completed before this module is entered.
 // SQLite then owns the sole point of no return: additive migration, exact registry
-// CAS, and success/activated metrics commit together or roll back together.
+// CAS, and success/activated metrics commit together or roll back together. The
+// relations the swap wakes commit with them, unless their own revival fails and is
+// undone alone.
 
 import type { Database } from "bun:sqlite";
 

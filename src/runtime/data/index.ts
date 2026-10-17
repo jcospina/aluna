@@ -40,6 +40,7 @@ export {
   resolveSubmittedPicks,
   type SaveRelations,
 } from "./links/picks.ts";
+export { applyRelationWork, relationDiff } from "./links/relation-diff/relation-diff.ts";
 export {
   type AdditiveCapabilityMigration,
   applyAdditiveCapabilityMigration,

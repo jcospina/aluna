@@ -5,13 +5,10 @@ import { LINK_TABLE, writeLinkRow } from "../../../platform/links/link-table.ts"
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { getCapability, type Relation } from "../../../registry/index.ts";
 import {
-  setupRouterTest,
-  teardownRouterTest,
-} from "../../../runtime/router/dispatch/router.test-support.ts";
-import {
   AUTHORS_INCARNATION,
   installDesk,
 } from "../../../server/routes/lifecycle/link.test-support.ts";
+import { setupRouterTest, teardownRouterTest } from "../../router/dispatch/router.test-support.ts";
 import { matchTypedNames } from "./matching-scan.ts";
 
 // The desk's Books author, matched against Authors · Name: the three seeded authors, and whatever

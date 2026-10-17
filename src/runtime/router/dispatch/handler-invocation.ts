@@ -19,7 +19,8 @@ import {
   type CapabilitySpec,
   capabilitySpecFromRow,
   getCapability,
-  type Relation,
+  holdingRelations,
+  listCapabilities,
   sameRelation,
 } from "../../../registry/index.ts";
 import {
@@ -66,8 +67,8 @@ import type { HandlerLoader, ItemRendererLoader } from "./generated-code.ts";
 export interface HandlerRead extends SaveRelations {
   readonly dependencies: readonly CapabilityRow[];
   readonly catalog: readonly CapabilityRow[];
-  /** What an edit's linked-text refresh reaches, read on the save's connection once it is open. */
-  readonly settleReach: (database: Database) => RefreshReach;
+  /** What an edit's linked-text refresh reaches, on the desk the save's transaction finds. */
+  readonly settleReach: (desk: () => readonly CapabilityRow[]) => RefreshReach;
 }
 
 /** Where a save's picks are checked, each target's records named by the noun its row stores. */
@@ -102,7 +103,7 @@ export async function invokeCapabilityHandler(
     dependencies: read.dependencies.map(capabilitySpecFromRow),
     signal,
   });
-  const writes = writeWindow();
+  const writes = writeWindow(databases.readwrite);
   const fileScope = () =>
     fileClaimScope(databases.readwrite, spec, row.incarnation_id, recordTarget, drawnFiles);
 
@@ -117,11 +118,12 @@ export async function invokeCapabilityHandler(
     const scope = fileScope();
     const fields = activeSpecFields(spec.schema.fields);
     const submitted = resolveSubmittedFiles(fields, input.values, save, scope);
-    const held = settledRelations(scope.database, row, read);
-    const picks = pickScope(scope.database, spec.id, save, read.catalog);
+    const desk = deskOnce(scope.database);
+    const held = settledRelations(scope.database, row, desk, read.catalog);
+    const picks = pickScope(scope.database, spec.id, save, held.catalog);
     const checked = resolveSubmittedPicks(picks, held, parsedRequest.picks);
     if (save === "update") refuseDrawnUnlinked(scope.database, row.id, held, parsedRequest);
-    const links: LinkBinding = { ...checked, reach: read.settleReach(scope.database) };
+    const links: LinkBinding = { ...checked, reach: read.settleReach(desk) };
     const mutation = writes.guard(bind({ scope, submitted }, links));
     // On the save's own connection: the link row it writes is not committed when `present` reads.
     const drawn = { ...read, ...held };
@@ -133,6 +135,7 @@ export async function invokeCapabilityHandler(
       call(handler, { input: withFileProjections(input, submitted), mutation, query, present }),
     );
     assertReadOwnership(signal);
+    assertSaveStands(scope.database);
     releaseUnclaimedFiles(scope.database, submitted);
     return fragment;
   };
@@ -170,6 +173,7 @@ export async function invokeCapabilityHandler(
       (handler as CapabilityDeleteHandler)({ input, mutation, query }),
     );
     assertReadOwnership(signal);
+    assertSaveStands(databases.readwrite);
     return fragment;
   }
 
@@ -184,20 +188,49 @@ export async function invokeCapabilityHandler(
 }
 
 /**
- * The relations as the save's transaction finds the row: those that held when the request was
- * admitted and still stand, and every other one the row has, asleep. A relation removed since
- * admission is in neither, so the save writes no row for it.
+ * A save whose transaction SQLite ended under it, as a full disk can, saved nothing, whatever its
+ * Handler answered: it fails before anything else writes, since a write now would commit alone.
+ */
+function assertSaveStands(database: Database): void {
+  if (!database.inTransaction) {
+    throw new Error("The save's transaction ended before its Handler answered.");
+  }
+}
+
+/** The desk as the save's transaction finds it, read once, and only if the save asks for it. */
+function deskOnce(database: Database): () => readonly CapabilityRow[] {
+  let desk: readonly CapabilityRow[] | undefined;
+  return () => {
+    desk ??= listCapabilities(database);
+    return desk;
+  };
+}
+
+/** A save's relations as its transaction settles them, and the desk they were settled on. */
+interface SettledRelations extends SaveRelations {
+  readonly catalog: readonly CapabilityRow[];
+}
+
+/**
+ * The relations as the save's transaction finds the desk: those that hold now, and every other one
+ * the row has, asleep. A link, an Unlink or an activation that committed since admission is read
+ * here, so a relation woken since refuses a form drawn while it slept, and one put to sleep drops
+ * its pick. A relation removed since admission is in neither, so the save writes no row for it.
  */
 function settledRelations(
   database: Database,
   row: CapabilityRow,
-  read: SaveRelations,
-): SaveRelations {
-  const now = getCapability(row.id, database)?.relations ?? row.relations;
-  const standing = (relation: Relation) => now.some((each) => sameRelation(each, relation));
-  const relations = read.relations.filter(standing);
-  const dormant = now.filter((each) => !relations.some((held) => sameRelation(held, each)));
-  return { relations, dormant };
+  desk: () => readonly CapabilityRow[],
+  admitted: readonly CapabilityRow[],
+): SettledRelations {
+  const now = getCapability(row.id, database) ?? row;
+  if (now.relations.length === 0) return { relations: [], dormant: [], catalog: admitted };
+  const catalog = desk();
+  const relations = holdingRelations(now, catalog);
+  const dormant = now.relations.filter(
+    (each) => !relations.some((held) => sameRelation(held, each)),
+  );
+  return { relations, dormant, catalog };
 }
 
 /**
@@ -223,18 +256,21 @@ interface SaveContext<Port> extends Omit<CapabilityContext, "input"> {
 }
 
 /**
- * The span a writing Handler may write in: from its call until its answer settles. Each write asks
- * `Bun.peek`, which reads a settled promise synchronously, so once the answer has settled a queued
- * write is refused even before the route sees it. Returning a value settles it at the `return`;
- * returning a promise settles it only once that promise is adopted, and writes in between land.
+ * The span a writing Handler may write in: from its call until its answer settles, and while the
+ * save's transaction stands, since a write after SQLite ended it (a full disk does) would commit on
+ * its own. Each write asks `Bun.peek`, so a queued write is refused once the answer has settled.
+ * Returning a value settles it at the `return`; a returned promise, only once it is adopted.
  */
-function writeWindow() {
+function writeWindow(database: Database) {
   let answer: Promise<string> | undefined;
   const assertOpen = () => {
     if (answer !== undefined && Bun.peek.status(answer) !== "pending") {
       throw new CapabilityDataValidationError(
         "The mutation port closed when its Handler answered.",
       );
+    }
+    if (!database.inTransaction) {
+      throw new CapabilityDataValidationError("The mutation port closed with its transaction.");
     }
   };
   return {
@@ -278,7 +314,11 @@ async function buildPresentationAdapter(
   database: Database,
 ): Promise<PresentationAdapter> {
   const renderItem = await loadItemRenderer(row.artifacts_path);
-  const capability = { ...renderableFromRow(row, read.catalog), item: row.ui_intent.item };
+  // A save draws the relations its transaction settled on, which may differ from the admitted row's.
+  const relations = [...read.relations, ...read.dormant];
+  const linkedFields = read.relations.map(({ field }) => field);
+  const drawn = { ...renderableFromRow({ ...row, relations }, read.catalog), linkedFields };
+  const capability = { ...drawn, item: row.ui_intent.item };
   const links = (recordId: string) => heldPicks(database, row.id, recordId, read.relations);
   const nounOf = targetNounIn(read.catalog);
   const linkNouns = new Map(read.relations.map(({ field, to }) => [field, nounOf(to.capability)]));

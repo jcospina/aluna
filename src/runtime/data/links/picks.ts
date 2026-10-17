@@ -115,8 +115,10 @@ export function resolveSubmittedPicks(
 }
 
 /**
- * Whether `record` is a record of the relation's target whose text a pick can show. Read under the
- * target's read token, which the router takes for every pick, so its table stands.
+ * Whether `record` is a record of the relation's target whose text a pick can show. Its table
+ * stands: the router takes the target's read token for the pick of every relation that held when
+ * the save was admitted, and one woken or linked since is read inside the save's transaction,
+ * under the record lease no deletion can hold beside it.
  */
 function pickable(database: Database, relation: Relation, record: string): boolean {
   return holdsName(targetText(database, relation, record));

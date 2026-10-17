@@ -400,7 +400,7 @@ export const capabilityRowSchema = z
     // Row-only for the reason the logo lifecycle is: a write carrying it could wipe a rename, and
     // an evolution builds its write from a row read seconds earlier. `renameCapability` owns it.
     display_label_override: z.string().nullable(),
-    // Row-only for the same reason, and owned by `addCapabilityRelation`.
+    // Row-only for the same reason, and owned by `writeCapabilityRelations`.
     relations: relationsSchema,
   })
   .superRefine(validateSpecSemantics);

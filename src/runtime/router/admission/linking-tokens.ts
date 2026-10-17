@@ -1,10 +1,8 @@
 // The read tokens of the capabilities an edit's linked-text refresh writes, each taken on its own,
 // apart from the request's set (ADR-0011).
 
-import type { Database } from "bun:sqlite";
 import {
   type CapabilityRow,
-  listCapabilities,
   type ReachingRelation,
   relationsReaching,
 } from "../../../registry/index.ts";
@@ -17,9 +15,9 @@ import {
 import { NO_REACH, type RefreshReach } from "../../data/index.ts";
 import type { WireProtocolAction } from "../wire/wire-protocol.ts";
 
-/** An edit's reach, settled on the save's own connection, and the tokens it took. */
+/** An edit's reach, settled on the desk the save's transaction finds, and the tokens it took. */
 export interface LinkingAdmission {
-  readonly settle: (database: Database) => RefreshReach;
+  readonly settle: (desk: () => readonly CapabilityRow[]) => RefreshReach;
   readonly release: () => void;
 }
 
@@ -28,8 +26,8 @@ const NONE: LinkingAdmission = Object.freeze({ settle: () => NO_REACH, release: 
 /**
  * Take the read token of each capability an edit of `row` reaches, one at a time. One whose token
  * cannot be taken is skipped by the refresh, and so is one whose token closes before the refresh
- * reaches it. `settle`, run inside the save's transaction, reads the desk again, as
- * `settledRelations` does, and takes the token of a capability linked since admission.
+ * reaches it. `settle`, run inside the save's transaction on the desk the save read there, takes
+ * the token of each capability a relation woken or linked since admission reaches.
  */
 export function admitLinkingCapabilities(
   readGates: ReadGateCoordinator,
@@ -69,7 +67,7 @@ export function admitLinkingCapabilities(
     return key === own || tokens.get(key)?.signal.aborted === false;
   };
   return {
-    settle: (database) => ({ relations: take(listCapabilities(database)), writable }),
+    settle: (desk) => ({ relations: take(desk()), writable }),
     release,
   };
 }

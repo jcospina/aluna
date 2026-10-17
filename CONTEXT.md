@@ -661,10 +661,11 @@ of another capability it points at, at most one per field. It lives on the capab
 registry row beside the logo seed, never in the authored spec, so the evolution writer
 never sees it and every evolution carries it forward unchanged. Changing one makes no
 version. A relation made by the link step and one made by the Link control are the same,
-and nothing records which made it. Hiding its source or target field makes it dormant,
-and reactivating the field revives it with its link rows; ADR-0011 proposes the same
-when an evolution breaks one of its rules, with a save that changes the dormant field's
-text dropping its link row. It is no `read_dependency` and never blocks a deletion
+and nothing records which made it. Hiding its source or target field makes it dormant.
+Reactivating the field revives it with its link rows, and each linked record shows its
+target's current text again. ADR-0011 proposes dormancy and revival too when an
+evolution breaks one of its rules, with a save that changes the dormant field's text
+dropping its link row. It is no `read_dependency` and never blocks a deletion
 (ADR-0011; M8 plan 3, 7 to 10).
 _Avoid_: foreign key, reference, association, link definition, schema link
 

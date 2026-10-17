@@ -3,6 +3,7 @@
 // record noun is singular and takes `’s`, and a field label is never pluralised or given an article.
 
 import type { SpecField } from "../../../registry/index.ts";
+import type { MatchCounts } from "../../../runtime/data/links/matching-scan.ts";
 
 /** What one field is, inside a sentence: "every book’s author". */
 export function everyRecordsField(noun: string, field: Pick<SpecField, "label">): string {
@@ -68,13 +69,7 @@ export function connectingNote(sourcePlural: string, targetPlural: string): stri
   return `Connecting your ${sourcePlural} to ${targetPlural}…`;
 }
 
-/** How the matching scan went, counted over the records whose linked field holds a name. */
-export interface MatchCounts {
-  /** Records whose name is exactly one target record's, each now linked to it. */
-  readonly linked: number;
-  /** Records whose name no target record holds, or several do: each keeps its text, unlinked. */
-  readonly unmatched: number;
-}
+export type { MatchCounts };
 
 /**
  * What the prompt bar says once the names are matched, in the source's record nouns and the

@@ -1,19 +1,19 @@
-// Unlink (ADR-0011): the broken chain inside a linked field takes its
-// relation off the registry row and forgets every pick the field made, in one platform write under
-// the platform-write lease, as Link writes one. Every record keeps the text it holds, the field is
-// plain text again, and no version is made. There is no "change target": Unlink, then Link.
+// Unlink (ADR-0011): the broken chain inside a linked field takes its relation off the
+// registry row and forgets every pick the field made, the relation diff's work for it, in one
+// platform write under the platform-write lease, as Link writes one. Every record keeps the
+// text it holds, the field is plain text again, and no version is made. There is no "change
+// target": Unlink, then Link.
 
 import type { Database } from "bun:sqlite";
-import { deleteFieldLinkRows } from "../../../platform/links/link-table.ts";
 import {
   type CapabilityRow,
   getCapability,
   holdingRelations,
   listCapabilities,
   relationOf,
-  removeCapabilityRelation,
   sameRelation,
 } from "../../../registry/index.ts";
+import { applyRelationWork, relationDiff } from "../../../runtime/data/index.ts";
 import { type CapabilityLinkDeps, isAsRead, type LinkPress } from "../front-half.ts";
 import type { LinkEnd } from "../rules.ts";
 
@@ -48,18 +48,12 @@ function unlinkUnderLease(press: LinkPress, deps: CapabilityUnlinkDeps): Capabil
   if (deps.signal?.aborted) return { status: "stale", moved: null };
   const read = readSource(press, deps.database);
   if ("status" in read) return read;
-  const expectation = {
-    capabilityId: read.id,
-    incarnationId: read.incarnation_id,
-    version: read.version,
-    relations: read.relations,
-  };
   const { capabilityId, field } = press.source;
-  const written = deps.database.transaction(() => {
-    const row = removeCapabilityRelation(expectation, field, deps.database);
-    if (row) deleteFieldLinkRows(deps.database, row.id, field);
-    return row;
-  })();
+  const done = applyRelationWork(
+    deps.database,
+    relationDiff({ kind: "unlink", source: read, field }),
+  );
+  const written = done?.rows.get(capabilityId);
   if (!written) return { status: "stale", moved: getCapability(capabilityId, deps.database) };
   return { status: "unlinked", source: written };
 }

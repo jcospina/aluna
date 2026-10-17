@@ -10,7 +10,7 @@ import {
   listCapabilities,
   type Relation,
 } from "../../../registry/index.ts";
-import { matchUnlinkedNames } from "./matching-scan.ts";
+import { matchUnlinkedNames } from "../../../runtime/data/links/matching-scan.ts";
 
 /** One linked field's matching at startup: how many records it linked, or why it could not. */
 export type StartupMatch =

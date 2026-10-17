@@ -10,9 +10,16 @@ import {
   writeLinkRow,
 } from "../../../platform/links/link-table.ts";
 import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
-import type { MatchCounts } from "../../../presentation/controls/link/link-copy.ts";
 import type { CapabilityRow, Relation } from "../../../registry/index.ts";
-import { capabilityTableName } from "../../../runtime/data/index.ts";
+import { capabilityTableName } from "../schema/ddl.ts";
+
+/** How the matching scan went, counted over the records whose linked field holds a name. */
+export interface MatchCounts {
+  /** Records whose name is exactly one target record's, each now linked to it. */
+  readonly linked: number;
+  /** Records whose name no target record holds, or several do: each keeps its text, unlinked. */
+  readonly unmatched: number;
+}
 
 /** One record and the name its field holds, never blank. */
 interface NamedRecord {
