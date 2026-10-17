@@ -16,7 +16,9 @@ address" no longer holds as written. A linked field reaches a Handler as the tex
 always held, and the record address survives as what a linked field's name opens,
 drawn by the platform in the read view 8.2/01 adds. The anchors this record builds in
 an answer are called *answer links* from here on, because *link* now names Module 8's
-tie between a linked field and the record it picked.
+tie between a linked field and the record it picked. *Amended 2026-10-17 (ADR-0011):*
+the owner dropped the read view, and the record address is what an icon in a linked
+field opens (8.2/01).
 
 Files made the gap visible. A question about a Photos capability can count its photos,
 but to find one the person reads a name in the answer and then hunts for its card.
@@ -58,12 +60,12 @@ finds none of the old records, and the address needs no incarnation.
 
 **Opening a record moves the address.** A card press pushes the record address. The
 back control, a save and a delete all leave the record view the same way. When the
-entry before is this capability's collection, they step back. When the person arrived
-by an address or an answer link, they replace the entry with the collection's
-address. Back and Forward render a record or a collection without pushing. The leave
-question for unsaved changes and the hold on a running build cover a record address
-like any other traversal. `desk-address.js` keeps its single `pushState` and its
-single `replaceState`.
+entry before is this capability's collection, they step back. Otherwise, as after an
+address, a reload or an answer link pressed over another capability, they replace the
+entry with the collection's address. Back and Forward render a record or a collection
+without pushing. The leave question for unsaved changes and the hold on a running build
+cover a record address like any other traversal. `desk-address.js` keeps its single
+`pushState` and its single `replaceState`.
 
 **A build gives back the collection, and the address follows it.** A build's restoration
 descriptor stays capability-only. A build started from a record address keeps that
@@ -150,7 +152,8 @@ address, and the question loop still never sees a file key (ADR-0008, ADR-0009).
 record address, so Module 8 needs no second scheme. *Amended 2026-10-08 (ADR-0011,
 pending 8.1/01's sign-off):* generated code receives nothing for a link. The record
 address is what a linked field's name opens, and the platform draws that anchor
-itself.
+itself. *Amended 2026-10-17 (ADR-0011):* there is no read view, and that anchor is an
+icon in the linked field.
 
 **Module 10's Event Log must admit the record address as a route context.** The Event
 Log derives which capability incarnations an event belongs to from admitted route, query

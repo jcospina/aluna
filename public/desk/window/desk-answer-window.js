@@ -26,7 +26,7 @@ import {
 } from "../../../design/scripts/window/window-gestures.js";
 import { recordAddress } from "../../core/routes.js";
 import { focusLanded, WINDOW_CONTENT_ID } from "../../core/shell-dom.js";
-import { OPEN_THE_RECORD_EVENT } from "../desk-address.js";
+import { isPlainPress, OPEN_THE_RECORD_EVENT, RECORD_NOT_THERE } from "../desk-address.js";
 import {
   buildRunIn,
   cancelQuestionIn,
@@ -68,12 +68,6 @@ export const SAY_IN_THE_ANSWER_WINDOW_EVENT = "aluna:say-in-the-answer-window";
  * glue learns which happened from whether this was answered. Restated in `public/app.js`.
  */
 export const REFUSE_IN_THE_ANSWER_WINDOW_EVENT = "aluna:refuse-in-the-answer-window";
-
-/**
- * What the bar says of a record that is not there, restated from the server's `NOT_FOUND_NOTICE`
- * and pinned by a test: here it is a name whose capability has left the desk.
- */
-export const RECORD_NOT_THERE = "Hmm — I can’t find that one.";
 
 /** What the clay lamp is called here. A capability window is put away and comes back; this is not. */
 export const ANSWER_DISMISS_LABEL = "Dismiss";
@@ -174,17 +168,6 @@ function writeBody(entry, saying) {
   written += 1;
   const runs = typeof saying === "string" ? [{ text: saying }] : saying;
   entry.body.replaceChildren(...runs.map(drawn));
-}
-
-/**
- * Whether a press is the desk's to answer: the main button and no key held. Any other press is
- * the browser's own.
- *
- * @param {MouseEvent} press
- */
-function isPlainPress(press) {
-  const held = press.metaKey || press.ctrlKey || press.shiftKey || press.altKey;
-  return !press.defaultPrevented && press.button === 0 && !held;
 }
 
 /**

@@ -1,14 +1,15 @@
 // @ts-check
 
 /**
- * A linked field: a dropdown of the target's records,
- * searched by typing into the field itself. The server draws the field's own text input inside a
- * `[data-linked-field]` wrapper, and so does the Link control the moment a field is linked, which
- * is how a field becomes a dropdown in place. This draws the listbox around that input and reads
- * the records, with every sentence the field says, from the pick route. A pick fills the field with
- * the target's text, which posts as any text field's does, and posts the record's id beside it, so
- * the save remembers which record it was. An Edit form's field starts on the record it picked
- * before. Typing only searches, and leaving without a pick puts the text back.
+ * A linked field: a dropdown of the target's records, searched by typing into the field itself. The
+ * server draws the field's own text input inside a `[data-linked-field]` wrapper, and so does the
+ * Link control the moment a field is linked, which is how a field becomes a dropdown in place. This
+ * draws the listbox around that input and reads the records, with every sentence the field says,
+ * from the pick route. A pick fills the field with the target's text, which posts as any text
+ * field's does, and posts the record's id beside it, so the save remembers which record it was. An
+ * Edit form's field starts on the record it picked before. Typing only searches, and leaving
+ * without a pick puts the text back. The open icon inside the field opens the record a save would
+ * post (`open/open-linked-record.js`).
  */
 
 import { keyIsNotOurs } from "../../design/scripts/controls/listbox-search.js";
@@ -22,6 +23,7 @@ import {
   onCreateFinished,
   PICKED_RECORD_ATTRIBUTE,
 } from "../core/shell-dom.js";
+import { RECORD_NOT_THERE } from "../desk/desk-address.js";
 import { ChoicePicker, closeOnPressOutside, watchPlacement } from "./choice-picker.js";
 import { FIELD_UNLINKED_EVENT, unlinkedEverywhere } from "./link-control.js";
 import { fadeWhileMatching } from "./link-matching.js";
@@ -36,6 +38,7 @@ import {
   withdraw,
 } from "./link-notices.js";
 import { BROKEN_CHAIN, CHEVRON } from "./listbox-glyphs.js";
+import { OPEN_ELSEWHERE, OPEN_UNREAD, OPENER, RecordOpener } from "./open/open-linked-record.js";
 import { askToUnlink } from "./unlink/unlink-field.js";
 
 const LINKED_SELECTOR = "[data-linked-field]";
@@ -68,13 +71,14 @@ const SEARCH_ATTRIBUTES = [
  * @typedef {{ id: string, text: string }} PickRecord
  * @typedef {import("./unlink/unlink-field.js").Unlinking} Unlinking
  * @typedef {{ placeholder: string, unmatched: string, disconnect: string, unlinking: Unlinking,
- *   records: PickRecord[] }} PickList
+ *   target: string, records: PickRecord[] }} PickList
  */
 
 /**
  * Draw the listbox around a linked field's input. The input becomes the search, a hidden carrier
- * posts the text under the field's name, and the broken chain, the chevron, the panel and the line
- * asking for a pick join it. The counter goes, since nothing is typed into the value.
+ * posts the text under the field's name, and the broken chain, the chevron, the open icon, the
+ * panel and the line asking for a pick join it. The counter goes, since nothing is typed into the
+ * value.
  *
  * @param {HTMLElement} root the `[data-linked-field]` wrapper
  * @returns {() => void} what puts the plain text field back, should the link turn out to be gone
@@ -104,7 +108,7 @@ export function drawDropdown(root) {
     ...parts(doc, `<span class="linked-field__slot" aria-hidden="true"></span>${CHEVRON}`),
   );
   const unlink = `<button class="linked-field__unlink" type="button" disabled>${BROKEN_CHAIN}</button>`;
-  root.append(carrier, pick, ...parts(doc, unlink), panelFor(doc, input, field));
+  root.append(carrier, pick, ...parts(doc, unlink + OPENER), panelFor(doc, input, field));
   root.after(line);
   counter?.remove();
 
@@ -258,6 +262,30 @@ export class LinkedDropdown extends ChoicePicker {
     const unlink = root.querySelector(".linked-field__unlink");
     /** The broken chain, which can be pressed once the records say what it asks and posts. */
     this.unlink = unlink instanceof HTMLButtonElement ? unlink : null;
+    /** The capability the records are read from, whose record addresses the open icon spells. */
+    this.target = "";
+    /** How many lists the field has read, so one press can tell whether its own read landed. */
+    this.reads = 0;
+    /** What the last refused read said, which the field passes on when a press waits on it. */
+    this.refusal = "";
+    const opener = root.querySelector(".linked-field__open");
+    if (!(opener instanceof HTMLElement)) throw new Error("A linked field draws its open icon");
+    /** The open icon, pointed at the record a save would post as `mark()` finds it. */
+    this.opener = new RecordOpener(opener, this.wiring.signal, {
+      pressed: () => this.hide(false),
+      gone: (pressed, focused) => this.openerGone(pressed, focused),
+    });
+    // A press on the broken chain or the open icon closes the list, whichever button pressed. The main
+    // button's keeps the focus in a field that holds it, as a press on the shell does: leaving the
+    // field would empty it, or put its text back, under the press. Elsewhere the icon still drags.
+    for (const glyph of [this.unlink, opener]) {
+      const press = (/** @type {MouseEvent} */ event) => {
+        const typing = root.ownerDocument.activeElement === this.input;
+        if (event.button === 0 && typing) event.preventDefault();
+        this.hide(false);
+      };
+      glyph?.addEventListener("mousedown", press, { signal: this.wiring.signal });
+    }
     /** @type {Unlinking | null} */
     this.unlinking = null;
     /** Whether the records have been read, and so whether the field's text names one of them. */
@@ -364,10 +392,10 @@ export class LinkedDropdown extends ChoicePicker {
   }
 
   /**
-   * The record the field picked, or else the one record its text names, chosen in the list; the
-   * line asking for a pick under text that names none, or names several; and the pick the save
-   * posts, which is the named record, as the matching scan links it. Nothing is said before the
-   * records are read.
+   * The record the field names, its pick or else the one record its text names, chosen in the list
+   * and opened by the icon; the line asking for a pick while it names none, text naming no record
+   * or several; and the pick the save posts, which is the named record, as the matching scan links
+   * it. Nothing is said before the records are read.
    */
   mark() {
     const text = this.field?.value ?? "";
@@ -377,6 +405,8 @@ export class LinkedDropdown extends ChoicePicker {
     for (const option of this.options()) {
       option.setAttribute("aria-selected", String(option === named));
     }
+    const record = matchKey(text) === "" ? "" : (named?.dataset.record ?? "");
+    this.opener.point({ capability: this.target, record, name: text });
     if (!this.line || !this.input) return;
     const shows = this.loaded && matchKey(text) !== "" && !named;
     this.line.hidden = !shows;
@@ -491,6 +521,7 @@ export class LinkedDropdown extends ChoicePicker {
     const notice = noticeIn(doc, body);
     const linking = this.readOnceLinked(notice);
     if (linking) return linking;
+    this.refusal = notice.sentence;
     // A list standing open keeps what it read last, so only one that goes for good says why.
     const gone = notice.code === NOT_LINKED || notice.code === UNLINKED;
     const waiting = this.wanted || (gone && this.open);
@@ -533,6 +564,32 @@ export class LinkedDropdown extends ChoicePicker {
     this.undraw();
   }
 
+  /**
+   * The desk has no window for the capability of the record pressed, so the list is read again, the
+   * icon shown anew, and the bar told why: the link or the record is gone, the list went unread, or
+   * the record is there but its capability was built after this desk was drawn. Focus the icon held
+   * goes back into the field, and a form that left the page meanwhile is told nothing.
+   * @param {import("./open/open-linked-record.js").NamedRecord} pressed
+   * @param {boolean} focused
+   */
+  async openerGone(pressed, focused) {
+    if (focused) this.input?.focus();
+    const reads = this.reads;
+    this.refusal = "";
+    await this.read();
+    this.opener.release();
+    const doc = this.input?.isConnected ? this.input.ownerDocument : null;
+    if (doc === null) return;
+    if (this.retired) return say(doc, this.refusal || RECORD_NOT_THERE);
+    if (this.reads === reads) {
+      // Only this sentence is one a later read cures, so only it is taken back by one.
+      this.said = true;
+      return say(doc, this.refusal || OPEN_UNREAD);
+    }
+    const listed = this.recordOption(pressed.record) !== undefined;
+    say(doc, this.target === pressed.capability && listed ? OPEN_ELSEWHERE : RECORD_NOT_THERE);
+  }
+
   /** The broken chain closes the list, then asks before it unlinks the field. */
   askToUnlink() {
     if (this.retired || !this.unlink || this.unlink.disabled || !this.unlinking) return;
@@ -546,6 +603,8 @@ export class LinkedDropdown extends ChoicePicker {
     // The row the keyboard is on, so a list read while it stood open keeps it where it was.
     const keep = this.open && this.active ? this.identity(this.active) : undefined;
     this.input?.setAttribute("placeholder", list.placeholder);
+    this.target = list.target;
+    this.reads += 1;
     if (this.line) this.line.textContent = list.unmatched;
     this.unlinking = list.unlinking;
     if (this.unlink) {
@@ -577,10 +636,10 @@ export class LinkedDropdown extends ChoicePicker {
 /** @param {unknown} list @returns {list is PickList} */
 function isPickList(list) {
   if (typeof list !== "object" || list === null) return false;
-  const { placeholder, unmatched, disconnect, unlinking, records } =
+  const { placeholder, unmatched, disconnect, unlinking, target, records } =
     /** @type {Record<string, unknown>} */ (list);
   return (
-    [placeholder, unmatched, disconnect].every((words) => typeof words === "string") &&
+    [placeholder, unmatched, disconnect, target].every((words) => typeof words === "string") &&
     isUnlinking(unlinking) &&
     Array.isArray(records) &&
     records.every(

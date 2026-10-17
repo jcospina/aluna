@@ -585,28 +585,27 @@
                       type="text"
                       value="Warm the pan"
                       aria-label="Step 1"
-                    ></span
-                  >
-                  <button
-                    class="btn btn--outline btn--sm field-list__action"
-                    type="button"
-                    data-list-field-remove
-                    aria-label="Remove Step value 1"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="12"
-                      height="12"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="3"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
+                    ><button
+                      class="field-list__remove"
+                      type="button"
+                      data-list-field-remove
+                      aria-label="Remove Step value 1"
                     >
-                      <path d="M6 6l12 12M18 6L6 18"></path>
-                    </svg>
-                  </button>
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="14"
+                        height="14"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.25"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M6 6l12 12M18 6L6 18"></path>
+                      </svg>
+                    </button></span
+                  >
                 </div>
                 <div class="field-list__row" data-list-field-row>
                   <button
@@ -638,28 +637,27 @@
                       type="text"
                       value="Toast the spices, whole"
                       aria-label="Step 2"
-                    ></span
-                  >
-                  <button
-                    class="btn btn--outline btn--sm field-list__action"
-                    type="button"
-                    data-list-field-remove
-                    aria-label="Remove Step value 2"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="12"
-                      height="12"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="3"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
+                    ><button
+                      class="field-list__remove"
+                      type="button"
+                      data-list-field-remove
+                      aria-label="Remove Step value 2"
                     >
-                      <path d="M6 6l12 12M18 6L6 18"></path>
-                    </svg>
-                  </button>
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="14"
+                        height="14"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.25"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M6 6l12 12M18 6L6 18"></path>
+                      </svg>
+                    </button></span
+                  >
                 </div>
                 <div class="field-list__row" data-list-field-row>
                   <button
@@ -691,28 +689,27 @@
                       type="text"
                       value="Pour, and do not stir"
                       aria-label="Step 3"
-                    ></span
-                  >
-                  <button
-                    class="btn btn--outline btn--sm field-list__action"
-                    type="button"
-                    data-list-field-remove
-                    aria-label="Remove Step value 3"
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      width="12"
-                      height="12"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="3"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      aria-hidden="true"
+                    ><button
+                      class="field-list__remove"
+                      type="button"
+                      data-list-field-remove
+                      aria-label="Remove Step value 3"
                     >
-                      <path d="M6 6l12 12M18 6L6 18"></path>
-                    </svg>
-                  </button>
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="14"
+                        height="14"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.25"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M6 6l12 12M18 6L6 18"></path>
+                      </svg>
+                    </button></span
+                  >
                 </div>
               </div>
               <button class="btn btn--secondary field-list__add" type="button" data-list-field-add>
@@ -731,9 +728,10 @@
               <span class="field__guidance">One value to a row. A comma here is data.</span>
             </div>
             <p class="xs" style="margin-top: 16px">
-              A row is a field of its own — the same shell, drawn the same way — and the three
-              actions beside it are ordinary small outline buttons. Nothing on the row is a new
-              shape; what is new is that there are several of them and the order is the value.
+              A row is a field of its own — the same shell, drawn the same way — with its grip
+              beside it and its remove inside it, a glyph as a linked field's chains are. Nothing on
+              the row is a new shape; what is new is that there are several of them and the order is
+              the value.
             </p>
           </div>
         </div>
@@ -2286,9 +2284,9 @@
         </div>
         <h3 class="kicker" style="margin-top: 22px">Before it is linked</h3>
         <p class="sm">
-          Every single-line text field carries the chain, in a new record and in Edit, even when
-          nothing on the desk could be picked. Long text never links, so Notes has none. Press a
-          chain to open its chooser; picking a target only closes it here.
+          Every single-line text field carries the chain, in a new record and an existing one, even
+          when nothing on the desk could be picked. Long text never links, so Notes has none. Press
+          a chain to open its chooser; picking a target only closes it here.
         </p>
         <div class="cols">
           <div class="stage">
@@ -2987,10 +2985,10 @@
         <p class="sm">
           Once a target is picked, the field is the drawn listbox at once, and Aluna matches the
           names it already holds. Until she finishes no save can land, so the chains fade with Save
-          and Delete, and one note atop the form says what she is linking. Cancel and the fields
-          still work. When she finishes, focus lands on the new dropdown. Nothing fades during a
-          build: a build takes the window, so the form is only on screen then in a second tab, where
-          a press waits its turn.
+          and Delete, and one note atop the form says what she is linking. Cancel, the fields and
+          the open icon still work. When she finishes, focus lands on the new dropdown. Nothing
+          fades during a build: a build takes the window, so the form is only on screen then in a
+          second tab, where a press waits its turn.
         </p>
         <div class="cols">
           <div class="stage">
@@ -3569,6 +3567,25 @@
                         <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
                       </svg>
                     </button>
+                    <a
+                      class="linked-field__open"
+                      href="#link-opens"
+                      aria-label="Open Brandon Sanderson"
+                      ><svg
+                        viewBox="0 0 24 24"
+                        width="14"
+                        height="14"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.25"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M14 4h6v6M20 4l-9 9"></path>
+                        <path d="M18 14v6H4V6h6"></path>
+                      </svg></a
+                    >
                     <div class="listbox__panel" hidden>
                       <div
                         class="listbox__scroll"
@@ -3697,7 +3714,8 @@
           leaving without a pick puts back its value. Emptying it is no typing, so an optional field
           emptied and left stays empty. In a new record it starts empty and asks for a pick. The
           broken chain sits inside its boundary, before the chevron; it is laid over a gap kept free
-          in the field's shell, because an input cannot hold a button.
+          in the field's shell, because an input cannot hold a button. After it, while the field
+          names a record, stands the open icon (<a href="#link-opens">below</a>).
         </p>
         <div class="forms">
           <div>
@@ -3795,7 +3813,7 @@
             </div>
           </div>
           <div>
-            <h3 class="kicker">In Edit</h3>
+            <h3 class="kicker">On an existing record</h3>
             <div class="field">
               <label class="field__label caps" id="link-on-label" for="link-on-input">Author</label>
               <div class="listbox linked-field" data-listbox>
@@ -3846,6 +3864,22 @@
                     <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
                   </svg>
                 </button>
+                <a class="linked-field__open" href="#link-opens" aria-label="Open Brandon Sanderson"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M14 4h6v6M20 4l-9 9"></path>
+                    <path d="M18 14v6H4V6h6"></path>
+                  </svg></a
+                >
                 <div class="listbox__panel" hidden>
                   <div class="listbox__scroll" aria-labelledby="link-on-label">
                     <div class="listbox__option" role="option" data-value="Ann Leckie">
@@ -3892,7 +3926,7 @@
             </div>
           </div>
           <div style="min-height: 20rem">
-            <h3 class="kicker">Open</h3>
+            <h3 class="kicker">List open</h3>
             <div inert>
               <div class="field">
                 <label class="field__label caps" id="link-open-label" for="link-open-input"
@@ -3947,6 +3981,25 @@
                       <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
                     </svg>
                   </button>
+                  <a
+                    class="linked-field__open"
+                    href="#link-opens"
+                    aria-label="Open Brandon Sanderson"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="14"
+                      height="14"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.25"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M14 4h6v6M20 4l-9 9"></path>
+                      <path d="M18 14v6H4V6h6"></path>
+                    </svg></a
+                  >
                   <div class="listbox__panel">
                     <div class="listbox__scroll" role="listbox" aria-labelledby="link-open-label">
                       <div class="listbox__option" role="option" data-value="Ann Leckie">
@@ -4302,6 +4355,337 @@
             </div>
           </div>
         </div>
+        <h3 class="kicker" id="link-opens" style="margin-top: 30px">The open icon</h3>
+        <p class="sm">
+          Inside a linked field's boundary, after the broken chain and before the chevron, stands
+          the open icon, a square with an arrow leaving it. It opens the record a save would post:
+          the pick, or else the one record the text names. It is an anchor to that record's address,
+          named "Open" and the field's text. A press opens the record in the window, retitled for
+          Authors. When the form has unsaved changes, the press asks first. A desk cannot open the
+          record in place when its capability was built in another tab after the desk was drawn. The
+          bar then says to open it in a new tab. A Cmd-press or a middle press opens it in a new
+          tab. Picking another author points it at her, and emptying the field hides it. A field
+          whose save would post no record shows the line under the field instead, and an empty field
+          shows neither. The icon is laid over Unlink's slot, which widens by a glyph while the icon
+          shows and keeps no room for it otherwise. The live fields on this page follow their picks
+          the same way, and here a press only brings you back to this section.
+        </p>
+        <div class="forms" inert>
+          <div>
+            <h3 class="kicker">In a new record, nothing picked</h3>
+            <div class="field">
+              <label class="field__label caps" for="link-opens-new-empty-input">Author</label>
+              <div class="listbox linked-field">
+                <span class="field__control field__control--select"
+                  ><input
+                    class="field__input"
+                    id="link-opens-new-empty-input"
+                    type="text"
+                    role="combobox"
+                    aria-expanded="false"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Choose the author…"
+                  ><span class="linked-field__slot" aria-hidden="true"></span
+                  ><span class="listbox__chevron"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg></span
+                  ></span
+                ><button
+                  class="linked-field__unlink"
+                  type="button"
+                  aria-label="Disconnect every book’s author"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                    <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                    <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="kicker">In a new record, picked</h3>
+            <div class="field">
+              <label class="field__label caps" for="link-opens-new-picked-input">Author</label>
+              <div class="listbox linked-field">
+                <span class="field__control field__control--select"
+                  ><input
+                    class="field__input"
+                    id="link-opens-new-picked-input"
+                    type="text"
+                    role="combobox"
+                    aria-expanded="false"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Choose the author…"
+                    value="Brandon Sanderson"
+                  ><span class="linked-field__slot" aria-hidden="true"></span
+                  ><span class="listbox__chevron"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg></span
+                  ></span
+                ><button
+                  class="linked-field__unlink"
+                  type="button"
+                  aria-label="Disconnect every book’s author"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                    <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                    <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                  </svg>
+                </button>
+                <a class="linked-field__open" href="#link-opens" aria-label="Open Brandon Sanderson"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M14 4h6v6M20 4l-9 9"></path>
+                    <path d="M18 14v6H4V6h6"></path>
+                  </svg></a
+                >
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="kicker">On an existing record, picked</h3>
+            <div class="field">
+              <label class="field__label caps" for="link-opens-on-picked-input">Author</label>
+              <div class="listbox linked-field">
+                <span class="field__control field__control--select"
+                  ><input
+                    class="field__input"
+                    id="link-opens-on-picked-input"
+                    type="text"
+                    role="combobox"
+                    aria-expanded="false"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Choose the author…"
+                    value="Ursula K. Le Guin"
+                  ><span class="linked-field__slot" aria-hidden="true"></span
+                  ><span class="listbox__chevron"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg></span
+                  ></span
+                ><button
+                  class="linked-field__unlink"
+                  type="button"
+                  aria-label="Disconnect every book’s author"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                    <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                    <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                  </svg>
+                </button>
+                <a class="linked-field__open" href="#link-opens" aria-label="Open Ursula K. Le Guin"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M14 4h6v6M20 4l-9 9"></path>
+                    <path d="M18 14v6H4V6h6"></path>
+                  </svg></a
+                >
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="kicker">On an existing record, nothing picked</h3>
+            <div class="field">
+              <label class="field__label caps" for="link-opens-on-empty-input">Author</label>
+              <div class="listbox linked-field">
+                <span class="field__control field__control--select"
+                  ><input
+                    class="field__input"
+                    id="link-opens-on-empty-input"
+                    type="text"
+                    role="combobox"
+                    aria-expanded="false"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Choose the author…"
+                  ><span class="linked-field__slot" aria-hidden="true"></span
+                  ><span class="listbox__chevron"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg></span
+                  ></span
+                ><button
+                  class="linked-field__unlink"
+                  type="button"
+                  aria-label="Disconnect every book’s author"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                    <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                    <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <div>
+            <h3 class="kicker">On an existing record, unmatched</h3>
+            <div class="field">
+              <label class="field__label caps" for="link-opens-on-unmatched-input">Author</label>
+              <div class="listbox linked-field">
+                <span class="field__control field__control--select"
+                  ><input
+                    class="field__input"
+                    id="link-opens-on-unmatched-input"
+                    type="text"
+                    role="combobox"
+                    aria-expanded="false"
+                    aria-describedby="link-opens-on-unmatched-guidance"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Choose the author…"
+                    value="Ursula Le Guin"
+                  ><span class="linked-field__slot" aria-hidden="true"></span
+                  ><span class="listbox__chevron"
+                    ><svg
+                      viewBox="0 0 24 24"
+                      width="12"
+                      height="12"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg></span
+                  ></span
+                ><button
+                  class="linked-field__unlink"
+                  type="button"
+                  aria-label="Disconnect every book’s author"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.25"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15.6 12.9l2.9-2.9a4 4 0 1 0-5.66-5.66l-1.15 1.15"></path>
+                    <path d="M8.4 11.1L5.5 14a4 4 0 1 0 5.66 5.66l1.15-1.15"></path>
+                    <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
+                  </svg>
+                </button>
+              </div>
+              <span class="field__guidance" id="link-opens-on-unmatched-guidance"
+                >I could not find this author, mind picking one?</span
+              >
+            </div>
+          </div>
+        </div>
         <h3 class="kicker" style="margin-top: 30px">Unlinking</h3>
         <p class="sm">
           The broken chain asks once, over the window, as a form with unsaved changes asks. Focus
@@ -4537,6 +4921,25 @@
                         <path d="M8 3v2.5M3 8h2.5M16 21v-2.5M21 16h-2.5"></path>
                       </svg>
                     </button>
+                    <a
+                      class="linked-field__open"
+                      href="#link-opens"
+                      aria-label="Open Brandon Sanderson"
+                      ><svg
+                        viewBox="0 0 24 24"
+                        width="14"
+                        height="14"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.25"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M14 4h6v6M20 4l-9 9"></path>
+                        <path d="M18 14v6H4V6h6"></path>
+                      </svg></a
+                    >
                     <div class="listbox__panel" hidden>
                       <div
                         class="listbox__scroll"
@@ -5153,10 +5556,10 @@
                       >A list of strings is drawn in both its modes, and its order is
                       keyboard-operable.</strong
                     >
-                    Comma-separated is one drawn text control; repeatable is drawn rows, each with
-                    labelled move and remove actions disabled at the end of their travel. Order is
-                    data, so it may not depend on a drag, and both modes hand over the same ordered
-                    array
+                    Comma-separated is one drawn text control; repeatable is drawn rows, each with a
+                    labelled grip that moves it and a labelled remove glyph inside its field. Order
+                    is data, so it may not depend on a drag, and both modes hand over the same
+                    ordered array
                   </td>
                   <td class="sm">Both controls under <a href="#list">A list of strings</a></td>
                 </tr>
@@ -5225,9 +5628,10 @@
                     Every single-line text field carries a chain that opens the chooser, the drawn
                     listbox as a panel. A linked field is the drawn listbox, typed into to search
                     its records, with a broken chain before its chevron that asks once, over the
-                    window, before it unlinks. A card whose linked field holds a name no record
-                    stands behind carries a sun mark the platform draws. On screen it is connect and
-                    disconnect, never link
+                    window, before it unlinks. After the broken chain, the open icon is the anchor
+                    to the record a save would post. A card whose linked field holds a name no
+                    record stands behind carries a sun mark the platform draws. On screen it is
+                    connect and disconnect, never link
                   </td>
                   <td class="sm"><a href="#link">Links</a></td>
                 </tr>

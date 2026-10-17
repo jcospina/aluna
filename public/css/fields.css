@@ -254,10 +254,10 @@
 
 /*
  * The repeated-value list states nothing here. `design/styles/components/controls/list-field.css`
- * ships it — the column, the row, the actions cluster and the square action — and this
- * sheet loads after the manifest, so restating any of it would only override the file
- * that owns it. What the product used to declare was a hand-rolled remove button with a
- * border of its own; the row's three actions are ordinary `.btn`s now.
+ * ships it — the column, the row, the grip and the remove — and this sheet loads after the
+ * manifest, so restating any of it would only override the file that owns it. What the
+ * product used to declare was a hand-rolled remove button with a border of its own; the
+ * remove is a glyph inside the row's shell now.
  */
 
 /* Boolean: the checkbox sits inline before its label. */

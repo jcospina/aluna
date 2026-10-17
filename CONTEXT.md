@@ -104,19 +104,19 @@ its record view. Nothing else is ever in it: the search term and a half-typed ed
 in the DOM and die with the tab, so a reload comes back to the collection or the record
 without them. Logo open/switch and put-away push, and so does a card press. The record
 view's back control, a save and a delete step back to the collection when it is the
-entry before, and replace the entry with the collection's address when the person
-arrived by an address or an answer link. `popstate` renders the addressed record or
-capability without pushing again, and focusing the already-open capability adds no
-duplicate. A traversal that would take a running build or evolution is held instead of
-taken: it is stepped back off while the question stands and taken again exactly once if
-the person confirms, so asking costs no entry and answering costs no more than the one
-move. That hold and the leave question for a form's unsaved changes cover a record
-address like any other traversal. During a build the address keeps naming what the build
-displaced; a successful v1 activation pushes the new capability only when its canonical
-collection takes the window, and evolution and every non-activating terminal add no
-entry. A build that displaced a record gives back the collection, and the address is
-replaced with `/capability/:id` when it does (design D14; M5 plan 6; ARCH §6.1;
-ADR-0010).
+entry before, and otherwise replace the entry with the collection's address, as after
+an address, a reload or an answer link pressed over another capability. `popstate`
+renders the addressed record or capability without pushing again, and focusing the
+already-open capability adds no duplicate. A traversal that would take a running build
+or evolution is held instead of taken: it is stepped back off while the question stands
+and taken again exactly once if the person confirms, so asking costs no entry and
+answering costs no more than the one move. That hold and the leave question for a
+form's unsaved changes cover a record address like any other traversal. During a build
+the address keeps naming what the build displaced; a successful v1 activation pushes
+the new capability only when its canonical collection takes the window, and evolution
+and every non-activating terminal add no entry. A build that displaced a record gives
+back the collection, and the address is replaced with `/capability/:id` when it does
+(design D14; M5 plan 6; ARCH §6.1; ADR-0010).
 _Avoid_: url, route, path, location, deep link, query string
 
 **Record address**:
@@ -127,7 +127,7 @@ pasted address and a new tab all land on the record. When the record was deleted
 never existed or belongs to another capability, the addressed capability's collection
 opens, the prompt bar says the not-found notice, and the address becomes
 `/capability/:id`. An **answer link** opens a record named in an answer at its record
-address, and from 8.2 on a linked field's name opens its target's record address, drawn
+address, and the open icon in a linked field opens its target's record address, drawn
 by the platform; generated code is never handed one (ADR-0010, ADR-0011; M7 plan 40 to 49).
 _Avoid_: deep link, permalink, record URL, record route
 
@@ -148,8 +148,8 @@ never said for linked capabilities, though Module 8's title borrows it; link alo
 a pressable name in an answer, which is an **answer link**
 
 **Link control**:
-The small icon-button inside every unlinked single-line text field, in the new-record
-form and in Edit, and the chooser it opens: the drawn listbox with no search, headed
+The small icon-button inside every unlinked single-line text field, in a new record and
+an existing one, and the chooser it opens: the drawn listbox with no search, headed
 with the scope ("Connect every book’s author to…"), with a Suggested group and then one
 group per capability whose options are its fields, each with a few of its values. A
 target that cannot be picked is left out. It calls no model and writes the relation in
@@ -171,10 +171,25 @@ _Avoid_: remove link, break link, detach; disconnect in docs, since it is the pr
 The mark a linked field carries when it holds text with no record behind it: a name the
 matching scan could not place, a link broken by deleting the record it pointed at, or
 one broken by clearing that record's text (proposed in ADR-0011).
-The item wrapper draws it on the card in the list, never the generated card, and
-from 8.2 on it marks the field in the read view. It asks for a pick and refuses nothing
+The item wrapper draws it on the card in the list, never the generated card, and in
+the form the line under the field takes its place. It asks for a pick and refuses nothing
 (ADR-0011; M8 plan 17).
 _Avoid_: error, warning badge, invalid, orphan, dangling link
+
+**Listed card**:
+A card of another capability, shown on a record because the card's record links to it:
+Sanderson's record lists his books in Books' own cards, in a section headed "Books · 3"
+between his fields and his actions. A press opens its own capability's record, never the
+window's (M8 plan 34 to 39).
+_Avoid_: backlink, related record, reverse link, child record
+
+**Contextual Back**:
+The record's back control from 8.3 on. It returns to the list or record the record was
+opened from and names it, "← The Way of Kings", and Save, Cancel and Delete leave the
+same way. A record opened from an answer link returns to what the window held under the
+answer. One opened from a pasted address, a reload or the bare desk opens the record's own
+list on Back instead (M8 plan 40, 41).
+_Avoid_: breadcrumb, history trail, return link
 
 **Put away**:
 What the clay lamp does. The window disappears, the logo stays where it was, the
@@ -371,9 +386,11 @@ _Avoid_: results panel, query window, output pane, the auto-table (deleted)
 **Answer link**:
 A pressable name in Aluna's spoken answer that opens the record it names at its record
 address. The platform builds each one from a record the steps returned, and the model
-never writes one (ADR-0010). It is drawn in ink and underline like every anchor on the
-desk (D14), and it is called an answer link so that **link** keeps one meaning
-(ADR-0011).
+never writes one (ADR-0010). It is drawn in ink and underline like every anchor in
+running text (D14). The open icon in a linked field is the one anchor drawn as a bare
+glyph, with no boundary and no underline (D14). A press on it opens its record the way a
+press on an answer link does, on any desk drawn after that record's capability. An answer
+link is called that so that **link** keeps one meaning (ADR-0011).
 _Avoid_: link (alone), record link, deep link
 
 **Product voice**:
@@ -674,9 +691,9 @@ A single-line text field with a relation, where a single-line text field is a `s
 field that `ui_intent.form.long_text` does not name. It keeps its own text in its own
 table, and the form draws it as a dropdown of the target's records, each shown by the
 target field the relation names. Typing into it only searches those records, so it cannot
-be free-typed while it is linked. Long text, lists of text and choice fields never link,
-as source or as target. Generated code sees the text it always held
-(ADR-0011; M8 plan 1, 13).
+be free-typed while it is linked. The open icon inside the field opens the record a save
+would post. Long text, lists of text and choice fields never link, as source or as
+target. Generated code sees the text it always held (ADR-0011; M8 plan 1, 13, 31).
 _Avoid_: reference field, lookup field, relation field, foreign field; picker, which is a
 choice presentation
 

@@ -3,14 +3,14 @@
  *
  * A `string[]` field is drawn in the mode its form declares. `comma_separated` needs
  * nothing here: it is one `.field__control` holding one input, and commas are the
- * separator. `repeatable` is a column of rows, each its own shell plus the three
- * actions that reorder and remove it, and that is what this file draws.
+ * separator. `repeatable` is a column of rows, each a grip that reorders it beside its own
+ * shell, with the remove inside the shell, and that is what this file draws.
  *
  * It is a sheet of its own, as every field kind is. With `file-field.css` it differs from
  * the single-control sheets: they draw one control, and these two arrange several into a field.
  * Every boundary here already belongs to something the ink system draws — a row's
- * shell is a `.field__control` and every action is a `.btn` — so nothing in this file
- * declares an edge of its own.
+ * shell is a `.field__control`, and the grip and the remove are glyphs with none — so
+ * nothing in this file declares an edge of its own.
  */
 
 .field-list__values {
@@ -19,13 +19,12 @@
 }
 
 /*
- * The grip, the input and the remove. `align-items: center` rather than `stretch`, so a
- * row's controls keep the small height they declare instead of growing to whatever the
- * shell beside them happens to be.
+ * The grip and the shell. `align-items: center` rather than `stretch`, so the grip keeps
+ * the small height it declares instead of growing to whatever the shell beside it is.
  */
 .field-list__row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: var(--space-2);
   align-items: center;
 }
@@ -124,25 +123,38 @@
   border: 0;
 }
 
-.field-list__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
 /*
- * Square, because the glyph is the label and small caps beside it would make three
- * words where a row has space for none. The accessible name is on the button and
- * says which row it moves, which is the part that has to be spoken rather than seen.
+ * The remove: a glyph in the row's own line, inside its shell, drawn as a linked field's
+ * glyphs are and never a second boundary. The glyph is the label; the accessible name on
+ * the button says which row it removes, the part that has to be spoken rather than seen.
  */
-.field-list__action {
-  padding: 0;
-  width: var(--control-h-sm);
+.field-list__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
 }
 
-.field-list__action svg {
-  display: block;
+/* On a refused row's redder well the faint strength steps up, above the hover rule, which
+   ties with it, so the glyph still wakes under the pointer. */
+.field.is-invalid .field-list__remove {
+  color: var(--ink-2);
+}
+
+.field-list__remove:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.field-list__remove:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 0;
 }
 
 /*

@@ -5,8 +5,9 @@ ADR-0006, ADR-0008 and ADR-0010, and the amended live documents, take effect wit
 
 Seeds Module 8 (`modules/08-composition-linked-capabilities/PLAN.md`, decisions 1 to 29
 and 42 to 56): a record in one capability can point at a record in another, so a library
-is three small capabilities, Authors, Books and Inventory. The read view a linked name
-opens, decisions 30 to 41, is 8.2/01's, and it joins this record then.
+is three small capabilities, Authors, Books and Inventory. The record surface, decisions 30
+to 41, keeps the form as the one place a record opens, and joins this record as 8.2 and
+8.3 build it.
 
 Before Module 8, a capability could read another one's table through
 `read_dependencies`, but nothing recorded which record points at which. Books holds each
@@ -171,8 +172,8 @@ question before every build that links would stop every one of them.
 
 **The Link control makes a link by hand, with no model.** Product copy calls it
 connecting, and *link* stays the engineering word (owner ruling, 2026-10-08). A small
-icon-button sits inside every unlinked single-line text field, in the new-record form
-and in Edit, and never in long text. It opens a chooser, the drawn listbox the desk
+icon-button sits inside every unlinked single-line text field, in a new record and
+an existing one, and never in long text. It opens a chooser, the drawn listbox the desk
 already has, whose heading states the scope, "Connect every book’s author to…". The
 chooser lists every single-line text field of every other capability that can be
 picked, grouped by capability, each with a few of its values, so a name, a title, an
@@ -329,8 +330,8 @@ a new change type, or it would fail closed on the new key and block every link c
 **A link projection handed to generated code,** as ADR-0010 and Module 7's decision 49
 promised: a `url` beside the name, the way a file reference reaches it. Rejected. It would
 put link logic in generated code, and a capability built before Module 8 would show no
-anchor until it regenerated. The platform draws the anchor on a linked field's name
-itself.
+anchor until it regenerated. The platform draws that anchor itself, beside the linked
+field.
 
 **The link step failing closed, like a unit.** Rejected, for the reason under the link
 step above.
@@ -343,11 +344,19 @@ control above.
 screen, so a link is made from a record's form, once, and applies to that field in every
 record.
 
+**A read view a record opens into,** with Edit swapping in the form. Considered in the plan
+and dropped by the owner on 2026-10-17. It would have let a person browse links without
+the unsaved-changes question, but it would have cost a read rendering for every field
+type, an Edit and Cancel swap and a second record surface, and it would have reversed
+ADR-0005, ADR-0010 and Module 5's decision 29. The form stays the one record surface: an
+icon in a linked field opens the record it points at, and the records linking here sit
+between the form's fields and its actions.
+
 ## Consequences
 
 **Generated code receives nothing for a link.** ADR-0010's consequence "Module 8 points at
 the record address" and Module 7's decision 49 are withdrawn. The record address survives
-as what a linked field's name opens, drawn by Aluna in the read view (8.2/01).
+as what the icon in a linked field opens, drawn by Aluna (8.2/01).
 
 **"No foreign keys" stays true.** Joins between capabilities still materialize at query
 time, now through the link table for a linked field. The overlap rule still offers no

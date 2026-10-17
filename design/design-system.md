@@ -314,8 +314,9 @@ operating system's mark and the only one on the surface that would not be ours.
 A list-of-strings field takes a drawn control too, in the input mode the form
 declares. `comma_separated` is one `.field__control` holding one input, with the
 comma as the separator. `repeatable` is `.field-list__values`, a column of
-`.field-list__row`s that are each a shell of their own between a `.field-list__grip`
-and a small outline remove. The grip is dragged — the row follows the pointer
+`.field-list__row`s that are each a `.field-list__grip` beside a shell of their own. The
+shell holds the row's remove, `.field-list__remove`, a glyph drawn as a linked field's
+chains are. The grip is dragged — the row follows the pointer
 under `translate` while the rows it passes slide clear, and the list itself is
 reordered once, on release. Because order is part of the value rather than a view of
 it, the grip is also a `<button>`: space picks the row up, the arrow keys move it,
@@ -369,23 +370,30 @@ upload and holds the save until it lands, removing a travelling row stops its up
 pick that would take the list past its count is refused whole before anything travels. A
 list names every file it refuses, since several may be travelling at once.
 
-A single-line text field can be linked to a field of another capability (ADR-0011). Unlinked,
-it carries the Link control inside its shell: `.link-control__button`, a chain glyph that is a
-drawn listbox's own button, always there in the new-record form and in Edit and never in long
-text. Its panel, `.link-control__panel`, is the chooser. `.link-control__head` says what
-picking a target does, the suggested target comes first, then each capability's fields with a
-few of their values; a target that cannot be picked is left out, and there is no search and no
-Cancel. Linked, the field is the drawn listbox that searches, holding the target's records
-shown by the field the link names. It cannot be free-typed: typing into it only searches those
-records, and leaving without a pick puts back its text; an optional one emptied and
-left stays empty. Unlink's broken chain,
-`.linked-field__unlink`, is laid over `.linked-field__slot` before the chevron, because an input
-cannot hold a button; it asks once, over the window, before it unlinks. While Aluna links a
-field, `.link-control__note` stands atop the form and the glyphs fade with Save and Delete.
-Text that matched no record stays the field's value, in ink, with a line asking for a pick,
-and its card in the list carries `.link-mark`, a sun pill with the broken chain and no words,
-drawn by the item wrapper and never by the generated card. On screen all of it says connect
-and disconnect, never link.
+A single-line text field can be linked to a field of another capability (ADR-0011).
+Unlinked, it carries the Link control inside its shell: `.link-control__button`, a chain
+glyph that is a drawn listbox's own button, always there in a new record and an existing
+one, and never in long text. Its panel, `.link-control__panel`, is the chooser.
+`.link-control__head` says what picking a target does, the suggested target comes first,
+then each capability's fields with a few of their values; a target that cannot be picked is
+left out, and there is no search and no Cancel. Linked, the field is the drawn listbox that
+searches, holding the target's records shown by the field the link names. It cannot be
+free-typed: typing into it only searches those records, and leaving without a pick puts back
+its text; an optional one emptied and left stays empty. Unlink's broken chain,
+`.linked-field__unlink`, is laid over `.linked-field__slot` before the chevron, because an
+input cannot hold a button; it asks once, over the window, before it unlinks. After it
+stands the open icon, `.linked-field__open`, a square with an arrow leaving it, drawn as
+Connect and Unlink are. It is the anchor to the record a save would post, the pick or else
+the one record the text names, and its name is "Open" and the field's text. The slot widens
+by a glyph for it while it shows and keeps no room for it otherwise. While Aluna links a
+field, `.link-control__note` stands atop the form
+and the chain glyphs fade with Save and Delete. A field whose save would post no record, its
+pick gone from the target and its text naming no record or several, keeps that text in ink,
+and the line under the field asks for a pick while the icon stays hidden. An empty field
+shows neither. A card whose linked field holds text that matched no
+record carries `.link-mark`, a sun pill with the broken chain and no words, drawn by the item
+wrapper and never by the generated card. On screen all of it says connect and disconnect,
+never link.
 
 Two keys sit on a field. `guidance` is a short hint under the field, and it also
 carries the sentence announcing a default, so a default needs no key of its own.

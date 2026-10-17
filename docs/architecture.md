@@ -321,8 +321,9 @@ collection, and `/capability/:id/:record` the record address, one record open in
 record view (ADR-0010). Logo open/switch and put-away push `/capability/:id` or `/`
 into browser history, and a card press pushes the record address. The record view's
 back control, a save and a delete leave it the same way: they step back when the
-entry before is this capability's collection, and replace the entry with the
-collection's address when the person arrived by an address or an answer link.
+entry before is this capability's collection, and otherwise replace the entry with the
+collection's address, as after an address, a reload or an answer link pressed over
+another capability.
 `popstate` renders the addressed record or capability without pushing another entry,
 and focusing the already-open capability adds none. Every entry the desk writes
 carries its place in the run of them, which is what lets a traversal that would take

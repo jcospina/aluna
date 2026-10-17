@@ -126,8 +126,8 @@ describe("every button the product renders", () => {
         !path.endsWith(".policy.ts") &&
         !path.includes(".test-support."),
     );
-    // `\bbtn\b` anywhere in the list rather than `btn` at the front: `class="field-list__action
-    // btn"` is the same button, and matching the leading token let row actions drop modifiers.
+    // `\bbtn\b` anywhere in the list rather than `btn` at the front: a class written before `btn`
+    // names the same button, and matching only the leading token once let row actions drop modifiers.
     return sources.flatMap((path) =>
       [...readSource(path).matchAll(/class="([^"]*\bbtn\b[^"]*)"/g)].map((found) => found[1] ?? ""),
     );

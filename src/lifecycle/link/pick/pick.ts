@@ -42,12 +42,16 @@ export interface PickRecord {
   readonly text: string;
 }
 
-/** What the dropdown is drawn with, every sentence already written around the record nouns. */
+/**
+ * What the dropdown is drawn with, every sentence already written around the record nouns, and the
+ * target capability, whose record addresses the open icon in the field spells.
+ */
 export interface PickList {
   readonly placeholder: string;
   readonly unmatched: string;
   readonly disconnect: string;
   readonly unlinking: Unlinking;
+  readonly target: string;
   readonly records: readonly PickRecord[];
 }
 
@@ -106,6 +110,7 @@ export function readPickList(capabilityId: string, fieldName: string, deps: Pick
           connect: connectFieldName(row.noun, ends.sourceField),
           press: pressFields(row, ends.target, ends.relation.to.field),
         },
+        target: ends.target.id,
         records,
       },
     };

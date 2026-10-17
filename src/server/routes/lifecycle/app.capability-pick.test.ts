@@ -101,6 +101,14 @@ describe("the records a dropdown holds", () => {
     expect(list.placeholder).toContain(AUTHORS.noun);
   });
 
+  test("with the capability its records belong to, whose addresses the open icon spells", async () => {
+    // A rename changes the name the desk shows, never the id an address carries.
+    conns.readwrite.run(
+      `UPDATE ${REGISTRY_TABLE} SET display_label_override = 'Writers' WHERE id = 'authors'`,
+    );
+    expect((await picked()).target).toBe(AUTHORS.id);
+  });
+
   test("with what the broken chain asks, in both capabilities' record nouns", async () => {
     // A rename changes the name the desk shows, never the nouns a sentence is built from.
     conns.readwrite.run(

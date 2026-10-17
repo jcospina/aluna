@@ -80,16 +80,20 @@ export const UNLINKING = {
   },
 };
 
-/** The pick route's answer, written with the platform's own sentences. */
+/** The pick route's answer, written with the platform's own sentences, each record's id `idOf` it. */
 export const records =
-  (names: readonly string[] = NAMES): Reply =>
+  (
+    names: readonly string[] = NAMES,
+    idOf: (index: number) => string = (index) => `author-${index}`,
+  ): Reply =>
   () =>
     Response.json({
       placeholder: chooseTargetRecord("author"),
       unmatched: unmatchedTargetLine("author"),
       disconnect: disconnectFieldName("book", AUTHOR),
       unlinking: UNLINKING,
-      records: names.map((text, index) => ({ id: `author-${index}`, text })),
+      target: AUTHOR_TO_NAME.to.capability,
+      records: names.map((text, index) => ({ id: idOf(index), text })),
     });
 
 const page = globalThis as unknown as { fetch: unknown };

@@ -5,14 +5,14 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { CAPABILITY_ID_PATTERN, recordAddress } from "#shell/core/routes.js";
-import { OPEN_THE_RECORD_EVENT } from "#shell/desk/desk-address.js";
+import { OPEN_THE_RECORD_EVENT, RECORD_NOT_THERE } from "#shell/desk/desk-address.js";
 import { PROMPT_BAR_MESSAGE_EVENT } from "#shell/desk/prompt-bar.js";
 import {
   ANSWER_RECORD_ATTRIBUTE,
   type AnswerRun,
   answerRuns,
 } from "#shell/desk/window/answer-runs.js";
-import { ANSWER_BODY_SELECTOR, RECORD_NOT_THERE } from "#shell/desk/window/desk-answer-window.js";
+import { ANSWER_BODY_SELECTOR } from "#shell/desk/window/desk-answer-window.js";
 import { SQL_NAME_PATTERN } from "../../../../registry/spec/spec-text.ts";
 import { Template } from "../../../../server/dom-double/dom-double.test-support.ts";
 import {

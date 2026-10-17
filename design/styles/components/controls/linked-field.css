@@ -6,9 +6,10 @@
  * that button is a drawn listbox's own button: its panel is the chooser, headed with what
  * picking a target will do. Linked, the field is the drawn listbox that searches, its input
  * in the shell, with Unlink's broken chain laid over a slot kept free inside the shell before
- * the chevron, because an input cannot hold a button. Both build on `choice-field.css`, and the
- * chooser overrides the listbox button's width and the panel's padding at the same specificity,
- * so this sheet must load after it.
+ * the chevron, because an input cannot hold a button. The open icon, the anchor to the record a
+ * save would post, stands after it in the same slot, which widens for it only while it shows.
+ * Both build on `choice-field.css`, and the chooser overrides the listbox button's width and the
+ * panel's padding at the same specificity, so this sheet must load after it.
  *
  * The broken-link mark is here too. The platform's item wrapper draws it on a card for a
  * linked field holding text no record stands behind.
@@ -16,9 +17,11 @@
 
 /* ── The glyph buttons ────────────────────────────────────────────────────── */
 
-/* Connect and Unlink: a glyph in the field's own line, never a second boundary. */
+/* Connect, Unlink and the open icon: a glyph in the field's own line, never a second boundary.
+   The icon is an anchor, so no underline tells it apart: no words stand around it (D14). */
 .link-control__button,
-.linked-field__unlink {
+.linked-field__unlink,
+.linked-field__open {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -34,22 +37,24 @@
 
 /* On a refused field's redder well the faint strength steps up, as a file field's glyph does;
    above the hover rule, which ties with it, so the glyph still wakes under the pointer. */
-.field.is-invalid :is(.link-control__button, .linked-field__unlink) {
+.field.is-invalid :is(.link-control__button, .linked-field__unlink, .linked-field__open) {
   color: var(--ink-2);
 }
 
 .link-control__button:hover:not(:disabled),
-.linked-field__unlink:hover:not(:disabled) {
+.linked-field__unlink:hover:not(:disabled),
+.linked-field__open:hover:not(:disabled) {
   color: var(--ink);
 }
 
 .link-control__button:focus-visible,
-.linked-field__unlink:focus-visible {
+.linked-field__unlink:focus-visible,
+.linked-field__open:focus-visible {
   outline: 3px solid var(--focus-ring);
   outline-offset: 0;
 }
 
-/* While Aluna connects a field, the glyphs fade with Save and Delete. */
+/* While Aluna connects a field, the chain glyphs fade with Save and Delete. */
 .link-control__button:disabled,
 .linked-field__unlink:disabled {
   opacity: 0.42;
@@ -121,13 +126,28 @@
   margin-left: auto;
 }
 
+/* The slot widens by a glyph for the open icon while it shows, and keeps no room for it else. */
+.linked-field:has(> .linked-field__open:not([hidden])) .linked-field__slot {
+  width: calc(2 * var(--control-h-sm));
+}
+
 /* Over the slot: the shell's line, its right padding, the chevron and its gap. The chevron is
    a 12px drawing, so it stays 12px when the reader's text size grows. */
-.linked-field__unlink {
+.linked-field__unlink,
+.linked-field__open {
   position: absolute;
   z-index: 1;
   top: calc((var(--control-h) - var(--control-h-sm)) / 2);
   right: calc(var(--line) + var(--control-pad-x) + 12px + var(--space-2));
+}
+
+/* The open icon stands after the broken chain, which steps back a glyph while it shows. */
+.linked-field:has(> .linked-field__open:not([hidden])) .linked-field__unlink {
+  right: calc(var(--line) + var(--control-pad-x) + 12px + var(--space-2) + var(--control-h-sm));
+}
+
+.linked-field__open[hidden] {
+  display: none;
 }
 
 /* ── The broken-link mark ─────────────────────────────────────────────────── */

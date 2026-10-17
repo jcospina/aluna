@@ -469,10 +469,11 @@ function takeTheTraversal(target, landed, desk, bar) {
 let taking = null;
 
 /**
- * A press on a name in an answer, asking for the record it names. The detail carries the record's
- * `capability` and `record` ids, never an address: `recordAddress()` spells it here. What became
- * of the ask is written back as the detail's `outcome`, a {@link RecordPress}, and its `landed` is
- * called once the record has opened, at once or after the desk's question.
+ * A press on a name in an answer, or on the open icon in a linked field, asking for the record
+ * it names. The detail carries the record's `capability` and `record` ids, never an address:
+ * `recordAddress()` spells it here. What became of the ask is written back as the detail's
+ * `outcome`, a {@link RecordPress}, and its `landed` is called once the record has opened, at once
+ * or after the desk's question.
  */
 export const OPEN_THE_RECORD_EVENT = "aluna:open-the-record";
 
@@ -482,6 +483,23 @@ export const OPEN_THE_RECORD_EVENT = "aluna:open-the-record";
  *
  * @typedef {"opened" | "held" | "gone"} RecordPress
  */
+
+/**
+ * What the bar says of a record that is not there, restated from the server's `NOT_FOUND_NOTICE`
+ * and pinned by a test: here it is a pressed record whose capability has left the desk.
+ */
+export const RECORD_NOT_THERE = "Hmm — I can’t find that one.";
+
+/**
+ * Whether a press on a record is the desk's to answer: the main button and no key held. Any other
+ * press is the browser's own.
+ *
+ * @param {MouseEvent} press
+ */
+export function isPlainPress(press) {
+  const held = press.metaKey || press.ctrlKey || press.shiftKey || press.altKey;
+  return !press.defaultPrevented && press.button === 0 && !held;
+}
 
 /**
  * Open a record the way its address opens it: under the desk's hold, then an

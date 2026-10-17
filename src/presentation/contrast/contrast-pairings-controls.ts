@@ -207,7 +207,8 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
       "design/styles/components/controls/controls.css § .field__chevron [color]",
       "design/styles/components/controls/choice-field.css § .choice__mark [color]",
       "design/styles/components/controls/choice-field.css § .listbox__chevron [color]",
-      "design/styles/components/controls/linked-field.css § .link-control__button:hover:not(:disabled), .linked-field__unlink:hover:not(:disabled) [color]",
+      "design/styles/components/controls/linked-field.css § .link-control__button:hover:not(:disabled), .linked-field__unlink:hover:not(:disabled), .linked-field__open:hover:not(:disabled) [color]",
+      "design/styles/components/controls/list-field.css § .field-list__remove:hover:not(:disabled) [color]",
       "design/styles/components/controls/file-field.css § .file__line [border-top-color]",
     ],
   },
@@ -258,13 +259,14 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     sites: ["design/styles/components/controls/file-field.css § .file__toggle [color]"],
   },
   {
-    what: "Connect and Unlink at rest",
+    what: "a glyph button inside a field at rest: Connect, Unlink, the open icon, a row's remove",
     foreground: ink3,
     background: surface2,
     threshold: "non-text",
     note: "A glyph button in a field's own line, quieter than the chevron until the pointer is on it.",
     sites: [
-      "design/styles/components/controls/linked-field.css § .link-control__button, .linked-field__unlink [color]",
+      "design/styles/components/controls/linked-field.css § .link-control__button, .linked-field__unlink, .linked-field__open [color]",
+      "design/styles/components/controls/list-field.css § .field-list__remove [color]",
     ],
   },
   {
@@ -273,13 +275,15 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     background: { token: "well-alert" },
     threshold: "non-text",
     note:
-      "A sound's play toggle, Connect and Unlink. It hugs the glyph at no offset, so it stays " +
-      "inside the well and is read against the well's own fill rather than the window's, " +
+      "A sound's play toggle, Connect, Unlink, the open icon and a list row's remove. It hugs " +
+      "the glyph at no offset, so it stays inside the well and is read against the well's own " +
+      "fill rather than the window's, " +
       "the redder one a refused field takes being the tighter.",
     alsoCovers: [surface2],
     sites: [
       "design/styles/components/controls/file-field.css § .file__toggle:focus-visible [outline]",
-      "design/styles/components/controls/linked-field.css § .link-control__button:focus-visible, .linked-field__unlink:focus-visible [outline]",
+      "design/styles/components/controls/linked-field.css § .link-control__button:focus-visible, .linked-field__unlink:focus-visible, .linked-field__open:focus-visible [outline]",
+      "design/styles/components/controls/list-field.css § .field-list__remove:focus-visible [outline]",
     ],
   },
   {
@@ -290,11 +294,13 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     note:
       "`--ink-3` is kept to the window's two fills, so the glyph steps up where the well " +
       "fills behind it as the bytes arrive, and where a refusal turns an empty well — a " +
-      "file field's glyph, and Connect and Unlink in a refused field. The band is the tighter.",
+      "file field's glyph, and Connect, Unlink, the open icon and a row's remove in a refused " +
+      "field. The band is the tighter.",
     alsoCovers: [{ token: "well-alert" }],
     sites: [
       'design/styles/components/controls/file-field.css § .file__well[role="progressbar"] .file__glyph, .file.is-invalid .file__glyph [color]',
-      "design/styles/components/controls/linked-field.css § .field.is-invalid :is(.link-control__button, .linked-field__unlink) [color]",
+      "design/styles/components/controls/linked-field.css § .field.is-invalid :is(.link-control__button, .linked-field__unlink, .linked-field__open) [color]",
+      "design/styles/components/controls/list-field.css § .field.is-invalid .field-list__remove [color]",
     ],
   },
   {

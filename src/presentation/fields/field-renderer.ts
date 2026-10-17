@@ -615,8 +615,8 @@ function gripGlyph(): string {
 
 function crossGlyph(): string {
   return (
-    `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor"` +
-    ` stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
+    `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"` +
+    ` stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">` +
     `<path d="M6 6l12 12M18 6L6 18"></path></svg>`
   );
 }
@@ -635,8 +635,9 @@ function rowGrip(label: string, position: number, total: number, helpId: string)
 }
 
 /**
- * One row of a repeatable list. The field's description rides every row, because a screen reader
- * reaches a row's input and a hint referenced by nothing is visual-only text. Order is the value.
+ * One row of a repeatable list: its grip, then its shell holding the input and the remove glyph.
+ * The field's description rides every row, because a screen reader reaches a row's input and a
+ * hint referenced by nothing is visual-only text. Order is the value.
  */
 function repeatableRow(
   inputId: string,
@@ -654,11 +655,10 @@ function repeatableRow(
     controlShell(
       `<input class="field__input" id="${inputId}-${position}" type="text"` +
         ` name="${nameAttribute}" value="${escapeHtml(element)}"` +
-        ` aria-label="${label} ${position}"${describedBy}>`,
+        ` aria-label="${label} ${position}"${describedBy}>` +
+        `<button class="field-list__remove" type="button" data-list-field-remove` +
+        ` aria-label="Remove ${label} value ${position}">${crossGlyph()}</button>`,
     ) +
-    `<button class="btn btn--outline btn--sm field-list__action" type="button"` +
-    ` data-list-field-remove aria-label="Remove ${label} value ${position}">` +
-    `${crossGlyph()}</button>` +
     `</div>`
   );
 }

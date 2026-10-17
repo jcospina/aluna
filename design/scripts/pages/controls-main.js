@@ -18,6 +18,7 @@
 
 import { mountListRows, wireListRows } from "../controls/list-rows.js";
 import { mountListboxes } from "../controls/listbox.js";
+import { OPEN_ICON, openRecordName } from "../controls/open-record.js";
 import { dressGrounds } from "../desk/wallpaper.js";
 import { mountAllInk, reseedInk, startInk } from "../ink/ink.js";
 import { mountFileBench } from "../sections/file-bench.js";
@@ -205,6 +206,44 @@ function mountUnmatched(root) {
   });
 }
 
+/**
+ * The open icon a live linked field draws on its first pick, before its list's panel.
+ * @param {HTMLElement} field
+ */
+function drawOpener(field) {
+  const opener = document.createElement("a");
+  opener.className = "linked-field__open";
+  opener.innerHTML = OPEN_ICON;
+  field.querySelector(":scope > .listbox__panel")?.before(opener);
+  return opener;
+}
+
+/**
+ * The open icon in a live linked field follows its pick, as it does on the desk: a pick shows
+ * it, naming the record picked, and an emptied field hides it with no address and no name. On
+ * this page its address is the section that says what it does.
+ *
+ * @param {HTMLElement} root
+ */
+function mountOpeners(root) {
+  root.addEventListener("listbox:change", (event) => {
+    const { target } = event;
+    if (!(target instanceof HTMLElement) || !target.matches(".linked-field")) return;
+    const { label } = /** @type {CustomEvent<{ label: string }>} */ (event).detail;
+    const found = target.querySelector(":scope > .linked-field__open");
+    if (!(found instanceof HTMLElement) && label === "") return;
+    const opener = found instanceof HTMLElement ? found : drawOpener(target);
+    opener.hidden = label === "";
+    if (label === "") {
+      opener.removeAttribute("href");
+      opener.removeAttribute("aria-label");
+      return;
+    }
+    opener.setAttribute("href", "#link-opens");
+    opener.setAttribute("aria-label", openRecordName(label));
+  });
+}
+
 function boot() {
   wireSectionWindows(mountWindows(document));
   dressGrounds();
@@ -219,6 +258,7 @@ function boot() {
   mountBenches(document.body);
   mountEcho(document.body);
   mountUnmatched(document.body);
+  mountOpeners(document.body);
   mountRecorderBench(document.body);
   mountFileBench(document.body);
 
