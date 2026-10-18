@@ -144,6 +144,31 @@
   gap: var(--space-2);
 }
 
+/* ── The records linking here ─────────────────────────────────────────── */
+/*
+ * A section per relation pointing at the record, between its fields and its
+ * actions. The product draws the same classes around the linking capability's
+ * own cards, so this sheet styles both.
+ */
+
+.record-links {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* A section is not another field, so it stands a step further from the last one. */
+.form > .record-links {
+  margin-top: var(--space-5);
+}
+
+.record-links__heading {
+  margin: 0;
+}
+
+.record-links__more {
+  justify-self: start;
+}
+
 /* ── The record, in the window ────────────────────────────────────────── */
 /*
  * Back is navigation and sits above the form; Cancel is the form's own escape.

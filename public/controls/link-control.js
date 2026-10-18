@@ -298,8 +298,8 @@ function emptySentence(panel) {
 }
 
 /**
- * Every copy of a field's chain goes, this one and the others: the other form and each record's
- * Edit template were drawn before the link, and a press on their chain would be refused.
+ * Every copy of a field's chain goes, this one and the others: the other form on the page was
+ * drawn before the link, and a press on its chain would be refused.
  *
  * @param {Document} doc
  * @param {string} url
@@ -320,26 +320,23 @@ function replaceEverywhere(doc, url, next, active = null) {
 }
 
 /**
- * Every copy of one field's wrapper, on the page and in every record's template: those `selector`
- * finds whose `attribute` names `url`.
+ * Every copy of one field's wrapper on the page: those `selector` finds whose `attribute` names
+ * `url`.
  * @param {Document} doc
  * @param {string} selector
  * @param {string} attribute
  * @param {string} url
  */
 function copiesOf(doc, selector, attribute, url) {
-  const roots = [doc, ...[...doc.querySelectorAll("template")].map((template) => template.content)];
-  return roots.flatMap((root) =>
-    [...root.querySelectorAll(selector)].filter(
-      (wrapper) => wrapper.getAttribute(attribute) === url,
-    ),
+  return [...doc.querySelectorAll(selector)].filter(
+    (wrapper) => wrapper.getAttribute(attribute) === url,
   );
 }
 
 /**
  * The way back from `unwrap`: every copy of a linked field is the plain text field it was, with
- * its chain. Each dropdown drawn for it lets go of it, and a copy none was drawn in, a record's
- * template, gives up its wrapper. Focus that was on the broken chain, or nowhere after `pressed`,
+ * its chain. Each dropdown drawn for it lets go of it, and a copy none was drawn in gives up its
+ * wrapper. Focus that was on the broken chain, or nowhere after `pressed`,
  * moves to the chain that replaces it; focus in the field's input stays there.
  *
  * @param {Document} doc
@@ -483,8 +480,8 @@ export function mountLinkChoosers(root, open) {
 }
 
 /**
- * Wire the Link control onto a document. Forms arrive long after page load, by swap and by a
- * record template's clone, so mounting repeats on every arrival.
+ * Wire the Link control onto a document. Forms arrive long after page load, by swap, so mounting
+ * repeats on every arrival.
  *
  * @param {Document} root
  */

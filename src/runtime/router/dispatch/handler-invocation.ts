@@ -304,14 +304,19 @@ function requireRecordTarget(
   return recordTarget;
 }
 
+/** The relations a capability's cards are drawn under, and the desk they hold against. */
+export type DrawnRelations = Pick<HandlerRead, "relations" | "dormant" | "catalog">;
+
 // Build the capability's presentation adapter. `present` stays synchronous (record → string)
 // because the renderer resolves here, once, before the handler runs; a missing one fails the read.
-// Each record's Edit form carries what its linked fields picked, read on `database`.
-async function buildPresentationAdapter(
+// Each card's broken-link mark reads what its linked fields picked, on `database`. The record
+// address builds one for each capability linking to its record, whose cards are `listed`.
+export async function buildPresentationAdapter(
   row: CapabilityRow,
-  read: HandlerRead,
+  read: DrawnRelations,
   loadItemRenderer: ItemRendererLoader,
   database: Database,
+  { listed }: { readonly listed?: boolean } = {},
 ): Promise<PresentationAdapter> {
   const renderItem = await loadItemRenderer(row.artifacts_path);
   // A save draws the relations its transaction settled on, which may differ from the admitted row's.
@@ -322,5 +327,5 @@ async function buildPresentationAdapter(
   const links = (recordId: string) => heldPicks(database, row.id, recordId, read.relations);
   const nounOf = targetNounIn(read.catalog);
   const linkNouns = new Map(read.relations.map(({ field, to }) => [field, nounOf(to.capability)]));
-  return createPresentationAdapter({ capability, renderItem, links, linkNouns });
+  return createPresentationAdapter({ capability, renderItem, links, linkNouns, listed });
 }

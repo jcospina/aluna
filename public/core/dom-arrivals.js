@@ -3,8 +3,8 @@
 /**
  * Watching for controls that land in the tree without a landing announced.
  *
- * A cloned record view, a swapped region and an htmx fragment all put controls in the document
- * with no event of their own, so this is how the pickers and the long-text counters get mounted
+ * A swapped region and an htmx fragment both put controls in the document with no event of
+ * their own, so this is how the pickers and the long-text counters get mounted
  * at all. Both used to carry a verbatim copy.
  */
 

@@ -1,10 +1,10 @@
 // @ts-check
 
 /**
- * Unlink: the broken chain inside a linked field asks once, over the
- * window, as a form with unsaved changes asks. On a yes the relation and every pick the field made
- * go in one write. Every copy of the field, on the page and in each record's template, is then the
- * plain text field it was before, holding the text it shows, with its chain back.
+ * Unlink: the broken chain inside a linked field asks once, over the window, as a form with
+ * unsaved changes asks. On a yes the relation and every pick the field made go in one write. Every
+ * copy of the field on the page is then the plain text field it was before, holding the text it
+ * shows, with its chain back.
  */
 
 import { linkedCapabilityId, linkUrlOfRecords, unlinkFieldUrl } from "../../core/routes.js";

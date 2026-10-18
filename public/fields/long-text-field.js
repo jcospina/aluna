@@ -3,9 +3,9 @@
 //
 // Ported from `design/scripts/pages/controls-main.js`, which is the contract for both. The port adds
 // how a control is found: the design page boots once over static markup, and this surface swaps
-// forms in constantly — htmx lands them, `record-view.js` clones one out of a `<template>`, and
-// three modules assign `region.innerHTML`. None announce the same event and only one announces
-// any, so what a control waits for is entering the document (as in `choice-picker.js`).
+// forms in constantly — htmx lands them, and three modules assign `region.innerHTML`. They do
+// not announce the same event, so what a control waits for is entering the document (as in
+// `choice-picker.js`).
 //
 // Neither behaviour is the limit. `max_length` reaches `maxlength` (which stops the typing),
 // `data-length-limit` (which this counts down from) and the server's mutation validation (which

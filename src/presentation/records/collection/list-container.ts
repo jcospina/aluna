@@ -14,6 +14,8 @@
 import { LINK_MARK_CHAIN } from "#shell/controls/listbox-glyphs.js";
 import { capabilityActionUrl } from "#shell/core/routes.js";
 import {
+  CARD_CAPABILITY_ATTRIBUTE,
+  CARD_RECORD_ATTRIBUTE,
   CREATE_CANCELLED_EVENT,
   FIRST_FIELD_SELECTOR,
   RECORD_CREATED_EVENT,
@@ -30,14 +32,14 @@ import {
 } from "../../fields/field-renderer.ts";
 import { CARD_BODY_TAG } from "../../safety/markup/contained-markup.ts";
 import {
-  itemElementIdForTemplate,
+  recordItemId,
   recordTitleAttribute,
   renderRecordFormBar,
 } from "../record-view/record-view.ts";
 import { capabilityCountLabelId, renderCollectionCountLabel } from "../region/collection-count.ts";
 import { inkSeedAttr } from "./ink-seed.ts";
 
-export { itemElementIdForTemplate } from "../record-view/record-view.ts";
+export { recordItemId } from "../record-view/record-view.ts";
 
 /**
  * The closed set of collection layouts. `table`/`masonry` are out of scope: a true table
@@ -50,8 +52,8 @@ export type CollectionLayout = (typeof COLLECTION_LAYOUTS)[number];
 export const DEFAULT_COLLECTION_LAYOUT: CollectionLayout = "feed";
 
 /**
- * The stable class the item wrapper carries — the record swap's click-to-open hook and the item
- * chrome's style anchor. Exported so those modules key on one constant, not a copied string.
+ * The stable class the item wrapper carries — with the card's open attributes, what a press opens
+ * a record by, and the item chrome's style anchor. Exported so those modules key on one constant.
  */
 export const ITEM_TRIGGER_CLASS = "capability-item";
 
@@ -62,20 +64,13 @@ export const ITEM_TRIGGER_CLASS = "capability-item";
 export const ITEM_PAYLOAD_ATTR = "data-item";
 
 /**
- * The attribute pointing at the record's inert view `<template>`, which the swap clones on open.
- * The record's form comes from the field renderer: no client formatting, and a press asks the
- * server for nothing (its record address draws the same view, ADR-0010).
+ * What a pressable card opens: its own capability's record, at the record address, which draws
+ * the form (ADR-0010). The platform writes it; the model never does.
  */
-export const ITEM_RECORD_VIEW_ATTR = "data-record-view-template";
-
-/**
- * What the wrapper needs to open one record. This is the platform-owned open target the
- * click controller reads; the model never authors the swap.
- */
-export interface ItemRecordViewRef {
-  /** The `<template>` id to clone on open. The caller owns making it unique and
-   *  DOM-safe (in practice `record-<capabilityId>-<recordId>`). */
-  readonly templateId: string;
+export interface ItemOpens {
+  readonly capabilityId: string;
+  /** A listed card, shown on another record: it carries no id, which its collection's card owns. */
+  readonly listed?: boolean;
 }
 
 /**
@@ -238,7 +233,7 @@ export function renderCollection(options: CollectionOptions): string {
 export function renderItemWrapper(
   innerHtml: string,
   record: Readonly<Record<string, unknown>>,
-  recordView?: ItemRecordViewRef,
+  opens?: ItemOpens,
   mark?: string,
 ): string {
   const payload = escapeHtml(serializeItemPayload(record));
@@ -248,11 +243,12 @@ export function renderItemWrapper(
   const content = mark === undefined ? innerHtml : withLinkMark(innerHtml, mark);
   // Nothing to open is not a button: opening one is the only thing a record does, so a frame
   // with no record surface behind it is a card rather than a control that does nothing.
-  if (!recordView) return `<article ${attributes}>${content}</article>`;
-  const itemId = escapeHtml(itemElementIdForTemplate(recordView.templateId));
+  if (!opens) return `<article ${attributes}>${content}</article>`;
+  const { capabilityId } = opens;
+  const id = opens.listed ? "" : ` id="${escapeHtml(recordItemId(capabilityId, record.id))}"`;
   return (
-    `<button type="button" id="${itemId}" ${attributes}` +
-    ` ${ITEM_RECORD_VIEW_ATTR}="${escapeHtml(recordView.templateId)}">${content}</button>`
+    `<button type="button"${id} ${attributes} ${CARD_CAPABILITY_ATTRIBUTE}="${escapeHtml(capabilityId)}"` +
+    ` ${CARD_RECORD_ATTRIBUTE}="${escapeHtml(String(record.id))}">${content}</button>`
   );
 }
 

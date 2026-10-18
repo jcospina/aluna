@@ -60,7 +60,8 @@ afterEach(() => {
 });
 
 /**
- * Mistborn open in Edit inside the window, a second book's Edit form in its template, the Link
+ * Mistborn open in Edit inside the window with a second copy of the field on the page, the
+ * new-record form's (or Mistborn's when the new-record form is the one asked for), the Link
  * control and the window's question wired as the page wires them. Every read of the field's list
  * after the first takes `reads`; each write takes the next of `writes`. `asked` is every request
  * after the field's first read, as the server would read it.
@@ -70,9 +71,9 @@ async function windowScene(
   form = editBook("Brandon Sanderson"),
   reads: Reply = records(),
 ) {
-  const template = `<template id="record-books-2">${editBook("Octavia E. Butler")}</template>`;
-  const html = `<section class="window"><div class="window__body">${form}${template}</div></section>`;
-  const scene = await dropdownScene([records()], html);
+  const other = form.includes("data-record-edit-form") ? newBook() : editBook("Octavia E. Butler");
+  const html = `<section class="window"><div class="window__body">${form}${other}</div></section>`;
+  const scene = await dropdownScene([records(), records()], html);
   const asked: Exchange[] = [];
   (globalThis as unknown as { fetch: unknown }).fetch = async (
     url: string,
@@ -101,9 +102,9 @@ async function windowScene(
   };
 }
 
-/** The template's own copy of the field, which no script has touched. */
-function templated(doc: Doc): El {
-  return (doc.querySelector("template") as El).content as El;
+/** Each form on the page, one copy of the field in each. */
+function copies(doc: Doc): El[] {
+  return doc.querySelectorAll("form");
 }
 
 /** Notes' text, unlinked meanwhile: the pick route's answer names the chain it takes back. */
@@ -209,7 +210,7 @@ describe("Disconnect", () => {
     expect(scene.doc.activeElement).toBe(scene.doc.body);
     gate.release();
     await settle();
-    for (const root of [scene.doc, templated(scene.doc)]) {
+    for (const root of copies(scene.doc)) {
       expect(root.querySelector("[data-linked-field]")).toBeNull();
       expect(root.querySelector(`[data-link-url="${LINK_URL}"]`)).not.toBeNull();
     }
@@ -231,12 +232,11 @@ describe("Disconnect", () => {
     const scene = await windowScene([unlinked]);
     scene.press();
     await scene.answer(UNSAVED_LEAVING_GO_SELECTOR);
-    const drawn = await dropdownScene(
-      [],
-      editBook("Octavia E. Butler", linkedBooks(undefined, [])),
-    );
+    const drawn = await dropdownScene([], newBook(linkedBooks(undefined, [])));
     const server = drawn.doc.querySelector("[data-link-control]") as El;
-    const rebuilt = templated(scene.doc).querySelector("[data-link-control]") as El;
+    const rebuilt = copies(scene.doc)[1]?.querySelector("[data-link-control]") as El;
+    // The page's Link control has already taken it as one the server drew; the drawing has not.
+    rebuilt.removeAttribute("data-link-chooser-mounted");
     expect(shape(rebuilt)).toEqual(shape(server));
   });
 
@@ -368,7 +368,7 @@ describe("a Disconnect that did not happen", () => {
     await scene.answer(UNSAVED_LEAVING_GO_SELECTOR);
     const sentence = linkNoticeSentence(NOTES_UNLINKED);
     expect(scene.said.at(-1)).toEqual({ sentence, refused: true });
-    for (const root of [scene.doc, templated(scene.doc)]) {
+    for (const root of copies(scene.doc)) {
       expect(root.querySelector("[data-linked-field]")).toBeNull();
       const chain = root.querySelector(`[data-link-url="${LINK_URL}"] .link-control__button`);
       expect(chain?.getAttribute("aria-label")).toBe(NOTES_CHAIN);
@@ -384,9 +384,11 @@ describe("a Disconnect that did not happen", () => {
     scene.press();
     await scene.answer(UNSAVED_LEAVING_GO_SELECTOR);
     expect(scene.asked.map(({ method }) => method)).toEqual(["POST", "GET"]);
-    expect(scene.doc.querySelector("[data-linked-field]")).toBeNull();
-    expect(scene.doc.querySelector(`[data-link-url="${LINK_URL}"]`)).toBeNull();
-    expect(scene.doc.querySelector('input[name="author"]')?.getAttribute("type")).toBe("text");
+    // The copy whose list was read again.
+    const [pressed] = copies(scene.doc) as [El];
+    expect(pressed.querySelector("[data-linked-field]")).toBeNull();
+    expect(pressed.querySelector(`[data-link-url="${LINK_URL}"]`)).toBeNull();
+    expect(pressed.querySelector('input[name="author"]')?.getAttribute("type")).toBe("text");
   });
 
   test("a refusal with no words says it could not disconnect", async () => {
@@ -429,7 +431,7 @@ describe("unlinked from another tab", () => {
     await settle();
     // The person was typing in the field, and the field is still where focus is.
     expect(scene.doc.activeElement).toBe(scene.doc.querySelector('input[name="author"]') as El);
-    for (const root of [scene.doc, templated(scene.doc)]) {
+    for (const root of copies(scene.doc)) {
       expect(root.querySelector("[data-linked-field]")).toBeNull();
       const chain = root.querySelector(`[data-link-url="${LINK_URL}"] .link-control__button`);
       expect(chain?.getAttribute("aria-label")).toBe(NOTES_CHAIN);

@@ -86,6 +86,28 @@ export function holdingRelations(
   });
 }
 
+/** A relation that holds, pointing at a capability, and the capability whose field it is. */
+export interface PointingRelation<Source extends RelatedCapability> {
+  readonly source: Source;
+  readonly relation: Relation;
+}
+
+/**
+ * The relations that hold pointing at `target`'s lifetime, one per linking field, in the desk's
+ * order and each source's own. A record of `target` lists the records linking to it by these, so
+ * a capability linking through two fields counts twice.
+ */
+export function relationsPointingAt<Source extends RelatedCapability>(
+  target: Pick<RelatedCapability, "id" | "incarnation_id">,
+  catalog: readonly Source[],
+): PointingRelation<Source>[] {
+  const holding = new Map(catalog.map((each) => [each.id, holdingRelations(each, catalog)]));
+  return relationsInto(target, catalog, holding, false).map(({ found, source }) => ({
+    source,
+    relation: found.relation,
+  }));
+}
+
 /** A relation on the desk, the capability whose field it is, and whether it holds. */
 export interface ReachingRelation {
   readonly source: { readonly capability: string; readonly incarnation: string };
@@ -118,12 +140,12 @@ export function relationsReaching(
 }
 
 /** The relations pointing at `target`'s lifetime, with their sources: those that hold, or all. */
-function relationsInto(
+function relationsInto<Source extends RelatedCapability>(
   target: Pick<RelatedCapability, "id" | "incarnation_id">,
-  catalog: readonly RelatedCapability[],
+  catalog: readonly Source[],
   holding: ReadonlyMap<string, readonly Relation[]>,
   dormantToo: boolean,
-): { readonly found: ReachingRelation; readonly source: RelatedCapability }[] {
+): { readonly found: ReachingRelation; readonly source: Source }[] {
   return catalog.flatMap((source) =>
     source.relations
       .filter(({ to }) => to.capability === target.id && to.incarnation === target.incarnation_id)

@@ -163,7 +163,14 @@ export function registerCapabilityRoutes(
   const handlerTimeoutMs = deps.handlerTimeoutMs ?? DEFAULT_CAPABILITY_HANDLER_TIMEOUT_MS;
 
   // Ahead of the Action route, which would otherwise answer a record's id as an unknown Action.
-  registerCapabilityViews(app, { databases, lookupCapability, readActiveCatalog, readGates });
+  registerCapabilityViews(app, {
+    databases,
+    lookupCapability,
+    readActiveCatalog,
+    readGates,
+    loadItemRenderer,
+    handlerTimeoutMs,
+  });
   // Catch every HTTP method here so a wrong pair receives the same warm product
   // boundary instead of falling through to Hono's generic 404 response.
   app.all(CAPABILITY_ROUTE, guardWritingRoute(), async (c) => {

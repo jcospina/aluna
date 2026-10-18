@@ -32,7 +32,6 @@ export {
   type PresentableRecord,
   type PresentationAdapter,
   type PresentationAdapterOptions,
-  RECORD_TEMPLATE_ID_PREFIX,
   type RecordLinks,
   renderPresentedRecordView,
 } from "./records/adapter.ts";
@@ -44,20 +43,23 @@ export {
   countRenderedItems,
   DEFAULT_COLLECTION_LAYOUT,
   ITEM_PAYLOAD_ATTR,
-  ITEM_RECORD_VIEW_ATTR,
   ITEM_TRIGGER_CLASS,
-  type ItemRecordViewRef,
-  itemElementIdForTemplate,
+  type ItemOpens,
+  recordItemId,
   renderCollection,
   renderItemWrapper,
   serializeItemPayload,
 } from "./records/collection/list-container.ts";
 export {
+  LISTED_AT_FIRST,
+  type LinkingSection,
+  renderLinkingSection,
+} from "./records/linking/record-links.ts";
+export {
   hasRecordView,
   RECORD_BACK_ATTR,
   RECORD_VIEW_ATTR,
   renderRecordView,
-  renderRecordViewTemplate,
 } from "./records/record-view/record-view.ts";
 export {
   collectionCountSentence,

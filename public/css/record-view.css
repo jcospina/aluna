@@ -1,7 +1,7 @@
 /* =============================================================================
    The record, in the window — platform CHROME.
-   What a record opens into (src/presentation/record-view.ts): a back control above
-   the form, the form itself in edit mode, and the confirmation that stands in for the
+   What a record opens into (src/presentation/record-view.ts): a back
+   control above the form, the form itself in edit mode, and the confirmation that stands in for the
    form's action row while a delete is being asked about. There is no modal and no read
    view, so this is the only surface one record has, and the create view arrives under the
    same bar because it is the same surface reached the other way.
@@ -10,8 +10,8 @@
    collection's place and is laid out the same way — a column that fills the window,
    so the form's action row sits on the window's own bottom edge rather than
    somewhere down the page. The design's own `.detail` scrolls as a whole; here the
-   form's fields scroll inside it instead, which is what the create form already does
-   and what keeps the back control in place while a long record is read.
+   body between the bar and the action row scrolls instead, the form with the records
+   linking here, which keeps the back control in place while a long record is read.
 
    The window's frame is the only line around this, so nothing here draws a boundary.
    ========================================================================== */
@@ -35,6 +35,23 @@
 }
 .capability-record-view > .capability-record-view__bar {
   margin-block-end: var(--space-3);
+}
+
+/* The form and the sections of records linking here scroll together, and the action row
+   stands after them, outside the form. The padding is the room a
+   focus ring needs, as the create form's fields keep it (fields.css), and below, the design's
+   step between the last field and the row (`.form__actions`). */
+.capability-record-view__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-height: 0;
+  padding: var(--space-1) var(--space-2) var(--space-5);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
 
 /* A quiet control that reads as a way back, not a button standing on the surface: no
@@ -76,7 +93,7 @@
 
    The form's sibling rather than a child, because a form cannot nest inside another form
    and this one posts a delete of its own — so it repeats the row's treatment rather than
-   inheriting it. It needs none of the row's stickiness: the form above it is what
+   inheriting it. It needs none of the row's stickiness: the body above it is what
    scrolls, and this sits below that scroller rather than inside it. */
 .capability-record-delete {
   display: flex;

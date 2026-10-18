@@ -35,7 +35,7 @@ import {
   type WireProtocolAction,
 } from "../../runtime/router/wire/wire-protocol.ts";
 import { escapeHtml } from "../../server/http/html.ts";
-import { ADDING_LABEL, SAVING_RECORD_LABEL } from "../controls/busy-label.ts";
+import { ADDING_LABEL } from "../controls/busy-label.ts";
 import { renderChoiceField } from "../controls/choice/choice-control.ts";
 import { renderFileField } from "../controls/file/file-control.ts";
 import { linkableShell } from "../controls/link/link-control.ts";
@@ -98,6 +98,14 @@ export function capabilityDeleteErrorId(capabilityId: string): string {
 }
 
 /**
+ * The edit form's id, which the record view's action row names in its `form` attribute: the row
+ * stands outside the form, below the records linking here.
+ */
+export function capabilityEditFormId(capabilityId: string): string {
+  return `${capabilityId}-edit-form`;
+}
+
+/**
  * The confirmation's own copy, named so both its controls are described by the sentence
  * they act on. One record view is live at a time, so one live element carries this.
  */
@@ -157,6 +165,7 @@ export function renderCreateForm(capability: RenderableCapability): string {
 /**
  * Render the platform-owned edit form for one record — the record's only view. Inactive fields,
  * `extra` and `created_at` are not rendered; the mutation port preserves them from server state.
+ * Its action row is the record view's, drawn outside it, after the records linking here.
  *
  * @param picks the record each linked field picked, which the form posts again beside its text
  */
@@ -179,32 +188,16 @@ export function renderEditForm(
   const label = escapeHtml(capability.label);
 
   // No refresh wiring and no marker naming the item: going back is a fresh read of the
-  // collection, and the record view above the form is what the swap reads the item from.
+  // collection, and the record view around the form is what the way back reads the item from.
   return (
-    `<form class="capability-edit-form" data-record-edit-form aria-label="Edit ${label}"` +
+    `<form id="${capabilityEditFormId(capability.id)}" class="capability-edit-form"` +
+    ` data-record-edit-form aria-label="Edit ${label}"` +
     ` hx-post="${capabilityActionUrl(capability.id, "update")}" hx-swap="none"` +
     `${requiredMessageAttribute()}>` +
     `<input type="hidden" name="${ALUNA_RECORD_ID_MARKER}" value="${escapedRecordId}">` +
     `<div id="${errorId}" class="capability-edit-form__error" aria-live="polite"></div>` +
     `<div class="capability-edit-form__fields">${fields.join("")}</div>` +
-    `<div class="capability-edit-form__actions">` +
-    submitButton("Save", SAVING_RECORD_LABEL, hasActiveFileField(active)) +
-    `<button class="btn btn--outline" type="button" data-record-cancel>Cancel</button>` +
-    renderDeleteTrigger(capability) +
-    `</div>` +
     `</form>`
-  );
-}
-
-/**
- * The destructive action, kept away from Save and Cancel on the far side of the row
- * (`design/index.html`). It opens the confirmation and nothing else, so a misfired press is safe.
- */
-function renderDeleteTrigger(capability: RenderableCapability): string {
-  if (!capability.actions.includes("delete")) return "";
-  return (
-    `<button class="btn btn--danger capability-edit-form__delete" type="button"` +
-    ` data-record-delete>Delete</button>`
   );
 }
 

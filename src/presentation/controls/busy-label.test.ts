@@ -8,11 +8,7 @@ import { describe, expect, test } from "bun:test";
 import { BUSY_LABEL_ATTRIBUTE } from "#shell/core/shell-dom.js";
 import { setPending } from "#shell/records/record-mutations.js";
 import { renderCreateForm } from "../fields/field-renderer.ts";
-import {
-  CAPABILITY,
-  RECORD,
-  TEMPLATE_ID,
-} from "../records/record-view/record-view.test-support.ts";
+import { CAPABILITY, RECORD } from "../records/record-view/record-view.test-support.ts";
 import { renderRecordView } from "../records/record-view/record-view.ts";
 import {
   ADDING_LABEL,
@@ -28,11 +24,15 @@ installDomGlobals();
 describe("the busy-label seam", () => {
   test("every record form's submit says the server's sentence while it waits, then its own", () => {
     const page = parseHtml(
-      renderCreateForm(CAPABILITY) + renderRecordView(CAPABILITY, RECORD, TEMPLATE_ID),
+      renderCreateForm(CAPABILITY) + renderRecordView(CAPABILITY, RECORD),
       new Doc(),
     );
+    // The edit form's Save stands outside it, in the record view's action row, and names it.
+    const submits = page.querySelectorAll('button[type="submit"]');
     const said = page.querySelectorAll("form").map((form) => {
-      const submit = form.querySelector('button[type="submit"]') as El;
+      const owned = submits.filter((submit) => submit.form === form);
+      expect(owned).toHaveLength(1);
+      const submit = owned[0] as El;
       const idle = submit.textContent;
       setPending(form as never, true, "[data-no-cancel]");
       const busy = [submit.textContent, submit.disabled];

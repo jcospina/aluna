@@ -354,14 +354,15 @@ describe("a read that fails", () => {
 });
 
 describe("a linked field arriving later", () => {
-  test("is drawn when it lands, and a record's template is drawn only once it is opened", async () => {
+  test("is drawn when it lands in the page, and not before", async () => {
+    // Held inert until a swap puts it in the page, as a record view arrives from its address.
     const scene = await dropdownScene(
       [records(), records()],
-      `<template id="record-books-1">${editBook("Brandon Sanderson")}</template>`,
+      `<template id="arriving">${editBook("Brandon Sanderson")}</template>`,
     );
-    const template = scene.doc.querySelector("template") as El;
-    expect((template.content as El).querySelector('[role="combobox"]')).toBeNull();
-    const opened = (template.content as El).cloneNode(true);
+    const arriving = scene.doc.querySelector("template") as El;
+    expect((arriving.content as El).querySelector('[role="combobox"]')).toBeNull();
+    const opened = (arriving.content as El).cloneNode(true);
     scene.doc.append(opened);
     await settle();
     const parts = partsOf(scene.doc, "author");

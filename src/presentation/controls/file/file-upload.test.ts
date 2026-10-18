@@ -2,7 +2,7 @@
 // field holds, what each answer of the upload route means, and the transfer itself, driven through
 // a request double, since what Bun lacks here is the browser, not the rules.
 
-import { describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, spyOn, test } from "bun:test";
 
 import {
   FILE_FIELD_CHANGE,
@@ -36,6 +36,7 @@ import { mintFileKey } from "../../../platform/files/store/ledger.ts";
 import { photoSpec } from "../../../registry/fields/file.test-support.ts";
 import { renderCreateForm, renderEditForm } from "../../fields/field-renderer.ts";
 import { renderableFromSpec } from "../../fields/renderable-capability.ts";
+import { renderRecordView } from "../../records/record-view/record-view.ts";
 import { installDomGlobals } from "../double/choice-picker.fixture.test-support.ts";
 import { Doc, El, parseHtml } from "../double/choice-picker.test-support.ts";
 import { drawnFileFields, hooked, travelling } from "./file-field.test-support.ts";
@@ -190,6 +191,21 @@ function host(upload: string | null = "/capability/photos/inc/upload/photo"): Ho
 function pick(name: string, size: number, type = "image/jpeg") {
   return { name, type, size, file: new File([new Uint8Array(size)], name, { type }) };
 }
+
+/**
+ * A key answered into a field no form holds is given back a task later, to the pending-only route.
+ * Answered here, it is never retried a second or five later into another suite's fetch double.
+ */
+let discards: ReturnType<typeof spyOn>;
+beforeAll(() => {
+  discards = spyOn(globalThis, "fetch").mockImplementation(
+    (async () => new Response(null, { status: 204 })) as unknown as typeof fetch,
+  );
+});
+afterAll(async () => {
+  await new Promise((done) => setTimeout(done, 0));
+  discards.mockRestore();
+});
 
 function start(
   picked: ReturnType<typeof pick>,
@@ -370,5 +386,59 @@ describe("the form around a photo field", () => {
     expect((scene.host as unknown as { inert: boolean }).inert).toBe(false);
     setPending(scene.form as never, false, "[data-create-cancel]");
     expect(label.textContent).toBe(idle);
+  });
+});
+
+// A record's Save stands in the record view's action row, outside the
+// edit form, below the records linking here, and names the form by its `form` attribute.
+describe("a record's photo field, its Save outside the form", () => {
+  /** The record view as its record address draws it, wired as the product wires it. */
+  function recordScene() {
+    const doc = new Doc();
+    const root = new El("html");
+    doc.append(root);
+    const capability = { ...renderableFromSpec(photoSpec()), incarnationId: "inc" };
+    parseHtml(renderRecordView(capability, { id: "r1", caption: "Dawn", photo: null }), root);
+    wireFileFields(doc as never, () => {});
+    const one = (selector: string) => doc.querySelector(selector) as El;
+    const form = one("form[data-record-edit-form]");
+    const save = one(hooked(FILE_FIELD_HOOKS.save));
+    const label = save.querySelector(hooked(FILE_FIELD_HOOKS.saveLabel)) as El;
+    return { doc, form, save, label, host: one(hooked(FILE_FIELD_HOOKS.field)) };
+  }
+
+  test("is held while a file travels, saying what it waits on in its own label", () => {
+    const scene = recordScene();
+    expect(scene.form.contains(scene.save)).toBe(false);
+    expect(scene.save.form).toBe(scene.form);
+    const idle = scene.label.textContent;
+    mountFileFields(scene.doc, travelling);
+    expect(scene.save.hasAttribute("aria-disabled")).toBe(false);
+    pickInto(scene.host as never, { name: "dawn.jpg", type: "image/jpeg", size: 10 });
+    expect(scene.save.getAttribute("aria-disabled")).toBe("true");
+    expect(scene.label.textContent).not.toBe(idle);
+  });
+
+  test("a submission while a file travels is refused before htmx hears it, and stands on it", () => {
+    const scene = recordScene();
+    const posted: unknown[] = [];
+    scene.form.addEventListener("submit", (event) => posted.push(event));
+    mountFileFields(scene.doc, travelling);
+    pickInto(scene.host as never, { name: "dawn.jpg", type: "image/jpeg", size: 10 });
+    expect(scene.doc.fire("submit", scene.form)).toEqual({ prevented: true, stopped: true });
+    expect(posted).toEqual([]);
+    expect(scene.doc.activeElement).toBe(scene.save);
+  });
+
+  test("while a save is out, it says so in its own label, and Cancel is held with it", () => {
+    const scene = recordScene();
+    const cancel = scene.doc.querySelector("[data-record-cancel]") as El;
+    const idle = scene.label.textContent;
+    setPending(scene.form as never, true, "[data-record-cancel]");
+    expect(scene.label.textContent).toBe(scene.save.getAttribute(BUSY_LABEL_ATTRIBUTE) ?? "absent");
+    expect([scene.save.disabled, cancel.disabled]).toEqual([true, true]);
+    setPending(scene.form as never, false, "[data-record-cancel]");
+    expect(scene.label.textContent).toBe(idle);
+    expect([scene.save.disabled, cancel.disabled]).toEqual([false, false]);
   });
 });

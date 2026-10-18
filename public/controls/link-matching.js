@@ -14,7 +14,7 @@ const FADED_SELECTORS = [
   ".link-control__button",
   ".linked-field__unlink",
   '.capability-create-form button[type="submit"]',
-  '.capability-edit-form button[type="submit"]',
+  '.capability-edit-form__actions button[type="submit"]',
   '[data-record-delete-form] button[type="submit"]',
   "[data-record-delete]",
 ];
@@ -151,12 +151,14 @@ export function holdWhileMatching(form, sentence, field) {
 
 /**
  * Every faded button back, but those of a form whose save is still out: its own end gives them
- * back (`giveBackAfterSave`).
+ * back (`giveBackAfterSave`). A button's form is the one it names, as the edit form's action row
+ * names its form from outside it.
  * @param {Document | Element} root
  */
 function giveBack(root) {
   for (const button of root.querySelectorAll(`[${FADED_ATTRIBUTE}]`)) {
-    if (button.closest("form")?.getAttribute("aria-busy") === "true") continue;
+    const form = button instanceof HTMLButtonElement ? button.form : button.closest("form");
+    if (form?.getAttribute("aria-busy") === "true") continue;
     button.removeAttribute(FADED_ATTRIBUTE);
     if (button instanceof HTMLButtonElement) button.disabled = false;
   }
@@ -164,12 +166,13 @@ function giveBack(root) {
 
 /**
  * A save in `form` has ended: what faded while it was out comes back, unless names are still
- * being matched, whose end gives it back.
+ * being matched, whose end gives it back. Read across the page, since the edit form's own
+ * buttons stand outside it, and every other form's were given back unless its save is out.
  *
  * @param {Element} form
  */
 export function giveBackAfterSave(form) {
-  if ((matching.get(form.ownerDocument) ?? 0) === 0) giveBack(form);
+  if ((matching.get(form.ownerDocument) ?? 0) === 0) giveBack(form.ownerDocument);
 }
 
 /**

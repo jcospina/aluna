@@ -1,6 +1,7 @@
 // The notes fixture with its text linked to Authors · Name on the link-control desk, saved through
 // the real router: what a linked field's form posts, and the link rows a save leaves. Not a test file.
 
+import { recordAddress } from "#shell/core/routes.js";
 import { linkFieldValue } from "#shell/core/shell-dom.js";
 import { until } from "../../../../platform/async.test-support.ts";
 import { LINK_TABLE, writeLinkRow } from "../../../../platform/links/link-table.ts";
@@ -53,6 +54,21 @@ export function routerApp(conns: PlatformDatabase, deps: CapabilityRouterDeps = 
     capabilityRouter: { databases: conns, ...router },
     ...(mutationCoordinator === undefined ? {} : { mutationCoordinator }),
   });
+}
+
+/**
+ * What a record's address draws in the page: its record view, whose Edit form carries the picks
+ * and draws each linked field. No card carries a form.
+ */
+export async function recordAddressView(
+  app: ReturnType<typeof createTestApp>,
+  capability: string,
+  record: string,
+): Promise<string> {
+  const address = recordAddress(capability, record);
+  const answer = await app.request(address, { headers: { "HX-Request": "true" } });
+  if (answer.status !== 200) throw new Error(`${address} answered ${answer.status}`);
+  return answer.text();
 }
 
 /** A save as a form posts it: each field's value, its presence marker, and each pick. */

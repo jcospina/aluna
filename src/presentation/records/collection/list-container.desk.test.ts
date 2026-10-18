@@ -1,10 +1,12 @@
-// The collection running: its inline Alpine started on the markup the renderer writes, and a record
-// opened by the real `public/records/record-view.js`. Split from `list-container.test.ts` by what it needs
-// standing — a page, not a string.
+// The collection running: its inline Alpine started on the markup the renderer writes, and a card
+// pressed through the real `public/records/record-view.js`. Split from `list-container.test.ts` by what
+// it needs standing — a page, not a string.
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { releaseRegionContent } from "#shell/core/region-scope.js";
+import { recordAddress } from "#shell/core/routes.js";
 import { RECORD_CREATED_EVENT } from "#shell/core/shell-dom.js";
+import { OPEN_THE_RECORD_EVENT } from "#shell/desk/desk-address.js";
 import { recordsRegionStatusMessage } from "#shell/records/records-region-status.js";
 import { until } from "../../../platform/async.test-support.ts";
 
@@ -16,12 +18,12 @@ import {
   probeField,
 } from "../../fields/field-renderer.test-support.ts";
 import type { RenderableCapability } from "../../fields/field-renderer.ts";
-import { recordDesk } from "../record-view/record-view.test-support.ts";
-import { renderRecordViewTemplate } from "../record-view/record-view.ts";
+import { answerPresses, recordDesk } from "../record-view/record-view.test-support.ts";
+import { renderRecordView } from "../record-view/record-view.ts";
 import { bound, collectionPage, inOrder, named, shown } from "./collection-page.test-support.ts";
 import {
   ITEM_TRIGGER_CLASS,
-  itemElementIdForTemplate,
+  recordItemId,
   renderCollection,
   renderItemWrapper,
 } from "./list-container.ts";
@@ -122,52 +124,73 @@ describe("the collection and its create form are two views of one surface", () =
   });
 });
 
-// A record opens by the real `public/records/record-view.js`, started on the collection the server renders:
-// the wrapper's class, its open hook and the template it names all have to agree for this to swap.
-describe("a record opens in the collection's place", () => {
-  const RECORD = { id: "task-7", created_at: "2026-08-27T00:00:00.000Z", title: "Buy oat milk" };
-  const templateId = "record-tasks-task-7";
+// A card is pressed through the real `public/records/record-view.js`, started on the collection the
+// server renders: the wrapper's class and what it opens have to agree for the desk to be asked, and
+// the record arrives from its record address, never from the card.
+describe("a card press asks the desk for its record", () => {
+  const RECORD = {
+    id: "3e8b1f0c-5a2d-4c7e-9b64-1f0a7d2e5c83",
+    created_at: "2026-08-27T00:00:00.000Z",
+    title: "Buy oat milk",
+  };
   const openable = renderCollection({
     capability: SAMPLE,
-    items:
-      renderItemWrapper("<span>Buy oat milk</span>", RECORD, { templateId }) +
-      renderRecordViewTemplate(templateId, SAMPLE, RECORD),
+    items: renderItemWrapper("<span>Buy oat milk</span>", RECORD, { capabilityId: SAMPLE.id }),
   });
   let desk: Awaited<ReturnType<typeof recordDesk>>;
   afterEach(() => desk.restore());
 
-  test("pressing the record swaps its form in and puts the keyboard on the first field", async () => {
+  /** Every record the desk was asked to open, as each press asked. */
+  function asks() {
+    const asked: unknown[] = [];
+    desk.doc.addEventListener(OPEN_THE_RECORD_EVENT, (event) => {
+      asked.push({ ...(event as unknown as CustomEvent<object>).detail });
+    });
+    return asked;
+  }
+
+  test("a press inside a card asks for its own record, and the collection stays meanwhile", async () => {
     desk = await recordDesk(openable);
-    const item = desk.doc.getElementById(itemElementIdForTemplate(templateId)) as El;
+    const asked = asks();
+    const item = desk.doc.getElementById(recordItemId(SAMPLE.id, RECORD.id)) as El;
     desk.press(item.children[0] as El);
+    expect(asked).toEqual([{ capability: SAMPLE.id, record: RECORD.id }]);
+    // Nothing is cloned and nothing is swapped: the window changes when the desk draws the address.
+    expect(item.isConnected).toBe(true);
+    expect(desk.doc.querySelector(`[aria-label="${SAMPLE.label}"]`)).not.toBeNull();
+    expect(desk.asked.processed).toHaveLength(0);
+    expect(desk.doc.querySelector("form[data-record-edit-form]")).toBeNull();
+  });
+
+  test("the desk answers with the record's form, drawn from the record's address", async () => {
+    desk = await recordDesk(openable, { capabilityId: SAMPLE.id });
+    const drawn = answerPresses(desk, () => renderRecordView(SAMPLE, RECORD));
+    desk.press(desk.doc.getElementById(recordItemId(SAMPLE.id, RECORD.id)) as El);
+    expect(drawn).toEqual([recordAddress(SAMPLE.id, RECORD.id)]);
     const form = named(desk.doc, "form", `Edit ${SAMPLE.label}`);
-    expect(item.isConnected).toBe(false);
-    expect(desk.doc.querySelector(`[aria-label="${SAMPLE.label}"]`)).toBeNull();
-    expect(desk.asked.processed).toHaveLength(1);
-    expect(desk.asked.processed[0]?.contains(form)).toBe(true);
-    await desk.settled();
-    expect(desk.doc.activeElement).toBe(form.querySelector('input[name="title"]') as El);
-    expect(desk.doc.activeElement.value).toBe(RECORD.title);
-    // Visibly: the press that opened the record was a click, which rings nothing by itself.
-    expect(desk.doc.activeElement.focusOptions).toEqual({ focusVisible: true });
+    expect(form.querySelector('input[name="title"]')?.value).toBe(RECORD.title);
+    expect(desk.tab.entries().at(-1)).toBe(recordAddress(SAMPLE.id, RECORD.id));
   });
 
   test("the record is a real button: it holds no key handling of its own", async () => {
     // Enter and Space already activate a button, so the module answers the click and no key.
     desk = await recordDesk(openable);
-    const item = desk.doc.getElementById(itemElementIdForTemplate(templateId)) as El;
+    const asked = asks();
+    const item = desk.doc.getElementById(recordItemId(SAMPLE.id, RECORD.id)) as El;
     for (const key of ["Enter", " "]) desk.doc.fire("keydown", item, { key });
+    expect(asked).toEqual([]);
     expect(item.isConnected).toBe(true);
   });
 
-  test("a card with nothing to open opens nothing", async () => {
+  test("a card with nothing to open asks for nothing", async () => {
     desk = await recordDesk(
       renderCollection({ capability: SAMPLE, items: renderItemWrapper("<span>x</span>", RECORD) }),
     );
+    const asked = asks();
     const card = desk.doc.querySelector(`.${ITEM_TRIGGER_CLASS}`) as El;
     desk.press(card);
+    expect(asked).toEqual([]);
     expect(card.isConnected).toBe(true);
-    expect(desk.asked.processed).toHaveLength(0);
   });
 });
 

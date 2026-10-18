@@ -7,7 +7,7 @@
 
 import { FILE_FIELD_CHANGE, FILE_FIELD_HOOKS } from "../../design/scripts/files/file-field.js";
 import { FILE_LIST_CHANGE } from "../../design/scripts/files/file-list.js";
-import { FILE_FIELD_ATTRIBUTES } from "../core/shell-dom.js";
+import { FIELD_ERROR_STASH_ATTRIBUTE, FILE_FIELD_ATTRIBUTES } from "../core/shell-dom.js";
 
 const FIELD = ".field";
 const GUIDANCE = "[data-field-guidance]";
@@ -17,7 +17,7 @@ const INVALID_CLASS = "is-invalid";
  * Where the slot's words wait while the error stands in their place, and what the slot was before
  * it: a control that writes its own refusals into the slot, the photo's, may have been saying one.
  */
-const STASH = "data-field-guidance-text";
+const STASH = FIELD_ERROR_STASH_ATTRIBUTE;
 const PRIOR = "data-field-guidance-prior";
 const MARKED = `[${STASH}]`;
 /**
@@ -313,7 +313,7 @@ function endReportingPass(form) {
 
 /**
  * Every listener the module installs, in one place and taking the document it listens on, so the
- * rules run in Bun. All delegated: forms arrive by swap, by a clone and by three `innerHTML`s.
+ * rules run in Bun. All delegated: forms arrive by swap and by three `innerHTML`s.
  *
  * @param {Document} root
  */

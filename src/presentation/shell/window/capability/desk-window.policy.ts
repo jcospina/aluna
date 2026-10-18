@@ -194,8 +194,9 @@ describe("the create form takes the window", () => {
       // The record view is the third thing the window can hold, and it is a link in the
       // same chain: the collection's place, taken by a column that ends on the same edge.
       ["public/css/record-view.css", ".capability-record-view"],
-      ["public/css/fields.css", ".capability-create-form,\n.capability-edit-form"],
-      ["public/css/fields.css", ".capability-create-form__fields,\n.capability-edit-form__fields"],
+      ["public/css/record-view.css", ".capability-record-view__body"],
+      ["public/css/fields.css", ".capability-create-form"],
+      ["public/css/fields.css", ".capability-create-form__fields"],
     ];
     for (const [sheet, selector] of links) {
       const rule = body(rules(sheet), selector);
@@ -217,20 +218,20 @@ describe("the create form takes the window", () => {
     expect(actions).toMatch(/bottom:\s*0/);
     expect(actions).toMatch(/background:\s*var\(--surface\)/);
 
-    const scroller = body(
-      fields,
-      ".capability-create-form__fields,\n.capability-edit-form__fields",
-    );
+    const scroller = body(fields, ".capability-create-form__fields");
     expect(scroller).toMatch(/overflow-y:\s*auto/);
     expect(scroller).toMatch(/min-height:\s*0/);
   });
 
-  test("create and edit are one shape, not two", () => {
-    // They diverged while create was a panel above the list and edit filled a modal. Both fill the
-    // surface they arrive on now, so the shape is stated once, in one rule, with no exception.
-    const form = body(fields, ".capability-create-form,\n.capability-edit-form");
-    expect(form).toMatch(/flex:\s*1 1 auto/);
-    expect(form).toMatch(/min-height:\s*0/);
+  test("a record's form scrolls with the records linking here, above its action row", () => {
+    // The sections stand outside the form, so the record view's body
+    // scrolls both, and the action row after it stays on the window's bottom edge.
+    const scroller = body(rules("public/css/record-view.css"), ".capability-record-view__body");
+    expect(scroller).toMatch(/overflow-y:\s*auto/);
+    // A form that could shrink inside that scroller would draw over the sections below it.
+    const form = body(fields, ".capability-edit-form");
+    expect(form).not.toMatch(/min-height:\s*0/);
+    expect(form).not.toMatch(/flex:\s*1 1 auto/);
     expect(fields).not.toMatch(/height:\s*100%/);
   });
 });

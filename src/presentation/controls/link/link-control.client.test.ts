@@ -24,7 +24,7 @@ import {
   AUTHOR,
   bookCapability,
   cutOff,
-  deskWithTemplate,
+  deskWithTwoForms,
   failed,
   held,
   installLinkGlobals,
@@ -236,7 +236,7 @@ describe("a read in flight is let go", () => {
 
   test("but not by a press inside its own panel, nor by another form finishing", async () => {
     const read = held(listed());
-    const scene = await linkScene([read.reply], deskWithTemplate([AUTHOR]));
+    const scene = await linkScene([read.reply], deskWithTwoForms([AUTHOR]));
     const other = parseHtml(renderEditForm(bookCapability([TITLE]), { id: "b" }), scene.doc);
     await scene.press(scene.button);
     scene.doc.fire("pointerdown", scene.panel);

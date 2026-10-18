@@ -369,8 +369,11 @@ of its own), the in-window record view, which a list item and the create action 
 open into, the deletion confirmation that replaces that form's action row in place — so
 deleting a record starts by opening it and no list row carries a delete of its own —
 spec-rendered fields, and safe composition of generated item output. For a record
-address the platform route renders the record view on the server through the adapter
-that writes each card, and no Handler runs (ADR-0010).
+address the platform route draws the record view on the server, and a card press asks
+for it there. Between the form's fields and its action row the view lists the records
+linking to that record, a section per relation pointing in, each card drawn by its own
+capability's renderer through that capability's adapter. No Handler runs (ADR-0010;
+Module 8 PLAN decisions 34 to 39).
 It may read structural spec facts — field type, required state, the collection
 layout (`ui_intent.collection.layout`, a closed value selecting how the list
 container arranges items), and the closed per-`string[]` list input mode — but it
@@ -399,7 +402,8 @@ guessing from text.
 ### 6.2 Orchestrator — the brain (server-side)
 
 A deterministic router fronts everything: the UI only ever calls
-`/capability/:id/:action`, or reads one record through the record address. M4 fixes
+`/capability/:id/:action`, or reads one record through the record address and the rest of
+its records linking here beside it. M4 fixes
 `GET read`, `GET search`, `POST create`, `POST update`, and `POST delete`; every
 other method/Action pairing fails before generated code loads. Spec field names
 cannot use the reserved `__aluna_` prefix. The router validates and strips repeated
@@ -424,9 +428,21 @@ route, not a sixth Action. A segment shaped like a UUID is a record, the five Ac
 names keep their route, and anything else answers 404 as before. The route takes a
 read token and closes with the read gate, as the collection view does. It reads one
 row by `id` from the active incarnation's table, narrows it as the collection does,
-and renders the record view through the presentation adapter that writes a card's
-`<template>`. With `HX-Request` it answers that fragment for the window; without it,
-the whole desk, which opens the record from its address, after the desk-load recovery.
+and draws the record view: the form, the records linking to the record, then the form's
+action row. For each relation pointing in, the route takes the linking incarnation's read
+token apart from its own, reads the linking records through that capability's query
+port, newest first as its list reads them, and draws the first five through that
+capability's presentation adapter under the Handler time limit. Item renderers are
+synchronous, so one that throws, or returns after the limit as measured, leaves its
+section out, as does a linking capability closed by its own deletion, and the record
+opens either way; a renderer stuck in a loop is out of reach, as on a list route.
+"Show all" fetches the cards after the last one a section shows from
+`/capability/:id/:record/listed/:source/:field`, which holds the same tokens and the same
+limit. When it cannot draw them it answers no cards, and the section stays as it was. A
+card press asks the record address as a pasted address does, so no card carries its
+record's form. With `HX-Request` the route answers that fragment for the
+window; without it, the whole desk, which opens the record from its address, after the
+desk-load recovery.
 A record that was deleted, never existed or belongs to another capability opens the
 addressed capability's collection, says the not-found notice on the prompt bar, answers
 404 and corrects the address to `/capability/:id`. Every capability declares all five
@@ -1562,7 +1578,10 @@ once: the save or deletion also takes the token of every capability its refresh 
 clearing reaches, down the chain where ADR-0011's proposed chain rule applies, apart
 from its own set, so a linking capability closed by its own deletion is skipped
 instead of refusing the save (ADR-0011). Until 8.4, deleting a target record writes
-only the link table, so it takes no token beyond its own.
+only the link table, so it takes no token beyond its own. The record address takes the
+token of each capability linking to its record the same way, apart from its own, so a
+linking capability closed by its own deletion leaves its section of the record out
+instead of refusing the record (Module 8 PLAN decision 38).
 
 Cross-capability reads need no invalidation channel. A capability may read another
 capability's table and never writes to it (the linked-text refresh and the clearing

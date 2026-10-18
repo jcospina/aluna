@@ -41,11 +41,15 @@ describe("who moves the address", () => {
   });
 
   test("a press writes the record's address, spelled by the one function that spells it", () => {
-    // The record view reaches history only through the address module, and what it pushes is a
-    // capability and a record id: the search the collection stood under is not passed.
+    // A card press hands the desk a capability and a record id, as an answer link does, and the
+    // address module pushes the address only `recordAddress` spells:
+    // the search the collection stood under is not passed.
     expect(RECORD_VIEW).not.toContain("history.");
-    expect(RECORD_VIEW.match(/pushAddress\(/g)).toHaveLength(1);
-    expect(RECORD_VIEW).toMatch(/pushAddress\(recordAddress\(/);
+    expect(RECORD_VIEW).not.toContain("pushAddress(");
+    expect(RECORD_VIEW).toContain("new CustomEvent(OPEN_THE_RECORD_EVENT, { detail })");
+    expect(flat(ADDRESS)).toMatch(
+      /const address = recordAddress\(id, [^;]+\); const go = \(\) => \{ pushAddress\(address, bar\);/,
+    );
   });
 
   test("below capability identity, a record id and nothing else: no search term, no draft", () => {

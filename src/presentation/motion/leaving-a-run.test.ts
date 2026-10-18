@@ -17,13 +17,8 @@ import {
 } from "#shell/desk/leaving-a-run.js";
 import { renderBuildSubscriber } from "../../server/http/fragments/fragments.ts";
 import { El, parseHtml } from "../controls/double/choice-picker.test-support.ts";
-import {
-  itemElementIdForTemplate,
-  renderCollection,
-  renderItemWrapper,
-} from "../records/collection/list-container.ts";
 import { CAPABILITY, RECORD, recordDesk } from "../records/record-view/record-view.test-support.ts";
-import { renderRecordViewTemplate } from "../records/record-view/record-view.ts";
+import { renderRecordView } from "../records/record-view/record-view.ts";
 import { node, windowWithRun } from "./leaving-a-run.test-support.ts";
 
 // Leaving a live build or evolution warns first, and confirming ends it once (amending design D3).
@@ -426,22 +421,11 @@ describe("what answers the question", () => {
   test("one press answers one question", async () => {
     // A run covers the collection without removing it, so a standing delete confirmation can sit
     // behind the leaving question. Escape means the one on screen, not both.
-    const templateId = "record-notes-note-1";
-    const desk = await recordDesk(
-      renderCollection({
-        capability: CAPABILITY,
-        items:
-          renderItemWrapper("<span>note</span>", RECORD, { templateId }) +
-          renderRecordViewTemplate(templateId, CAPABILITY, RECORD),
-      }),
-      {
-        capabilityId: CAPABILITY.id,
-        modules: ["records/record-view.js", "records/record-mutations.js"],
-      },
-    );
+    const desk = await recordDesk(renderRecordView(CAPABILITY, RECORD), {
+      capabilityId: CAPABILITY.id,
+      modules: ["records/record-view.js", "records/record-mutations.js"],
+    });
     try {
-      desk.press(desk.doc.getElementById(itemElementIdForTemplate(templateId)) as El);
-      await desk.settled();
       const asks = desk.doc.querySelectorAll("button").find((b) => b.textContent === "Delete");
       desk.press(asks as El);
       const question = desk.doc.querySelector("form[data-record-delete-form]") as El;

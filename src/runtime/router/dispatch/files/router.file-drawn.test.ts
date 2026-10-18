@@ -104,19 +104,25 @@ describe("a read Handler that reshapes the photo it presents", () => {
       )
       .join("");
 
-  test("still draws the edit form holding the photo the record stores", async () => {
+  test("leaves the record's address drawing the edit form holding the photo the record stores", async () => {
+    // No card carries the form any more; the record's address draws it, as stored, whatever the
+    // read Handler presents.
     const key = photos.mint();
     const id = await photos.save(key);
+    const inPage = { headers: { "HX-Request": "true" } };
+    const drawn = `name="${ALUNA_DRAWN_MARKER}" value="${drawnFileValue(PHOTO, [key])}"`;
 
-    const response = await photos.request(
-      "/capability/photos/read",
-      { headers: { "HX-Request": "true" } },
-      { loadHandler: reshaping },
-    );
+    const read = await photos.request("/capability/photos/read", inPage, {
+      loadHandler: reshaping,
+    });
+    expect(read.status).toBe(200);
+    expect(await read.text()).not.toContain(ALUNA_DRAWN_MARKER);
 
-    expect(response.status).toBe(200);
-    const html = await response.text();
-    expect(html).toContain(`name="${ALUNA_DRAWN_MARKER}" value="${drawnFileValue(PHOTO, [key])}"`);
+    const address = await photos.request(`/capability/photos/${id}`, inPage, {
+      loadHandler: reshaping,
+    });
+    expect(address.status).toBe(200);
+    expect(await address.text()).toContain(drawn);
     expect(photos.photoOf(id)).toMatchObject({ key });
   });
 });

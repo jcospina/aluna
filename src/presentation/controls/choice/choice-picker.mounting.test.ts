@@ -43,8 +43,8 @@ describe("what happens around the control", () => {
   });
 
   test("a form put in place by hand mounts too, with no landing announced", async () => {
-    // What `record-view.js` does to open a record: it clones the view out of a template and
-    // replaces the collection, so htmx announces nothing and the edit form's picker stood dead.
+    // A form a script puts in place itself, cloned out of a template as the desk restores a held
+    // surface, is announced by nothing htmx sends: an edit form's picker once stood dead so.
     const picker = await scene(form("picker"));
     const template = parseHtml(form("picker", "second"), new El("div"));
     const outgoing = new El("div");

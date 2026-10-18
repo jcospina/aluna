@@ -133,6 +133,108 @@ export const CAPABILITIES = [
 ];
 
 /**
+ * The records of one capability linking to the record on show, drawn in a
+ * section between its fields and its actions. In the product each card is
+ * the linking capability's own; here every one wears the fixture card.
+ * @typedef {{ label: string, records: CapabilityRecord[] }} LinkingSection
+ */
+
+/**
+ * The records the record-form specimens open, each with the sections of
+ * records linking to it. None is on the desk, so none needs a logo.
+ * @type {Record<"clarke" | "leGuin" | "leftHand", { capability: Capability, linking: LinkingSection[] }>}
+ */
+export const LINKED_RECORDS = {
+  clarke: {
+    capability: author("Susanna Clarke", "1959", "United Kingdom"),
+    linking: [
+      {
+        label: "Books",
+        records: [
+          { title: "Piranesi", detail: "2020 · 245 pp", state: "Finished" },
+          { title: "The Ladies of Grace Adieu", detail: "2006 · 235 pp", state: "Queued" },
+          { title: "Jonathan Strange & Mr Norrell", detail: "2004 · 782 pp", state: "Reading" },
+        ],
+      },
+    ],
+  },
+  leGuin: {
+    capability: author("Ursula K. Le Guin", "1929", "United States"),
+    linking: [
+      {
+        label: "Books",
+        records: [
+          { title: "Tehanu", detail: "1990 · 252 pp", state: "Queued" },
+          { title: "Always Coming Home", detail: "1985 · 523 pp", state: "Queued" },
+          { title: "The Dispossessed", detail: "1974 · 387 pp", state: "Finished" },
+          { title: "The Farthest Shore", detail: "1972 · 223 pp", state: "Finished" },
+          { title: "The Lathe of Heaven", detail: "1971 · 184 pp", state: "Reading" },
+          { title: "The Left Hand of Darkness", detail: "1969 · 304 pp", state: "Finished" },
+          { title: "A Wizard of Earthsea", detail: "1968 · 183 pp", state: "Finished" },
+        ],
+      },
+    ],
+  },
+  leftHand: {
+    capability: {
+      id: "books",
+      label: "Books",
+      noun: "book",
+      logo: "",
+      seed: 3301,
+      records: [],
+      fields: [
+        { label: "Title", value: "The Left Hand of Darkness" },
+        { label: "Author", value: "Ursula K. Le Guin", span: 1 },
+        { label: "Published", value: "1969", span: 1 },
+      ],
+    },
+    linking: [
+      {
+        label: "Reading log",
+        records: [
+          { title: "Chapters 16 to 20", detail: "14 May · 70 min", state: "Logged" },
+          { title: "Chapters 9 to 15", detail: "11 May · 55 min", state: "Logged" },
+        ],
+      },
+      {
+        label: "Quotes",
+        records: [
+          { title: "Light is the left hand of darkness", detail: "Chapter 16", state: "Keeper" },
+          { title: "To oppose something is to maintain it", detail: "Chapter 10", state: "Keeper" },
+          {
+            title: "The only thing that makes life possible",
+            detail: "Chapter 5",
+            state: "Keeper",
+          },
+        ],
+      },
+    ],
+  },
+};
+
+/**
+ * One author's record, as the Authors capability draws it.
+ * @param {string} name @param {string} born @param {string} country
+ * @returns {Capability}
+ */
+function author(name, born, country) {
+  return {
+    id: "authors",
+    label: "Authors",
+    noun: "author",
+    logo: "",
+    seed: 5507,
+    records: [],
+    fields: [
+      { label: "Name", value: name },
+      { label: "Born", value: born, span: 1 },
+      { label: "Country", value: country, span: 1 },
+    ],
+  };
+}
+
+/**
  * Tones a state pill may take. Signal red is never one of them.
  * @type {Record<string, string>}
  */

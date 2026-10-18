@@ -1,6 +1,7 @@
-// A record opened on a real desk: the swap (`public/records/record-view.js`) and the mutation rules
-// (`public/records/record-mutations.js`) started on the markup the server renders, and every way out of the
-// record pressed the way a person presses it.
+// A record opened on a real desk: the record view (`public/records/record-view.js`) and the mutation
+// rules (`public/records/record-mutations.js`) started on the markup the server renders, a card press
+// answered by the address module as the desk answers it, and every way out of the record pressed the
+// way a person presses it.
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { registerRegionRelease, releaseRegionContent } from "#shell/core/region-scope.js";
@@ -15,22 +16,23 @@ import { DELETING_RECORD_LABEL } from "../../controls/busy-label.ts";
 import { Doc, type El, parseHtml } from "../../controls/double/choice-picker.test-support.ts";
 import { capabilityRecordsRegionId } from "../../fields/field-renderer.ts";
 import { named } from "../collection/collection-page.test-support.ts";
+import { renderCollection, renderItemWrapper } from "../collection/list-container.ts";
 import {
-  itemElementIdForTemplate,
-  renderCollection,
-  renderItemWrapper,
-} from "../collection/list-container.ts";
-import { CAPABILITY, RECORD, recordDesk, standingWindow } from "./record-view.test-support.ts";
-import { RECORD_VIEW_ATTR, renderRecordViewTemplate } from "./record-view.ts";
+  answerPresses,
+  CAPABILITY,
+  RECORD,
+  recordDesk,
+  standingWindow,
+} from "./record-view.test-support.ts";
+import { RECORD_VIEW_ATTR, recordItemId, renderRecordView } from "./record-view.ts";
 
-const templateId = `record-notes-${RECORD.id}`;
-const ITEMS =
-  renderItemWrapper(`<span>${RECORD.text}</span>`, RECORD, { templateId }) +
-  renderRecordViewTemplate(templateId, CAPABILITY, RECORD);
+const ITEMS = renderItemWrapper(`<span>${RECORD.text}</span>`, RECORD, {
+  capabilityId: CAPABILITY.id,
+});
 
 /**
- * A notes window with one record in it, the swap and the mutation rules started on it, and the
- * record already open. `answer` is what the collection read does when it is asked for.
+ * A notes window with one record in it, the record view and the mutation rules started on it, and
+ * the record already open from its card. `answer` is what the collection read does when asked.
  */
 async function openRecord(answer: () => Promise<unknown> = () => Promise.resolve()) {
   const collection = renderCollection({ capability: CAPABILITY, items: ITEMS });
@@ -39,7 +41,8 @@ async function openRecord(answer: () => Promise<unknown> = () => Promise.resolve
     modules: ["records/record-view.js", "records/record-mutations.js"],
     answer,
   });
-  const item = desk.doc.getElementById(itemElementIdForTemplate(templateId)) as El;
+  answerPresses(desk, () => renderRecordView(CAPABILITY, RECORD));
+  const item = desk.doc.getElementById(recordItemId(CAPABILITY.id, RECORD.id)) as El;
   desk.press(item);
   await desk.settled();
   const view = desk.doc.querySelector(`[${RECORD_VIEW_ATTR}]`) as El;
@@ -55,6 +58,8 @@ async function openRecord(answer: () => Promise<unknown> = () => Promise.resolve
     question,
     /** The action row's Delete, which only asks. */
     asks: named(view, "button", "Delete"),
+    /** The action row's Cancel, outside the form it names. */
+    cancel: named(view.querySelector(".capability-edit-form__actions") as El, "button", "Cancel"),
     /** Whether the record asked for its collection back, which is what leaving is. */
     left: () =>
       desk.asked.requests.map(({ verb, path, context }) => [
@@ -110,9 +115,9 @@ describe("the record swap — the way out", () => {
     expect(desk.left()).toEqual([["GET", capabilityUrl(CAPABILITY.id), "innerHTML", desk.region]]);
   });
 
-  test("the form's own Cancel leaves the same way", async () => {
+  test("the form's own Cancel, outside it in the action row, leaves the same way", async () => {
     desk = await openRecord();
-    desk.press(named(desk.form, "button", "Cancel"));
+    desk.press(desk.cancel);
     expect(desk.left()).toEqual([["GET", capabilityUrl(CAPABILITY.id), "innerHTML", desk.region]]);
   });
 
@@ -331,14 +336,14 @@ describe("the record's address", () => {
     return opened;
   }
 
-  test("a press pushes it, spelled from the capability and the record and nothing else", async () => {
+  test("a card press pushes it, spelled from the capability and the record and nothing else", async () => {
     desk = await openRecord();
     expect(desk.tab.entries()).toEqual([collection, recordAddress(CAPABILITY.id, RECORD.id)]);
   });
 
   const ways: Record<string, (opened: typeof desk) => void> = {
     back: (opened) => void goBack(opened),
-    Cancel: (opened) => opened.press(named(opened.form, "button", "Cancel")),
+    Cancel: (opened) => opened.press(opened.cancel),
     "a committed save": (opened) => {
       opened.doc.fire("htmx:beforeRequest", opened.form, { detail: { elt: opened.form } });
       opened.doc.fire("htmx:afterRequest", opened.form, {
@@ -431,19 +436,23 @@ describe("the record's address", () => {
     expect(desk.region.querySelector("[data-build-job-id]")).not.toBeNull();
   });
 
-  test("a record whose id no address can name opens without one", async () => {
+  test("a card whose record id no address can name opens nothing and writes no entry", async () => {
+    // A record is opened only at its record address, so a card for one no address can carry has
+    // nowhere to ask, and its collection stays as it was.
     const odd = { ...RECORD, id: "note-1" };
-    const oddTemplate = "record-notes-odd";
-    const items =
-      renderItemWrapper(`<span>${odd.text}</span>`, odd, { templateId: oddTemplate }) +
-      renderRecordViewTemplate(oddTemplate, CAPABILITY, odd);
+    const items = renderItemWrapper(`<span>${odd.text}</span>`, odd, {
+      capabilityId: CAPABILITY.id,
+    });
     const opened = await recordDesk(renderCollection({ capability: CAPABILITY, items }), {
       capabilityId: CAPABILITY.id,
     });
     try {
-      opened.press(opened.doc.getElementById(itemElementIdForTemplate(oddTemplate)) as El);
+      const drawn = answerPresses(opened, () => renderRecordView(CAPABILITY, odd));
+      const card = opened.doc.getElementById(recordItemId(CAPABILITY.id, odd.id)) as El;
+      opened.press(card);
       await opened.settled();
-      expect(opened.doc.querySelector(`[${RECORD_VIEW_ATTR}]`)).not.toBeNull();
+      expect([drawn, opened.doc.querySelector(`[${RECORD_VIEW_ATTR}]`)]).toEqual([[], null]);
+      expect(card.isConnected).toBe(true);
       expect(opened.tab.entries()).toEqual([collection]);
     } finally {
       opened.restore();

@@ -4,8 +4,9 @@ import {
   ALUNA_RECORD_ID_MARKER,
 } from "../../runtime/router/wire/wire-protocol.ts";
 import { busyLabelAttribute, SAVING_RECORD_LABEL } from "../controls/busy-label.ts";
+import { renderEditActions } from "../records/record-view/record-view.ts";
 import type { RenderableCapability } from "./field-renderer.ts";
-import { capabilityEditErrorId, renderEditForm } from "./field-renderer.ts";
+import { capabilityEditErrorId, capabilityEditFormId, renderEditForm } from "./field-renderer.ts";
 
 const CAPABILITY: RenderableCapability = {
   id: "journal",
@@ -84,6 +85,9 @@ const RECORD = {
 };
 
 const EDIT_FORM = renderEditForm(CAPABILITY, RECORD);
+/** The record view's action row, outside the form and joined to it by the form's id. */
+const ACTIONS = renderEditActions(CAPABILITY);
+const OWNER = ` form="${capabilityEditFormId(CAPABILITY.id)}"`;
 
 describe("edit form — committed update wiring", () => {
   const form = EDIT_FORM;
@@ -91,8 +95,9 @@ describe("edit form — committed update wiring", () => {
   test("posts Save to update", () => {
     expect(form).toContain('hx-post="/capability/journal/update"');
     expect(form).toContain('hx-swap="none"');
-    expect(form).toContain(
-      `<button class="btn btn--primary" type="submit"` +
+    expect(form).toStartWith(`<form id="${capabilityEditFormId(CAPABILITY.id)}"`);
+    expect(ACTIONS).toContain(
+      `<button class="btn btn--primary" type="submit"${OWNER}` +
         `${busyLabelAttribute(SAVING_RECORD_LABEL)}>Save</button>`,
     );
     expect(form).not.toContain("aluna:record-updated");
@@ -114,7 +119,7 @@ describe("edit form — committed update wiring", () => {
   test("reserves the warm structured-error target and keeps Cancel non-submitting", () => {
     expect(form).toContain(`id="${capabilityEditErrorId("journal")}"`);
     expect(form).toContain('aria-live="polite"');
-    expect(form).toContain('type="button" data-record-cancel>Cancel</button>');
+    expect(ACTIONS).toContain(`type="button"${OWNER} data-record-cancel>Cancel</button>`);
   });
 
   test("emits exactly one nonblank record target and one presence marker per active field", () => {
@@ -176,32 +181,36 @@ describe("edit form — committed update wiring", () => {
   });
 });
 
-// Record deletion changes container and nothing else. The trigger is part of
-// the row this renderer draws; the confirmation it opens is the record view's, proved there.
+// Record deletion changes container and nothing else. The trigger is part of the record view's
+// action row, which stands outside the form below the records linking here; the confirmation it
+// opens is the record view's, proved there.
 describe("the record form's action row — the destructive control", () => {
   test("carries Delete after Save and Cancel, and it does not submit", () => {
     // Only the separately submitted confirmation can invoke the Action, so a misfired
     // press on this one can never destroy a record.
-    expect(EDIT_FORM).toContain(
-      '<button class="btn btn--danger capability-edit-form__delete" type="button"' +
+    expect(ACTIONS).toContain(
+      `<button class="btn btn--danger capability-edit-form__delete" type="button"${OWNER}` +
         " data-record-delete>Delete</button>",
     );
-    expect(EDIT_FORM.indexOf("data-record-cancel>")).toBeLessThan(
-      EDIT_FORM.indexOf("data-record-delete>"),
+    expect(ACTIONS.indexOf("data-record-cancel>")).toBeLessThan(
+      ACTIONS.indexOf("data-record-delete>"),
     );
   });
 
-  test("the confirmation is not the form's to render — a form cannot nest in a form", () => {
+  test("the form carries no row of its own, and the confirmation is not the form's to render", () => {
+    // A form cannot nest in a form, and the row stands outside it, naming it.
+    expect(EDIT_FORM).not.toContain("capability-edit-form__actions");
+    expect(EDIT_FORM).not.toContain('type="submit"');
     expect(EDIT_FORM).not.toContain("capability-record-delete");
     expect(EDIT_FORM.trim().endsWith("</form>")).toBe(true);
     expect(EDIT_FORM.match(/<form/g)).toHaveLength(1);
   });
 
   test("a capability that cannot delete carries no destructive control", () => {
-    const keepsEverything = renderEditForm(
-      { ...CAPABILITY, actions: ["create", "read", "update"] },
-      RECORD,
-    );
+    const keepsEverything = renderEditActions({
+      ...CAPABILITY,
+      actions: ["create", "read", "update"],
+    });
     expect(keepsEverything).not.toContain("data-record-delete");
     expect(keepsEverything).not.toContain("btn--danger");
   });

@@ -12,3 +12,6 @@ export function busyLabelAttribute(label: string): string {
 export const ADDING_LABEL = "I’m adding…";
 export const SAVING_RECORD_LABEL = "I’m saving…";
 export const DELETING_RECORD_LABEL = "I’m deleting…";
+
+/** What a section's "Show all" says while the rest of its records are fetched. */
+export const GETTING_REST_LABEL = "I’m getting the rest…";

@@ -23,6 +23,7 @@ import { watchArrivals } from "../core/dom-arrivals.js";
 import { registerRegionRelease } from "../core/region-scope.js";
 import {
   FILE_NAME_HEADER,
+  formControl,
   onCreateFinished,
   RECORD_FORM_SELECTOR,
   FILE_FIELD_ATTRIBUTES as WIRE,
@@ -371,7 +372,7 @@ export function wireFileFields(root, settle = settleFileFields) {
       if (!(form instanceof HTMLFormElement) || !uploadingIn(form)) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      const save = form.querySelector(HELD_SAVE);
+      const save = formControl(form, HELD_SAVE);
       if (save instanceof HTMLElement) save.focus({ focusVisible: true });
     },
     true,

@@ -1,27 +1,33 @@
 // @ts-check
 
 /**
- * Opening a record: a DOM clone of the item's inert `<template>`, so a press asks the server for
- * nothing, and there is no modal, no focus trap and no page-wide inertness — an ordinary view swap
- * (design D2). Its record address draws the same view (ADR-0010).
+ * Opening a record and leaving it. A card press asks the desk to open the card's own record at its
+ * record address, whose route draws the form with the records linking to it, as a pasted address
+ * and an answer link do (ADR-0010). There is no modal, no focus trap and no page-wide inertness —
+ * an ordinary view swap (design D2).
  */
 
-import { releaseRegionContent } from "../core/region-scope.js";
-import { capabilityUrl, RECORD_ID_PATTERN, recordAddress } from "../core/routes.js";
-import { focusFirstField, RECORD_ID_FIELD } from "../core/shell-dom.js";
-import { deskHistory, markRecordExit, pushAddress } from "../desk/desk-address.js";
+import { registerRegionRelease, releaseRegionContent } from "../core/region-scope.js";
+import { capabilityUrl } from "../core/routes.js";
+import {
+  BUSY_LABEL_ATTRIBUTE,
+  CARD_CAPABILITY_ATTRIBUTE,
+  CARD_RECORD_ATTRIBUTE,
+  RECORD_LINKS_REST_ATTRIBUTE,
+} from "../core/shell-dom.js";
+import { markRecordExit, OPEN_THE_RECORD_EVENT, RECORD_NOT_THERE } from "../desk/desk-address.js";
+import { PROMPT_BAR_MESSAGE_EVENT } from "../desk/prompt-bar.js";
 
-const ITEM_SELECTOR = ".capability-item";
+const CARD_SELECTOR = `.capability-item[${CARD_CAPABILITY_ATTRIBUTE}]`;
+const SHOW_ALL_SELECTOR = `[${RECORD_LINKS_REST_ATTRIBUTE}]`;
+const SECTION_RECORDS_SELECTOR = ".record-links__records";
+const SECTION_HEADING_SELECTOR = ".record-links__heading";
 const RECORD_VIEW_SELECTOR = "[data-record-view]";
 const BUSY_ATTR = "data-record-leaving";
 const BACK_SELECTOR = "[data-record-back], [data-record-cancel]";
-const COLLECTION_SELECTOR = ".capability-collection";
 const SURFACE_SELECTOR = "[data-active-capability-id]";
 const RECORDS_REGION_SELECTOR = "[data-content-region='records']";
 const CONTENT_REGION_SELECTOR = "[data-content-region]";
-
-/** A record id an address can name; any other id has no record address to push. */
-const RECORD_ID = new RegExp(`^${RECORD_ID_PATTERN}$`);
 
 export { FIRST_FIELD_SELECTOR } from "../core/shell-dom.js";
 
@@ -38,75 +44,83 @@ function htmx() {
 }
 
 /**
- * The record view cloned out of one item's template, or null when the item carries no
- * template — a capability that cannot be updated has no record surface to open.
+ * Open the record a card names, in its own capability, never the window's: the desk asks about
+ * unsaved changes, writes history, and swaps and retitles the window. A record whose capability
+ * has left the desk since the card was drawn is not there, and the bar says so.
  *
- * @param {HTMLElement} item
- * @returns {HTMLElement | null}
+ * @param {Element} card
  */
-function recordViewFor(item) {
-  const templateId = item.dataset.recordViewTemplate;
-  const template = templateId ? document.getElementById(templateId) : null;
-  if (!(template instanceof HTMLTemplateElement)) return null;
-  const view = template.content.cloneNode(true);
-  const root = view instanceof DocumentFragment ? view.firstElementChild : null;
-  return root instanceof HTMLElement ? root : null;
+function openCard(card) {
+  const capability = card.getAttribute(CARD_CAPABILITY_ATTRIBUTE);
+  const record = card.getAttribute(CARD_RECORD_ATTRIBUTE);
+  /** @type {{ capability: string | null, record: string | null, outcome?: unknown }} */
+  const detail = { capability, record };
+  document.dispatchEvent(new CustomEvent(OPEN_THE_RECORD_EVENT, { detail }));
+  if (detail.outcome === "gone") sayRefused(RECORD_NOT_THERE);
+}
+
+/** What the bar says when the rest of a section could not be fetched. */
+export const REST_UNREAD = "I couldn’t get the rest. Try again?";
+
+/**
+ * "Show all": the rest of a section's records join its list (`landRest`). While it fetches it is
+ * held busy and says so in its words, not disabled, which would take the focus off it, and its
+ * region's release ends the fetch. A refusal or a broken connection leaves the section as it was
+ * and says so on the prompt bar; a release says nothing, the record having gone.
+ *
+ * @param {HTMLButtonElement} more
+ */
+async function showAll(more) {
+  const section = more.closest(".record-links");
+  const list = section?.querySelector(SECTION_RECORDS_SELECTOR);
+  const address = more.getAttribute(RECORD_LINKS_REST_ATTRIBUTE);
+  if (!section || !list || !address || more.getAttribute("aria-busy") === "true") return;
+  more.setAttribute("aria-busy", "true");
+  const idle = more.textContent;
+  more.textContent = more.getAttribute(BUSY_LABEL_ATTRIBUTE) ?? idle;
+  const asking = new AbortController();
+  const deregister = registerRegionRelease(more, "show all", () => asking.abort());
+  let refused = false;
+  try {
+    const headers = { "HX-Request": "true" };
+    const answer = await fetch(address, { headers, signal: asking.signal });
+    refused = !answer.ok;
+    if (refused) return;
+    const markup = await answer.text();
+    if (more.isConnected) landRest(more, list, markup);
+  } catch {
+    refused = !asking.signal.aborted;
+  } finally {
+    deregister();
+    more.removeAttribute("aria-busy");
+    more.textContent = idle;
+    if (refused && more.isConnected) sayRefused(REST_UNREAD);
+  }
 }
 
 /**
- * The order the swap depends on, provable without a browser: nothing is released until there is
- * something to put in its place, so a record that cannot open leaves the collection as it was.
+ * The rest of a section's cards land in its list and Show all goes, its focus to the first card
+ * it brought a press can open, or else to the section's heading. Nothing left past the cards
+ * shown is the rest too: the records went since they were drawn.
  *
- * @template T
- * @param {{
- *   outgoing: T,
- *   incoming: T | null,
- *   release: (node: T) => void,
- *   replace: (outgoing: T, incoming: T) => void,
- *   process: (incoming: T) => void,
- * }} swap
- * @returns {boolean} whether the swap happened
+ * @param {HTMLButtonElement} more @param {Element} list @param {string} markup
  */
-export function swapInRecordView({ outgoing, incoming, release, replace, process }) {
-  if (!incoming) return false;
-  release(outgoing);
-  replace(outgoing, incoming);
-  process(incoming);
-  return true;
+function landRest(more, list, markup) {
+  const cards = document.createElement("template");
+  cards.innerHTML = markup;
+  const brought = [...cards.content.children];
+  const held = document.activeElement === more;
+  const heading = more.closest(".record-links")?.querySelector(SECTION_HEADING_SELECTOR);
+  list.append(cards.content);
+  more.remove();
+  const next = brought.find((card) => card instanceof HTMLButtonElement) ?? heading;
+  if (held && next instanceof HTMLElement) next.focus();
 }
 
-/** @param {HTMLElement} item */
-function openRecord(item) {
-  const collection = item.closest(COLLECTION_SELECTOR);
-  if (!(collection instanceof HTMLElement)) return;
-  // Cloned first: the template is a sibling of the item, inside the content being released.
-  // Cleanup belongs to the content, not the window, which would leak on every swap.
-  const view = recordViewFor(item);
-  const swapped = swapInRecordView({
-    outgoing: collection,
-    incoming: view,
-    release: releaseRegionContent,
-    replace: (outgoing, incoming) => outgoing.replaceWith(incoming),
-    process: (incoming) => htmx()?.process(incoming),
-  });
-  if (!swapped || !view) return;
-  pushRecordAddress(view);
-  // After the microtask that mounts what the swap brought, or a file field would have no control.
-  queueMicrotask(() => focusFirstField(view));
-}
-
-/**
- * A press is a navigation, so the record it opened gets an entry of its own.
- * Its id is the one its forms post; the search term the collection stood under is not in it.
- *
- * @param {HTMLElement} view
- */
-function pushRecordAddress(view) {
-  const surface = view.closest(SURFACE_SELECTOR);
-  const capabilityId = surface instanceof HTMLElement ? surface.dataset.activeCapabilityId : null;
-  const record = view.querySelector(`input[name="${RECORD_ID_FIELD}"]`)?.getAttribute("value");
-  if (!capabilityId || !record || !RECORD_ID.test(record)) return;
-  pushAddress(recordAddress(capabilityId, record), deskHistory());
+/** @param {string} sentence */
+function sayRefused(sentence) {
+  const said = { sentence, refused: true };
+  document.dispatchEvent(new CustomEvent(PROMPT_BAR_MESSAGE_EVENT, { detail: said }));
 }
 
 /**
@@ -268,8 +282,14 @@ function installRecordView() {
       return;
     }
 
-    const item = target.closest(ITEM_SELECTOR);
-    if (item instanceof HTMLElement) openRecord(item);
+    const more = target.closest(SHOW_ALL_SELECTOR);
+    if (more instanceof HTMLButtonElement) {
+      void showAll(more);
+      return;
+    }
+
+    const card = target.closest(CARD_SELECTOR);
+    if (card !== null) openCard(card);
   });
 }
 

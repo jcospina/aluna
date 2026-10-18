@@ -23,6 +23,7 @@ import { ALUNA_PRESENT_MARKER } from "../../../runtime/router/wire/wire-protocol
 import { renderCreateForm, renderEditForm } from "../../fields/field-renderer.ts";
 import { submittedInputs } from "../../fields/form-submission.test-support.ts";
 import { renderableFromSpec } from "../../fields/renderable-capability.ts";
+import { renderRecordView } from "../../records/record-view/record-view.ts";
 import { El, parseHtml } from "../double/choice-picker.test-support.ts";
 import { hooked } from "./file-field.test-support.ts";
 
@@ -201,12 +202,13 @@ describe("a sound field's control", () => {
   });
 });
 
+// A record's Save stands in the record view's action row, outside the edit form it names.
 describe("a form holding a photo", () => {
   test("has a save the control can hold, its words in a label of their own", () => {
     const record = { id: "r1", caption: "Dawn", photo: null };
     for (const [form, words] of [
       [renderCreateForm(photos()), "Add"],
-      [renderEditForm(photos(), record), "Save"],
+      [renderRecordView(photos(), record), "Save"],
     ] as const) {
       const save = parseHtml(form, new El("div")).querySelector('button[type="submit"]');
       expect(save?.hasAttribute(HOOKS.save)).toBe(true);
@@ -217,6 +219,6 @@ describe("a form holding a photo", () => {
   test("is the only form whose save is held", () => {
     const textOnly = photos({ fields: [CAPTION_FIELD] });
     expect(renderCreateForm(textOnly)).not.toContain(HOOKS.save);
-    expect(renderEditForm(textOnly, { id: "r1", caption: "Dawn" })).not.toContain(HOOKS.save);
+    expect(renderRecordView(textOnly, { id: "r1", caption: "Dawn" })).not.toContain(HOOKS.save);
   });
 });

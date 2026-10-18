@@ -1,6 +1,6 @@
 // Once a pick is written, run through the shipped `public/controls/link-control.js` on the markup the
-// renderer writes: where focus goes, and how every copy of the field, on the page and in each
-// record's template, gives up its chain and stands as the server draws a linked field, in the
+// renderer writes: where focus goes, and how every copy of the field on the page gives up its
+// chain and stands as the server draws a linked field, in the
 // wrapper `linked-field.js` draws its dropdown in. A refusal that says the chain is finished does
 // the same, or leaves the field plain text when it can no longer be linked.
 
@@ -16,7 +16,8 @@ import {
   ALREADY_LINKED,
   AUTHOR,
   bookCapability,
-  deskWithTemplate,
+  deskWithOneForm,
+  deskWithTwoForms,
   held,
   installLinkGlobals,
   linkScene,
@@ -108,18 +109,17 @@ describe("once a pick is written", () => {
     expect(scene.doc.activeElement).toBe(scene.doc.getElementById("edit-books-author") as El);
   });
 
-  test("every other copy of the field gives up its chain too, templates included", async () => {
-    const scene = await openScene([written], deskWithTemplate());
+  test("every other copy of the field on the page gives up its chain too", async () => {
+    const scene = await openScene([written], deskWithTwoForms());
     await scene.press(scene.options()[0] as El);
-    const template = scene.doc.querySelector("template") as El;
     const chained = (root: El) =>
       root
         .querySelectorAll("[data-link-control]")
         .map((control) => control.getAttribute("data-link-url"));
-    expect(chained(scene.doc)).toEqual([capabilityLinkUrl("books", TITLE.name)]);
-    expect(chained(template.content as El)).toEqual([capabilityLinkUrl("books", TITLE.name)]);
-    const copy = (template.content as El).querySelector('[name="author"]') as El;
-    expect(drawnLinked(copy)).toBe(true);
+    for (const form of scene.doc.querySelectorAll("form")) {
+      expect(chained(form)).toEqual([capabilityLinkUrl("books", TITLE.name)]);
+      expect(drawnLinked(form.querySelector('[name="author"]') as El)).toBe(true);
+    }
     expect(drawnLinked(scene.input)).toBe(true);
   });
 });
@@ -130,12 +130,11 @@ describe("a refusal that says the chain is finished", () => {
       [noticed(ALREADY_LINKED, 422)],
       [listed(), noticed(ALREADY_LINKED, 422)],
     ]) {
-      const scene = await linkScene(replies, deskWithTemplate());
+      const scene = await linkScene(replies, deskWithTwoForms());
       await scene.press(scene.button);
       if (scene.options().length > 0) await scene.press(scene.options()[0] as El);
       expect(scene.said).toEqual([refusal(linkNoticeSentence(ALREADY_LINKED))]);
-      const template = scene.doc.querySelector("template") as El;
-      for (const root of [scene.doc, template.content as El]) {
+      for (const root of scene.doc.querySelectorAll("form")) {
         expect(
           root
             .querySelectorAll("[data-link-control]")
@@ -149,7 +148,7 @@ describe("a refusal that says the chain is finished", () => {
   });
 
   test("a field no longer linkable gives up its chain too, and the refusal is still said", async () => {
-    const scene = await linkScene([noticed(NOT_LINKABLE, 422)], deskWithTemplate());
+    const scene = await linkScene([noticed(NOT_LINKABLE, 422)], deskWithTwoForms());
     await scene.press(scene.button);
     expect(scene.said).toEqual([refusal(linkNoticeSentence(NOT_LINKABLE))]);
     expect(scene.doc.querySelector(`[data-link-url="${LINK_URL}"]`)).toBeNull();
@@ -223,7 +222,7 @@ describe("once a pick is written whole", () => {
 
 describe("on the page, as the shell starts both", () => {
   test("a field linked from an open form is a dropdown at once, reading the target's records", async () => {
-    const scene = await linkScene([listed(), written, records()], deskWithTemplate());
+    const scene = await linkScene([listed(), written, records()], deskWithOneForm());
     startLinkedFields(scene.doc as never);
     await scene.press(scene.button);
     await scene.press(scene.options()[0] as El);

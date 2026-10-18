@@ -15,6 +15,10 @@ import { STATE_TONE } from "../data/capabilities.js";
 /** @typedef {import("../data/capabilities.js").Capability} Capability */
 /** @typedef {import("../data/capabilities.js").CapabilityRecord} CapabilityRecord */
 /** @typedef {import("../data/capabilities.js").CapabilityField} CapabilityField */
+/** @typedef {import("../data/capabilities.js").LinkingSection} LinkingSection */
+
+/** How many records linking here a section shows before Show all. */
+const LISTED_AT_FIRST = 5;
 
 /**
  * Generic in the tag so a caller gets the element it actually asked for —
@@ -212,6 +216,8 @@ function renderRecordView(capability, record, onBack) {
  * @param {object} [opts]
  * @param {CapabilityRecord | null} [opts.record] null when creating
  * @param {() => void} [opts.onDone] where Save and Cancel go
+ * @param {LinkingSection[]} [opts.linking] the records linking here, a section each
+ * @param {boolean} [opts.expanded] each section drawn as Show all leaves it
  * @returns {HTMLElement}
  */
 export function renderRecordForm(capability, opts = {}) {
@@ -222,8 +228,45 @@ export function renderRecordForm(capability, opts = {}) {
   placeFields(form, capability.fields, (field, index) =>
     fieldValue(field, index, record, creating),
   );
+  const linking = creating ? [] : (opts.linking ?? []);
+  for (const section of linking.filter(({ records }) => records.length > 0)) {
+    form.append(renderLinkingSection(section, opts.expanded ?? false));
+  }
   form.append(renderActions(creating, opts.onDone));
   return form;
+}
+
+/**
+ * One relation's records linking here, between the fields and the actions, so
+ * the actions stay the last row. It never collapses: five show, and Show all
+ * adds the rest to the same list and goes away. A section with no records is
+ * not drawn, and a record being created has none.
+ *
+ * @param {LinkingSection} section
+ * @param {boolean} expanded
+ * @returns {HTMLElement}
+ */
+function renderLinkingSection(section, expanded) {
+  const node = el("section", "record-links");
+  const count = section.records.length;
+  const heading = el("h3", "record-links__heading caps", `${section.label} · ${count}`);
+  const list = el("div", "records records--feed");
+  const listed = expanded ? count : Math.min(count, LISTED_AT_FIRST);
+  const show = (/** @type {CapabilityRecord[]} */ records) => {
+    for (const record of records) list.append(recordCard(record, () => {}));
+  };
+  show(section.records.slice(0, listed));
+  node.append(heading, list);
+  if (listed < count) {
+    const more = el("button", "btn btn--outline btn--sm record-links__more", "Show all");
+    more.type = "button";
+    more.addEventListener("click", () => {
+      show(section.records.slice(listed));
+      more.remove();
+    });
+    node.append(more);
+  }
+  return node;
 }
 
 /**

@@ -1,10 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { capabilityActionUrl } from "#shell/core/routes.js";
+import { CARD_CAPABILITY_ATTRIBUTE, CARD_RECORD_ATTRIBUTE } from "#shell/core/shell-dom.js";
 import { DELETE_FORM_SELECTOR, DELETE_TRIGGER_SELECTOR } from "#shell/records/record-mutations.js";
 
 import { Doc, type El, parseHtml } from "../../controls/double/choice-picker.test-support.ts";
 import type { RenderableCapability } from "../../fields/field-renderer.ts";
-import { renderRecordViewTemplate } from "../record-view/record-view.ts";
+import { renderRecordView } from "../record-view/record-view.ts";
 import { COLLECTION_COUNT_LABEL_ATTR, capabilityCountLabelId } from "../region/collection-count.ts";
 import { collectionPage, inOrder, named } from "./collection-page.test-support.ts";
 import {
@@ -13,9 +14,8 @@ import {
   collectionLayoutClass,
   DEFAULT_COLLECTION_LAYOUT,
   ITEM_PAYLOAD_ATTR,
-  ITEM_RECORD_VIEW_ATTR,
   ITEM_TRIGGER_CLASS,
-  itemElementIdForTemplate,
+  recordItemId,
   renderCollection,
   renderItemWrapper,
   SEARCH_DEBOUNCE_MS,
@@ -198,15 +198,13 @@ describe("container scaffolding", () => {
     const label = 'A" onfocus="x" <b class="z">B</b>';
     const capability = { ...SAMPLE, label };
     const record = { id: "task-1", created_at: "2026-08-27T00:00:00.000Z", title: "t" };
-    const templateId = "record-tasks-task-1";
     const html = renderCollection({
       capability,
-      items:
-        renderItemWrapper("<span>t</span>", record, { templateId }) +
-        renderRecordViewTemplate(templateId, capability, record),
+      items: renderItemWrapper("<span>t</span>", record, { capabilityId: capability.id }),
     });
     const { doc, newButton } = collectionPage(capability, html);
-    const view = (doc.getElementById(templateId) as El).content as El;
+    // The record's own view, as its record address draws it.
+    const view = parseHtml(renderRecordView(capability, record), new Doc());
     const search = doc.querySelector("input[type=search]") as El;
     const backs = [doc, view].map((root) => root.querySelector("[data-record-form-back]") as El);
 
@@ -326,8 +324,8 @@ describe("item wrapper — the record button", () => {
   test("a record that opens is a real button, with no role, tabindex or dialog ARIA", () => {
     const record = wrapperOf(
       '<div class="stack">inner</div>',
-      { title: "Buy oat milk" },
-      { templateId: "record-tasks-7" },
+      { id: "task-7", title: "Buy oat milk" },
+      { capabilityId: SAMPLE.id },
     );
     expect(record.tag).toBe("button");
     expect(record.getAttribute("type")).toBe("button");
@@ -349,23 +347,37 @@ describe("item wrapper — the record button", () => {
     );
   });
 
-  test("carries the record-view template id the click controller opens with", () => {
-    const record = wrapperOf("<span>x</span>", {}, { templateId: "record-tasks-7" });
-    expect(record.getAttribute(ITEM_RECORD_VIEW_ATTR)).toBe("record-tasks-7");
-    expect(record.id).toBe(itemElementIdForTemplate("record-tasks-7"));
+  test("carries its own capability and record, which a press opens, and the id its view names", () => {
+    const record = wrapperOf("<span>x</span>", { id: "task-7" }, { capabilityId: SAMPLE.id });
+    expect(record.getAttribute(CARD_CAPABILITY_ATTRIBUTE)).toBe(SAMPLE.id);
+    expect(record.getAttribute(CARD_RECORD_ATTRIBUTE)).toBe("task-7");
+    expect(record.id).toBe(recordItemId(SAMPLE.id, "task-7"));
   });
 
-  test("omits the open hook when no ref is given (frame-only, the 3.2/02 shape)", () => {
-    expect(wrapperOf("<span>x</span>", { title: "x" }).hasAttribute(ITEM_RECORD_VIEW_ATTR)).toBe(
-      false,
+  test("a card listed on another record opens the same, and leaves the id to its collection's", () => {
+    const opens = { capabilityId: "books", listed: true };
+    const listed = wrapperOf("<span>x</span>", { id: "book-7" }, opens);
+    expect(listed.tag).toBe("button");
+    expect(listed.hasAttribute("id")).toBe(false);
+    expect(listed.getAttribute(CARD_CAPABILITY_ATTRIBUTE)).toBe("books");
+    expect(listed.getAttribute(CARD_RECORD_ATTRIBUTE)).toBe("book-7");
+  });
+
+  test("omits what it opens when it opens nothing (frame-only, the 3.2/02 shape)", () => {
+    const card = wrapperOf("<span>x</span>", { title: "x" });
+    expect(card.hasAttribute(CARD_CAPABILITY_ATTRIBUTE)).toBe(false);
+    expect(card.hasAttribute(CARD_RECORD_ATTRIBUTE)).toBe(false);
+  });
+
+  test("a hostile record id stays the attributes' value and opens no element", () => {
+    const id = 't"><script>';
+    const root = parseHtml(
+      renderItemWrapper("<span>x</span>", { id }, { capabilityId: SAMPLE.id }),
+      new Doc(),
     );
-  });
-
-  test("a hostile template id stays the attribute's value and opens no element", () => {
-    const templateId = 't"><script>';
-    const root = parseHtml(renderItemWrapper("<span>x</span>", {}, { templateId }), new Doc());
     expect(root.querySelector("script")).toBeNull();
-    expect(root.children[0]?.getAttribute(ITEM_RECORD_VIEW_ATTR)).toBe(templateId);
+    expect(root.children[0]?.getAttribute(CARD_RECORD_ATTRIBUTE)).toBe(id);
+    expect(root.children[0]?.id).toBe(recordItemId(SAMPLE.id, id));
   });
 });
 
@@ -402,24 +414,22 @@ describe("item wrapper — payload escaping + safety invariants", () => {
 });
 
 // Nothing in the collection destroys a record. A delete starts by opening the
-// record, so the only destructive control is in the record's own surface.
+// record, so the only destructive control is in the record's own surface, at its record address.
 describe("the collection — no per-row delete", () => {
-  // Built the way the adapter builds it: each item is emitted beside the inert `<template>`
-  // carrying that record's view, so the fixture is the markup the criterion is about.
+  // Built the way the adapter builds it: each card opens its record at its address, which draws
+  // the record's view, so the fixture is the markup the criterion is about.
   const RECORD = { id: "task-7", created_at: "2026-08-27T00:00:00.000Z", title: "Buy oat milk" };
-  const templateId = "record-tasks-task-7";
-  const items =
-    renderItemWrapper('<div class="stack">inner</div>', RECORD, { templateId }) +
-    renderRecordViewTemplate(templateId, SAMPLE, RECORD);
+  const items = renderItemWrapper('<div class="stack">inner</div>', RECORD, {
+    capabilityId: SAMPLE.id,
+  });
   const deleteUrl = capabilityActionUrl(SAMPLE.id, "delete");
   const posts = (root: El) =>
     root.querySelectorAll("[hx-post]").map((n) => n.getAttribute("hx-post"));
 
   test("nothing reachable in the collection offers a delete", () => {
-    // A `<template>`'s content is inert until cloned, so the record's own surface is not part of
-    // the collection on screen. Each hook is proved present there, so its absence here means it.
+    // Each hook is proved present in the record's own view, so its absence here means it.
     const { doc } = collectionPage(SAMPLE, renderCollection({ capability: SAMPLE, items }));
-    const view = (doc.getElementById(templateId) as El).content as El;
+    const view = parseHtml(renderRecordView(SAMPLE, RECORD), new Doc());
     const destructive = [DELETE_TRIGGER_SELECTOR, DELETE_FORM_SELECTOR, ".btn--danger"];
     const saysDelete = (root: El) =>
       root
@@ -434,13 +444,13 @@ describe("the collection — no per-row delete", () => {
     expect(destructive.map((hook) => doc.querySelector(hook))).toEqual([null, null, null]);
     expect(saysDelete(doc)).toEqual([]);
     expect(posts(doc)).not.toContain(deleteUrl);
-    expect(doc.getElementById(itemElementIdForTemplate(templateId))?.tag).toBe("button");
+    expect(doc.getElementById(recordItemId(SAMPLE.id, RECORD.id))?.tag).toBe("button");
   });
 
-  test("the delete the collection carries travels inert, inside the record's template", () => {
-    const { doc } = collectionPage(SAMPLE, renderCollection({ capability: SAMPLE, items }));
-    const template = doc.getElementById(templateId) as El;
-    expect(template.tag).toBe("template");
-    expect(posts(template.content as El)).toContain(deleteUrl);
+  test("the collection carries no delete at all, inert or not: its record's address draws it", () => {
+    const html = renderCollection({ capability: SAMPLE, items });
+    expect(html).not.toContain("<template");
+    expect(html).not.toContain(deleteUrl);
+    expect(posts(parseHtml(renderRecordView(SAMPLE, RECORD), new Doc()))).toContain(deleteUrl);
   });
 });

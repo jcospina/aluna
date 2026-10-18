@@ -12,19 +12,12 @@ import { mintFileKey } from "../../../../platform/files/store/ledger.ts";
 import { photoSpec } from "../../../../registry/fields/file.test-support.ts";
 import { renderableFromSpec } from "../../../fields/renderable-capability.ts";
 import { named } from "../../../records/collection/collection-page.test-support.ts";
-import {
-  itemElementIdForTemplate,
-  renderCollection,
-  renderItemWrapper,
-} from "../../../records/collection/list-container.ts";
+import { renderCollection, renderItemWrapper } from "../../../records/collection/list-container.ts";
 import {
   recordDesk,
   standingWindow,
 } from "../../../records/record-view/record-view.test-support.ts";
-import {
-  RECORD_VIEW_ATTR,
-  renderRecordViewTemplate,
-} from "../../../records/record-view/record-view.ts";
+import { RECORD_VIEW_ATTR, renderRecordView } from "../../../records/record-view/record-view.ts";
 import { installDomGlobals } from "../../double/choice-picker.fixture.test-support.ts";
 import { Doc, type El, parseHtml } from "../../double/choice-picker.test-support.ts";
 import { hooked } from "../file-field.test-support.ts";
@@ -32,17 +25,16 @@ import { installRemovalObserver, UploadDouble } from "./held-uploads.test-suppor
 
 const CAPABILITY = { ...renderableFromSpec(photoSpec()), incarnationId: "inc" };
 const RECORD = {
-  id: "photo-1",
+  id: "0d9f4e2a-6b1c-4f3e-8a57-2c9e1b0f7d64",
   created_at: "2026-10-01T00:00:00.000Z",
   caption: "Dawn",
   photo: null,
 };
-const TEMPLATE_ID = "record-photos-photo-1";
 const COLLECTION = renderCollection({
   capability: CAPABILITY,
-  items:
-    renderItemWrapper(`<span>${RECORD.caption}</span>`, RECORD, { templateId: TEMPLATE_ID }) +
-    renderRecordViewTemplate(TEMPLATE_ID, CAPABILITY, RECORD),
+  items: renderItemWrapper(`<span>${RECORD.caption}</span>`, RECORD, {
+    capabilityId: CAPABILITY.id,
+  }),
 });
 
 installDomGlobals();
@@ -66,14 +58,15 @@ afterEach(() => fetchSpy.mockRestore());
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-/** The photos record open on a desk, a new photo uploaded into its form, and the question asked. */
+/**
+ * The photos record open on a desk as its record address draws it, a new photo uploaded into its
+ * form, and the question asked.
+ */
 async function holdingAnUpload() {
-  const desk = await recordDesk(COLLECTION, {
+  const desk = await recordDesk(renderRecordView(CAPABILITY, RECORD), {
     capabilityId: CAPABILITY.id,
     modules: ["records/record-view.js", "records/record-mutations.js"],
   });
-  desk.press(desk.doc.getElementById(itemElementIdForTemplate(TEMPLATE_ID)) as El);
-  await desk.settled();
   const view = desk.doc.querySelector(`[${RECORD_VIEW_ATTR}]`) as El;
   startRegionScopes(desk.doc.body as never);
   // The drawn control listens on the page's window for a file dragged outside a field.

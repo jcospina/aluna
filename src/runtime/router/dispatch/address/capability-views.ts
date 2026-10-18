@@ -1,8 +1,9 @@
 // The two places a capability is addressed: its collection, `/capability/:id`, and one of its
 // records, `/capability/:id/:record` (design D14; ADR-0010). Both are platform routes
 // registered ahead of the Action route, not Actions. The record's segment is matched by shape,
-// so the five Action names keep their route. The platform reads a record and draws it through
-// the adapter that writes a card's `<template>`; no generated Handler runs.
+// so the five Action names keep their route. The platform reads a record and draws its form;
+// no generated Handler runs, only the card renderers of the capabilities linking to it, for
+// the records linking here.
 
 import type { Context, Hono } from "hono";
 import { CAPABILITY_PATH_PREFIX, RECORD_ID_PATTERN } from "#shell/core/routes.js";
@@ -27,10 +28,7 @@ import {
   renderCapabilitySurface,
   renderRehydratedShellPage,
 } from "../../../../server/http/index.ts";
-import {
-  capabilityIncarnation,
-  type ReadGateCoordinator,
-} from "../../../concurrency/read-gates.ts";
+import { capabilityIncarnation, ReadGateClosingError } from "../../../concurrency/read-gates.ts";
 import {
   type CapabilityActionRecord,
   createCapabilityQueryPort,
@@ -42,13 +40,21 @@ import {
   captureCapabilityRead,
 } from "../../admission/read-admission.ts";
 import {
+  assertReadOwnership,
   internalFailure,
   NOT_FOUND_FRAGMENT,
   readUnavailable,
 } from "../../wire/failure-responses.ts";
+import {
+  drawListedRest,
+  drawRecordsLinkingHere,
+  LISTED_REST_PATH,
+  type LinkingDeps,
+} from "./records-linking-here.ts";
 
 const COLLECTION_ROUTE = `${CAPABILITY_PATH_PREFIX}/:id`;
 const RECORD_ROUTE = `${COLLECTION_ROUTE}/:record{${RECORD_ID_PATTERN}}`;
+const LISTED_REST_ROUTE = `${RECORD_ROUTE}${LISTED_REST_PATH}`;
 
 /**
  * Every capability address a direct navigation draws the whole desk for. Each with a trailing
@@ -61,12 +67,10 @@ export const CAPABILITY_PAGE_ROUTES = [
   `${RECORD_ROUTE}/`,
 ] as const;
 
-/** What both views read through. */
-export interface CapabilityViewDeps {
-  readonly databases: PlatformDatabase;
+/** What both views read through, and what draws the records linking to a record. */
+export interface CapabilityViewDeps extends LinkingDeps {
   readonly lookupCapability: CapabilityCatalogLookup | undefined;
   readonly readActiveCatalog: ActiveCatalogReader;
-  readonly readGates: ReadGateCoordinator;
 }
 
 /** One capability read under its read token, as both views answer from it. */
@@ -87,6 +91,9 @@ export function registerCapabilityViews(app: Hono, deps: CapabilityViewDeps): vo
   app.get(collectionSlash, viewCollection);
   app.get(record, viewRecord);
   app.get(recordSlash, viewRecord);
+  app.get(LISTED_REST_ROUTE, (c) =>
+    withCapabilityRead(c, deps, (read) => answerRest(c, deps, read)),
+  );
 }
 
 /**
@@ -104,12 +111,15 @@ function missingCapabilityView(
   });
 }
 
-/** Read the addressed capability under its read token, and answer from it. */
-function withCapabilityRead(
+/**
+ * Read the addressed capability under its read token, and answer from it. A deletion that closes
+ * it mid-answer refuses the read as one closing before it does.
+ */
+async function withCapabilityRead(
   c: Context,
   deps: CapabilityViewDeps,
-  answer: (read: CapabilityRead) => Response,
-): Response {
+  answer: (read: CapabilityRead) => Response | Promise<Response>,
+): Promise<Response> {
   const { databases, readGates } = deps;
   const id = c.req.param("id");
   // Hono routes no empty segment onto `:id`, so this guards rather than paths. It answers the
@@ -131,8 +141,9 @@ function withCapabilityRead(
   });
   if (!tokens) return readUnavailable(c);
   try {
-    return answer({ row, catalog, signal: tokens.signal });
+    return await answer({ row, catalog, signal: tokens.signal });
   } catch (error) {
+    if (error instanceof ReadGateClosingError) return readUnavailable(c);
     return internalFailure(c, id, "view", error);
   } finally {
     readGates.release(tokens);
@@ -144,24 +155,56 @@ function answerCollection(c: Context, deps: CapabilityViewDeps, read: Capability
 }
 
 /**
- * One record in its record view. A record that is not there answers 404 and the desk opens the
- * collection instead; the notice rides the fragment the desk asks for, so a full page carries
- * none and the bar says it once. A capability without `update` has no record view, and its
- * record address opens the collection unremarked.
+ * One record in its record view, with the records linking to it. A record that is not there
+ * answers 404 and the desk opens the collection instead; the notice rides the fragment the desk
+ * asks for, so a full page carries none and the bar says it once. A capability without `update`
+ * has no record view, and its record address opens the collection unremarked.
  */
-function answerRecord(c: Context, deps: CapabilityViewDeps, read: CapabilityRead): Response {
+async function answerRecord(
+  c: Context,
+  deps: CapabilityViewDeps,
+  read: CapabilityRead,
+): Promise<Response> {
   const capability: RenderableCapability = renderableFromRow(read.row, read.catalog);
   if (!hasRecordView(capability)) return answer(c, deps, read, 404, () => "");
   const recordId = (c.req.param("record") ?? "").toLowerCase();
   const { readonly } = deps.databases;
   const record = readAddressedRecord(read.row, recordId, readonly, read.signal);
   if (record === undefined) return answer(c, deps, read, 404, () => NOT_FOUND_FRAGMENT);
-  // Its Edit form posts again what its linked fields picked, as a card's does.
+  if (!isInPageRequest(c)) return answer(c, deps, read, 200, () => "");
+  const abandonOn = c.req.raw.signal;
+  const linking = await drawRecordsLinkingHere(deps, { ...read, recordId, abandonOn });
+  assertReadOwnership(read.signal);
+  // Its Edit form posts again what its linked fields picked.
   const relations = holdingRelations(read.row, read.catalog);
   const links = (id: string) => heldPicks(readonly, read.row.id, id, relations);
-  return answer(c, deps, read, 200, () =>
-    renderCapabilitySurface(read.row, renderPresentedRecordView(capability, record, links)),
-  );
+  const view = renderPresentedRecordView(capability, record, links, linking);
+  return answer(c, deps, read, 200, () => renderCapabilitySurface(read.row, view));
+}
+
+/**
+ * The rest of one section of records linking here, after the last card it showed, which "Show all"
+ * adds to it. A section that cannot be drawn answers 404 with nothing, and a record that cannot be
+ * read is refused as any read of it is; "Show all" takes neither as cards. Asked for outside the
+ * window, it is no page.
+ */
+async function answerRest(
+  c: Context,
+  deps: CapabilityViewDeps,
+  read: CapabilityRead,
+): Promise<Response> {
+  const after = c.req.query("after");
+  const last = c.req.query("last");
+  if (!isInPageRequest(c) || after === undefined || last === undefined) return c.body(null, 404);
+  const recordId = (c.req.param("record") ?? "").toLowerCase();
+  const there =
+    hasRecordView(renderableFromRow(read.row, read.catalog)) &&
+    readAddressedRecord(read.row, recordId, deps.databases.readonly, read.signal) !== undefined;
+  const linked = { ...read, recordId, abandonOn: c.req.raw.signal };
+  const section = { source: c.req.param("source") ?? "", field: c.req.param("field") ?? "" };
+  const rest = there ? await drawListedRest(deps, linked, section, { after, last }) : undefined;
+  assertReadOwnership(read.signal);
+  return rest === undefined ? c.body(null, 404) : c.html(rest, 200);
 }
 
 /**

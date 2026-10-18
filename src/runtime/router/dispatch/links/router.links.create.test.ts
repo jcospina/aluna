@@ -30,6 +30,7 @@ import {
   linkRows,
   noteLink,
   notes,
+  recordAddressView,
   routerApp,
   SANDERSON,
   saveBody,
@@ -71,7 +72,7 @@ function refusalIn(html: string) {
 }
 
 describe("a valid pick", () => {
-  test("writes its link row with the record, and the card it returns carries the pick", async () => {
+  test("writes its link row with the record, read by the card it returns, drawn at its address", async () => {
     const response = await routerApp(conns).request(
       CREATE,
       newNote("Brandon Sanderson", SANDERSON),
@@ -80,8 +81,14 @@ describe("a valid pick", () => {
     const id = created();
     expect(notes(conns)).toEqual([{ id, text: "Brandon Sanderson" }]);
     expect(linkRows(conns)).toEqual([noteLink(id, SANDERSON)]);
-    // The card's Edit form was drawn inside the save, before the row was committed.
-    expect(await response.text()).toContain(`${PICKED_RECORD_ATTRIBUTE}="${SANDERSON}"`);
+    // The card was drawn inside the save, before the row was committed: a text naming an author
+    // with no pick read there would have drawn the broken-link mark. It carries no form.
+    const card = await response.text();
+    expect(card).not.toContain('class="link-mark"');
+    expect(card).not.toContain(PICKED_RECORD_ATTRIBUTE);
+    expect(await recordAddressView(routerApp(conns), "notes", id)).toContain(
+      `${PICKED_RECORD_ATTRIBUTE}="${SANDERSON}"`,
+    );
   });
 
   test("goes with its record when the Handler fails after the create", async () => {

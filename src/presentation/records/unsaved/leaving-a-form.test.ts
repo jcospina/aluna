@@ -3,7 +3,12 @@
 // with what counts as unsaved handed in.
 
 import { afterAll, describe, expect, test } from "bun:test";
-import { PROMPT_FIELD_ID, WINDOW_CONTENT_ID } from "#shell/core/shell-dom.js";
+import {
+  CARD_CAPABILITY_ATTRIBUTE,
+  CARD_RECORD_ATTRIBUTE,
+  PROMPT_FIELD_ID,
+  WINDOW_CONTENT_ID,
+} from "#shell/core/shell-dom.js";
 import { exitPressed, holdExit, promptExit } from "#shell/desk/leaving-a-form.js";
 import {
   askBeforeLeaving,
@@ -21,6 +26,7 @@ import { startUnsavedChanges } from "#shell/records/unsaved-changes.js";
 import { installDomGlobals } from "../../controls/double/choice-picker.fixture.test-support.ts";
 import { Doc, type El, parseHtml } from "../../controls/double/choice-picker.test-support.ts";
 import { windowWithRun } from "../../motion/leaving-a-run.test-support.ts";
+import { logosOf } from "../record-view/record-view.test-support.ts";
 
 installDomGlobals();
 const had = Reflect.getOwnPropertyDescriptor(globalThis, "document");
@@ -29,16 +35,27 @@ afterAll(() => {
   else Reflect.deleteProperty(globalThis, "document");
 });
 
-/** A desk with its window standing, a record in it, a logo's Delete and the prompt bar. */
-function desk(prompt = "") {
+/** A card a press opens, of `capability`'s record `record`. */
+const card = (capability: string, record: string, words: string) =>
+  `<button class="capability-item" ${CARD_CAPABILITY_ATTRIBUTE}="${capability}"` +
+  ` ${CARD_RECORD_ATTRIBUTE}="${record}">${words}</button>`;
+
+/**
+ * A desk with its window standing, a record in it, a card another record lists, a logo's Delete,
+ * the prompt bar, and the logos of the capabilities on it.
+ */
+function desk(prompt = "", logos = logosOf("photos", "albums")) {
   const doc = new Doc();
   parseHtml(
     `<section class="window"><div class="window__body"><div id="${WINDOW_CONTENT_ID}">` +
       `<div class="capability-collection__create"><form><button data-create-cancel>Cancel</button></form></div>` +
-      `<button class="capability-item" data-record-view-template="record-1">Dawn</button>` +
-      `<article class="capability-item">Dusk</article></div></div></section>` +
+      card("photos", "record-1", "Dawn") +
+      `<article class="capability-item">Dusk</article>` +
+      `<div data-record-view><section class="record-links">${card("albums", "album-1", "Trip")}</section></div>` +
+      `</div></div></section>` +
       `<button data-window-doorway data-capability-id="photos">Delete</button>` +
-      `<form id="${PROMPT_FORM_ID}"><input id="${PROMPT_FIELD_ID}" value="${prompt}"><button>Make it</button></form>`,
+      `<form id="${PROMPT_FORM_ID}"><input id="${PROMPT_FIELD_ID}" value="${prompt}"><button>Make it</button></form>` +
+      logos,
     doc,
   );
   Object.defineProperty(globalThis, "document", { value: doc, configurable: true });
@@ -53,11 +70,25 @@ describe("a press that takes the form out of the window", () => {
     expect(exit?.scope).toBe(find(".capability-collection__create"));
   });
 
-  test("is another record, or Delete on a logo's menu, which take the whole window", () => {
+  test("is another record, a record listed on one, or a logo's Delete: each takes the window", () => {
     const { doc, find, win } = desk();
-    for (const pressed of [find(".capability-item"), find("[data-window-doorway]")]) {
+    const listed = find(`.record-links [${CARD_CAPABILITY_ATTRIBUTE}]`);
+    for (const pressed of [find(".capability-item"), listed, find("[data-window-doorway]")]) {
       expect(exitPressed(pressed as never, doc as never)?.scope).toBe(win);
     }
+  });
+
+  test("is not a card whose capability has left the desk, which a press opens nothing for", () => {
+    const { doc, find } = desk("", logosOf("photos"));
+    const listed = find(`.record-links [${CARD_CAPABILITY_ATTRIBUTE}]`);
+    expect(exitPressed(listed as never, doc as never)).toBeNull();
+    expect(exitPressed(find(".capability-item") as never, doc as never)).not.toBeNull();
+  });
+
+  test("is every card on a desk that cannot say which logos stand on it", () => {
+    const { doc, find, win } = desk("", "");
+    const bare = { getElementById: (id: string) => doc.getElementById(id) };
+    expect(exitPressed(find(".capability-item") as never, bare as never)?.scope).toBe(win);
   });
 
   test("is not a card that opens nothing, for a capability whose records cannot be changed", () => {

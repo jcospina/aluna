@@ -47,13 +47,15 @@ export function bookCapability(fields: readonly SpecField[] = [AUTHOR]): Rendera
   };
 }
 
-/** The new-record form, and every record's Edit form as its view's template holds it. */
-export function deskWithTemplate(fields: readonly SpecField[] = [AUTHOR, TITLE]): string {
+/** The new-record form alone, every field's one copy on the page. */
+export function deskWithOneForm(fields: readonly SpecField[] = [AUTHOR, TITLE]): string {
+  return renderCreateForm(bookCapability(fields));
+}
+
+/** The new-record form and a record's Edit form, both on the page: two copies of every field. */
+export function deskWithTwoForms(fields: readonly SpecField[] = [AUTHOR, TITLE]): string {
   const capability = bookCapability(fields);
-  return (
-    renderCreateForm(capability) +
-    `<template id="record-books-1">${renderEditForm(capability, { id: "book-1" })}</template>`
-  );
+  return renderCreateForm(capability) + renderEditForm(capability, { id: "book-1" });
 }
 
 /** One field the chooser lists, with the press the server would hand it. */

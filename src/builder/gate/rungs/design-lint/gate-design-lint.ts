@@ -257,7 +257,7 @@ export function findDesignViolation(
   const contentViolation = findRecordContentViolation(spec, rendered);
   if (contentViolation) return contentViolation;
 
-  // The real adapter path: record → enforced inner → wrapper → detail template. Asserting the
+  // The real adapter path: record → enforced inner → wrapper. Asserting the
   // container class back is a tautology; what a renderer can do here is throw, and once escaped.
   const present = createPlatformPresentationAdapter({ capability, renderItem });
   const layout = spec.ui_intent.collection.layout;

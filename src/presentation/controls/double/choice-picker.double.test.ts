@@ -26,6 +26,36 @@ describe("markup is read the way the browser reads it, or refused", () => {
     });
   });
 
+  test("a control's form is the one its form attribute names, as the spec resets its owner", () => {
+    const doc = parsed(
+      `<form id="named"><input id="inside"></form>` +
+        `<form id="around"><button id="joined" form="named"></button>` +
+        `<button id="astray" form="nowhere"></button><button id="plain"></button></form>` +
+        `<div id="not-a-form"></div><button id="wrong" form="not-a-form"></button>`,
+    ) as Doc;
+    const formOf = (id: string) => doc.getElementById(id)?.form?.id ?? null;
+    expect(formOf("inside")).toBe("named");
+    expect(formOf("joined")).toBe("named");
+    expect(formOf("plain")).toBe("around");
+    expect(formOf("astray")).toBeNull();
+    expect(formOf("wrong")).toBeNull();
+    // Out of the document, the attribute names nothing and the nearest form owns it again.
+    const joined = doc.getElementById("joined") as El;
+    (doc.getElementById("around") as El).remove();
+    expect(joined.form?.id).toBe("around");
+  });
+
+  test("a template's content appended moves what it holds, as a fragment does, never itself", () => {
+    const doc = parsed(`<ul><li id="kept"></li></ul>`) as Doc;
+    const list = doc.querySelector("ul") as El;
+    const template = doc.createElement("template");
+    template.innerHTML = `<li id="one"></li><li id="two"></li>`;
+    list.append(template.content as El);
+    expect(list.children.map((child) => child.id)).toEqual(["kept", "one", "two"]);
+    expect(list.lastElementChild?.id).toBe("two");
+    expect(template.content?.children).toEqual([]);
+  });
+
   test("a close that closes nothing open, or a tag left open, throws", () => {
     for (const html of ["<div>a</span>", "<div>open", "<p>a<div>b</div></p>", "<p>1 < 2</p>"]) {
       expect(() => parsed(html), html).toThrow();

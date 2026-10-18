@@ -131,6 +131,25 @@ export function deleteFieldLinkRowsTo(
     .run(target.capability, target.incarnation, target.record, source.capability, source.field);
 }
 
+/**
+ * The records of one capability whose field picked `target`, in no order: what a record lists
+ * as linking to it, read from the target end's index.
+ */
+export function readLinkingRecords(
+  database: Database,
+  source: Omit<LinkSource, "record">,
+  target: LinkTarget,
+): string[] {
+  return database
+    .query<{ source_record: string }, [string, string, string, string, string]>(
+      `SELECT source_record FROM ${LINK_TABLE}
+       WHERE target_capability = ? AND target_incarnation = ? AND target_record = ?
+         AND source_capability = ? AND source_field = ?`,
+    )
+    .all(target.capability, target.incarnation, target.record, source.capability, source.field)
+    .map((row) => row.source_record);
+}
+
 /** What each of one record's fields picked, by field. */
 export function readSourceLinkRows(
   database: Database,

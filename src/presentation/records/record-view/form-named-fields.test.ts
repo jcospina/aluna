@@ -5,18 +5,15 @@
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { registerRegionRelease, releaseRegionContent } from "#shell/core/region-scope.js";
+import { BUSY_LABEL_ATTRIBUTE, formControl } from "#shell/core/shell-dom.js";
 import { searchUrlWithQuery } from "#shell/records/records-region-status.js";
 import { startAlpine } from "../../controls/double/alpine.test-support.ts";
 import type { El } from "../../controls/double/choice-picker.test-support.ts";
 import type { RenderableCapability } from "../../fields/field-renderer.ts";
 import { named, shown } from "../collection/collection-page.test-support.ts";
-import {
-  itemElementIdForTemplate,
-  renderCollection,
-  renderItemWrapper,
-} from "../collection/list-container.ts";
+import { renderCollection } from "../collection/list-container.ts";
 import { recordDesk } from "./record-view.test-support.ts";
-import { RECORD_VIEW_ATTR, renderRecordViewTemplate } from "./record-view.ts";
+import { RECORD_VIEW_ATTR, renderRecordView } from "./record-view.ts";
 
 /** Lowercase members of a form, which a field name can spell, and which a script might read. */
 const FORM_MEMBERS = [
@@ -52,9 +49,10 @@ const CAPABILITY: RenderableCapability = {
 };
 
 const RECORD = {
-  id: "entry-1",
-  created_at: "2026-08-27T00:00:00.000Z",
   ...Object.fromEntries(FORM_MEMBERS.map((name) => [name, `kept ${name}`])),
+  // The record's own id, which its card and its way back are named by, as a record id spells one.
+  id: "6b0e3c1a-2f4d-4a8e-9c71-5d2f0a9b8e14",
+  created_at: "2026-08-27T00:00:00.000Z",
   when: "2026-07-05T09:30:00.000Z",
 };
 
@@ -108,23 +106,15 @@ describe("a create form whose fields are named after the form's own members", ()
 });
 
 describe("a record whose fields are named after the form's own members", () => {
-  const templateId = "record-ledger-entry-1";
-  const collection = renderCollection({
-    capability: CAPABILITY,
-    items:
-      renderItemWrapper("<span>entry</span>", RECORD, { templateId }) +
-      renderRecordViewTemplate(templateId, CAPABILITY, RECORD),
-  });
   let desk: Awaited<ReturnType<typeof recordDesk>>;
   afterEach(() => desk.restore());
 
+  /** The record as its record address draws it into the window. */
   async function openRecord() {
-    desk = await recordDesk(collection, {
+    desk = await recordDesk(renderRecordView(CAPABILITY, RECORD), {
       capabilityId: CAPABILITY.id,
       modules: ["records/record-view.js", "records/record-mutations.js"],
     });
-    desk.press(desk.doc.getElementById(itemElementIdForTemplate(templateId)) as El);
-    await desk.settled();
     const view = desk.doc.querySelector(`[${RECORD_VIEW_ATTR}]`) as El;
     return { view, form: named(view, "form", `Edit ${CAPABILITY.label}`) };
   }
@@ -139,13 +129,25 @@ describe("a record whose fields are named after the form's own members", () => {
   });
 
   test("a save says it is saving, and a committed one leaves the record", async () => {
-    const { form } = await openRecord();
+    const { view, form } = await openRecord();
+    // Save stands outside the form, found by the form's id, which a field named `id` shadows.
+    const save = named(view, "button", "Save");
     desk.doc.fire("htmx:beforeRequest", form, { detail: { elt: form } });
     expect(form.getAttribute("aria-busy")).toBe("true");
+    expect(save.textContent).toBe(save.getAttribute(BUSY_LABEL_ATTRIBUTE) as string);
+    expect(save.disabled).toBe(true);
     desk.doc.fire("htmx:afterRequest", form, {
       detail: { elt: form, successful: true, xhr: { status: 200 } },
     });
     expect(desk.asked.requests.map(({ verb }) => verb)).toEqual(["GET"]);
+  });
+
+  test("its Save is found by the form's id while the form is on the page, and not once it is off", async () => {
+    const { view, form } = await openRecord();
+    const save = named(view, "button", "Save");
+    expect(formControl(form as never, 'button[type="submit"]')).toBe(save as never);
+    form.remove();
+    expect(formControl(form as never, 'button[type="submit"]')).toBeNull();
   });
 
   test("the form's own removal still releases the work anchored inside it", async () => {

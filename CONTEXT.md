@@ -780,9 +780,10 @@ _Avoid_: controller, service, route handler
 **Item renderer**:
 The single generated presentation unit for one capability. It turns one projected
 record into capability-specific inner markup used by `create`, `read`, `update`,
-and `search`; delete refreshes the collection without rendering a deleted record.
+and `search`, and by the record address for the cards listed on a record of another
+capability; delete refreshes the collection without rendering a deleted record.
 The platform's item wrapper supplies the accessible trigger, safe active-field
-client projection, and the swap that puts one record in the window; Handlers
+client projection, and the press that opens one record at its record address; Handlers
 receive the renderer through their injected presentation adapter rather than
 importing it
 (ADR-0005). How it arranges one record's markup is its *composition* (ADR-0005), a word
@@ -838,7 +839,9 @@ receives none, and releases the complete set in `finally`. An exception is the
 linked-text refresh and the clearing a target record's deletion brings: the edit, or
 from 8.4 the deletion, also takes the token of every capability they reach, down the
 chain where ADR-0011's proposed chain rule applies, apart from its own set, so a linking
-capability closed by its own deletion is skipped instead of refusing the save (ADR-0011). Generated
+capability closed by its own deletion is skipped instead of refusing the save (ADR-0011). The
+record address takes the token of each capability linking to its record apart from its own too,
+so one closed by its own deletion leaves its section out (M8 plan 38). Generated
 code never receives the token — it only observes cancellation as a thrown error.
 _Avoid_: read lock, handle, reservation
 

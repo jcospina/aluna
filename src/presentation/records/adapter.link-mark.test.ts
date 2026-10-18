@@ -58,9 +58,7 @@ function card(
     linkNouns: NOUNS,
   });
   const record = stored(values);
-  const html = present(presented ? { ...record, fields: presented } : record);
-  const template = html.indexOf("<template");
-  return template === -1 ? html : html.slice(0, template);
+  return present(presented ? { ...record, fields: presented } : record);
 }
 
 /** The mark's name, or null when the card carries none. */

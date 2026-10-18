@@ -2,7 +2,6 @@
 
 import { describe, expect, test } from "bun:test";
 import { FILE_URL_PREFIX } from "../../../../platform/files/file-url.ts";
-import { RECORD_TEMPLATE_ID_PREFIX } from "../../../../presentation/index.ts";
 import { FULL_CAPABILITY_TOOLS } from "../../../../registry/index.ts";
 import { usePhotosRouter } from "../files/router.file.test-support.ts";
 import { photosRow } from "../router.test-support.ts";
@@ -12,7 +11,7 @@ const IN_PAGE = { headers: { "HX-Request": "true" } };
 describe("a record address naming a record that holds a file", () => {
   const photos = usePhotosRouter();
 
-  test("draws the file as the card's view does, and never its stored reference", async () => {
+  test("draws the file in the record's form, never its stored reference, and no card carries it", async () => {
     const key = photos.mint();
     photos.place(key);
     const id = await photos.save(key);
@@ -22,11 +21,11 @@ describe("a record address naming a record that holds a file", () => {
 
     const stored = photos.photoOf(id);
     expect(stored).toMatchObject({ key });
+    // A card opens this address and carries no form of its own.
     const cards = await (await photos.request("/capability/photos/read", IN_PAGE)).text();
-    const opening = `<template id="${RECORD_TEMPLATE_ID_PREFIX}-photos-${id}">`;
-    expect(cards).toContain(opening);
-    const from = cards.indexOf(opening) + opening.length;
-    expect(fragment).toContain(cards.slice(from, cards.indexOf("</template>", from)));
+    expect(cards).not.toContain("<template");
+    expect(cards).not.toContain("data-record-edit-form");
+    expect(fragment).toContain("data-record-edit-form");
     expect(fragment).toContain(`${FILE_URL_PREFIX}${key}`);
     for (const spelling of ['"key"', "&quot;key&quot;", "&#34;key&#34;"]) {
       expect(fragment).not.toContain(spelling);

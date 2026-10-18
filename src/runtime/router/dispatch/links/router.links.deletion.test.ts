@@ -25,6 +25,7 @@ import {
   linkedNotesDesk,
   linkRows,
   notes,
+  recordAddressView,
   seedLinkedBook,
   seedNote,
   TEXT_TO_NAME,
@@ -100,13 +101,16 @@ describe("deleting the capability a link points at", () => {
   });
 
   test("leaves each linking field plain text with its chain, and no card marked", async () => {
+    // The cards carry the marks; the record's address draws its form, which carries the field.
     const linked = await (await app().request(capabilityActionUrl("notes", "read"))).text();
     expect(linked).toContain("link-mark");
+    expect(await recordAddressView(app(), "notes", LINKED)).toContain("data-linked-field");
     await deleted("authors", AUTHORS_INCARNATION);
     const read = await (await app().request(capabilityActionUrl("notes", "read"))).text();
     expect(read).not.toContain("link-mark");
-    expect(read).not.toContain("data-linked-field");
-    expect(read).toContain(`data-link-url="${capabilityLinkUrl("notes", "text")}"`);
+    const form = await recordAddressView(app(), "notes", LINKED);
+    expect(form).not.toContain("data-linked-field");
+    expect(form).toContain(`data-link-url="${capabilityLinkUrl("notes", "text")}"`);
   });
 
   test("keeps every relation and link row when the commit fails, as it keeps the rest", async () => {

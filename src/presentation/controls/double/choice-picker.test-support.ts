@@ -22,7 +22,7 @@ import {
 import { parseInto, type TreeBuilder } from "../../../server/dom-double/html-parse.test-support.ts";
 import { parseSelector, type Step } from "./choice-picker.selectors.test-support.ts";
 import { windowOf } from "./doc-window.test-support.ts";
-import { formElements, withNamedAccess } from "./form-named-access.test-support.ts";
+import { formElements, formOwner, withNamedAccess } from "./form-named-access.test-support.ts";
 import { LaidOut } from "./layout-box.test-support.ts";
 
 type Listener = (event: Record<string, unknown>) => void;
@@ -131,13 +131,15 @@ export class El extends LaidOut implements EventNode {
 
   /* ── the tree ───────────────────────────────────────────────────────────── */
 
+  /** A `<template>`'s content is a fragment: what it holds moves, never the fragment itself. */
   append(...nodes: El[]): this {
-    for (const node of nodes) {
+    const moved = nodes.flatMap((node) => (node.tag === "#template" ? [...node.children] : [node]));
+    for (const node of moved) {
       node.remove();
       node.parent = this;
       this.children.push(node);
     }
-    this.ownerDoc?.report(nodes);
+    this.ownerDoc?.report(moved);
     return this;
   }
 
@@ -183,13 +185,14 @@ export class El extends LaidOut implements EventNode {
   /** A node leaving the tree takes focus with it, if it or anything in it held it. */
   remove(): void {
     const doc = this.ownerDoc;
-    if (doc && doc !== (this as El) && this.contains(doc.activeElement)) doc.focusOn(null);
-    const siblings = this.parent?.children;
-    if (siblings) siblings.splice(siblings.indexOf(this), 1);
+    // Asked of the prototype: a form answers to its fields' names first, and one may be `contains`.
+    const held = doc && doc !== (this as El) && El.prototype.contains.call(this, doc.activeElement);
+    if (held) doc.focusOn(null);
+    this.parent?.children.splice(this.parent.children.indexOf(this), 1);
     this.parent = null;
   }
 
-  /** Deep, like the clone a record view is taken from its template by. */
+  /** Deep, like a template's content cloned into the page. */
   cloneNode(deep = false): El {
     const copy = element(this.tag, { ...this.attributes });
     copy.ownText = this.ownText;
@@ -204,7 +207,7 @@ export class El extends LaidOut implements EventNode {
     return copy;
   }
 
-  /** What puts a record view where its collection was; focus leaves with the node it was in. */
+  /** What puts one view where another was; focus leaves with the node it was in. */
   replaceWith(incoming: El): void {
     const siblings = this.parent?.children;
     const at = siblings?.indexOf(this) ?? -1;
@@ -228,17 +231,18 @@ export class El extends LaidOut implements EventNode {
     return this.children.find((child) => child.tag !== "#text") ?? null;
   }
 
+  get lastElementChild(): El | null {
+    return this.children.findLast((child) => child.tag !== "#text") ?? null;
+  }
+
   /** Null at the document, exactly as a real element's is. The clipping walk needs it. */
   get parentElement(): El | null {
     return this.parent === null || this.parent instanceof Doc ? null : this.parent;
   }
 
-  /**
-   * A control's form owner. Every control the shell renders is inside the form it posts through,
-   * so the ancestor walk is the whole of it — no markup this parses uses `form=""`.
-   */
+  /** A control's form owner, which the record view's action row names from outside its form. */
   get form(): El | null {
-    return this.closest("form");
+    return formOwner<El>(this);
   }
 
   get elements() {
@@ -529,11 +533,7 @@ export function element(tag: string, attributes: Record<string, string> = {}): E
   return tag === "form" ? withNamedAccess(node, DOUBLE_OWN) : node;
 }
 
-function textNode(text: string): El {
-  const node = new El("#text");
-  node.ownText = text;
-  return node;
-}
+const textNode = (text: string): El => Object.assign(new El("#text"), { ownText: text });
 
 const kebab = (key: string) => key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 

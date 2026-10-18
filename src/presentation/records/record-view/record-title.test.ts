@@ -6,7 +6,7 @@ import { RECORD_TITLE_ATTRIBUTE } from "#shell/core/shell-dom.js";
 import { Doc, type El, parseHtml } from "../../controls/double/choice-picker.test-support.ts";
 import type { RenderableCapability } from "../../fields/field-renderer.ts";
 import { renderCollection } from "../collection/list-container.ts";
-import { CAPABILITY, RECORD, TEMPLATE_ID } from "./record-view.test-support.ts";
+import { CAPABILITY, RECORD } from "./record-view.test-support.ts";
 import { recordTitle, renderRecordView } from "./record-view.ts";
 
 const withFields = (fields: RenderableCapability["schema"]["fields"]): RenderableCapability => ({
@@ -56,7 +56,7 @@ describe("the title a surface carries", () => {
     root.querySelector(selector)?.getAttribute(RECORD_TITLE_ATTRIBUTE);
 
   test("is the record's on a record's view, and New and its noun on the create panel", () => {
-    const view = parseHtml(renderRecordView(CAPABILITY, RECORD, TEMPLATE_ID), new Doc());
+    const view = parseHtml(renderRecordView(CAPABILITY, RECORD), new Doc());
     expect(title(view, "[data-record-view]")).toBe(RECORD.text);
     const collection = parseHtml(renderCollection({ capability: CAPABILITY }), new Doc());
     expect(title(collection, ".capability-collection__create")).toBe(`New ${CAPABILITY.noun}`);
@@ -64,7 +64,7 @@ describe("the title a surface carries", () => {
 
   test("is words, never markup", () => {
     const hostile = '"><img src=x onerror=alert(1)>';
-    const markup = renderRecordView(CAPABILITY, { ...RECORD, text: hostile }, TEMPLATE_ID);
+    const markup = renderRecordView(CAPABILITY, { ...RECORD, text: hostile });
     expect(markup).not.toContain("<img");
     expect(title(parseHtml(markup, new Doc()), "[data-record-view]")).toBe(hostile);
   });

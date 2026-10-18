@@ -7,7 +7,7 @@
  * directly, in the same spirit as the runtime it documents.
  */
 
-import { CAPABILITIES } from "../data/capabilities.js";
+import { CAPABILITIES, LINKED_RECORDS } from "../data/capabilities.js";
 import { Desk } from "../desk/desk.js";
 import { renderCollection, renderRecordForm } from "../desk/patterns.js";
 import { startInk } from "../ink/ink.js";
@@ -19,6 +19,7 @@ import { mountWindows } from "../window/window.js";
 
 /** @typedef {import("../window/window.js").AlunaWindow} AlunaWindow */
 /** @typedef {import("../data/capabilities.js").Capability} Capability */
+/** @typedef {import("../data/capabilities.js").LinkingSection} LinkingSection */
 
 /**
  * Every section that needs JavaScript, and the one hook it hangs from.
@@ -42,6 +43,18 @@ const SECTIONS = [
 const fixture = (index) => CAPABILITIES[index] ?? null;
 
 /**
+ * One record form with the records linking to it, as a pattern record.
+ *
+ * @param {string} name the host's `data-pattern-linking-*` suffix
+ * @param {{ capability: Capability, linking: LinkingSection[] }} shown
+ * @param {boolean} [expanded]
+ */
+const linkingPattern = (name, { capability, linking }, expanded = false) => ({
+  selector: `[data-pattern-linking-${name}]`,
+  render: () => renderRecordForm(capability, { linking, expanded }),
+});
+
+/**
  * The patterns, rendered by the same code the desk uses — deliberately, so a
  * pattern cannot look right here and wrong in a window.
  */
@@ -60,6 +73,10 @@ const PATTERNS = [
       return capability && renderRecordForm(capability);
     },
   },
+  linkingPattern("three", LINKED_RECORDS.clarke),
+  linkingPattern("seven", LINKED_RECORDS.leGuin),
+  linkingPattern("expanded", LINKED_RECORDS.leGuin, true),
+  linkingPattern("two", LINKED_RECORDS.leftHand),
   {
     selector: "[data-pattern-grid]",
     render: () => {

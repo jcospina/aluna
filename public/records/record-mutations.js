@@ -11,6 +11,8 @@ import { giveBackAfterSave, heldWhileMatching } from "../controls/link-matching.
 import { registerRegionRelease } from "../core/region-scope.js";
 import {
   BUSY_LABEL_ATTRIBUTE,
+  FIELD_ERROR_STASH_ATTRIBUTE,
+  formControl,
   IDLE_LABEL_ATTRIBUTE,
   RECORD_CREATED_EVENT,
 } from "../core/shell-dom.js";
@@ -29,6 +31,7 @@ const DELETE_CANCEL_SELECTOR = "[data-record-cancel-delete]";
 const LIVE_REGION_SELECTOR = '[aria-live="polite"]';
 const EDIT_ACTIONS_SELECTOR = ".capability-edit-form__actions";
 const BACK_SELECTOR = "[data-record-form-back]";
+const FORM_SURFACE_SELECTOR = "[data-record-view], .capability-collection__create";
 const RECORD_VIEW_SELECTOR = "[data-record-view]";
 const SUBMIT_BUTTON_SELECTOR = 'button[type="submit"]';
 const HELD_SAVE_LABEL_SELECTOR = `[${FILE_FIELD_HOOKS.saveLabel}]`;
@@ -100,18 +103,19 @@ export function thawFileFields(event) {
  */
 export function setPending(form, pending, cancelSelector) {
   form.setAttribute("aria-busy", pending ? "true" : "false");
-  const submit = form.querySelector(SUBMIT_BUTTON_SELECTOR);
+  // The edit form's Save and Cancel stand outside it, below the records linking here.
+  const submit = formControl(form, SUBMIT_BUTTON_SELECTOR);
   if (submit instanceof HTMLButtonElement) {
     sayWhatItIsDoing(submit, pending);
     // A save that ends while a field's names are matched leaves Save faded with the rest.
     submit.disabled = pending || heldWhileMatching(submit);
   }
-  const cancel = form.querySelector(cancelSelector);
+  const cancel = formControl(form, cancelSelector);
   if (cancel instanceof HTMLButtonElement) cancel.disabled = pending;
   freezeFileFields(form, pending);
-  // The bar is the form's own sibling, in the record view and the create view alike. Disabled
+  // The bar heads the surface the form stands on, the record view or the create view. Disabled
   // while a mutation runs, like Cancel: a save the server may have committed is not cancellable.
-  const back = form.parentElement?.querySelector(BACK_SELECTOR);
+  const back = form.closest(FORM_SURFACE_SELECTOR)?.querySelector(BACK_SELECTOR);
   if (back instanceof HTMLButtonElement) back.disabled = pending;
   if (!pending) giveBackAfterSave(form);
 }
@@ -380,11 +384,12 @@ function handleEditOutcome(form, successful, outcomeUnknown, surfaceGone) {
   if (outcomeUnknown) {
     showMutationNotice(form, UNCONFIRMED_IN_THE_FORM, surfaceGone);
   }
-  // Back to the top, unless a refusal has just put the person on a field lower down.
-  const fields = form.querySelector(".capability-edit-form__fields");
-  if (fields instanceof HTMLElement && !fields.contains(document.activeElement)) {
-    fields.scrollTop = 0;
-  }
+  // Back to the top, where a refusal naming no field is said, unless one has just put the person
+  // on a field it marked. The record view's body scrolls the form with the records linking here.
+  const body = form.closest(".capability-record-view__body");
+  const field = document.activeElement?.closest(".field");
+  const marked = field?.querySelector(`[${FIELD_ERROR_STASH_ATTRIBUTE}]`) && body?.contains(field);
+  if (body instanceof HTMLElement && !marked) body.scrollTop = 0;
 }
 
 /**

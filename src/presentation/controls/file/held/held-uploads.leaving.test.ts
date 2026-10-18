@@ -24,19 +24,12 @@ import { startUnsavedChanges } from "#shell/records/unsaved-changes.js";
 import { mintFileKey } from "../../../../platform/files/store/ledger.ts";
 import { photoSpec } from "../../../../registry/fields/file.test-support.ts";
 import { renderableFromSpec } from "../../../fields/renderable-capability.ts";
-import {
-  itemElementIdForTemplate,
-  renderCollection,
-  renderItemWrapper,
-} from "../../../records/collection/list-container.ts";
+
 import {
   recordDesk,
   standingWindow,
 } from "../../../records/record-view/record-view.test-support.ts";
-import {
-  RECORD_VIEW_ATTR,
-  renderRecordViewTemplate,
-} from "../../../records/record-view/record-view.ts";
+import { RECORD_VIEW_ATTR, renderRecordView } from "../../../records/record-view/record-view.ts";
 import { installDomGlobals } from "../../double/choice-picker.fixture.test-support.ts";
 import type { El } from "../../double/choice-picker.test-support.ts";
 import { hooked } from "../file-field.test-support.ts";
@@ -44,18 +37,11 @@ import { installRemovalObserver, UploadDouble } from "./held-uploads.test-suppor
 
 const CAPABILITY = { ...renderableFromSpec(photoSpec()), incarnationId: "inc" };
 const RECORD = {
-  id: "photo-1",
+  id: "0d9f4e2a-6b1c-4f3e-8a57-2c9e1b0f7d64",
   created_at: "2026-10-01T00:00:00.000Z",
   caption: "Dawn",
   photo: null,
 };
-const TEMPLATE_ID = "record-photos-photo-1";
-const COLLECTION = renderCollection({
-  capability: CAPABILITY,
-  items:
-    renderItemWrapper(`<span>${RECORD.caption}</span>`, RECORD, { templateId: TEMPLATE_ID }) +
-    renderRecordViewTemplate(TEMPLATE_ID, CAPABILITY, RECORD),
-});
 
 installDomGlobals();
 const removed = installRemovalObserver();
@@ -90,15 +76,16 @@ afterEach(() => {
   fetchSpy.mockRestore();
 });
 
-/** The photos record open in its window, with its photo field mounted and nothing picked yet. */
+/**
+ * The photos record open in its window as its record address draws it, with its photo field
+ * mounted and nothing picked yet.
+ */
 async function openRecord() {
-  desk = await recordDesk(COLLECTION, {
+  desk = await recordDesk(renderRecordView(CAPABILITY, RECORD), {
     capabilityId: CAPABILITY.id,
     modules: ["records/record-view.js", "records/record-mutations.js"],
     framed: true,
   });
-  desk.press(desk.doc.getElementById(itemElementIdForTemplate(TEMPLATE_ID)) as El);
-  await desk.settled();
   const view = desk.doc.querySelector(`[${RECORD_VIEW_ATTR}]`) as El;
   startRegionScopes(desk.doc.body as never);
   Object.assign(standingWindow(), { addEventListener: () => {} });

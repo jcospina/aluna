@@ -9,34 +9,35 @@ import {
   UNCONFIRMED_ON_THE_DESK,
   unconfirmedMutationAnswer,
 } from "#shell/records/record-mutations.js";
-import {
-  claimRecordExit,
-  releaseRecordExit,
-  swapInRecordView,
-} from "#shell/records/record-view.js";
+import { claimRecordExit, releaseRecordExit } from "#shell/records/record-view.js";
 import { ALUNA_RECORD_ID_MARKER } from "../../../runtime/router/wire/wire-protocol.ts";
 import { BUSY_LABEL_ATTRIBUTE, DELETING_RECORD_LABEL } from "../../controls/busy-label.ts";
 import { Doc, type El, parseHtml } from "../../controls/double/choice-picker.test-support.ts";
 import {
   capabilityDeleteConfirmationId,
   capabilityDeleteErrorId,
+  capabilityEditFormId,
 } from "../../fields/field-renderer.ts";
 import { named } from "../collection/collection-page.test-support.ts";
-import { itemElementIdForTemplate } from "../collection/list-container.ts";
-import { CAPABILITY, RECORD, TEMPLATE_ID } from "./record-view.test-support.ts";
+import { CAPABILITY, RECORD } from "./record-view.test-support.ts";
 import {
   RECORD_BACK_ATTR,
   RECORD_VIEW_ATTR,
+  recordItemId,
   renderRecordView,
-  renderRecordViewTemplate,
 } from "./record-view.ts";
 
 // The record's own view is platform chrome: a back control above the record's form, and nothing
 // else. A record opens in edit mode, an absent value is an empty input, and nothing is a dialog.
 
 /** A record view, parsed the way the browser reads what the server wrote. */
-function viewOf(capability = CAPABILITY, record: Record<string, unknown> = RECORD): El {
-  return parseHtml(renderRecordView(capability, record, TEMPLATE_ID), new Doc()).children[0] as El;
+function viewOf(
+  capability = CAPABILITY,
+  record: Record<string, unknown> = RECORD,
+  linking = "",
+): El {
+  return parseHtml(renderRecordView(capability, record, undefined, linking), new Doc())
+    .children[0] as El;
 }
 
 const before = (root: El, first: El, second: El) => {
@@ -49,7 +50,7 @@ describe("the record view — back control above the form", () => {
 
   test("marks itself as the record view and names the item it came from", () => {
     expect(view.hasAttribute(RECORD_VIEW_ATTR)).toBe(true);
-    expect(view.getAttribute("data-item-target-id")).toBe(itemElementIdForTemplate(TEMPLATE_ID));
+    expect(view.getAttribute("data-item-target-id")).toBe(recordItemId(CAPABILITY.id, RECORD.id));
   });
 
   test("the back control is a button whose name contains the words it shows", () => {
@@ -70,7 +71,7 @@ describe("the record view — back control above the form", () => {
   });
 
   test("nothing here is a dialog", () => {
-    const html = renderRecordView(CAPABILITY, RECORD, TEMPLATE_ID);
+    const html = renderRecordView(CAPABILITY, RECORD);
     expect(html).not.toContain("<dialog");
     expect(html).not.toContain("aria-haspopup");
     expect(html).not.toContain("aria-modal");
@@ -89,14 +90,14 @@ describe("the record view — a record opens in edit mode", () => {
 
   test("an absent value is an empty input, never a muted em dash", () => {
     expect(form.querySelector('input[name="due_on"]')?.value).toBe("");
-    const html = renderRecordView(CAPABILITY, RECORD, TEMPLATE_ID);
+    const html = renderRecordView(CAPABILITY, RECORD);
     expect(html).not.toContain("—");
     expect(html).not.toContain("detail-field");
     expect(html).not.toContain("detail-fields");
   });
 
   test("inactive stored values never reach the surface", () => {
-    const html = renderRecordView(CAPABILITY, RECORD, TEMPLATE_ID);
+    const html = renderRecordView(CAPABILITY, RECORD);
     expect(html).not.toContain("server only");
     expect(html).not.toContain("Retired");
   });
@@ -105,8 +106,52 @@ describe("the record view — a record opens in edit mode", () => {
     // There is no read view to fall back on, so rendering an inert form would be a
     // surface that does nothing.
     const readOnly = { ...CAPABILITY, actions: ["create", "read"] as const };
-    expect(renderRecordView(readOnly, RECORD, TEMPLATE_ID)).toBe("");
-    expect(renderRecordViewTemplate(TEMPLATE_ID, readOnly, RECORD)).toBe("");
+    expect(renderRecordView(readOnly, RECORD)).toBe("");
+  });
+});
+
+// The records linking here stand outside the edit form, so the form's
+// action row stands after them, joined to the form by its `form` attribute.
+describe("the record view — the action row stands outside the form and names it", () => {
+  const linking = `<section class="record-links"><button type="button">Listed</button></section>`;
+  const view = viewOf(CAPABILITY, RECORD, linking);
+  const form = named(view, "form", `Edit ${CAPABILITY.label}`);
+  const actions = view.querySelector(".capability-edit-form__actions") as El;
+  const section = view.querySelector(".record-links") as El;
+
+  test("Save, Cancel and Delete stand outside the form, and each one's form is the edit form", () => {
+    expect(form.id).toBe(capabilityEditFormId(CAPABILITY.id));
+    const row = actions.querySelectorAll("button");
+    const roles = ['[type="submit"]', "[data-record-cancel]", "[data-record-delete]"];
+    expect(row.map((button) => roles.findIndex((role) => button.matches(role)))).toEqual([0, 1, 2]);
+    for (const button of row) {
+      expect(form.contains(button)).toBe(false);
+      expect(button.getAttribute("form")).toBe(form.id);
+      expect(button.form).toBe(form);
+    }
+  });
+
+  test("the records linking here come between the form and its action row, outside both", () => {
+    expect(before(view, form, section)).toBe(true);
+    expect(before(view, section, actions)).toBe(true);
+    expect(form.contains(section)).toBe(false);
+    expect(actions.contains(section)).toBe(false);
+    expect(named(section, "button", "Listed").form).toBeNull();
+  });
+
+  test("the form and the sections scroll together in the body; the bar and the row stay put", () => {
+    const body = view.querySelector(".capability-record-view__body") as El;
+    expect(body.contains(form)).toBe(true);
+    expect(body.contains(section)).toBe(true);
+    expect(body.contains(actions)).toBe(false);
+    expect(body.contains(named(view, "button", `Back to ${CAPABILITY.label}`))).toBe(false);
+  });
+
+  test("a record with no records linking here draws the same row, with nothing before it", () => {
+    const bare = viewOf();
+    const body = bare.querySelector(".capability-record-view__body") as El;
+    expect(body.children.map((child) => child.tag)).toEqual(["form"]);
+    expect(bare.querySelector(".capability-edit-form__actions")?.parent).toBe(bare);
   });
 });
 
@@ -118,11 +163,14 @@ describe("the record view — deletion lives in the form's action row", () => {
   const deleteUrl = capabilityActionUrl(CAPABILITY.id, "delete");
   const question = view.querySelector(`form[hx-post="${deleteUrl}"]`) as El;
 
-  test("the confirmation is the form's sibling, below it and never inside it", () => {
+  test("the confirmation stands beside the action row it replaces, below the form, never in it", () => {
     // A form cannot nest inside another form, and this one posts a delete of its own.
     const form = named(view, "form", `Edit ${CAPABILITY.label}`);
-    expect(question.parent).toBe(form.parent);
+    const actions = view.querySelector(".capability-edit-form__actions") as El;
+    expect(question.parent).toBe(actions.parent);
+    expect(form.contains(question)).toBe(false);
     expect(before(view, form, question)).toBe(true);
+    expect(before(view, actions, question)).toBe(true);
   });
 
   test("it asks a question, and both answers are described by it", () => {
@@ -154,7 +202,7 @@ describe("the record view — deletion lives in the form's action row", () => {
   });
 
   test("deleting opens nothing over anything: it is still one surface", () => {
-    const html = renderRecordView(CAPABILITY, RECORD, TEMPLATE_ID);
+    const html = renderRecordView(CAPABILITY, RECORD);
     expect(html).not.toContain("<dialog");
     expect(html).not.toContain("aria-modal");
     expect(html).not.toContain('role="alertdialog"');
@@ -170,32 +218,23 @@ describe("the record view — deletion lives in the form's action row", () => {
   });
 
   test("a record with no usable id cannot render a confirmation that would delete nothing", () => {
-    expect(() => renderRecordView(CAPABILITY, { ...RECORD, id: "  " }, TEMPLATE_ID)).toThrow(
+    expect(() => renderRecordView(CAPABILITY, { ...RECORD, id: "  " })).toThrow(
       /nonblank record id/,
     );
   });
 });
 
-describe("the record view — the inert template it travels in", () => {
-  test("wraps the view in a template keyed by the id the item points at", () => {
-    const template = parseHtml(renderRecordViewTemplate(TEMPLATE_ID, CAPABILITY, RECORD), new Doc())
-      .children[0] as El;
-    expect(template.tag).toBe("template");
-    expect(template.id).toBe(TEMPLATE_ID);
-    expect(template.children).toHaveLength(0);
-    expect(template.content?.children[0]?.hasAttribute(RECORD_VIEW_ATTR)).toBe(true);
-  });
-
-  test("a hostile template id stays the attribute's value and opens no element", () => {
+describe("the record view — what it carries stays inert", () => {
+  test("a hostile record id stays the attribute's value and opens no element", () => {
     const hostile = 't"><script>';
-    const root = parseHtml(renderRecordViewTemplate(hostile, CAPABILITY, RECORD), new Doc());
+    const root = viewOf(CAPABILITY, { ...RECORD, id: hostile });
     expect(root.querySelector("script")).toBeNull();
-    expect(root.children[0]?.id).toBe(hostile);
+    expect(root.getAttribute("data-item-target-id")).toBe(recordItemId(CAPABILITY.id, hostile));
   });
 
   test("a hostile record value stays inert escaped text inside the form", () => {
     const text = "<script>alert(1)</script>";
-    const hostile = renderRecordView(CAPABILITY, { ...RECORD, text }, TEMPLATE_ID);
+    const hostile = renderRecordView(CAPABILITY, { ...RECORD, text });
     expect(hostile).not.toMatch(/<script/i);
     expect(viewOf(CAPABILITY, { ...RECORD, text }).querySelector('input[name="text"]')?.value).toBe(
       text,
@@ -310,9 +349,9 @@ describe("the record's deletion — where an unconfirmed outcome is said", () =>
   });
 });
 
-// The swap's own rules, run in Bun against structural doubles. The release rule is structural
-// (`public/core/region-scope.js`) so what a swap releases can be executed rather than grepped for.
-describe("the record swap — what a swap releases, and in what order", () => {
+// The release rule is structural (`public/core/region-scope.js`), so what leaving a collection
+// releases can be executed in Bun against structural doubles rather than grepped for.
+describe("the record swap — what leaving the collection releases", () => {
   /** The three DOM facts the release rule needs, and no more. */
   class Node {
     readonly children: Node[] = [];
@@ -372,48 +411,6 @@ describe("the record swap — what a swap releases, and in what order", () => {
 
     expect(ran.sort()).toEqual(["read", "search"]);
     expect(registry.size).toBe(0);
-  });
-
-  test("a record that cannot open releases nothing — the collection stays as it was", () => {
-    const { collection, searchForm } = collectionTree();
-    const registry = createRegionReleaseRegistry();
-    registry.register(searchForm as never, "search controller", () => {
-      throw new Error("released a collection that was never replaced");
-    });
-
-    const released: unknown[] = [];
-    const swapped = swapInRecordView({
-      outgoing: collection,
-      incoming: null,
-      release: (node) => released.push(node),
-      replace: () => {
-        throw new Error("replaced the collection with nothing");
-      },
-      process: () => undefined,
-    });
-
-    expect(swapped).toBe(false);
-    expect(released).toEqual([]);
-    expect(registry.size).toBe(1);
-  });
-
-  test("the outgoing content is released before it is replaced, and processed after", () => {
-    const { collection } = collectionTree();
-    const view = new Node("record view");
-    const order: string[] = [];
-
-    const swapped = swapInRecordView({
-      outgoing: collection,
-      incoming: view,
-      release: () => order.push("release"),
-      replace: () => order.push("replace"),
-      process: () => order.push("process"),
-    });
-
-    expect(swapped).toBe(true);
-    // Release must run while the content is still connected: that is the only moment an
-    // htmx request under it can still be aborted, which is what frees the read token.
-    expect(order).toEqual(["release", "replace", "process"]);
   });
 });
 

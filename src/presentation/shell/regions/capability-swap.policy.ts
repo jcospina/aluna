@@ -26,8 +26,7 @@ describe("every open is a fresh read", () => {
     for (const [name, source] of shellScripts()) {
       expect(source, name).not.toContain("sessionStorage");
       for (const match of source.matchAll(/"(aluna\.[a-z0-9.]+)"/g)) keys.add(String(match[1]));
-      // Nothing takes a copy of what a region is showing. The one snapshot the shell holds is a
-      // record's own inert `<template>`, which stands inside the collection and dies with it.
+      // Nothing takes a copy of what a region is showing.
       expect(source, name).not.toMatch(/=\s*[\w.]+\.innerHTML\b/);
     }
     expect([...keys].sort()).toEqual(["aluna.desk.dev.v1", "aluna.desk.window.v1"]);

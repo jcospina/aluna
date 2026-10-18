@@ -330,6 +330,20 @@ function holdOne(save, waiting) {
 }
 
 /**
+ * The saves of `scope`: its own, and those standing outside a form that name it, as the record
+ * view's action row names the edit form.
+ *
+ * @param {Element} scope
+ */
+const savesOf = (scope) => {
+  const save = hooked(FILE_FIELD_HOOKS.save);
+  const id = scope.getAttribute("id");
+  const owned = id && scope.isConnected;
+  const named = owned ? scope.ownerDocument.querySelectorAll(`${save}[form="${id}"]`) : [];
+  return [...scope.querySelectorAll(save), ...named];
+};
+
+/**
  * A form cannot be saved while any upload in it is in flight. Its save stays in
  * the tab order, so a keyboard lands on it and a screen reader says what it is waiting on.
  *
@@ -341,7 +355,7 @@ export function holdSave(scope) {
   let label = null;
   if (only)
     label = waiting.length > 1 ? "I’m waiting on the files…" : `I’m waiting on the ${only}…`;
-  for (const save of scope.querySelectorAll(hooked(FILE_FIELD_HOOKS.save))) {
+  for (const save of savesOf(scope)) {
     if (save instanceof HTMLElement) holdOne(save, label);
   }
 }

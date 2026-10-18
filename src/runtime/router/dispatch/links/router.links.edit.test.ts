@@ -5,7 +5,7 @@
 // deleted record takes every row it holds as a source with it.
 
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
-import { capabilityActionUrl, recordAddress } from "#shell/core/routes.js";
+import { capabilityActionUrl } from "#shell/core/routes.js";
 import { PICKED_RECORD_ATTRIBUTE, RECORD_ID_FIELD } from "#shell/core/shell-dom.js";
 import { LINK_TABLE } from "../../../../platform/links/link-table.ts";
 import type { PlatformDatabase } from "../../../../platform/persistence/db.ts";
@@ -21,6 +21,7 @@ import {
   linkRows,
   noteLink,
   notes,
+  recordAddressView,
   routerApp,
   SANDERSON,
   saveBody,
@@ -68,7 +69,11 @@ describe("an edit", () => {
     const response = await edit({ text: "Brandon Sanderson", pinned: "on" }, { text: SANDERSON });
     expect(response.status).toBe(200);
     expect(linkRows(conns)).toEqual([noteLink(NOTE_ONE, SANDERSON), noteLink(NOTE_TWO, BUTLER)]);
-    expect(await response.text()).toContain(`${PICKED_RECORD_ATTRIBUTE}="${SANDERSON}"`);
+    // The card it answers with carries no form; the record's address draws the pick again.
+    expect(await response.text()).not.toContain(PICKED_RECORD_ATTRIBUTE);
+    expect(await recordAddressView(routerApp(conns), "notes", NOTE_ONE)).toContain(
+      `${PICKED_RECORD_ATTRIBUTE}="${SANDERSON}"`,
+    );
   });
 
   test("from a form that posts no pick keeps the row while the text stands", async () => {
@@ -124,11 +129,13 @@ describe("an edit", () => {
 describe("a pick whose record is gone", () => {
   test("is no pick of a form drawn after it went, and saving that form lets the link go", async () => {
     conns.readwrite.run('DELETE FROM "cap_authors" WHERE "id" = ?', [SANDERSON]);
-    const read = await (
-      await routerApp(conns).request(capabilityActionUrl("notes", "read"))
-    ).text();
-    expect(read).not.toContain(`${PICKED_RECORD_ATTRIBUTE}="${SANDERSON}"`);
-    expect(read).toContain(`${PICKED_RECORD_ATTRIBUTE}="${BUTLER}"`);
+    const app = routerApp(conns);
+    expect(await recordAddressView(app, "notes", NOTE_ONE)).not.toContain(
+      `${PICKED_RECORD_ATTRIBUTE}="${SANDERSON}"`,
+    );
+    expect(await recordAddressView(app, "notes", NOTE_TWO)).toContain(
+      `${PICKED_RECORD_ATTRIBUTE}="${BUTLER}"`,
+    );
     const response = await edit({ text: "Brandon Sanderson", pinned: "on" });
     expect(response.status).toBe(200);
     expect(notes(conns)[0]).toEqual({ id: NOTE_ONE, text: "Brandon Sanderson" });
@@ -207,15 +214,17 @@ describe("a delete", () => {
 });
 
 describe("a record's Edit form", () => {
-  test("carries its pick in the collection's card and at the record's own address", async () => {
+  test("carries its pick at the record's own address, and no card in the collection carries one", async () => {
     const app = routerApp(conns);
     const read = await (await app.request(capabilityActionUrl("notes", "read"))).text();
-    expect(read).toContain(`${PICKED_RECORD_ATTRIBUTE}="${SANDERSON}"`);
-    expect(read).toContain(`${PICKED_RECORD_ATTRIBUTE}="${BUTLER}"`);
-    const address = await app.request(recordAddress("notes", NOTE_ONE), {
-      headers: { "HX-Request": "true" },
-    });
-    expect(await address.text()).toContain(`${PICKED_RECORD_ATTRIBUTE}="${SANDERSON}"`);
+    expect(read).not.toContain(PICKED_RECORD_ATTRIBUTE);
+    expect(read).not.toContain("data-record-edit-form");
+    expect(await recordAddressView(app, "notes", NOTE_ONE)).toContain(
+      `${PICKED_RECORD_ATTRIBUTE}="${SANDERSON}"`,
+    );
+    expect(await recordAddressView(app, "notes", NOTE_TWO)).toContain(
+      `${PICKED_RECORD_ATTRIBUTE}="${BUTLER}"`,
+    );
   });
 
   test("carries no pick that points into another lifetime of the target", async () => {
@@ -223,10 +232,12 @@ describe("a record's Edit form", () => {
       FIFTH_INCARNATION_ID,
       NOTE_ONE,
     ]);
-    const read = await (
-      await routerApp(conns).request(capabilityActionUrl("notes", "read"))
-    ).text();
-    expect(read).not.toContain(`${PICKED_RECORD_ATTRIBUTE}="${SANDERSON}"`);
-    expect(read).toContain(`${PICKED_RECORD_ATTRIBUTE}="${BUTLER}"`);
+    const app = routerApp(conns);
+    expect(await recordAddressView(app, "notes", NOTE_ONE)).not.toContain(
+      `${PICKED_RECORD_ATTRIBUTE}="${SANDERSON}"`,
+    );
+    expect(await recordAddressView(app, "notes", NOTE_TWO)).toContain(
+      `${PICKED_RECORD_ATTRIBUTE}="${BUTLER}"`,
+    );
   });
 });

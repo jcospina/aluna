@@ -9,6 +9,7 @@
  */
 
 import {
+  CARD_CAPABILITY_ATTRIBUTE,
   PROMPT_FIELD_ID,
   PROMPT_FORM_ID,
   RECORD_FORM_SELECTOR,
@@ -36,9 +37,12 @@ const FORM_CLOSE_SELECTOR = "[data-record-back], [data-record-cancel], [data-cre
 const CREATE_BACK_SELECTOR = ".capability-collection__create [data-record-form-back]";
 const CREATE_CANCEL_SELECTOR = "[data-create-cancel]";
 
-/** A record in the collection that opens in the window when pressed; a card for one that cannot be
- * changed opens nothing. */
-const RECORD_ITEM_SELECTOR = ".capability-item[data-record-view-template]";
+/** A card that opens its record in the window when pressed, in a collection or listed on another
+ * record; a card for one that cannot be changed opens nothing. */
+const RECORD_ITEM_SELECTOR = `.capability-item[${CARD_CAPABILITY_ATTRIBUTE}]`;
+
+/** A capability's logo on the desk, named by its `data-capability-id` (`desk-window.js`). */
+const CAPABILITY_LOGO_SELECTOR = "[data-capability-logo]";
 
 /** The form a close takes, which is all a close takes: the window stays. */
 const FORM_SURFACE_SELECTOR = "[data-record-view], .capability-collection__create";
@@ -51,8 +55,12 @@ const FORM_SURFACE_SELECTOR = "[data-record-view], .capability-collection__creat
  *   click?: () => void,
  *   contains?: (other: never) => boolean,
  *   querySelector?: (selector: string) => unknown,
+ *   getAttribute?: (name: string) => string | null,
  * }} Pressable
- * @typedef {{ getElementById(id: string): Pressable | null }} Desk
+ * @typedef {{
+ *   getElementById(id: string): Pressable | null,
+ *   querySelectorAll?: (selector: string) => Iterable<{ getAttribute(name: string): string | null }>,
+ * }} Desk
  * @typedef {{
  *   el: Pressable,
  *   scope: Pressable,
@@ -102,13 +110,32 @@ export function exitPressed(pressed, desk) {
     return { el, scope: panel, again: () => cancel()?.click?.(), pressed: back };
   }
   const item = inside(pressed.closest(RECORD_ITEM_SELECTOR));
-  if (item !== null) return { el, scope: el, again: () => item.click?.(), pressed: item };
+  if (item !== null) {
+    return onTheDesk(item, desk)
+      ? { el, scope: el, again: () => item.click?.(), pressed: item }
+      : null;
+  }
   const doorway = pressed.closest(WINDOW_DOORWAY_SELECTOR);
   if (doorway === null) return null;
   /* The menu goes the way any choice in it sends it, focus back on its logo, before the question
    * stands: left open beside it, it offered a second Delete over the first. */
   const first = () => closeLogoMenu({ restoreFocus: true });
   return { el, scope: el, again: () => doorway.click?.(), first, desk: true };
+}
+
+/**
+ * Whether a card's capability still has its logo on the desk. A press on one that has gone
+ * opens nothing (`record-view.js` says so), so it gives nothing up and is not asked about.
+ *
+ * @param {Pressable} card
+ * @param {Desk} desk
+ */
+function onTheDesk(card, desk) {
+  const id = card.getAttribute?.(CARD_CAPABILITY_ATTRIBUTE);
+  const logos = desk.querySelectorAll?.(CAPABILITY_LOGO_SELECTOR);
+  return (
+    logos === undefined || [...logos].some((logo) => logo.getAttribute("data-capability-id") === id)
+  );
 }
 
 /**

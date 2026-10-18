@@ -1,15 +1,19 @@
-// A window holding one capability's collection, with the real `public/records/record-view.js` (and, when
-// asked, `public/records/record-mutations.js`) started on it. Each starts itself on the `document` it sees,
-// so each desk imports its own instances with the globals they reach for standing, and puts every
-// global back when the test is over.
+// A window holding one capability's collection or record, with the real `public/records/record-view.js`
+// (and, when asked, `public/records/record-mutations.js`) started on it. Each starts itself on the
+// `document` it sees, so each desk imports its own instances with the globals they reach for standing,
+// and puts every global back when the test is over. A card press asks the desk for its record, which
+// `answerPresses` answers through the real address module, drawing what the record address draws.
 
 import { capabilityUrl } from "#shell/core/routes.js";
 import { WINDOW_CONTENT_ID } from "#shell/core/shell-dom.js";
-import { replaceAddress } from "#shell/desk/desk-address.js";
+import { recordFromAddress, replaceAddress, startDeskHistory } from "#shell/desk/desk-address.js";
 import { WINDOW_CONTENT_REGION } from "#shell/desk/window/desk-window.js";
-
+import { FIRST_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import { cssEscape } from "../../../server/dom-double/dom-events.test-support.ts";
-import { renderCapabilitySurface } from "../../../server/http/fragments/fragments.ts";
+import {
+  renderCapabilityLogo,
+  renderCapabilitySurface,
+} from "../../../server/http/fragments/fragments.ts";
 import {
   Doc,
   ELEMENT_CLASSES,
@@ -48,8 +52,6 @@ export const RECORD = {
   due_on: null,
   retired: "server only",
 };
-
-export const TEMPLATE_ID = `record-notes-${RECORD.id}`;
 
 /** A constructor only its own tags are an instance of, for the module's `instanceof` guards. */
 const onlyTags = (tags: readonly string[]) => ({
@@ -157,3 +159,49 @@ export async function recordDesk(
 export const standingWindow = () =>
   (globalThis as unknown as { window: { htmx?: unknown; location: { reload: () => void } } })
     .window;
+
+type Desk = Awaited<ReturnType<typeof recordDesk>>;
+
+/** The logos of `ids` as the server draws them on the ground: the capabilities on the desk. */
+export const logosOf = (...ids: readonly string[]): string =>
+  ids
+    .map((id) =>
+      renderCapabilityLogo({
+        id,
+        label: id,
+        display_label_override: null,
+        incarnation_id: FIRST_INCARNATION_ID,
+        version: 1,
+        logo: { status: "absent", attempts: 0 },
+      }),
+    )
+    .join("");
+
+/** The desk's hold over a press and what it knows, when taken at once and knowing all is not it. */
+export interface PressAnswers {
+  readonly hold?: (go: () => unknown) => boolean;
+  readonly knows?: (capability: string) => boolean;
+}
+
+/**
+ * Start the address module on `desk` as `public/desk/window/desk-window.js` starts it, so a card
+ * press writes the record's entry and has the desk draw `draw`'s answer for it into the window, as
+ * the record address answers an in-page read. Every address drawn is written down.
+ */
+export function answerPresses(
+  desk: Desk,
+  draw: (capability: string, record: string) => string,
+  { hold = () => false, knows }: PressAnswers = {},
+): string[] {
+  const drawn: string[] = [];
+  const render = (address: string) => {
+    drawn.push(address);
+    const named = recordFromAddress(address);
+    if (named === null) return;
+    const surface = { id: named.capability, incarnation_id: "incarnation-1", version: 1 };
+    const answer = renderCapabilitySurface(surface, draw(named.capability, named.record));
+    desk.region.replaceChildren(...parseHtml(answer, new Doc()).children);
+  };
+  startDeskHistory({ render, hold, knows });
+  return drawn;
+}

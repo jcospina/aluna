@@ -14,33 +14,39 @@
 /* ── Create and edit forms ────────────────────────────────────────────────────
    A calm vertical stack of fields with a trailing actions row. The submit button
    is the platform `.btn--primary` (components.css), so only layout lives here. */
-/* Both forms have the same shape, and now for the same reason: each one fills the
-   surface it arrives on, its fields are what scrolls, and its actions sit on the
-   bottom edge where the eye ends up rather than somewhere down the page. The create
-   form joined the edit form here when "New X" stopped being a panel above the list
-   and started taking the window. */
-.capability-create-form,
-.capability-edit-form {
+/* The create form fills the surface it arrives on, its fields are what scrolls, and its actions
+   sit on the bottom edge where the eye ends up rather than somewhere down the page. The edit form
+   stands in the record view's body instead, which scrolls it with the records linking here and
+   keeps its action row outside it, on the same edge (record-view.css). */
+.capability-create-form {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
   gap: var(--space-3);
 }
+.capability-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
 /*
  * The rhythm is the design system's: `--space-4` between fields, where the product
  * had been stacking them at `--space-2` and reading as a wall.
- *
- * The inline padding is what a focus ring needs. The ring is 3px at a 2px offset, so
- * it reaches 5px past the control, and the control is the full width of this
- * scroller — without room here the ring is clipped flat against both edges and the
- * wells sit hard against the window's own frame.
  */
 .capability-create-form__fields,
 .capability-edit-form__fields {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+/*
+ * The inline padding is what a focus ring needs. The ring is 3px at a 2px offset, so
+ * it reaches 5px past the control, and the control is the full width of this
+ * scroller — without room here the ring is clipped flat against both edges and the
+ * wells sit hard against the window's own frame.
+ */
+.capability-create-form__fields {
   flex: 1 1 auto;
   min-height: 0;
   padding: var(--space-1) var(--space-2);
@@ -50,8 +56,9 @@
   overscroll-behavior: contain;
 }
 /* Stuck to the bottom, and stated as `sticky` rather than left to flex order: the
-   fields above scroll, and a row that merely came last would scroll away with the
-   last field on a form longer than the window.
+   create form's fields scroll above its row, and a row that merely came last would
+   scroll away with the last field on a form longer than the window. The edit form's
+   row stands after the record view's body, which scrolls instead (record-view.css).
 
    Save and Cancel sit on the left, in that order, and a destructive action is kept
    away from them on the right (design/index.html, "The record form"). That separation

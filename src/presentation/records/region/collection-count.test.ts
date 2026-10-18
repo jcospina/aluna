@@ -95,8 +95,7 @@ describe("what a filtered collection says", () => {
 });
 
 describe("the matched number is read off the answer, never re-derived", () => {
-  const wrap = (id: string) =>
-    renderItemWrapper(`<p>${id}</p>`, { id }, { templateId: `record-tasks-${id}` });
+  const wrap = (id: string) => renderItemWrapper(`<p>${id}</p>`, { id }, { capabilityId: "tasks" });
 
   test("counts the wrappers the platform itself rendered", () => {
     expect(countRenderedItems("")).toBe(0);
@@ -122,9 +121,7 @@ describe("the matched number is read off the answer, never re-derived", () => {
     const hostile = renderItemWrapper(
       `<p>class="${ITEM_TRIGGER_CLASS}"</p>`,
       { id: "a" },
-      {
-        templateId: "record-tasks-a",
-      },
+      { capabilityId: "tasks" },
     );
     expect(countRenderedItems(hostile)).toBe(1);
   });

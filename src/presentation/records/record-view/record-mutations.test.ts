@@ -1,13 +1,17 @@
 // A record's three mutations while they are out and once they answer, run through the real
-// `public/records/record-mutations.js` (with `public/records/record-view.js`) on the collection the server renders:
-// what each form says and holds while its request is out, where an outcome is said, and what a
-// request that is not a record's own is left to.
+// `public/records/record-mutations.js` (with `public/records/record-view.js`) on the collection and
+// the record view the server renders: what each form says and holds while its request is out,
+// where an outcome is said, and what a request that is not a record's own is left to.
 
 import { afterEach, describe, expect, test } from "bun:test";
 
 import { FILE_FIELD_HOOKS } from "#design/files/file-field.js";
 import { regionScopeReport, releaseRegionContent } from "#shell/core/region-scope.js";
-import { BUSY_LABEL_ATTRIBUTE, RECORD_CREATED_EVENT } from "#shell/core/shell-dom.js";
+import {
+  BUSY_LABEL_ATTRIBUTE,
+  FIELD_ERROR_STASH_ATTRIBUTE,
+  RECORD_CREATED_EVENT,
+} from "#shell/core/shell-dom.js";
 import { PROMPT_BAR_MESSAGE_EVENT } from "#shell/desk/prompt-bar.js";
 import {
   applyDeleteConfirmation,
@@ -21,19 +25,9 @@ import { type El, parseHtml } from "../../controls/double/choice-picker.test-sup
 import { probeField } from "../../fields/field-renderer.test-support.ts";
 import type { RenderableCapability } from "../../fields/field-renderer.ts";
 import { named } from "../collection/collection-page.test-support.ts";
-import {
-  itemElementIdForTemplate,
-  renderCollection,
-  renderItemWrapper,
-} from "../collection/list-container.ts";
-import {
-  CAPABILITY,
-  RECORD,
-  recordDesk,
-  standingWindow,
-  TEMPLATE_ID,
-} from "./record-view.test-support.ts";
-import { RECORD_VIEW_ATTR, renderRecordViewTemplate } from "./record-view.ts";
+import { renderCollection } from "../collection/list-container.ts";
+import { CAPABILITY, RECORD, recordDesk, standingWindow } from "./record-view.test-support.ts";
+import { RECORD_VIEW_ATTR, renderRecordView } from "./record-view.ts";
 
 const NOTES: RenderableCapability = {
   ...CAPABILITY,
@@ -44,9 +38,6 @@ const NOTES: RenderableCapability = {
     ],
   },
 };
-const ITEMS =
-  renderItemWrapper(`<span>${RECORD.text}</span>`, RECORD, { templateId: TEMPLATE_ID }) +
-  renderRecordViewTemplate(TEMPLATE_ID, NOTES, RECORD);
 const LIVE = '[aria-live="polite"]';
 
 type Desk = Awaited<ReturnType<typeof recordDesk>>;
@@ -58,9 +49,12 @@ afterEach(() => {
   desk.restore();
 });
 
-/** The collection with a record in it, both modules started, and every effect written down. */
-async function stand(reply: () => Promise<Response> = () => Promise.resolve(new Response(""))) {
-  desk = await recordDesk(renderCollection({ capability: NOTES, items: ITEMS }), {
+/** What the window holds, both modules started on it, and every effect written down. */
+async function stand(
+  reply: () => Promise<Response> = () => Promise.resolve(new Response("")),
+  content = renderCollection({ capability: NOTES }),
+) {
+  desk = await recordDesk(content, {
     capabilityId: NOTES.id,
     modules: ["records/record-view.js", "records/record-mutations.js"],
   });
@@ -80,17 +74,20 @@ async function stand(reply: () => Promise<Response> = () => Promise.resolve(new 
   desk.doc.addEventListener(RECORD_CREATED_EVENT, (event) => {
     created.push((event as unknown as CustomEvent).detail.capabilityId);
   });
-  const create = named(desk.doc, "form", `Add to ${NOTES.label}`);
+  const create = desk.doc.querySelector(`form[aria-label="Add to ${NOTES.label}"]`) as El;
   return { reads, reloads, said, created, create };
 }
 
-/** Open the record, and hand back its edit form and its delete question. */
+/**
+ * The record as its record address draws it into the window, and its edit form, its action row
+ * and its delete question.
+ */
 async function openRecord() {
-  desk.press(desk.doc.getElementById(itemElementIdForTemplate(TEMPLATE_ID)) as El);
-  await desk.settled();
+  const page = await stand(undefined, renderRecordView(NOTES, RECORD));
   const view = desk.doc.querySelector(`[${RECORD_VIEW_ATTR}]`) as El;
   const question = view.querySelector("[data-record-delete-form]") as El;
-  return { view, edit: named(view, "form", `Edit ${NOTES.label}`), question };
+  const actions = view.querySelector(".capability-edit-form__actions") as El;
+  return { page, view, edit: named(view, "form", `Edit ${NOTES.label}`), actions, question };
 }
 
 /** htmx's events for one request, each dispatched on the form and bubbling, as htmx sends them. */
@@ -99,10 +96,18 @@ const send = (form: El, type: string, detail: Record<string, unknown> = {}) =>
 const answer = (form: El, status: number) =>
   send(form, "htmx:afterRequest", { successful: status >= 200 && status < 300, xhr: { status } });
 
-/** What a form's controls say about the request right now. */
+/** The one control of the page matching `selector` whose form is `form`, inside it or not. */
+const owned = (form: El, selector: string) => {
+  const controls = desk.doc.querySelectorAll(selector).filter((control) => control.form === form);
+  expect(controls).toHaveLength(1);
+  return controls[0] as El;
+};
+
+/** What a form's controls say about the request right now, wherever they stand. */
 function holding(form: El) {
-  const submit = form.querySelector('button[type="submit"]') as El;
-  const back = form.parentElement?.querySelector("[data-record-form-back]") as El;
+  const submit = owned(form, 'button[type="submit"]');
+  // The window holds one surface at a time, and its bar is the only way back on it.
+  const back = desk.region.querySelector("[data-record-form-back]") as El;
   const file = form.querySelector(`[${FILE_FIELD_HOOKS.field}]`) as El | null;
   return {
     busy: form.getAttribute("aria-busy"),
@@ -247,10 +252,39 @@ describe("a create whose outcome is unknown", () => {
   });
 });
 
+// The action row stands outside the edit form, below the records
+// linking here, so what a save holds is found by the form the row names.
+describe("an edit while it is out, its action row outside the form", () => {
+  test("Save says it is saving, Save, Cancel and Back are held, and a refusal gives each back", async () => {
+    const { view, edit, actions } = await openRecord();
+    const save = named(actions, "button", "Save");
+    const cancel = named(actions, "button", "Cancel");
+    expect(edit.contains(save)).toBe(false);
+    const idle = save.textContent.trim();
+    send(edit, "htmx:beforeRequest");
+    expect(holding(edit)).toEqual({
+      busy: "true",
+      submit: [true, save.getAttribute(BUSY_LABEL_ATTRIBUTE) as string],
+      back: true,
+      frozen: true,
+    });
+    expect(cancel.disabled).toBe(true);
+    send(edit, "htmx:beforeSwap", { xhr: { status: 422 } });
+    answer(edit, 422);
+    expect(holding(edit)).toEqual({
+      busy: "false",
+      submit: [false, idle],
+      back: false,
+      frozen: false,
+    });
+    expect(cancel.disabled).toBe(false);
+    expect(view.isConnected).toBe(true);
+  });
+});
+
 describe("an edit's outcome", () => {
   test("severed after its record went is said on the prompt bar", async () => {
-    const page = await stand();
-    const { view, edit } = await openRecord();
+    const { page, view, edit } = await openRecord();
     send(edit, "htmx:beforeRequest");
     releaseRegionContent(view as never);
     answer(edit, 0);
@@ -258,7 +292,6 @@ describe("an edit's outcome", () => {
   });
 
   test("unknown is said in its form, refused says nothing, and either way it stops being busy", async () => {
-    await stand();
     const { edit } = await openRecord();
     send(edit, "htmx:beforeRequest");
     answer(edit, 422);
@@ -270,7 +303,6 @@ describe("an edit's outcome", () => {
   });
 
   test("an answer with no request claimed is still said where the form stands", async () => {
-    await stand();
     const { edit } = await openRecord();
     const words = holding(edit).submit;
     answer(edit, 0);
@@ -278,26 +310,45 @@ describe("an edit's outcome", () => {
     expect(holding(edit).submit).toEqual(words);
   });
 
-  test("refused, it goes back to the top unless the person is standing on a field", async () => {
-    await stand();
+  test("refused, it goes back to the top unless the person is standing on a field it marked", async () => {
+    // The record view's body scrolls the form with the records linking here below it. A field a
+    // refusal marked holds its slot's own words aside, as `field-errors.js` leaves them.
     const { view, edit } = await openRecord();
-    const fields = edit.querySelector(".capability-edit-form__fields") as El;
+    const body = view.querySelector(".capability-record-view__body") as El;
+    const marked = edit.querySelector('[name="text"]') as El;
+    marked
+      .closest(".field")
+      ?.querySelector("[data-field-guidance]")
+      ?.setAttribute(FIELD_ERROR_STASH_ATTRIBUTE, "");
     for (const [standing, top] of [
       [named(view, "button", `Back to ${NOTES.label}`), 0],
-      [edit.querySelector('[name="text"]') as El, 50],
+      [edit.querySelector('[name="due_on"]') as El, 0],
+      [marked, 50],
     ] as const) {
-      fields.scrollTop = 50;
+      body.scrollTop = 50;
       standing.focus();
+      expect(desk.doc.activeElement).toBe(standing);
       send(edit, "htmx:beforeRequest");
       answer(edit, 422);
-      expect(fields.scrollTop).toBe(top);
+      expect(body.scrollTop).toBe(top);
     }
   });
 });
 
 describe("the delete question", () => {
+  test("stands in for the action row outside the form, and Cancel puts the row back", async () => {
+    const { edit, actions, question } = await openRecord();
+    const remove = named(actions, "button", "Delete");
+    desk.press(remove);
+    expect([actions.hidden, question.hidden]).toEqual([true, false]);
+    expect(edit.contains(question)).toBe(false);
+    expect(question.parent).toBe(actions.parent);
+    desk.press(named(question, "button", "Cancel"));
+    expect([actions.hidden, question.hidden]).toEqual([false, true]);
+    expect(desk.doc.activeElement).toBe(remove);
+  });
+
   test("asking lands on Cancel visibly, and asking again clears the last answer", async () => {
-    await stand();
     const { view, question } = await openRecord();
     desk.press(named(view, "button", "Delete"));
     const cancel = named(question, "button", "Cancel");
@@ -312,7 +363,6 @@ describe("the delete question", () => {
   });
 
   test("a refused delete stands the question without saying anything", async () => {
-    await stand();
     const { view, question } = await openRecord();
     desk.press(named(view, "button", "Delete"));
     send(question, "htmx:beforeRequest");
@@ -321,7 +371,6 @@ describe("the delete question", () => {
   });
 
   test("the question's own submission is never refused by the guard over the form", async () => {
-    await stand();
     const { view, question } = await openRecord();
     desk.press(named(view, "button", "Delete"));
     expect(desk.doc.fire("submit", question)).toEqual({ prevented: false, stopped: false });
@@ -330,6 +379,7 @@ describe("the delete question", () => {
   test("Escape with no record open, or no question standing, does nothing", async () => {
     await stand();
     expect(() => desk.doc.fire("keydown", desk.doc.body, { key: "Escape" })).not.toThrow();
+    desk.restore();
     const { question } = await openRecord();
     expect(() => desk.doc.fire("keydown", desk.doc.body, { key: "Escape" })).not.toThrow();
     expect(question.hidden).toBe(true);

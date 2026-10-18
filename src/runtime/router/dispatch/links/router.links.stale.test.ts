@@ -31,6 +31,7 @@ import {
   linkRows,
   noteLink,
   notes,
+  recordAddressView,
   routerApp,
   saveBody,
 } from "./router.links.test-support.ts";
@@ -174,6 +175,8 @@ describe("a save that read the desk before an activation", () => {
     );
   const noteText = () => notes(conns).find(({ id }) => id === NOTE_LE_GUIN)?.text;
   const noteLinks = () => linkRows(conns).filter((row) => row.source_record === NOTE_LE_GUIN);
+  /** The note's form as its address draws it now; no card carries a form to draw it in. */
+  const drawnForm = () => recordAddressView(routerApp(conns), "notes", NOTE_LE_GUIN);
 
   test("finds the relation woken since: a form drawn while it slept cannot undo the revival", async () => {
     activateAuthors(true)();
@@ -195,7 +198,8 @@ describe("a save that read the desk before an activation", () => {
     const response = await editNote("Ursula K. Le Guin", {}, activateAuthors(false));
 
     expect(response.status).toBe(200);
-    expect(await response.text()).toContain(capabilityPickUrl("notes", "text"));
+    expect(await response.text()).not.toContain(LINK_MARK_CHAIN);
+    expect(await drawnForm()).toContain(capabilityPickUrl("notes", "text"));
     expect(noteLinks()).toEqual([noteLink(NOTE_LE_GUIN, LE_GUIN)]);
   });
 
@@ -207,7 +211,8 @@ describe("a save that read the desk before an activation", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.text()).not.toContain(capabilityPickUrl("notes", "text"));
+    expect(await response.text()).not.toContain(LINK_MARK_CHAIN);
+    expect(await drawnForm()).not.toContain(capabilityPickUrl("notes", "text"));
     expect(noteLinks()).toEqual([]);
   });
 
@@ -215,9 +220,8 @@ describe("a save that read the desk before an activation", () => {
     const response = await editNote("Octavia E. Butler", { text: BUTLER }, activateAuthors(true));
 
     expect(response.status).toBe(200);
-    const drawn = await response.text();
-    expect(drawn).not.toContain(capabilityPickUrl("notes", "text"));
-    expect(drawn).not.toContain(LINK_MARK_CHAIN);
+    expect(await response.text()).not.toContain(LINK_MARK_CHAIN);
+    expect(await drawnForm()).not.toContain(capabilityPickUrl("notes", "text"));
     expect(noteText()).toBe("Octavia E. Butler");
     expect(noteLinks()).toEqual([]);
   });

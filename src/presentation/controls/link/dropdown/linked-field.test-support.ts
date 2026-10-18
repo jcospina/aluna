@@ -115,7 +115,7 @@ export async function dropdownScene(replies: Reply[], html = newBook()) {
   });
   startLinkedFields(doc as never);
   await settle();
-  // A field drawn plain again, or one still inside a record's template, has no parts yet.
+  // A field drawn plain again, or one not yet in the page, has no parts yet.
   const drawn = doc.querySelector('[data-linked-field] [role="combobox"]') !== null;
   return {
     doc,

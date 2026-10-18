@@ -1,11 +1,12 @@
 // A desk where Notes' shelf is linked to Shelves' name through the real Link route, and every
 // evolution of either end is scripted through the engine's fake provider. The scan links
-// the oak and pine notes; the birch note names no shelf. Not a test file.
+// the oak and pine notes; the birch note names no shelf, and one note holds none. Not a test file.
 
 import {
   capabilityActionUrl,
   capabilityLinkUrl,
   capabilityPickUrl,
+  recordAddress,
   unlinkFieldUrl,
 } from "#shell/core/routes.js";
 import { RECORD_ID_FIELD } from "#shell/core/shell-dom.js";
@@ -97,6 +98,9 @@ const NOTES: readonly (readonly [string, string])[] = [
   ["note-birch", "Birch"],
 ];
 
+/** A note holding no shelf, which the scan leaves alone, at an address a record id can spell. */
+const ADDRESSED_NOTE = "0e0e0e0e-0000-4000-8000-000000000001";
+
 /** Notes and Shelves published and activated, a few records each, and the shelf field linked. */
 export async function openLinkedDesk(): Promise<LinkedDesk> {
   const notes = notesWith();
@@ -116,6 +120,10 @@ export async function openLinkedDesk(): Promise<LinkedDesk> {
       shelf,
     ]);
   }
+  env.conns.readwrite.run('INSERT INTO "cap_notes" ("id", "text") VALUES (?, ?)', [
+    ADDRESSED_NOTE,
+    "A note for no shelf",
+  ]);
   const desk = {
     env,
     app: createTestApp({
@@ -240,9 +248,15 @@ export async function deleteRecord(
   );
 }
 
-/** How Notes' read page draws the shelf field: a dropdown, the chain, plain text, or not at all. */
+/**
+ * How a note's Edit form draws the shelf field: a dropdown, the chain, plain text, or not at all.
+ * No card carries the form, so it is read at a note's record address.
+ */
 export async function shelfDrawnAs(desk: LinkedDesk) {
-  const html = await (await desk.app.request("/capability/notes/read")).text();
+  const address = recordAddress("notes", ADDRESSED_NOTE);
+  const answer = await desk.app.request(address, { headers: { "HX-Request": "true" } });
+  if (answer.status !== 200) throw new Error(`${address} answered ${answer.status}`);
+  const html = await answer.text();
   if (html.includes(`data-pick-url="${capabilityPickUrl("notes", "shelf")}"`)) return "dropdown";
   if (html.includes(`data-link-url="${LINK_URL}"`)) return "chain";
   return html.includes('name="shelf"') ? "plain" : "absent";

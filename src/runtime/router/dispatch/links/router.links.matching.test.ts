@@ -13,7 +13,7 @@ import {
 } from "../../../../presentation/controls/link/link-copy.ts";
 import {
   countRenderedItems,
-  itemElementIdForTemplate,
+  recordItemId,
 } from "../../../../presentation/records/collection/list-container.ts";
 import { getCapability } from "../../../../registry/index.ts";
 import {
@@ -100,10 +100,7 @@ function press(): Promise<Response> {
 async function cards(): Promise<Record<string, string | null>> {
   const read = await (await app().request(capabilityActionUrl("notes", "read"))).text();
   const byItem = new Map(
-    [LINKED, SPACED, SHARED, UNKNOWN, EMPTY].map((id) => [
-      itemElementIdForTemplate(`record-notes-${id}`),
-      id,
-    ]),
+    [LINKED, SPACED, SHARED, UNKNOWN, EMPTY].map((id) => [recordItemId("notes", id), id]),
   );
   const marks: Record<string, string | null> = {};
   let card = "";

@@ -6,19 +6,27 @@
 // anything else and Aluna has no modal (design D2). What opens is the form, in edit mode: there
 // is no read view of a record, so no field is ever printed rather than filled.
 //
-// Markup is here; mechanics are in `public/records/record-view.js`. Riding an inert `<template>`
-// materialized beside each item rather than a route of its own is what opens the full record
-// even when the item truncates. Deletion lives in that form's action row and nowhere else, so
-// destroying a record starts by opening it.
+// Markup is here; mechanics are in `public/records/record-view.js`. The record address's route
+// draws it, for a card press as for a pasted address (ADR-0010), so the
+// full record opens even when its card truncates, with the records linking here between the form
+// and its action row. Deletion lives in that row and nowhere else, so destroying a record starts
+// by opening it.
 
 import { capabilityActionUrl } from "#shell/core/routes.js";
 import { RECORD_TITLE_ATTRIBUTE } from "#shell/core/shell-dom.js";
+import { activeSpecFields, hasActiveFileField } from "../../../registry/index.ts";
 import { ALUNA_RECORD_ID_MARKER } from "../../../runtime/router/wire/wire-protocol.ts";
 import { escapeHtml } from "../../../server/http/html.ts";
-import { busyLabelAttribute, DELETING_RECORD_LABEL } from "../../controls/busy-label.ts";
+import {
+  busyLabelAttribute,
+  DELETING_RECORD_LABEL,
+  SAVING_RECORD_LABEL,
+} from "../../controls/busy-label.ts";
+import { submitButton } from "../../controls/submit-button.ts";
 import {
   capabilityDeleteConfirmationId,
   capabilityDeleteErrorId,
+  capabilityEditFormId,
   type RenderableCapability,
   renderEditForm,
 } from "../../fields/field-renderer.ts";
@@ -35,9 +43,12 @@ export const RECORD_BACK_ATTR = "data-record-back";
  */
 export const RECORD_FORM_BACK_ATTR = "data-record-form-back";
 
-/** Stable DOM id for the item paired with one inert record-view template. */
-export function itemElementIdForTemplate(templateId: string): string {
-  return `${templateId}-item`;
+/**
+ * The DOM id of one record's card in its collection, which its record view names so leaving the
+ * record puts focus back on the card. `capabilityId` is spec-validated; the record id is escaped.
+ */
+export function recordItemId(capabilityId: string, recordId: unknown): string {
+  return `record-${capabilityId}-${String(recordId)}-item`;
 }
 
 /**
@@ -111,27 +122,61 @@ export function hasRecordView(capability: Pick<RenderableCapability, "actions">)
 }
 
 /**
- * Render one record's view: the back control, then the record's form in edit mode, with the
- * deletion confirmation beside it. A capability that cannot update renders nothing at all.
+ * Render one record's view: the back control, the record's form in edit mode and the sections of
+ * records linking here, which scroll together, then the form's action row with the deletion
+ * confirmation beside it. A capability that cannot update renders nothing at all.
  *
  * @param picks the record each linked field picked, which its Edit form posts again
+ * @param linking the sections of records linking here, drawn outside the form
  */
 export function renderRecordView(
   capability: RenderableCapability,
   record: Readonly<Record<string, unknown>>,
-  templateId: string,
   picks?: ReadonlyMap<string, string>,
+  linking = "",
 ): string {
   if (!hasRecordView(capability)) return "";
-  const itemTargetId = escapeHtml(itemElementIdForTemplate(templateId));
+  const itemTargetId = escapeHtml(recordItemId(capability.id, record.id));
   return (
     `<div class="capability-record-view" ${RECORD_VIEW_ATTR}` +
     ` data-item-target-id="${itemTargetId}"` +
     `${recordTitleAttribute(recordTitle(capability, record))}>` +
     renderRecordFormBar(capability.label, ` ${RECORD_BACK_ATTR}`) +
+    `<div class="capability-record-view__body">` +
     renderEditForm(capability, record, picks) +
+    linking +
+    `</div>` +
+    renderEditActions(capability) +
     renderDeleteConfirmation(capability, record) +
     `</div>`
+  );
+}
+
+/**
+ * The edit form's action row, each button joined to the form by its `form` attribute, so Save
+ * still submits it and Enter in a field still saves.
+ */
+export function renderEditActions(capability: RenderableCapability): string {
+  const owner = ` form="${capabilityEditFormId(capability.id)}"`;
+  const fileHeld = hasActiveFileField(activeSpecFields(capability.schema.fields));
+  return (
+    `<div class="capability-edit-form__actions">` +
+    submitButton("Save", SAVING_RECORD_LABEL, fileHeld, owner) +
+    `<button class="btn btn--outline" type="button"${owner} data-record-cancel>Cancel</button>` +
+    renderDeleteTrigger(capability, owner) +
+    `</div>`
+  );
+}
+
+/**
+ * The destructive action, kept away from Save and Cancel on the far side of the row
+ * (`design/index.html`). It opens the confirmation and nothing else, so a misfired press is safe.
+ */
+function renderDeleteTrigger(capability: RenderableCapability, owner: string): string {
+  if (!capability.actions.includes("delete")) return "";
+  return (
+    `<button class="btn btn--danger capability-edit-form__delete" type="button"${owner}` +
+    ` data-record-delete>Delete</button>`
   );
 }
 
@@ -168,19 +213,4 @@ function renderDeleteConfirmation(
     `</div>` +
     `</form>`
   );
-}
-
-/**
- * Render a `<template>` carrying one record's view for the swap to clone. Its content is inert
- * until cloned, so the swap moves a DOM clone — no `innerHTML`, no server round-trip.
- */
-export function renderRecordViewTemplate(
-  templateId: string,
-  capability: RenderableCapability,
-  record: Readonly<Record<string, unknown>>,
-  picks?: ReadonlyMap<string, string>,
-): string {
-  const view = renderRecordView(capability, record, templateId, picks);
-  if (view === "") return "";
-  return `<template id="${escapeHtml(templateId)}">${view}</template>`;
 }

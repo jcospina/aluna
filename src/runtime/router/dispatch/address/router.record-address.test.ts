@@ -2,9 +2,13 @@
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
+import {
+  CARD_CAPABILITY_ATTRIBUTE,
+  CARD_RECORD_ATTRIBUTE,
+  PROMPT_NOTICE_ID,
+} from "#shell/core/shell-dom.js";
 import type { PlatformDatabase } from "../../../../platform/persistence/db.ts";
-import { RECORD_TEMPLATE_ID_PREFIX } from "../../../../presentation/index.ts";
+import { RECORD_VIEW_ATTR, recordItemId } from "../../../../presentation/index.ts";
 import type { CapabilityRow } from "../../../../registry/index.ts";
 import { NOT_FOUND_NOTICE } from "../../../../server/http/index.ts";
 import { createTestApp } from "../../../../server/isolated-app.test-support.ts";
@@ -26,14 +30,6 @@ const IN_PAGE = { headers: { "HX-Request": "true" } };
 /** The record view inside a record address's fragment, without the surface around it. */
 function viewOf(fragment: string): string {
   return fragment.slice(fragment.indexOf("\n") + 1, fragment.lastIndexOf("\n"));
-}
-
-/** The record view a card's `<template>` holds, as the `read` Handler presented it. */
-function templatedView(cards: string, capabilityId: string, recordId: string): string {
-  const opening = `<template id="${RECORD_TEMPLATE_ID_PREFIX}-${capabilityId}-${recordId}">`;
-  const from = cards.indexOf(opening);
-  if (from < 0) throw new Error(`no template for ${recordId}`);
-  return cards.slice(from + opening.length, cards.indexOf("</template>", from));
 }
 
 /** The prompt bar's notice slot, as a page carries it. */
@@ -83,8 +79,19 @@ describe("the record address", () => {
     expect(response.status).toBe(200);
     expect(fragment).toStartWith('<section class="capability-surface"');
     expect(fragment).toContain('data-active-capability-id="notes"');
+    // The card the read Handler presented opens this address, and carries no form of its own.
     const cards = await (await app().request("/capability/notes/read", IN_PAGE)).text();
-    expect(viewOf(fragment)).toBe(templatedView(cards, "notes", id));
+    expect(cards).toContain(
+      `${CARD_CAPABILITY_ATTRIBUTE}="notes" ${CARD_RECORD_ATTRIBUTE}="${id}"`,
+    );
+    expect(cards).not.toContain("<template");
+    expect(cards).not.toContain("data-record-edit-form");
+    const view = viewOf(fragment);
+    expect(view).toStartWith(
+      `<div class="capability-record-view" ${RECORD_VIEW_ATTR}` +
+        ` data-item-target-id="${recordItemId("notes", id)}"`,
+    );
+    expect(view).toContain('name="text" value="Buy figs"');
     expect(fragment).not.toContain("Another note");
     expect(fragment).not.toContain("<!doctype html>");
   });
@@ -204,10 +211,10 @@ describe("the record address beside the Action routes", () => {
   test("the Action names keep their route", async () => {
     const read = await request("/capability/notes/read", IN_PAGE);
     expect(read.status).toBe(200);
-    expect(await read.text()).toContain(`id="${RECORD_TEMPLATE_ID_PREFIX}-notes-${id}"`);
+    expect(await read.text()).toContain(`id="${recordItemId("notes", id)}"`);
     const search = await request("/capability/notes/search?q=figs", IN_PAGE);
     expect(search.status).toBe(200);
-    expect(await search.text()).toContain(`id="${RECORD_TEMPLATE_ID_PREFIX}-notes-${id}"`);
+    expect(await search.text()).toContain(`id="${recordItemId("notes", id)}"`);
     const created = await request("/capability/notes/create", formBody({ text: "Plant figs" }));
     expect(created.status).toBe(200);
   });

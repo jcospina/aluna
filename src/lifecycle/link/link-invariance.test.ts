@@ -60,6 +60,11 @@ const LINK_URL = capabilityLinkUrl("notes", "text");
 const NEW_TEXT = "Written on either side of a link";
 /** The shelf the scan links the historical note to: the same name, but for case and outer spaces. */
 const NAMED_SHELF = "shelf-0";
+/**
+ * A note the record address opens, naming the shelf as the historical note does: no card carries
+ * a form, so its Edit form, where the chain and the dropdown are drawn, is read at its address.
+ */
+const ADDRESSED = "0d0d0d0d-0000-4000-8000-000000000001";
 
 let env: EngineEnv;
 let app: ReturnType<typeof createTestApp>;
@@ -117,6 +122,7 @@ function standing(): Standing {
 
 /** What the capability's own routes answer, in an order that leaves the data as it found it. */
 interface Answers {
+  readonly record: string;
   readonly read: string;
   readonly search: string;
   readonly update: string;
@@ -132,6 +138,9 @@ async function exercise(): Promise<Answers> {
     responses.push(response);
     return response.text();
   };
+  const record = await answer(`/capability/notes/${ADDRESSED}`, {
+    headers: { "HX-Request": "true" },
+  });
   const read = await answer("/capability/notes/read");
   const search = await answer("/capability/notes/search?q=written");
   const update = await answer(
@@ -145,6 +154,7 @@ async function exercise(): Promise<Answers> {
   if (!id) throw new Error("the create Handler stored nothing");
   const deleted = await answer("/capability/notes/delete", formBody({ __aluna_record_id: id }, []));
   return {
+    record,
     read,
     search,
     update,
@@ -233,6 +243,10 @@ beforeAll(async () => {
   env.conns.readwrite.run('INSERT INTO "cap_notes" ("id", "text") VALUES (?, ?)', [
     "note-unshelved",
     "No shelf holds this",
+  ]);
+  env.conns.readwrite.run('INSERT INTO "cap_notes" ("id", "text") VALUES (?, ?)', [
+    ADDRESSED,
+    HISTORICAL_TEXT,
   ]);
   app = createTestApp({
     capabilityRouter: { databases: env.conns },
@@ -359,8 +373,8 @@ describe("Handlers and cards run as they did", () => {
     expect(answeredAfter.statuses.every((status) => status === 200)).toBe(true);
   });
 
-  test("read, search, update, create and delete draw what they drew, the chain now a dropdown's", () => {
-    const routes = ["read", "search", "update", "create", "delete"] as const;
+  test("every route and the record's address draw what they drew, the chain now a dropdown's", () => {
+    const routes = ["record", "read", "search", "update", "create", "delete"] as const;
     for (const route of routes) {
       expect(unmatched(answeredAfter[route])).toBe(
         unchained(answeredBefore[route], {
@@ -373,11 +387,13 @@ describe("Handlers and cards run as they did", () => {
   });
 
   test("the chain was there to go: the linked field's Edit forms lost it, and nothing else did", () => {
-    expect(answeredBefore.read).toContain(`data-link-url="${LINK_URL}"`);
-    expect(answeredAfter.read).not.toContain("data-link-control");
-    expect(answeredAfter.read).toContain(`data-pick-url="${capabilityPickUrl("notes", "text")}"`);
+    expect(answeredBefore.record).toContain(`data-link-url="${LINK_URL}"`);
+    expect(answeredAfter.record).not.toContain("data-link-control");
+    expect(answeredAfter.record).toContain(`data-pick-url="${capabilityPickUrl("notes", "text")}"`);
+    // A card carries no Edit form, so the cards had no chain to lose.
+    expect(answeredBefore.read).not.toContain("data-link-control");
     expect(
-      unchained(answeredBefore.read, {
+      unchained(answeredBefore.record, {
         before: before.notes,
         after: after.notes,
         target: after.shelves,
@@ -477,7 +493,7 @@ describe("Unlink, on the same capability", () => {
   });
 
   test("every route draws what it drew before the link: the chain back, and no mark", () => {
-    expect(answeredBefore.read).toContain(`data-link-url="${LINK_URL}"`);
+    expect(answeredBefore.record).toContain(`data-link-url="${LINK_URL}"`);
     expect(answeredUnlinked).toEqual(answeredBefore);
   });
 });

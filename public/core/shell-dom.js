@@ -124,6 +124,40 @@ export const LINK_FIELD = "__aluna_link";
 export const PICKED_RECORD_ATTRIBUTE = "data-picked-record";
 
 /**
+ * On a card a press opens: its own capability and its record, which a press opens at the record
+ * address, never the window's capability.
+ */
+export const CARD_CAPABILITY_ATTRIBUTE = "data-card-capability";
+export const CARD_RECORD_ATTRIBUTE = "data-card-record";
+
+/**
+ * On a field's guidance slot while a refusal stands in it: where the slot's own words wait
+ * (`field-errors.js`), so a field carrying it is one a refusal marked.
+ */
+export const FIELD_ERROR_STASH_ATTRIBUTE = "data-field-guidance-text";
+
+/** On a section's "Show all": where the rest of the records linking here are fetched from. */
+export const RECORD_LINKS_REST_ATTRIBUTE = "data-record-links-rest";
+
+/**
+ * The control `form` owns that matches `selector`: inside it, or outside it and joined to it by
+ * its `form` attribute, as the record view's action row is. Read by
+ * selector and attribute, never through `form.elements` or `form.id`, which a field of that name
+ * would shadow.
+ *
+ * @param {Element} form
+ * @param {string} selector one compound selector, no list
+ * @returns {Element | null}
+ */
+export function formControl(form, selector) {
+  const inside = form.querySelector(selector);
+  const id = form.getAttribute("id");
+  // A form off the page owns nothing outside it, as the `form` attribute reads.
+  if (inside !== null || !id || !form.isConnected) return inside;
+  return form.ownerDocument.querySelector(`${selector}[form="${id}"]`);
+}
+
+/**
  * On a pick the platform posts for text that names one record, or for no record, not one the person
  * made: a leave loses nothing the person did, so the question before leaving does not count it.
  */

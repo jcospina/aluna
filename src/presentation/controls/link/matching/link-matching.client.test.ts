@@ -1,18 +1,15 @@
 // While Aluna matches the names a field already holds, run through the shipped
 // `public/controls/link-control.js` and `link-matching.js` on the renderer's own forms: the press's
 // answer arrives a line at a time, the note atop the form and every faded chain, Save and Delete
-// standing between the two, and the prompt bar's report once the second line lands.
+// standing between the two, and the prompt bar's report once the second line lands. A record's
+// Save, Cancel and Delete stand in its view's action row, outside the form they name.
 
 import { describe, expect, test } from "bun:test";
 import { PICK_UNKNOWN } from "#shell/controls/link-control.js";
 import { answerLines, holdWhileMatching, NOTE_CLASS } from "#shell/controls/link-matching.js";
 import { capabilityActionUrl } from "#shell/core/routes.js";
 import { setPending } from "#shell/records/record-mutations.js";
-import {
-  capabilityRecordsRegionId,
-  renderCreateForm,
-  renderEditForm,
-} from "../../../fields/field-renderer.ts";
+import { capabilityRecordsRegionId, renderCreateForm } from "../../../fields/field-renderer.ts";
 import { renderRecordView } from "../../../records/record-view/record-view.ts";
 import { Doc, type El, parseHtml } from "../../double/choice-picker.test-support.ts";
 import {
@@ -39,8 +36,8 @@ const BOOKS = {
   actions: ["create", "read", "update", "delete"],
 };
 
-/** An open record's Edit form, with Delete beside Save and Cancel. */
-const EDIT_FORM = renderEditForm(BOOKS as never, { id: "book-1" });
+/** An open record's view: its Edit form, and Delete beside Save and Cancel outside it. */
+const EDIT_FORM = renderRecordView(BOOKS as never, { id: "book-1" });
 
 /** A press's answer whose lines the test sends when it chooses. */
 function answering() {
@@ -55,7 +52,8 @@ async function pressed(reply: Reply) {
   await scene.press(scene.button);
   await scene.press(scene.options()[0] as El);
   const form = scene.doc.querySelector("form") as El;
-  const button = (selector: string) => form.querySelector(selector) as El;
+  const button = (selector: string) =>
+    scene.doc.querySelector(`.capability-edit-form__actions ${selector}`) as El;
   return {
     scene,
     form,
@@ -269,18 +267,15 @@ describe("once the names are matched", () => {
 });
 
 describe("holding the page", () => {
-  /** A record's whole view, its Delete question beside its Edit form, on a page of its own. */
+  /** A record's whole view, its action row and Delete question outside its Edit form. */
   function recordView() {
-    const doc = parseHtml(
-      renderRecordView(BOOKS as never, { id: "book-1" }, "record-books-1"),
-      new Doc(),
-    );
+    const doc = parseHtml(EDIT_FORM, new Doc());
     const button = (selector: string) => doc.querySelector(selector) as El;
     return {
       form: doc.querySelector("form.capability-edit-form") as El,
       faded: () =>
         [
-          button('.capability-edit-form button[type="submit"]'),
+          button('.capability-edit-form__actions button[type="submit"]'),
           button("[data-record-delete]"),
           button('[data-record-delete-form] button[type="submit"]'),
           button(".link-control__button"),
@@ -313,6 +308,9 @@ describe("holding the page", () => {
 
   test("gives a form whose save is out its faded buttons back once that save ends", () => {
     const view = recordView();
+    // Save and Delete stand outside the form, in the action row that names it.
+    const row = view.form.parent?.parent?.querySelector(".capability-edit-form__actions") as El;
+    expect([row === null, view.form.contains(row)]).toEqual([false, false]);
     setPending(view.form as never, true, "[data-record-cancel]");
     holdWhileMatching(view.form as never, NOTE, null)();
     expect(view.faded()).toEqual([true, true, false, true]);

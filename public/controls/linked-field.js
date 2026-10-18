@@ -685,8 +685,8 @@ export function mountLinkedFields(root, open) {
 }
 
 /**
- * Wire linked fields onto a document. Forms arrive long after page load, by swap, by a record
- * template's clone, and by a field linked in place, so mounting repeats on every arrival.
+ * Wire linked fields onto a document. Forms arrive long after page load, by swap and by a field
+ * linked in place, so mounting repeats on every arrival.
  *
  * @param {Document} root
  */

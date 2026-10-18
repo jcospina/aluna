@@ -5,8 +5,8 @@
 // A linked field is drawn as a dropdown by `public/controls/linked-field.js` from the same shell,
 // which is how a field linked from an open form becomes one in place.
 //
-// The Edit form is rendered into a record's template inside a Handler fragment, where the fragment
-// scrub runs: nothing here may carry an Alpine, `on*` or `hx-on` attribute.
+// `public/controls/link-control.js` wires it alone, so nothing here carries an Alpine, `on*` or
+// `hx-on` attribute.
 
 import { CHAIN } from "#shell/controls/listbox-glyphs.js";
 import { capabilityLinkUrl, capabilityPickUrl } from "#shell/core/routes.js";

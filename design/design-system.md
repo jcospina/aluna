@@ -259,6 +259,14 @@ Aluna has no read view of a record, so the form is where a record is read as wel
 as changed. The one exception is a video or a sound, which the form only previews and the
 record's render view plays in full (see Forms).
 
+A record lists the records linking to it between its fields and its actions, a
+`.record-links` section per relation pointing in (`design/index.html`, "The records
+linking here"). The heading is the linking capability's label and a count in small caps,
+"Books · 3", and nothing else, so two relations from one capability give two sections
+headed alike. The cards are the linking capability's own, in its own layout, five and
+then a `.btn--outline` **Show all** that adds the rest and goes away. A section is always
+open and never collapses, and the actions stay the last row: nothing is drawn below them.
+
 The collection's order is fixed and is the same for every capability: the search
 rail with the create action beside it, then the count, then the records in the
 capability's declared layout. The create action stays on the search's row — the two

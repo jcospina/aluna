@@ -53,6 +53,7 @@ import {
   noteLink,
   notes,
   queuedPlatformWrite,
+  recordAddressView,
   routerApp,
   seedLinkedBook,
   seedNote,
@@ -102,7 +103,7 @@ function unlink(press: Record<string, string>, init: RequestInit = {}): Promise<
   );
 }
 
-/** The collection as it reads now: every Edit template, and every card's mark. */
+/** The collection as it reads now: every card's mark, and no card's form. */
 async function collection(): Promise<string> {
   return (await app().request(capabilityActionUrl("notes", "read"))).text();
 }
@@ -148,14 +149,17 @@ describe("unlinking a linked field", () => {
   test("gives the field back as plain text with its chain, and no card carries a mark for it", async () => {
     const linked = await collection();
     expect(linked).toContain(`aria-label="${pickTargetMark([AUTHORS.noun])}"`);
-    expect(linked).toContain(`data-pick-url="${capabilityPickUrl("notes", "text")}"`);
+    // The record's address draws its form, where the field is drawn linked or plain.
+    const form = () => recordAddressView(app(), "notes", LINKED);
+    expect(await form()).toContain(`data-pick-url="${capabilityPickUrl("notes", "text")}"`);
 
     await unlink(await pressRead());
 
     const plain = await collection();
     expect(plain).not.toContain("link-mark");
-    expect(plain).not.toContain("data-linked-field");
-    expect(plain).toContain(`data-link-url="${capabilityLinkUrl("notes", "text")}"`);
+    const unlinked = await form();
+    expect(unlinked).not.toContain("data-linked-field");
+    expect(unlinked).toContain(`data-link-url="${capabilityLinkUrl("notes", "text")}"`);
     const field = await app().request(capabilityPickUrl("notes", "text"));
     expect(field.status).toBe(422);
     expect(await field.text()).toContain(`data-error-code="${FIELD_UNLINKED_CODE}"`);

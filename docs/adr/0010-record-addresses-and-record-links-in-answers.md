@@ -42,11 +42,22 @@ collection view does, and its full-page load runs the desk-load recovery.
 **The server draws the record.** The platform reads one row by `id` from the active
 incarnation's table and narrows it as the collection does: `item.shows`, the record
 target, the active detail and edit fields, and `created_at`, with no inactive field and
-no `extra`. It renders the record view through the presentation adapter that already
-writes a card's `<template>`, and no generated Handler runs. With `HX-Request` the route
-answers the record view fragment for the window. Without it, the route answers the whole
-desk, which opens that record from its address, so a reload, a pasted address and a new
-tab all land on the record.
+no `extra`. It draws the record view, and no generated Handler runs. With `HX-Request`
+the route answers the record view fragment for the window. Without it, the route answers
+the whole desk, which opens that record from its address, so a reload, a pasted address
+and a new tab all land on the record. *Amended 2026-10-17 (Module 8 PLAN decisions 34 to
+39):* a card press asks this route too, so no card carries its record's form in a
+`<template>` any more. Between the form's fields and its action row, the view lists the
+records linking to the record, a section per relation pointing in. For each, the route
+takes the linking incarnation's read token apart from its own, reads the linking records
+through that capability's query port, newest first, and draws the first five with that
+capability's own card renderer through its presentation adapter, under the Handler time
+limit. A renderer that throws or returns after the limit leaves its section out, as does a
+linking capability closed by its own deletion, and the record opens either way. "Show all"
+fetches the cards after the last one a section shows from
+`/capability/:id/:record/listed/:source/:field`, which holds the same tokens and the same
+limit. A card renderer is the generated presentation the Gate already checked, so the record
+view still runs no Handler.
 
 **An absent record leaves its capability open.** A record address whose record was
 deleted, never existed or lives in another capability opens that capability's

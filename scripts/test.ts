@@ -310,14 +310,19 @@ function decodeXml(value: string): string {
 function report(results: readonly ShardResult[], wallMs: number, shardCount: number): boolean {
   const cases = results.flatMap((result) => [...result.cases]);
   const failures = cases.filter((testCase) => testCase.failure !== undefined);
+  const errors = results.flatMap((result) => unhandledErrors(result.output));
   // A worker that dies without writing JUnit (segfault, OOM) reports nothing.
   // Surfacing it as a first-class failure keeps a crash from reading as a pass.
   const crashed = results.filter(
-    (result) => result.exitCode !== 0 && result.cases.every((c) => c.failure === undefined),
+    (result) =>
+      result.exitCode !== 0 &&
+      result.cases.every((c) => c.failure === undefined) &&
+      unhandledErrors(result.output).length === 0,
   );
 
   reportShards(results);
   reportFailures(failures);
+  reportUnhandled(errors);
   for (const result of crashed) reportCrash(result);
   reportSlowest(cases);
 
@@ -325,11 +330,33 @@ function report(results: readonly ShardResult[], wallMs: number, shardCount: num
   const criticalShardMs = Math.max(...results.map((result) => result.wallMs));
   console.log("─".repeat(72));
   console.log(
-    `${passed} passed  ${failures.length} failed  ${cases.length} total  ` +
+    `${passed} passed  ${failures.length} failed  ${errors.length} errors  ${cases.length} total  ` +
       `in ${seconds(wallMs)} (slowest shard ${seconds(criticalShardMs)}, ${shardCount} shards)`,
   );
 
-  return failures.length > 0 || crashed.length > 0;
+  return failures.length > 0 || errors.length > 0 || crashed.length > 0;
+}
+
+/**
+ * The errors Bun hit outside any test, a file that failed to load among them. JUnit carries no
+ * case for them, so without this a broken import hid behind the other failures of its shard.
+ */
+export function unhandledErrors(output: string): string[] {
+  const blocks = output.matchAll(/# Unhandled error between tests\n-+\n([\s\S]*?)\n-+\n/g);
+  // The error's own line, after the code frame Bun prints first; a plain `Error` is `error: …`.
+  return [...blocks].map(([, block = ""]) => {
+    const lines = block.split("\n").map((line) => line.trim());
+    return (
+      lines.find((line) => /^(\w*Error|error):/.test(line)) ?? "an unhandled error between tests"
+    );
+  });
+}
+
+function reportUnhandled(errors: readonly string[]): void {
+  if (errors.length === 0) return;
+  console.log(`${"─".repeat(72)}\nUnhandled errors\n`);
+  for (const error of errors) console.log(`  ✗ ${error}`);
+  console.log("");
 }
 
 function reportShards(results: readonly ShardResult[]): void {
@@ -418,4 +445,4 @@ function writeDurations(results: readonly ShardResult[]): void {
   console.log(`Balancing weights written to ${relative(REPO_ROOT, DURATIONS_PATH)}`);
 }
 
-main();
+if (import.meta.main) main();

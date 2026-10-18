@@ -7,8 +7,8 @@
 // enforcer runs on it, on every record, so a hostile field value can never become executable
 // markup; it is kept inside its card, with no end tag of what it never opened and nothing left
 // open;
-// `renderItemWrapper` frames the result; and `renderRecordViewTemplate` emits the inert
-// `<template>` the swap clones, so the full record's form shows even when the card truncates.
+// and `renderItemWrapper` frames the result as a card a press opens at its record address, whose
+// route draws the full record's form even when the card truncates.
 //
 // Synchronous: the enforcer parses with Bun's native HTMLRewriter and the rest is string
 // composition. The router resolves the item renderer once, which is why it loads it eagerly. The
@@ -25,12 +25,12 @@ import { pickTargetMark } from "../controls/link/link-copy.ts";
 import type { RenderableCapability } from "../fields/field-renderer.ts";
 import { enforceItemMarkup } from "../safety/enforcer/enforcer.ts";
 import { containedMarkup } from "../safety/markup/contained-markup.ts";
-import { type ItemRecordViewRef, renderItemWrapper } from "./collection/list-container.ts";
-import { renderRecordView, renderRecordViewTemplate } from "./record-view/record-view.ts";
+import { type ItemOpens, renderItemWrapper } from "./collection/list-container.ts";
+import { hasRecordView, renderRecordView } from "./record-view/record-view.ts";
 
 /**
  * A record as it reaches presentation: the spec fields plus the platform-populated `id` and
- * `created_at`, seen structurally. The adapter keys each record's view `<template>` off its `id`.
+ * `created_at`, seen structurally. A card opens the record its `id` names.
  */
 export type PresentableRecord = Readonly<Record<string, unknown>>;
 
@@ -50,22 +50,18 @@ export type PlatformPresentationAdapter = (record: PresentableRecord) => string;
 /** The record each linked field of one record picked, by field. */
 export type RecordLinks = (recordId: string) => ReadonlyMap<string, string>;
 
-/** What {@link createPresentationAdapter} closes over: the capability (for the label,
- *  active schema-field order, and the id namespacing the record templates) and its item renderer. */
+/** What {@link createPresentationAdapter} closes over: the capability (for the label, active
+ *  schema-field order, and the record address a card opens) and its item renderer. */
 export interface PresentationAdapterOptions {
   readonly capability: RenderableCapability;
   readonly renderItem: ItemRenderer;
-  /** What each record's Edit form says its linked fields picked; the Gate's adapter has none. */
+  /** What each record's linked fields picked, which its card's mark reads; the Gate's has none. */
   readonly links?: RecordLinks;
   /** Each linked field's target record noun, which its card's broken-link mark asks for. */
   readonly linkNouns?: ReadonlyMap<string, string>;
+  /** Cards listed on another record, which leave the card's id to its own collection. */
+  readonly listed?: boolean;
 }
-
-/**
- * The prefix on each record's view `<template>` id. `record-<capabilityId>-<recordId>`, so two
- * capabilities' records never collide and the click controller opens the right one.
- */
-export const RECORD_TEMPLATE_ID_PREFIX = "record";
 
 /**
  * Build the capability-scoped presentation adapter. Bind once per capability and hand the returned
@@ -75,16 +71,14 @@ export function createPresentationAdapter(
   options: PresentationAdapterOptions,
 ): PresentationAdapter {
   const { capability, renderItem } = options;
-  // Picks are read for a field whose relation holds: its Edit form starts on them, and its card
-  // is marked without one.
+  // Picks are read for a field whose relation holds: a card is marked without one.
   const links = (capability.linkedFields?.length ?? 0) > 0 ? options.links : undefined;
   return (record) => {
     const materialized = materializeCapabilityActionRecord(record);
     const picks = links?.(String(materialized.id));
     const stored = storedCapabilityActionRecord(record);
-    const files = storedFiles(capability, stored);
     const mark = picks && linkMark(stored, picks, capability.linkedFields, options.linkNouns);
-    return present(capability, renderItem, materialized, files, picks, mark);
+    return present(capability, renderItem, materialized, mark, options.listed);
   };
 }
 
@@ -120,20 +114,19 @@ function storedFiles(
 }
 
 /**
- * One record's view as its card's `<template>` holds it, for the record address (ADR-0010): the
- * same record, stored files and template id, so a link and a press open one markup. The address
- * draws the record as stored, which is what a press draws for a Handler presenting what it read.
+ * One record's view at its record address (ADR-0010), which a card press, a link and a pasted
+ * address all open: the record as stored, with the sections of records linking here.
  */
 export function renderPresentedRecordView(
   capability: RenderableCapability,
   record: CapabilityActionRecord,
   links?: RecordLinks,
+  linking = "",
 ): string {
   const materialized = materializeCapabilityActionRecord(record);
   const files = storedFiles(capability, storedCapabilityActionRecord(record));
-  const templateId = recordTemplateId(capability.id, materialized);
   const picks = links?.(String(materialized.id));
-  return renderRecordView(capability, { ...materialized, ...files }, templateId, picks);
+  return renderRecordView(capability, { ...materialized, ...files }, picks, linking);
 }
 
 /** Platform-only presentation for synthetic previews and deterministic design probes. */
@@ -146,33 +139,22 @@ export function createPlatformPresentationAdapter(
 
 /**
  * Compose one record into safe wrapped item HTML, in the fixed order the platform owns. A
- * capability that cannot be updated has no record surface, so it gets neither template nor hook.
+ * capability that cannot be updated has no record surface, so its card opens nothing.
  */
 function present(
   capability: RenderableCapability,
   renderItem: ItemRenderer,
   record: PresentableRecord,
-  files: PresentableRecord = {},
-  picks?: ReadonlyMap<string, string>,
   mark?: string,
+  listed?: boolean,
 ): string {
-  const templateId = recordTemplateId(capability.id, record);
-  const drawn = { ...record, ...files };
-  const recordTemplate = renderRecordViewTemplate(templateId, capability, drawn, picks);
-  const recordView: ItemRecordViewRef | undefined =
-    recordTemplate === "" ? undefined : { templateId };
-
+  const opens: ItemOpens | undefined = hasRecordView(capability)
+    ? { capabilityId: capability.id, listed }
+    : undefined;
   const safeInnerHtml = containedMarkup(
     enforceItemMarkup(renderItem(projectItemRecord(capability, record))),
   );
-  const item = renderItemWrapper(
-    safeInnerHtml,
-    projectClientRecord(capability, record),
-    recordView,
-    mark,
-  );
-
-  return item + recordTemplate;
+  return renderItemWrapper(safeInnerHtml, projectClientRecord(capability, record), opens, mark);
 }
 
 /**
@@ -203,12 +185,4 @@ function projectItemRecord(
       .filter((field) => field.lifecycle === "active")
       .map((field) => field.name);
   return Object.fromEntries(shows.map((name) => [name, record[name]]));
-}
-
-/**
- * The id linking one record's item wrapper to its view `<template>`. Coerced with `String` rather
- * than asserted, so a stray record shape can never throw mid-render; escaping keeps it inert.
- */
-function recordTemplateId(capabilityId: string, record: PresentableRecord): string {
-  return `${RECORD_TEMPLATE_ID_PREFIX}-${capabilityId}-${String(record.id)}`;
 }

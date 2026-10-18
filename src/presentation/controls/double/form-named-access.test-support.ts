@@ -30,6 +30,24 @@ function namedControls<T extends FormNode>(form: T, key: string): T | T[] | unde
   return hits.length > 1 ? hits : hits[0];
 }
 
+interface OwnedControl<T> {
+  getAttribute(name: string): string | null;
+  closest(selector: string): T | null;
+  readonly ownerDoc: { getElementById(id: string): T | null } | null;
+}
+
+/**
+ * A control's form owner, as the HTML spec resets it: a connected control with a `form` attribute
+ * belongs to the form that id names, or to none at all; any other, to its nearest form.
+ */
+export function formOwner<T extends FormNode>(control: OwnedControl<T>): T | null {
+  const named = control.getAttribute("form");
+  const doc = named === null ? null : control.ownerDoc;
+  if (named === null || doc === null) return control.closest("form");
+  const owner = doc.getElementById(named);
+  return owner?.tag === "form" ? owner : null;
+}
+
 /** `form.elements`: the listed controls, with `namedItem` over them as the collection has it. */
 export function formElements<T extends FormNode>(form: T) {
   const listed = [...form.descendants()].filter((node) => LISTED_ELEMENTS.has(node.tag)) as T[];

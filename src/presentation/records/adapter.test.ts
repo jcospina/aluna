@@ -3,14 +3,15 @@
 // The adapter is a deterministic seam: given a capability and its item renderer, `present(record)`
 // is a pure record → safe wrapped item HTML function. These tests drive it with a hand-written
 // item renderer — the composition input a generated renderer replaces — and pin three invariants.
-// Composition: the trigger `<button>`, escaped `data-item` payload, click-to-open hook and the
-// record's inert view `<template>`, in the right order and linked by id. Enforcement: the runtime
-// allow-list enforcer runs on every rendered record, so a hostile field value cannot escape as
-// executable markup even if a renderer forgot to escape it. Payload: raw bytes are neutralized to
-// null, `file` fields being references (ADR-0005 §3).
+// Composition: the trigger `<button>`, escaped `data-item` payload and the card's own capability
+// and record, which a press opens at the record address; no card carries the record's form, which
+// that address draws (`renderPresentedRecordView`). Enforcement: the runtime allow-list enforcer
+// runs on every rendered record, so a hostile field value cannot escape as executable markup even
+// if a renderer forgot to escape it. Payload: raw bytes are neutralized to null, `file` fields
+// being references (ADR-0005 §3).
 
 import { describe, expect, test } from "bun:test";
-
+import { CARD_CAPABILITY_ATTRIBUTE, CARD_RECORD_ATTRIBUTE } from "#shell/core/shell-dom.js";
 import { createCapabilityActionRecord } from "../../runtime/data/index.ts";
 import { escapeHtml } from "../../server/http/html.ts";
 import { Doc, type El, parseHtml } from "../controls/double/choice-picker.test-support.ts";
@@ -20,14 +21,10 @@ import {
   createPresentationAdapter,
   type ItemRenderer,
   type PresentableRecord,
-  RECORD_TEMPLATE_ID_PREFIX,
+  renderPresentedRecordView,
 } from "./adapter.ts";
-import {
-  ITEM_PAYLOAD_ATTR,
-  ITEM_RECORD_VIEW_ATTR,
-  ITEM_TRIGGER_CLASS,
-} from "./collection/list-container.ts";
-import { RECORD_BACK_ATTR } from "./record-view/record-view.ts";
+import { ITEM_PAYLOAD_ATTR, ITEM_TRIGGER_CLASS } from "./collection/list-container.ts";
+import { RECORD_BACK_ATTR, RECORD_VIEW_ATTR, recordItemId } from "./record-view/record-view.ts";
 
 // The schema contains one inactive field so the adapter can prove the record's form
 // follows active form-field order without leaking stored retired values.
@@ -94,12 +91,19 @@ function readBackPayload(html: string): unknown {
   return JSON.parse(htmlUnescape(match[1]));
 }
 
-/** The inert record-view <template> the adapter emits for a record, content only. */
-function recordTemplateBody(html: string, templateId: string): string {
-  const match = new RegExp(`<template id="${templateId}">([\\s\\S]*?)</template>`).exec(html);
-  if (!match) throw new Error(`no <template id="${templateId}"> in output`);
-  return match[1] ?? "";
+/** The same record as the data layer hands it to presentation. */
+function stored(overrides: Record<string, unknown> = {}) {
+  const { id, created_at, ...fields } = record(overrides);
+  return createCapabilityActionRecord({
+    id: String(id),
+    created_at: String(created_at),
+    ...fields,
+  });
 }
+
+/** The record's view as its record address draws it. */
+const recordAddressView = (overrides: Record<string, unknown> = {}) =>
+  renderPresentedRecordView(CAPABILITY, stored(overrides));
 
 // The inner markup the enforcer actually processed. The wrapper's own attributes are chrome, and
 // the first literal `>` closes the open tag: every `>` inside data-item is escaped to `&gt;`.
@@ -109,14 +113,10 @@ function innerMarkupOf(html: string): string {
   return html.slice(openEnd + 1, close);
 }
 
-/** What the adapter emits for one record, parsed: the item, then its inert view template. */
+/** What the adapter emits for one record, parsed: the card, and nothing beside it. */
 function presented(html: string) {
   const root = parseHtml(html, new Doc());
-  return {
-    root,
-    item: root.children[0] as El,
-    template: root.children.find((node) => node.tag === "template") as El,
-  };
+  return { root, item: root.children[0] as El };
 }
 
 describe("createPresentationAdapter — composition", () => {
@@ -158,7 +158,7 @@ describe("createPresentationAdapter — composition", () => {
     });
   });
 
-  test("wraps item markup in a record button with the escaped payload + the open hook", () => {
+  test("wraps item markup in a record button with the escaped payload + what it opens", () => {
     const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
@@ -170,7 +170,7 @@ describe("createPresentationAdapter — composition", () => {
 
     // The wrapper chrome (platform-authored, trusted). A record is a real button, so it
     // carries no role, no tabindex and no dialog ARIA.
-    const { item, template } = presented(html);
+    const { item } = presented(html);
     expect(item.tag).toBe("button");
     expect(item.getAttribute("type")).toBe("button");
     expect(item.classList.contains(ITEM_TRIGGER_CLASS)).toBe(true);
@@ -191,54 +191,78 @@ describe("createPresentationAdapter — composition", () => {
       note: "Tides through endless halls.",
     });
 
-    // The click-to-open hook: the record's view template id.
-    const templateId = `${RECORD_TEMPLATE_ID_PREFIX}-reading-rec-1`;
-    expect(item.getAttribute(ITEM_RECORD_VIEW_ATTR)).toBe(templateId);
-    expect(template.id).toBe(templateId);
+    // What a press opens: this capability's record, at its record address.
+    expect(item.getAttribute(CARD_CAPABILITY_ATTRIBUTE)).toBe(CAPABILITY.id);
+    expect(item.getAttribute(CARD_RECORD_ATTRIBUTE)).toBe("rec-1");
   });
 
-  test("emits the item wrapper first, then the record's view template", () => {
-    const present = createPlatformPresentationAdapter({
-      capability: CAPABILITY,
-      renderItem: renderReadingItem,
-    });
-    const { root, item, template } = presented(present(record()));
-    expect(root.children.map((node) => node.tag)).toEqual(["button", "template"]);
-    // The record's own surface travels inert in the template, never in the item.
-    expect(item.querySelector(`[${RECORD_BACK_ATTR}]`)).toBeNull();
-    expect(item.querySelector("form")).toBeNull();
-    expect(template.content?.querySelector(`[${RECORD_BACK_ATTR}]`)).not.toBeNull();
-  });
-
-  test("keys the record template to the record id and namespaces it by capability", () => {
-    const present = createPlatformPresentationAdapter({
-      capability: CAPABILITY,
-      renderItem: renderReadingItem,
-    });
-    const first = presented(present(record({ id: "aaa" })));
-    const second = presented(present(record({ id: "bbb" })));
-
-    // Each wrapper's hook matches its own template, and the two records never collide.
-    for (const { item, template } of [first, second]) {
-      expect(item.getAttribute(ITEM_RECORD_VIEW_ATTR)).toBe(template.id);
-    }
-    expect(first.template.id).toBe(`${RECORD_TEMPLATE_ID_PREFIX}-${CAPABILITY.id}-aaa`);
-    expect(second.template.id).not.toBe(first.template.id);
-  });
-});
-
-describe("createPresentationAdapter — what reaches the form and the item", () => {
-  test("routes active schema fields into the record's form in form order", () => {
+  test("emits the card alone: no template, no form and no way back travel with it", () => {
     const present = createPlatformPresentationAdapter({
       capability: CAPABILITY,
       renderItem: renderReadingItem,
     });
     const html = present(record());
-    const form = presented(html).template.content?.querySelector("form") as El;
+    const { root, item } = presented(html);
+    expect(root.children.map((node) => node.tag)).toEqual(["button"]);
+    expect(html).not.toContain("<template");
+    expect(item.querySelector(`[${RECORD_BACK_ATTR}]`)).toBeNull();
+    expect(item.querySelector(`[${RECORD_VIEW_ATTR}]`)).toBeNull();
+    expect(item.querySelector("form")).toBeNull();
+  });
+
+  test("names each card by its capability and record, so two records never collide", () => {
+    const present = createPlatformPresentationAdapter({
+      capability: CAPABILITY,
+      renderItem: renderReadingItem,
+    });
+    const first = presented(present(record({ id: "aaa" }))).item;
+    const second = presented(present(record({ id: "bbb" }))).item;
+    expect(first.id).toBe(recordItemId(CAPABILITY.id, "aaa"));
+    expect(second.id).toBe(recordItemId(CAPABILITY.id, "bbb"));
+    expect(second.id).not.toBe(first.id);
+    // The record view a press opens names the same card, so leaving it puts focus back there.
+    const view = parseHtml(recordAddressView({ id: "aaa" }), new Doc()).children[0] as El;
+    expect(view.getAttribute("data-item-target-id")).toBe(first.id);
+  });
+
+  test("a card listed on another record leaves the id to its own collection's card", () => {
+    const present = createPresentationAdapter({
+      capability: CAPABILITY,
+      renderItem: renderReadingItem,
+      listed: true,
+    });
+    const { item } = presented(present(stored()));
+    expect(item.tag).toBe("button");
+    expect(item.hasAttribute("id")).toBe(false);
+    expect(item.getAttribute(CARD_CAPABILITY_ATTRIBUTE)).toBe(CAPABILITY.id);
+    expect(item.getAttribute(CARD_RECORD_ATTRIBUTE)).toBe("rec-1");
+  });
+
+  test("a capability whose records cannot be changed draws a card that opens nothing", () => {
+    const present = createPlatformPresentationAdapter({
+      capability: { ...CAPABILITY, actions: ["create", "read", "search"] },
+      renderItem: renderReadingItem,
+    });
+    const { item } = presented(present(record()));
+    expect(item.tag).toBe("article");
+    expect(item.hasAttribute(CARD_CAPABILITY_ATTRIBUTE)).toBe(false);
+    expect(item.hasAttribute(CARD_RECORD_ATTRIBUTE)).toBe(false);
+  });
+});
+
+describe("createPresentationAdapter — what reaches the form and the item", () => {
+  test("routes active schema fields into the record's form at its address, in form order", () => {
+    const present = createPlatformPresentationAdapter({
+      capability: CAPABILITY,
+      renderItem: renderReadingItem,
+    });
+    const html = present(record());
+    const view = recordAddressView();
+    const form = parseHtml(view, new Doc()).querySelector("form") as El;
 
     // The record's form follows active form-field order and excludes only the inactive
     // stored field.
-    expect(recordTemplateBody(html, "record-reading-rec-1")).not.toContain("still stored");
+    expect(view).not.toContain("still stored");
     const named = form
       .querySelectorAll("input")
       .map((input) => input.getAttribute("name"))
@@ -330,17 +354,11 @@ describe("createPresentationAdapter — enforcement on every rendered record", (
     expect(readBackPayload(html)).toMatchObject({ title: hostileTitle });
   });
 
-  test("a hostile field value cannot execute in the record's view template either", () => {
-    // The record's inert view <template> is the other half of what a hostile record reaches: it
-    // is cloned into the window on open, so an unescaped value would execute at that moment.
-    const present = createPlatformPresentationAdapter({
-      capability: CAPABILITY,
-      renderItem: renderReadingItem,
-    });
-
+  test("a hostile field value cannot execute in the record's view at its address either", () => {
+    // The record's view is the other half of what a hostile record reaches: its address draws it
+    // into the window on open, so an unescaped value would execute at that moment.
     const hostileTitle = "<script>alert(1)</script><img src=x onerror=alert(2)>";
-    const html = present(record({ title: hostileTitle }));
-    const body = recordTemplateBody(html, `${RECORD_TEMPLATE_ID_PREFIX}-reading-rec-1`);
+    const body = recordAddressView({ title: hostileTitle });
 
     // `title` is the first active schema field, so the hostile value seeds its input as inert
     // escaped text. Assert on the element openings, which are what would execute.

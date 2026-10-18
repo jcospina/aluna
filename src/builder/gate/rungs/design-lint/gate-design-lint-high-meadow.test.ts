@@ -7,6 +7,7 @@
 // biome-ignore-all lint/suspicious/noTemplateCurlyInString: renderer source is authored as string data; the `${...}` placeholders are TypeScript for the generated item.ts, not this file's template literals.
 
 import { describe, expect, test } from "bun:test";
+import { CARD_CAPABILITY_ATTRIBUTE } from "#shell/core/shell-dom.js";
 
 import {
   createPlatformPresentationAdapter,
@@ -318,9 +319,9 @@ describe("the few-shot exemplars the generator is shown", () => {
     expect(all).toContain('class="capability-records capability-records--feed"');
     expect(all).toContain('class="capability-records capability-records--grid"');
 
-    // Create + read only: a frame with nothing behind it is a card, so no record surface
-    // is emitted and no swap is armed that the exemplar could not serve.
-    expect(all).not.toContain("data-record-view-template=");
+    // Create + read only: a frame with nothing behind it is a card, so no card opens a record
+    // surface the exemplar could not serve.
+    expect(all).not.toContain(CARD_CAPABILITY_ATTRIBUTE);
     expect(all).not.toContain("<dialog");
   });
 });

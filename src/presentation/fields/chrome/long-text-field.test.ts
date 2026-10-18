@@ -300,7 +300,7 @@ describe("how a control gets its script", () => {
   });
 
   test("a form that lands long after the page does is mounted too", async () => {
-    // htmx lands one, `record-view.js` clones one out of a template, three modules assign
+    // htmx lands one, the desk restores one out of a held template, three modules assign
     // `innerHTML`. None of them announce the same thing, and two announce nothing.
     const one = await scene(longTextForm());
     const arriving = parseHtml(longTextForm("hello", "late"), new El("div"));

@@ -8,6 +8,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   ACTIVE_CAPABILITY_ATTRIBUTE,
+  CARD_CAPABILITY_ATTRIBUTE,
+  CARD_RECORD_ATTRIBUTE,
   PROMPT_NOTICE_ID,
   WINDOW_CONTENT_ID,
 } from "#shell/core/shell-dom.js";
@@ -158,15 +160,16 @@ describe("deterministic capability router — presentation adapter and empty rea
     const res = await app.request("/capability/notes/read");
     expect(res.status).toBe(200);
     const body = await res.text();
-    // The record came back through the adapter: the button, the escaped payload, the open hook and
-    // the renderer's inner markup, none of it authored by the handler.
+    // The record came back through the adapter: the button, the escaped payload, what it opens and
+    // the renderer's inner markup, none of it authored by the handler. The record's form is its
+    // address's to draw, so no card carries it.
     expect(body).toContain('class="capability-item"');
     expect(body).toContain("data-item=");
-    expect(body).toContain('data-record-view-template="record-notes-');
+    expect(body).toContain(`${CARD_CAPABILITY_ATTRIBUTE}="notes" ${CARD_RECORD_ATTRIBUTE}="`);
     expect(body).toContain('<span class="text-lg truncate">Buy milk</span>');
-    expect(body).toContain("data-record-back");
-    expect(body).toContain("data-record-edit-form");
-    expect(body).toContain("/capability/notes/update");
+    expect(body).not.toContain("data-record-back");
+    expect(body).not.toContain("data-record-edit-form");
+    expect(body).not.toContain("/capability/notes/update");
   });
 
   test("a missing required item renderer fails cleanly before the handler loads", async () => {

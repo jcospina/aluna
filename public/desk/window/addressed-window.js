@@ -288,7 +288,8 @@ function htmx() {
 
 /**
  * The record whose view the window holds, by the id its forms post, or null where the window
- * holds no record view. Card templates are inert, so a collection's records are never read here.
+ * holds no record view. A card carries no form, so neither a collection's records nor the records
+ * listed on a record are read here.
  *
  * @param {{ querySelector(selector: string): unknown } | null | undefined} region
  * @returns {string | null}
