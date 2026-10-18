@@ -9,7 +9,6 @@ import { pickAgainLine } from "../../../../presentation/controls/link/link-copy.
 import { FIFTH_INCARNATION_ID } from "../../../../registry/incarnations.test-support.ts";
 import {
   ALUNA_RESERVED_FIELD_PREFIX,
-  BEHAVIORAL_ERROR_MARKERS,
   PICK_NOT_FOUND_ERROR_CODE,
   readActiveRegistryCatalog,
 } from "../../../../registry/index.ts";
@@ -31,6 +30,7 @@ import {
   noteLink,
   notes,
   recordAddressView,
+  refusalIn,
   routerApp,
   SANDERSON,
   saveBody,
@@ -59,16 +59,6 @@ function created(): string {
   const [note] = notes(conns);
   if (!note) throw new Error("the create stored no note");
   return note.id;
-}
-
-/** The refusal a body carries: its code, the fields it names, and its sentence. */
-function refusalIn(html: string) {
-  const { code_attribute, fields_attribute } = BEHAVIORAL_ERROR_MARKERS;
-  return {
-    code: new RegExp(`${code_attribute}="([^"]*)"`).exec(html)?.[1],
-    fields: new RegExp(`${fields_attribute}="([^"]*)"`).exec(html)?.[1],
-    sentence: />([^<]*)<\/p>/.exec(html)?.[1],
-  };
 }
 
 describe("a valid pick", () => {

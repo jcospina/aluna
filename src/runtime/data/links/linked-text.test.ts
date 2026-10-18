@@ -1,15 +1,12 @@
 // The text a linked field shows is its target's, at the ports: a pick stores the target's
 // text whatever the save was handed, an edit carries a target's new text down every chain in its own
-// savepoint, a target left holding no name lets its links go, and a deleted target record takes the
-// rows naming it and nothing else.
+// savepoint, and a target left holding no name lets its links go.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { LINK_TABLE, writeLinkRow } from "../../../platform/links/link-table.ts";
 import { FIFTH_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import type { CapabilityRow, Relation } from "../../../registry/index.ts";
 import {
-  AUTHORS,
-  AUTHORS_INCARNATION,
   BOOKS,
   BOOKS_INCARNATION,
   type DeskCapability,
@@ -19,7 +16,6 @@ import {
 } from "../../../server/routes/lifecycle/link.test-support.ts";
 import {
   applyCapabilityTableDdl,
-  createCapabilityDeleteMutationPort,
   createCapabilityMutationPort,
   fieldsDrawnUnlinked,
   fileClaimScope,
@@ -284,32 +280,6 @@ describe("a target left holding no name", () => {
   });
 });
 
-describe("a deleted target record", () => {
-  test("takes the rows naming it, and changes no other record", () => {
-    linked(BOOKS, "author", "book-1", "Ursula K. Le Guin", toAuthor(LE_GUIN));
-    writeLinkRow(
-      db(),
-      { capability: "books", record: "book-1", field: "title" },
-      toAuthor(LE_GUIN),
-    );
-    linked(BOOKS, "author", "book-3", "Octavia E. Butler", toAuthor(BUTLER));
-    linked(MEMOS, "subject", "memo-1", "Ursula K. Le Guin", toBook("book-1"));
-    const scope = fileClaimScope(db(), spec(AUTHORS), AUTHORS_INCARNATION);
-    createCapabilityDeleteMutationPort(spec(AUTHORS), LE_GUIN, scope).delete();
-    expect(
-      db().query(`SELECT source_record, target_record FROM ${LINK_TABLE} ORDER BY 1`).all(),
-    ).toEqual([
-      { source_record: "book-3", target_record: BUTLER },
-      { source_record: "memo-1", target_record: "book-1" },
-    ]);
-    expect(texts("cap_books", "author")).toEqual({
-      "book-1": "Ursula K. Le Guin",
-      "book-3": "Octavia E. Butler",
-    });
-    expect(texts("cap_memos", "subject")).toEqual({ "memo-1": "Ursula K. Le Guin" });
-  });
-});
-
 describe("what the refresh reaches", () => {
   const reached = (catalog: readonly CapabilityRow[]) =>
     reachOn(catalog).relations.map(({ source, relation, holds }) => [
@@ -325,8 +295,11 @@ describe("what the refresh reaches", () => {
     ]);
   });
 
-  test("takes in a dormant relation only where it points at the edited capability", () => {
-    expect(reached(hidden(desk(), "memos", "subject"))).toEqual([["books", "author", true]]);
+  test("takes in each dormant relation pointing at a capability it reaches, and goes no further", () => {
+    expect(reached(hidden(desk(), "memos", "subject"))).toEqual([
+      ["books", "author", true],
+      ["memos", "subject", false],
+    ]);
     expect(reached(hidden(desk(), "books", "author"))).toEqual([["books", "author", false]]);
   });
 });

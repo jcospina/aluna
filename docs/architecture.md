@@ -1061,7 +1061,8 @@ been rewritten by the linked-text refresh, so an edit from it that holds other t
 than the record's, while the record's pick stands, is refused as a form drawn before
 the field changed, and the person opens it again. A deleted record's rows go in the
 delete's savepoint, those it held as a source and those naming it as a target. The
-rows of a dormant relation stay until a save changes its field's text, and
+rows of a dormant relation stay until a save changes its field's text, or the record a
+row names is deleted or left holding no name, as a deletion's clearing leaves one, and
 reactivating the field revives them: each record a row names takes its target's
 current text in the activation transaction, and a row naming a record that holds no
 name goes.
@@ -1096,7 +1097,9 @@ the tombstone transaction. Every relation pointing at the deleted capability com
 the other rows, and every link row naming one of its records goes. Its own relations
 go with its row as it becomes the tombstone, and so do the link rows its fields made.
 Each linked field keeps its text, unmarked, since nothing is left to pick (ADR-0011).
-Deleting a target record removes the rows that name it, in the delete's own savepoint.
+Deleting a target record removes the rows that name it, in the delete's own savepoint,
+and clears each optional field linked to it through a relation that holds, letting the
+links through a cleared field go (§7).
 
 #### Generation Metrics — the experiment's measurements
 
@@ -1232,18 +1235,23 @@ change what the link shows, and a form opened before the target changed cannot w
 the old text back (ADR-0011). Incidental I/O stays the Handler's business; canonical
 state a Handler writes always crosses the mutation interface.
 
-Two platform writes reach into another capability's records, and they are the only
+Three platform writes reach into another capability's records, and they are the only
 ones. When a target's text changes, the linked-text refresh rewrites every field
 linked to it, in the target record's own transaction, under the lease that save
 already holds, as platform SQL against each linking capability's table. A rewritten
 field that is itself a target passes the change down the chain, each field visited
 once (proposed in ADR-0011). Deleting a target record never deletes or holds up the
 records pointing at it: an optional linked field is cleared, and a required one keeps
-the last text it showed as plain text with the broken-link mark. ADR-0011 proposes
-that clearing a target's text breaks the link the same way, so a required field is
-never rewritten to empty. Until 8.4 lands, deleting a target record or clearing its
-text removes the link rows naming it and nothing else: each linked field keeps the
-text it showed, and its card carries the broken-link mark. A generated Handler still never writes outside its own
+the last text it showed as plain text with the broken-link mark. A cleared field that
+is itself a target is treated as a target whose text was cleared, and a field behind
+a dormant relation is plain text, so it keeps its text and loses only its link row;
+both were decided without the owner in 8.4/01, open to reversal. A woken relation's
+revival brings each of its field's records back to its target's text, in the
+activation transaction (§6.3). ADR-0011 proposes that clearing a target's text breaks
+the link the same way a deletion does, so a required field is never rewritten to
+empty. Until that rule is built, clearing a target's text removes the link rows
+naming it and nothing else: each linked field keeps the text it showed, and its card
+carries the broken-link mark. A generated Handler still never writes outside its own
 capability (ADR-0011).
 
 ### Reads — free
@@ -1586,11 +1594,13 @@ its transaction, and one whose relation woke or was linked after it read the des
 its pick there, under the record lease that no deletion can hold beside it. The
 linked-text refresh and the
 clearing a target record's deletion brings are an exception to taking the set all at
-once: the save or deletion also takes the token of every capability its refresh or
-clearing reaches, down the chain where ADR-0011's proposed chain rule applies, apart
-from its own set, so a linking capability closed by its own deletion is skipped
-instead of refusing the save (ADR-0011). Until 8.4, deleting a target record writes
-only the link table, so it takes no token beyond its own. The record address takes the
+once. An edit also takes the token of every capability its refresh reaches, down the
+chain where ADR-0011's proposed chain rule applies. A deletion also takes the token of
+each capability holding an optional field linked to the record through a relation that
+holds, the only tables its clearing writes. Each is taken apart from the request's own
+set and without waiting, so a linking capability closed by its own deletion is skipped,
+never waited on; the deletion's own lease already turns saves away while it runs
+(ADR-0011). The record address takes the
 token of each capability linking to its record the same way, apart from its own, so a
 linking capability closed by its own deletion leaves its section of the record out
 instead of refusing the record (Module 8 PLAN decision 38).

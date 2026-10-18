@@ -12,11 +12,9 @@ import { LINK_TABLE } from "../../../../platform/links/link-table.ts";
 import type { PlatformDatabase } from "../../../../platform/persistence/db.ts";
 import { REGISTRY_TABLE } from "../../../../platform/persistence/table-names.ts";
 import {
-  type ActiveCatalogReader,
   FORM_CHANGED_ERROR_CODE,
   getCapability,
   listCapabilities,
-  readActiveRegistryCatalog,
 } from "../../../../registry/index.ts";
 import {
   noticeCode,
@@ -27,6 +25,7 @@ import { teardownRouterTest } from "../router.test-support.ts";
 import { authorsDesk, BOOK_AUTHOR, NOTE_LE_GUIN } from "./router.links.refresh.test-support.ts";
 import {
   BUTLER,
+  changingAfterRead,
   LE_GUIN,
   linkRows,
   noteLink,
@@ -45,19 +44,6 @@ beforeEach(() => {
 });
 
 afterEach(() => teardownRouterTest(dir, conns));
-
-/** A catalog reader that reads the desk, then commits `change` once, after the read. */
-function changingAfterRead(change: () => void): ActiveCatalogReader {
-  let changed = false;
-  return (database) => {
-    const read = readActiveRegistryCatalog(database);
-    if (!changed) {
-      changed = true;
-      change();
-    }
-    return read;
-  };
-}
 
 describe("a rename that read the desk before", () => {
   test("a link made since still takes the new name", async () => {

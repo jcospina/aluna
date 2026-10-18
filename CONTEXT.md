@@ -170,8 +170,8 @@ _Avoid_: remove link, break link, detach; disconnect in docs, since it is the pr
 
 **Broken-link mark**:
 The mark a linked field carries when it holds text with no record behind it: a name the
-matching scan could not place, a link broken by deleting the record it pointed at, or
-one broken by clearing that record's text (proposed in ADR-0011).
+matching scan could not place, a link broken by deleting the record it pointed at on a field
+that keeps its text, or one broken by clearing that record's text (proposed in ADR-0011).
 The item wrapper draws it on the card in the list, never the generated card, and in
 the form the line under the field takes its place. It asks for a pick and refuses nothing
 (ADR-0011; M8 plan 17).
@@ -751,11 +751,13 @@ _Avoid_: backfill, migration, auto-link, fuzzy match
 **Linked-text refresh**:
 When a target's text changes, the platform rewrites every field linked to it, in the
 target record's own transaction under the lease the save already holds, as platform SQL
-against each linking capability's table. It and the clearing that deleting a target
-record brings are the only platform writes into another capability's records. A
+against each linking capability's table. It, the clearing that deleting a target record
+brings and a woken relation's revival are the only platform writes into another
+capability's records. A
 rewritten field that is itself a target passes the change on down the chain, each field
-once (proposed in ADR-0011). A linking capability closed by its own deletion is skipped
-(ADR-0011; M8 plan 16).
+once (proposed in ADR-0011). The clearing empties each optional field linked to a deleted
+record; a required one keeps its text and shows the **broken-link mark** (M8 plan 28). A
+linking capability closed by its own deletion is skipped (ADR-0011; M8 plan 16).
 _Avoid_: sync, cascade update, propagation, denormalization
 
 **List input mode**:
@@ -838,10 +840,12 @@ _Avoid_: gate (unqualified), lock, mutex, read lock
 The ownership record one operation holds over the exact incarnations it can observe. An
 operation acquires its *complete* set atomically against one gate/catalog snapshot or
 receives none, and releases the complete set in `finally`. An exception is the
-linked-text refresh and the clearing a target record's deletion brings: the edit, or
-from 8.4 the deletion, also takes the token of every capability they reach, down the
-chain where ADR-0011's proposed chain rule applies, apart from its own set, so a linking
-capability closed by its own deletion is skipped instead of refusing the save (ADR-0011). The
+linked-text refresh and the clearing a target record's deletion brings. The edit also
+takes the token of every capability its refresh reaches, down the chain where ADR-0011's
+proposed chain rule applies. The deletion also takes the token of each capability holding
+an optional field linked to the record through a relation that holds. Each is taken apart
+from the operation's own set and without waiting, so a linking capability closed by its own
+deletion is skipped, never waited on (ADR-0011). The
 record address takes the token of each capability linking to its record apart from its own too,
 so one closed by its own deletion leaves its section out (M8 plan 38). Generated
 code never receives the token — it only observes cancellation as a thrown error.

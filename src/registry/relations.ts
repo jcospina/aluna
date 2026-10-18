@@ -113,11 +113,14 @@ export interface ReachingRelation {
   readonly source: { readonly capability: string; readonly incarnation: string };
   readonly relation: Relation;
   readonly holds: boolean;
+  /** Whether the linking field must hold a value, which keeps it from a deleted target's clearing. */
+  readonly required: boolean;
 }
 
 /**
- * The relations the linked-text refresh reaches from `row` (ADR-0011): each that holds, down every
- * chain, and each dormant one pointing at `row` itself, whose link rows a cleared text lets go.
+ * The relations the linked-text refresh and a record's deletion reach from `row` (ADR-0011): each
+ * that holds, down every chain, and each dormant one pointing at a capability the walk reaches,
+ * whose link rows a cleared text or a deleted record lets go.
  */
 export function relationsReaching(
   row: Pick<RelatedCapability, "id" | "incarnation_id">,
@@ -128,8 +131,7 @@ export function relationsReaching(
   const reached = new Set([row.id]);
   const frontier = [row];
   for (let target = frontier.shift(); target !== undefined; target = frontier.shift()) {
-    const dormantToo = target.id === row.id;
-    for (const { found, source } of relationsInto(target, catalog, holding, dormantToo)) {
+    for (const { found, source } of relationsInto(target, catalog, holding, true)) {
       reaching.push(found);
       if (!found.holds || reached.has(source.id)) continue;
       reached.add(source.id);
@@ -151,10 +153,12 @@ function relationsInto<Source extends RelatedCapability>(
       .filter(({ to }) => to.capability === target.id && to.incarnation === target.incarnation_id)
       .map((relation) => {
         const holds = holding.get(source.id)?.some((each) => sameRelation(each, relation)) ?? false;
+        const field = source.schema.fields.find(({ name }) => name === relation.field);
         const found = {
           source: { capability: source.id, incarnation: source.incarnation_id },
           relation,
           holds,
+          required: field?.required ?? true,
         };
         return { found, source };
       })

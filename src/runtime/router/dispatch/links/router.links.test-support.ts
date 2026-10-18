@@ -6,7 +6,13 @@ import { linkFieldValue } from "#shell/core/shell-dom.js";
 import { until } from "../../../../platform/async.test-support.ts";
 import { LINK_TABLE, writeLinkRow } from "../../../../platform/links/link-table.ts";
 import type { PlatformDatabase } from "../../../../platform/persistence/db.ts";
-import type { CapabilityRow, Relation } from "../../../../registry/index.ts";
+import {
+  type ActiveCatalogReader,
+  BEHAVIORAL_ERROR_MARKERS,
+  type CapabilityRow,
+  type Relation,
+  readActiveRegistryCatalog,
+} from "../../../../registry/index.ts";
 import { createTestApp } from "../../../../server/isolated-app.test-support.ts";
 import {
   AUTHORS_INCARNATION,
@@ -69,6 +75,29 @@ export async function recordAddressView(
   const answer = await app.request(address, { headers: { "HX-Request": "true" } });
   if (answer.status !== 200) throw new Error(`${address} answered ${answer.status}`);
   return answer.text();
+}
+
+/** A catalog reader that reads the desk, then commits `change` once, after the read. */
+export function changingAfterRead(change: () => void): ActiveCatalogReader {
+  let changed = false;
+  return (database) => {
+    const read = readActiveRegistryCatalog(database);
+    if (!changed) {
+      changed = true;
+      change();
+    }
+    return read;
+  };
+}
+
+/** The refusal a body carries: its code, the fields it names, and its sentence. */
+export function refusalIn(html: string) {
+  const { code_attribute, fields_attribute } = BEHAVIORAL_ERROR_MARKERS;
+  return {
+    code: new RegExp(`${code_attribute}="([^"]*)"`).exec(html)?.[1],
+    fields: new RegExp(`${fields_attribute}="([^"]*)"`).exec(html)?.[1],
+    sentence: />([^<]*)<\/p>/.exec(html)?.[1],
+  };
 }
 
 /** A save as a form posts it: each field's value, its presence marker, and each pick. */

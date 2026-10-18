@@ -67,7 +67,7 @@ import type { HandlerLoader, ItemRendererLoader } from "./generated-code.ts";
 export interface HandlerRead extends SaveRelations {
   readonly dependencies: readonly CapabilityRow[];
   readonly catalog: readonly CapabilityRow[];
-  /** What an edit's linked-text refresh reaches, on the desk the save's transaction finds. */
+  /** What an edit's refresh or a deletion's clearing reaches, on the desk its transaction finds. */
   readonly settleReach: (desk: () => readonly CapabilityRow[]) => RefreshReach;
 }
 
@@ -159,13 +159,12 @@ export async function invokeCapabilityHandler(
   }
   if (action === "delete") {
     assertReadOwnership(signal);
+    const target = requireRecordTarget(recordTarget, action);
+    const scope = fileScope();
+    // Settled inside the deletion's transaction, as an edit's refresh is, on the desk it finds.
+    const reach = read.settleReach(() => listCapabilities(scope.database));
     const mutation = writes.guard(
-      createCapabilityDeleteMutationPort(
-        spec,
-        requireRecordTarget(recordTarget, action),
-        fileScope(),
-        signal,
-      ),
+      createCapabilityDeleteMutationPort(spec, target, scope, signal, reach),
     );
     const handler = await loadHandler(row.artifacts_path, action);
     assertReadOwnership(signal);

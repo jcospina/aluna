@@ -6,7 +6,14 @@ import { capabilityActionUrl } from "#shell/core/routes.js";
 import { RECORD_ID_FIELD } from "#shell/core/shell-dom.js";
 import { writeLinkRow } from "../../../../platform/links/link-table.ts";
 import type { PlatformDatabase } from "../../../../platform/persistence/db.ts";
-import { type Relation, readActiveRegistryCatalog } from "../../../../registry/index.ts";
+import { REGISTRY_TABLE } from "../../../../platform/persistence/table-names.ts";
+import { defaultBehavioralErrorsForSchema } from "../../../../registry/fields/behavioral-errors.ts";
+import {
+  getCapability,
+  type Relation,
+  readActiveRegistryCatalog,
+  type SpecField,
+} from "../../../../registry/index.ts";
 import {
   AUTHORS,
   AUTHORS_INCARNATION,
@@ -84,6 +91,31 @@ export function authorsDesk() {
     record: "book-1",
   });
   return { ...env, desk: deskOver(conns) };
+}
+
+/** Change one field of a capability's spec in storage, as an evolution changes one. */
+export function reshapeField(
+  conns: PlatformDatabase,
+  capabilityId: string,
+  name: string,
+  change: Partial<SpecField>,
+): void {
+  const row = getCapability(capabilityId, conns.readwrite);
+  if (!row) throw new Error(`${capabilityId} is not on the desk`);
+  const fields = row.schema.fields.map((field) =>
+    field.name === name ? { ...field, ...change } : field,
+  );
+  const schema = { ...row.schema, fields };
+  conns.readwrite
+    .query(
+      `UPDATE ${REGISTRY_TABLE} SET schema = ?, behavioral_errors = ?, version = version + 1
+       WHERE id = ?`,
+    )
+    .run(
+      JSON.stringify(schema),
+      JSON.stringify(defaultBehavioralErrorsForSchema(schema)),
+      capabilityId,
+    );
 }
 
 function seed(

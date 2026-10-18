@@ -16,14 +16,19 @@ import {
   RecordChangedError,
   RecordNotFoundError,
 } from "../internal.ts";
-import { pickedTexts, refreshLinkedText } from "../links/linked-text.ts";
+import { releaseDeletedRecord } from "../links/deleted-target.ts";
+import {
+  NO_REACH,
+  pickedTexts,
+  type RefreshReach,
+  refreshLinkedText,
+} from "../links/linked-text.ts";
 import {
   type LinkBinding,
   linkCreatedRecord,
   NO_LINKS,
   PickWriteError,
   relinkUpdatedRecord,
-  unlinkDeletedRecord,
 } from "../links/picks.ts";
 import { deriveCapabilityTableDdl } from "../schema/ddl.ts";
 import {
@@ -328,11 +333,13 @@ export function createCapabilityUpdateMutationPort(
   };
 }
 
+/** @param reach what the deletion's clearing reaches, from the router; the Gate's reaches nothing */
 export function createCapabilityDeleteMutationPort(
   spec: CapabilitySpec,
   recordTarget: string,
   scope: FileClaimScope,
   signal?: AbortSignal,
+  reach: RefreshReach = NO_REACH,
 ): CapabilityDeleteMutationPort {
   const parsed = capabilitySpecSchema.parse(spec);
   const target = validateBoundRecordTarget(recordTarget);
@@ -342,18 +349,15 @@ export function createCapabilityDeleteMutationPort(
   return {
     delete() {
       assertReadOwnership(signal);
-      // The record's files, hidden fields' included, are given up in the same savepoint as the row.
+      // The row's savepoint also gives up the record's files, hidden fields' included, and its links.
       database.transaction(() => {
         const deleted = database
           .query(`DELETE FROM ${quotedTable} WHERE "id" = ? RETURNING "id"`)
           .get(target);
         if (!deleted) throw new RecordNotFoundError(parsed.id, "delete");
         enqueueRecordFiles(database, scope, target);
-        unlinkDeletedRecord(database, {
-          capability: parsed.id,
-          incarnation: scope.incarnationId,
-          record: target,
-        });
+        const record = { capability: parsed.id, incarnation: scope.incarnationId, record: target };
+        releaseDeletedRecord(database, record, reach);
       })();
     },
   };

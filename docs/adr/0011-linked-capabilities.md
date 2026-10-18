@@ -150,8 +150,8 @@ the linking capabilities' specs. When it admits the save, it takes the read toke
 capability the refresh reaches, apart from the request's own set, and a target record's
 deletion does the same for the capabilities its clearing reaches. That is an exception to
 taking a token set all at once or not at all, and it lets a linking capability closed by
-its own deletion be skipped instead of refusing the save, because that deletion takes its
-relations and link rows with it.
+its own deletion be skipped, never waited on, because that deletion takes its relations and
+link rows with it.
 
 **A target whose text is cleared breaks the link the way deleting it does.** *Proposed.* A
 target field can be optional while the field linked to it is required, and a refresh would
@@ -214,8 +214,9 @@ field plain text again. A link's target is never changed in place: Unlink, then 
 
 **The broken-link mark shows a linked field holding text with no record behind it.** It
 appears on the card in the list, drawn in the platform's item wrapper and never by the
-generated card. It covers names the matching scan could not place, links broken by
-deleting a target record, and links broken by clearing a target's text (proposed above).
+generated card. It covers names the matching scan could not place, links broken by deleting
+a target record on a field that keeps its text, and links broken by clearing a target's text
+(proposed above).
 
 **The Intent Resolver alone flags the existing capabilities a request relates to.** The
 spec writer and the link step see only the flagged ones, so the two steps cannot disagree.
@@ -268,13 +269,15 @@ leaves Books' author as typed text until the person links it, by hand or by aski
 deletes or blocks the records that point at it. An optional linked field is cleared. A
 required one keeps the text it already holds, the last name it showed, as plain text with
 the broken-link mark. Nothing extra is stored, because the field's own column already holds
-that name, so the deletion only removes the link row. Until 8.4 lands, deleting a target
-record removes its link rows and nothing else. Deleting a target capability works like
-Unlink on every relation pointing at it: the relations and link rows go, every record keeps
-the text it shows, and the field is plain text again, with no mark, because nothing is left
-to pick. Deleting a capability whose own fields are linked takes those relations and their
-link rows with it, in the same transaction. A relation is no `read_dependency` and never
-blocks a capability's deletion.
+that name, so the deletion only removes the link row. Two rules were decided without the
+owner in 8.4/01 and stay open to reversal: a cleared field that is itself a target is
+treated as a target whose text was cleared, and a field behind a dormant relation is plain
+text, so it keeps its text and loses only its link row. Deleting a target capability works
+like Unlink on every relation pointing at it: the relations and link rows go, every record
+keeps the text it shows, and the field is plain text again, with no mark, because nothing is
+left to pick. Deleting a capability whose own fields are linked takes those relations and
+their link rows with it, in the same transaction. A relation is no `read_dependency` and
+never blocks a capability's deletion.
 
 **Search follows links, in platform code.** Searching Inventory for "sanderson" finds the
 copies of his books, though Inventory holds only titles and counts. The generated search

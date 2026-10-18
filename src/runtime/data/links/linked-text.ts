@@ -11,15 +11,15 @@ import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 import type { ReachingRelation, Relation } from "../../../registry/index.ts";
 import { capabilityTableName } from "../schema/ddl.ts";
 
-/** The relations an edit's refresh reaches, and the capabilities it may write. */
+/** The relations an edit's refresh or a deletion's clearing reaches, and what it may write. */
 export interface RefreshReach {
-  /** Each relation reaching the edited capability (`relationsReaching`). */
+  /** Each relation reaching the edited or deleted record's capability (`relationsReaching`). */
   readonly relations: readonly ReachingRelation[];
-  /** Whether the refresh may write a capability's records: its read token is held and open. */
+  /** Whether the refresh or clearing may write a capability's records: its token is held, open. */
   readonly writable: (source: ReachingRelation["source"]) => boolean;
 }
 
-/** A reach of nothing: the Gate's, and every save but an edit's. */
+/** A reach of nothing: the Gate's, and every save but an edit's or a deletion's. */
 export const NO_REACH: RefreshReach = Object.freeze({ relations: [], writable: () => false });
 
 /** The text record `id` holds in a relation's target field, read on the save's connection. */
@@ -125,7 +125,7 @@ function targetFields(edited: LinkTarget, reach: RefreshReach): Set<string> {
 }
 
 /** Delete the link rows of every relation pointing at `origin` that name `record`, dormant too. */
-function unlinkClearedTarget(
+export function unlinkClearedTarget(
   database: Database,
   origin: Relation["to"],
   record: string,

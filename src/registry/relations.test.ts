@@ -116,6 +116,17 @@ describe("what shows a capability's text", () => {
     ]);
   });
 
+  test("says whether each linking field must hold a value, as its spec has it", () => {
+    const required = (author: Partial<SpecField>) =>
+      relationsReaching(authors(), [books(author), authors()]).map((each) => each.required);
+    expect(required({ required: true })).toEqual([true]);
+    expect(required({ required: false })).toEqual([false]);
+    const gone = books({}, [{ ...TO_NAME, field: "editor" }]);
+    expect(relationsReaching(authors(), [gone, authors()]).map((each) => each.required)).toEqual([
+      true,
+    ]);
+  });
+
   test("leaves out a relation into a lifetime the capability no longer lives", () => {
     const earlier: Relation = { ...TO_NAME, to: { ...TO_NAME.to, incarnation: "authors-earlier" } };
     expect(shown([books({}, [earlier]), authors()])).toEqual([]);

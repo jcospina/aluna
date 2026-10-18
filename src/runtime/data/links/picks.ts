@@ -10,9 +10,6 @@ import { type Database, SQLiteError } from "bun:sqlite";
 import { holdsName } from "#shell/core/same-text.js";
 import {
   deleteLinkRow,
-  deleteSourceLinkRows,
-  deleteTargetLinkRows,
-  type LinkTarget,
   readSourceLinkRows,
   writeLinkRow,
 } from "../../../platform/links/link-table.ts";
@@ -193,15 +190,6 @@ function relinkField(
   const from = source(edit.capabilityId, edit.recordId, relation);
   if (picked !== undefined) writeLinkRow(database, from, target(relation, picked));
   else if (!standsUnpicked(database, edit, relation)) deleteLinkRow(database, from);
-}
-
-/**
- * Every link row a deleted record held as a source, and every one naming it as a target, gone with
- * it. The records that pointed at it keep their text.
- */
-export function unlinkDeletedRecord(database: Database, deleted: LinkTarget) {
-  deleteSourceLinkRows(database, deleted.capability, deleted.record);
-  deleteTargetLinkRows(database, deleted);
 }
 
 /** An Edit form as it posted: each field's text, the fields it submitted, those it drew linked. */

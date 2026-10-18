@@ -2,17 +2,15 @@
 // Notes' text and Books' author linked to Authors' name, Memos' subject to Books' author. A pick
 // stores the author's name as it is now; renaming an author carries the name down every chain in
 // the rename's own transaction, under the one lease it holds, skipping a capability closed by its
-// deletion; a name cleared or an author deleted lets the links to it go, and no text moves.
+// deletion; a name cleared lets the links to it go, and no text moves.
 
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { capabilityActionUrl } from "#shell/core/routes.js";
 import { RECORD_ID_FIELD } from "#shell/core/shell-dom.js";
 import { writeLinkRow } from "../../../../platform/links/link-table.ts";
 import type { PlatformDatabase } from "../../../../platform/persistence/db.ts";
-import { pickTargetMark } from "../../../../presentation/controls/link/link-copy.ts";
 import { PICK_NOT_FOUND_ERROR_CODE, type Relation } from "../../../../registry/index.ts";
 import {
-  AUTHORS,
   AUTHORS_INCARNATION,
   noticeCode,
   storeRelations,
@@ -36,7 +34,6 @@ import {
   BUTLER,
   LE_GUIN,
   linkRows,
-  noteLink,
   notes,
   routerApp,
   saveBody,
@@ -277,41 +274,5 @@ describe("a rename's lease and read tokens", () => {
     expect(desk.linkedTexts().notes[NOTE_LE_GUIN]).toBe("Ursula Le Guin");
     expect(drained).toBeDefined();
     await drained;
-  });
-});
-
-describe("deleting an author", () => {
-  test("removes the link rows naming them and changes no other record", async () => {
-    const readGates = desk.gates();
-    const seen: { readers?: Record<string, number> } = {};
-    const handlers = authorHandlers(() => {
-      seen.readers = desk.readers(readGates);
-    });
-    const response = await desk.deleteAuthor(LE_GUIN, { readGates }, handlers);
-    expect(response.status).toBe(200);
-    expect(desk.linkedTexts()).toEqual(BEFORE());
-    expect(linkRows(conns)).toEqual([
-      noteLink(NOTE_BUTLER, BUTLER),
-      expect.objectContaining({ source_record: "book-2", target_record: BUTLER }),
-      expect.objectContaining({ source_record: "memo-1", target_record: "book-1" }),
-    ]);
-    expect(seen.readers).toMatchObject({ authors: 1, books: 0, memos: 0 });
-  });
-
-  test("leaves the note's card asking for a new pick", async () => {
-    const mark = pickTargetMark([AUTHORS.noun]);
-    const read = () => routerApp(conns).request(capabilityActionUrl("notes", "read"));
-    const marked = async () => (await (await read()).text()).split(mark).length - 1;
-    const before = await marked();
-    await desk.deleteAuthor(LE_GUIN);
-    expect(await marked()).toBe(before + 1);
-  });
-
-  test("that fails keeps every link row", async () => {
-    expectFailure();
-    const before = linkRows(conns);
-    const response = await desk.deleteAuthor(LE_GUIN, {}, failingAfterWork("delete"));
-    expect(response.status).toBe(500);
-    expect(linkRows(conns)).toEqual(before);
   });
 });
