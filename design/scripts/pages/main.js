@@ -9,7 +9,7 @@
 
 import { CAPABILITIES, LINKED_RECORDS } from "../data/capabilities.js";
 import { Desk } from "../desk/desk.js";
-import { renderCollection, renderRecordForm } from "../desk/patterns.js";
+import { renderCollection, renderRecordForm, renderRecordView } from "../desk/patterns.js";
 import { startInk } from "../ink/ink.js";
 import { mountLineBench } from "../sections/line-bench.js";
 import { mountPalette } from "../sections/palette.js";
@@ -55,6 +55,18 @@ const linkingPattern = (name, { capability, linking }, expanded = false) => ({
 });
 
 /**
+ * One record under its bar, its back control naming the place it was opened from.
+ *
+ * @param {string} name the host's `data-pattern-back-*` suffix
+ * @param {{ capability: Capability, linking: LinkingSection[] }} shown
+ * @param {string} to the list or record Back returns to
+ */
+const backPattern = (name, { capability, linking }, to) => ({
+  selector: `[data-pattern-back-${name}]`,
+  render: () => renderRecordView(capability, undefined, { to, linking }),
+});
+
+/**
  * The patterns, rendered by the same code the desk uses — deliberately, so a
  * pattern cannot look right here and wrong in a window.
  */
@@ -77,6 +89,12 @@ const PATTERNS = [
   linkingPattern("seven", LINKED_RECORDS.leGuin),
   linkingPattern("expanded", LINKED_RECORDS.leGuin, true),
   linkingPattern("two", LINKED_RECORDS.leftHand),
+  backPattern(
+    "record",
+    LINKED_RECORDS.leGuin,
+    LINKED_RECORDS.leftHand.capability.fields[0]?.value ?? "",
+  ),
+  backPattern("list", LINKED_RECORDS.clarke, LINKED_RECORDS.clarke.capability.label),
   {
     selector: "[data-pattern-grid]",
     render: () => {

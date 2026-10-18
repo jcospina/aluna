@@ -79,10 +79,21 @@ export const FILE_FIELD_ATTRIBUTES = Object.freeze({
 });
 
 /**
- * What the record's render view names its way back by, drawn on the surface a record's form sits in:
- * the record's title, or New and its noun while it is being created.
+ * What a record is called on the way back to it, drawn on the surface a record's form sits in: the
+ * record's title, or New and its noun while it is being created. Its render view's back control
+ * reads it, and so does the desk naming the entry a record opened from it returns to.
  */
 export const RECORD_TITLE_ATTRIBUTE = "data-record-title";
+
+/**
+ * A record view's back control, and the label in it that names where it returns: a list by its
+ * capability's label, or a record by its title.
+ */
+export const RECORD_BACK_ATTRIBUTE = "data-record-back";
+export const RECORD_BACK_LABEL_ATTRIBUTE = "data-record-back-label";
+
+/** The name a back control is announced by, whose visible label is `place` (label-in-name). */
+export const backToLabel = (/** @type {string} */ place) => `Back to ${place}`;
 
 /** How long the collection search waits after a keystroke before it asks the server. */
 export const DEFAULT_SEARCH_DEBOUNCE_MS = 300;
@@ -106,6 +117,13 @@ export const COLLECTION_COUNT_SIDECAR_SUFFIX = "-->";
  * capability took the window. Restated in `public/app.js`, a classic script that imports nothing.
  */
 export const WINDOW_TOOK_CAPABILITY_EVENT = "aluna:window-took-capability";
+
+/**
+ * Ask for the window to be put away, from a script that cannot import the desk's window module:
+ * `app.js`, which restates it, notices a window left holding nothing, and a record's way out finds
+ * nothing left to return to. Pinned by a platform test.
+ */
+export const PUT_WINDOW_AWAY_EVENT = "aluna:put-window-away";
 
 /**
  * The field a record's forms post its id in. The router reads it by this name

@@ -123,13 +123,21 @@ function entryState() {
 }
 
 /**
- * The address each entry names, by its place in the run, as far as this page has seen: what says
- * whether the entry before a record is its collection. Kept off the entries, so
- * a reload, whose entries before belong to a page now gone, knows none of them.
+ * The address each entry names, by its place in the run, as far as this page has seen: where a
+ * record's way back goes. Kept off the entries, so a reload, whose
+ * entries before belong to a page now gone, knows none of them.
  *
  * @type {Map<number, string>}
  */
 const places = new Map();
+
+/**
+ * Each record's title as the window last showed it, by its place, so every entry naming one record
+ * names it alike. A list's name is its logo's label, read when it is wanted, so none is kept here.
+ *
+ * @type {Map<string, string>}
+ */
+const titles = new Map();
 
 /**
  * How far a traversal moved, or `null` where the entry it landed on is not one this desk wrote.
@@ -176,6 +184,9 @@ export function pushAddress(next, bar) {
   const cameFrom = bar.location.pathname;
   if (!isAnotherPlace(cameFrom, next)) return null;
   addressIndex += 1;
+  moves += 1;
+  /* The entries a push drops from the browser's history go from this page's as well. */
+  for (const index of places.keys()) if (index > addressIndex) places.delete(index);
   places.set(addressIndex, next);
   /* A navigation of the person's own outranks any traversal still expected to land. */
   taking = null;
@@ -198,21 +209,23 @@ export function replaceAddress(next, bar) {
 }
 
 /**
- * The collection a record view is being left for by its own way out (back, a save, a delete),
- * marked for the length of that read. Only that leaving may step back; a build giving the
- * capability back replaces.
+ * The place a record view is being left for by its own way out (Back, Cancel, a save, a delete),
+ * and the entry that leaving steps back onto: the same place, or a record there that has gone,
+ * whose list stands in for it. Marked for the length of that read. Only that leaving may step
+ * back; a build giving the capability back replaces.
  *
- * @type {{ collection: string, kept?: boolean } | null}
+ * @type {{ to: string, onto: string, kept?: boolean } | null}
  */
 let exiting = null;
 
 /**
- * @param {string} collection the address the record view's way out asks for
+ * @param {string} to the address the record view's way out asks for
+ * @param {string} [onto] the entry it steps back onto, where that is not `to`
  * @returns {() => void} lifts this mark, and no newer one, nor one kept for the desk coming back
  */
-export function markRecordExit(collection) {
-  /** @type {{ collection: string, kept?: boolean }} */
-  const mark = { collection };
+export function markRecordExit(to, onto = to) {
+  /** @type {{ to: string, onto: string, kept?: boolean }} */
+  const mark = { to, onto };
   exiting = mark;
   return () => {
     if (exiting === mark && !mark.kept) exiting = null;
@@ -220,22 +233,157 @@ export function markRecordExit(collection) {
 }
 
 /**
- * Leave a record for its collection by stepping back, where the record view's own way out is
- * leaving it and the entry before is that collection as this page knows it. Arrived by link, or
- * after a reload, it is left by a replace.
+ * Leave a record by stepping back, where the record view's own way out is leaving it for the place
+ * it marked and the entry before is the one it marked as this page knows it. After a pasted
+ * address, a reload or from the bare desk, it is left by a replace.
  *
- * @param {string} collection @param {Bar} bar
+ * @param {string} next what the window now shows @param {Bar} bar
  * @returns {boolean} whether it stepped back
  */
-function stepBackOffRecord(collection, bar) {
-  if (exiting === null || isAnotherPlace(exiting.collection, collection)) return false;
+function stepBackOffRecord(next, bar) {
+  if (exiting === null || isAnotherPlace(exiting.to, next)) return false;
+  const { onto } = exiting;
   exiting = null;
   const known = (/** @type {number} */ index) => places.get(index) ?? DESK_ADDRESS;
   if (!bar.history.go || isAnotherPlace(known(addressIndex), bar.location.pathname)) return false;
-  if (isAnotherPlace(known(addressIndex - 1), collection)) return false;
+  const before = indexBefore(bar.location.pathname);
+  if (before === null || isAnotherPlace(known(before), onto)) return false;
   steppingOff = bar.location.pathname;
-  stepBack(1, bar, addressIndex - 1);
+  stepBack(addressIndex - before, bar, before);
   return true;
+}
+
+/**
+ * The nearest entry before the bar's that names another place than `pathname`: a correction can
+ * leave two entries in a row naming one place, and the way back steps over both.
+ *
+ * @param {string} pathname @returns {number | null}
+ */
+function indexBefore(pathname) {
+  let index = addressIndex - 1;
+  while (places.has(index) && !isAnotherPlace(places.get(index) ?? DESK_ADDRESS, pathname)) {
+    index -= 1;
+  }
+  return places.has(index) ? index : null;
+}
+
+/**
+ * Whether an address is a list of a capability still on the desk, or a record of one whose title
+ * the window has shown. @param {string} address
+ */
+function isNamedPlace(address) {
+  const record = recordFromAddress(address);
+  const id = record?.capability ?? capabilityIdFromAddress(address);
+  if (id === null || answering?.knows?.(id) === false) return false;
+  return record === null || titles.has(placeOf(address) ?? "");
+}
+
+/**
+ * A record's way back, as a place to read, what it is called, and the entry the leaving steps back
+ * onto. A null title leaves the name to the logo's label of the list it reads.
+ *
+ * @typedef {{ address: string, title: string | null, onto: string }} WayBack
+ */
+
+/**
+ * Where the way out of the record view `here` goes: the entry before,
+ * stepped back onto, where it is the record's own list or a named list or record, else `own`, the
+ * record's list, by a replace. Null while the bar is mid-traversal, or off `here` on a place
+ * still `landing`: a navigation of the person's own is landing over the record, and it yields.
+ *
+ * @param {string} own the record's own list
+ * @param {string | null} here the record the view being left holds
+ * @param {Bar | null} [bar]
+ * @param {(pathname: string) => boolean} [landing] whether the window is asking for that place
+ * @returns {WayBack | null}
+ */
+export function wayBack(own, here, bar = deskHistory(), landing = () => false) {
+  const stays = { address: own, title: null, onto: own };
+  if (bar === null || here === null) return stays;
+  if (barIsAway(bar)) return null;
+  if (isAnotherPlace(bar.location.pathname, here)) {
+    return landing(bar.location.pathname) ? null : stays;
+  }
+  const before = entryBefore(bar);
+  if (before === undefined || !isAnotherPlace(before, own) || !isAnotherPlace(before, here)) {
+    return stays;
+  }
+  return isNamedPlace(before) ? wayOnto(before) : stays;
+}
+
+/**
+ * The entry before the bar's, where the bar stands on an entry this page wrote and can step back.
+ *
+ * @param {Bar} bar @returns {string | undefined}
+ */
+function entryBefore(bar) {
+  const { pathname } = bar.location;
+  const known = !isAnotherPlace(places.get(addressIndex) ?? DESK_ADDRESS, pathname);
+  const index = known && bar.history.go ? indexBefore(pathname) : null;
+  return index === null ? undefined : places.get(index);
+}
+
+/**
+ * The way back onto the entry `before`: to it, or to its list where it is a record a delete has
+ * taken since, the entry corrected once it lands, as a Back onto a gone record leaves it.
+ *
+ * @param {string} before @returns {WayBack}
+ */
+function wayOnto(before) {
+  const place = placeOf(before) ?? "";
+  const record = recordFromAddress(before);
+  if (record !== null && deleted.has(place)) {
+    return { address: capabilityAddress(record.capability), title: null, onto: before };
+  }
+  return { address: before, title: titles.get(place) ?? null, onto: before };
+}
+
+/**
+ * Call a record what its view says, wherever an entry names it.
+ *
+ * @param {string} address the record's @param {string} title
+ */
+export function nameRecord(address, title) {
+  const place = recordFromAddress(address) === null ? null : placeOf(address);
+  if (place !== null && title !== "") titles.set(place, title);
+}
+
+/**
+ * A record a confirmed delete has taken: a way back to an entry naming it goes to its list.
+ *
+ * @type {Set<string>}
+ */
+const deleted = new Set();
+
+/** @param {string} address the record a delete took */
+export function forgetRecord(address) {
+  const place = recordFromAddress(address) === null ? null : placeOf(address);
+  if (place !== null) deleted.add(place);
+}
+
+/**
+ * How many times the bar has moved this page, to tell whether the person has moved by the time
+ * something answers: a push or a traversal of the person's counts, and a correction of the address
+ * or the desk's own step back does not.
+ */
+export function movesSoFar() {
+  return moves;
+}
+
+let moves = 0;
+
+/**
+ * Whether an entry this page knows may name this record on a way back: another entry naming it,
+ * or the entry after the bar's, whose way back is the entry the bar is on.
+ *
+ * @param {string} address
+ */
+export function mayNameAgain(address) {
+  for (const [index, at] of places) {
+    if (index === addressIndex + 1) return true;
+    if (index !== addressIndex && !isAnotherPlace(at, address)) return true;
+  }
+  return false;
 }
 
 /**
@@ -263,7 +411,7 @@ function barIsAway(bar) {
  */
 function holdBack(next, navigated) {
   owedAnEntry ||= navigated;
-  if (exiting !== null && !isAnotherPlace(exiting.collection, next)) exiting.kept = true;
+  if (exiting !== null && !isAnotherPlace(exiting.to, next)) exiting.kept = true;
 }
 
 /**
@@ -284,7 +432,7 @@ export function followWindow(next, navigated, bar) {
   }
   const left = recordFromAddress(pathname);
   const offRecord = left !== null && !isAnotherPlace(capabilityAddress(left.capability), next);
-  if (offRecord && stepBackOffRecord(next, bar)) return;
+  if (left !== null && stepBackOffRecord(next, bar)) return;
   /* A correction asks whether the bar is exactly right, where a push asks only whether it is
    * somewhere else — which is what strips a query string or a trailing slash from outside. */
   if (navigated && !offRecord) pushAddress(next, bar);
@@ -390,6 +538,7 @@ export function answerTraversal(event, desk, bar = deskHistory()) {
     return;
   }
   /* The person moved: nothing held back for the desk's return, nor any way out, still applies. */
+  moves += 1;
   owedAnEntry = false;
   exiting = null;
   if (landedAt === null) {
@@ -486,7 +635,8 @@ export const OPEN_THE_RECORD_EVENT = "aluna:open-the-record";
 
 /**
  * What the bar says of a record that is not there, restated from the server's `NOT_FOUND_NOTICE`
- * and pinned by a test: here it is a pressed record whose capability has left the desk.
+ * and pinned by a test: a pressed record whose capability has left the desk, or the place a
+ * record's way back returns to, gone since.
  */
 export const RECORD_NOT_THERE = "Hmm — I can’t find that one.";
 

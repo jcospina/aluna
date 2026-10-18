@@ -179,15 +179,28 @@ describe("the record swap — the way out", () => {
     expect(desk.left()).toHaveLength(2);
   });
 
-  test("leaving releases what the record held before the read goes out", async () => {
+  test("leaving lets go of what the record held as its place draws over it, not before", async () => {
     const released: string[] = [];
     desk = await openRecord(() => {
       released.push("read");
+      const source = desk.asked.requests.at(-1)?.context.source as El;
+      const detail = { requestConfig: { elt: source }, xhr: { status: 200 }, shouldSwap: true };
+      desk.doc.fire("htmx:beforeSwap", desk.region, { detail });
+      released.push("drawn");
       return Promise.resolve();
     });
     registerRegionRelease(desk.form as never, "a save in flight", () => released.push("save"));
     await goBack(desk);
-    expect(released).toEqual(["save", "read"]);
+    expect(released).toEqual(["read", "save", "drawn"]);
+  });
+
+  test("a way out that draws nothing leaves what the record holds working", async () => {
+    const released: string[] = [];
+    desk = await openRecord(() => Promise.reject(new Error("severed")));
+    registerRegionRelease(desk.form as never, "a save in flight", () => released.push("save"));
+    await goBack(desk);
+    expect(released).toEqual([]);
+    expect(desk.view.isConnected).toBe(true);
   });
 
   test("a committed update leaves the same way pressing back does", async () => {
@@ -392,7 +405,7 @@ describe("the record's address", () => {
     let swapAsked: { shouldSwap: boolean } | undefined;
     const ask = (opened: typeof desk) => {
       const source = opened.asked.requests[0]?.context.source as El;
-      const detail = { requestConfig: { elt: source }, shouldSwap: true };
+      const detail = { requestConfig: { elt: source }, xhr: { status: 200 }, shouldSwap: true };
       opened.doc.fire("htmx:beforeSwap", opened.region, { detail });
       return detail;
     };

@@ -18,7 +18,7 @@ import {
 } from "../core/shell-dom.js";
 import { leavingIsBeingAsked } from "../desk/leaving-a-run.js";
 import { PROMPT_BAR_MESSAGE_EVENT } from "../desk/prompt-bar.js";
-import { leaveRecordView } from "./record-view.js";
+import { forgetDeleted, leaveRecordView, leaveSavedRecordView } from "./record-view.js";
 import { refreshCommittedRecordsForMutation } from "./records-refresh.js";
 
 const EDIT_FORM_SELECTOR = "[data-record-edit-form]";
@@ -378,7 +378,7 @@ function handleEditOutcome(form, successful, outcomeUnknown, surfaceGone) {
   if (successful) {
     keepSavedFileFields(form);
     const view = form.closest(RECORD_VIEW_SELECTOR);
-    if (view instanceof HTMLElement) leaveRecordView(view);
+    if (view instanceof HTMLElement) leaveSavedRecordView(view);
     return;
   }
   if (outcomeUnknown) {
@@ -415,7 +415,10 @@ function handleDeleteOutcome(form, successful, outcomeUnknown, surfaceGone) {
   const disposition = deleteOutcomeDisposition({ successful, outcomeUnknown });
   if (disposition === "leave") {
     const view = form.closest(RECORD_VIEW_SELECTOR);
-    if (view instanceof HTMLElement) leaveRecordView(view);
+    if (view instanceof HTMLElement) {
+      forgetDeleted(view);
+      void leaveRecordView(view, { deleted: true });
+    }
     return;
   }
   if (disposition === "stand-and-say") {

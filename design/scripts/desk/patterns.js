@@ -5,9 +5,10 @@
  * Shell-level patterns applied to every capability, not decisions generation
  * makes. Two of them exist so far: the collection and the record form — and on
  * this surface they are two views of one window rather than a page and a popup
- * over it (D2). Opening a record replaces the collection inside the window and
- * a back control returns to it. There is no modal anywhere in Aluna, because a
- * modal would make the rest of the desk inert to look at one book.
+ * over it (D2). Opening a record replaces the collection inside the window, and
+ * a back control names the place the record was opened from and returns to it.
+ * There is no modal anywhere in Aluna, because a modal would make the rest of
+ * the desk inert to look at one book.
  */
 
 import { STATE_TONE } from "../data/capabilities.js";
@@ -64,7 +65,9 @@ export function renderCollection(capability, opts = {}) {
 
   /** @param {CapabilityRecord | null} record */
   const showRecord = (record) =>
-    host.replaceChildren(renderRecordView(capability, record, () => showList()));
+    host.replaceChildren(
+      renderRecordView(capability, record, { to: capability.label, onBack: () => showList() }),
+    );
   const showList = () => host.replaceChildren(renderList(capability, layout, showRecord));
 
   showList();
@@ -174,30 +177,34 @@ function recordCard(record, onOpen) {
 }
 
 /**
- * The record, filling the window the collection was in. Back is navigation and
- * sits above the form; Cancel is the form's own escape and does the same thing
- * from the other end. Both exist because the window is the whole surface — with
- * nothing behind it to click, there has to be a way out at the top.
+ * The record, filling the window the collection was in, under a bar that holds
+ * only the back control: the form's values say which record is open, so the bar
+ * carries no title. Back names the place the record was opened from, a list by
+ * its capability's label or a record by its title, and returns there. Cancel is
+ * the form's own escape and leaves the same way, as Save and Delete do.
  *
  * @param {Capability} capability
- * @param {CapabilityRecord | null} record the record, or null when creating
- * @param {() => void} onBack
+ * @param {CapabilityRecord | null | undefined} record null when creating, and
+ *   absent when the capability's own fields carry the values
+ * @param {{ to: string, onBack?: () => void, linking?: LinkingSection[] }} back
+ *   where Back returns, and the records linking here
  * @returns {HTMLElement}
  */
-function renderRecordView(capability, record, onBack) {
+export function renderRecordView(capability, record, { to, onBack, linking }) {
   const view = el("div", "detail");
 
   const back = el("button", "detail__back");
   back.type = "button";
+  back.setAttribute("aria-label", `Back to ${to}`);
   const arrow = el("span", "detail__arrow");
   arrow.innerHTML = ARROW;
-  back.append(arrow, el("span", null, capability.label));
-  back.addEventListener("click", onBack);
+  back.append(arrow, el("span", null, to));
+  if (onBack) back.addEventListener("click", onBack);
 
   const bar = el("div", "detail__bar");
-  bar.append(back, el("b", "detail__title", record ? record.title : `New ${capability.noun}`));
+  bar.append(back);
 
-  view.append(bar, renderRecordForm(capability, { record, onDone: onBack }));
+  view.append(bar, renderRecordForm(capability, { record, onDone: onBack, linking }));
   return view;
 }
 

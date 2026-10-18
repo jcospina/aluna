@@ -51,6 +51,18 @@ describe("a page loaded at a record address", () => {
     expect(desk.written()).toEqual([`replace ${capabilityAddress("notes")}`]);
   });
 
+  test("names its own list on the record's Back by the logo's label, renamed or not", async () => {
+    // Loaded at its address, the record has no entry before it: Back opens its own list, named as
+    // the logo names it after a rename the window outlived.
+    const desk = await deskAnswering(recordAddress("notes", RECORD), [200]);
+    const label = desk.logo("Notes").querySelector(".logo-label") as El;
+    label.textContent = `Jottings ${randomUUID()}`;
+    desk.tookCapability();
+    const back = desk.region().querySelector("[data-record-back]") as El;
+    expect(back.textContent).toBe(label.textContent);
+    expect(back.getAttribute("aria-label")?.endsWith(label.textContent)).toBe(true);
+  });
+
   test("puts the person on the record's first field", async () => {
     const desk = await deskAnswering(recordAddress("notes", RECORD), [200]);
     // `text`, the notes fixture's first field.

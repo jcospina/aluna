@@ -28,6 +28,7 @@ import { notesSpec } from "../../../../registry/spec/spec.test-support.ts";
 import { createCapabilityActionRecord } from "../../../../runtime/data/index.ts";
 import {
   renderCapabilityLogo,
+  renderCapabilitySurface,
   renderPromptNotice,
 } from "../../../../server/http/fragments/fragments.ts";
 import { byId, elementsOf } from "../../../../server/http/served-page.test-support.ts";
@@ -325,21 +326,29 @@ describe("a record address names one record and nothing below it", () => {
     expect(capabilityIdFromAddress(`/capability/notes/${RECORD}`)).toBeNull();
   });
 
-  test("the window holding a record's view keeps the bar on its record address", () => {
+  test("the window holding a record's view puts the bar on that record's address", () => {
     const capability = renderableFromSpec(notesSpec());
     const holding = (id: string) =>
       renderPresentedRecordView(
         capability,
         createCapabilityActionRecord({ id, created_at: "2026-10-04T00:00:00.000Z", text: "Figs" }),
       );
-    const region = (markup: string) => deskNodes(`<div>${markup}</div>`)[0] as El;
+    // The region holds the capability's surface, as the window does, with `markup` inside it.
+    const surface = { id: "notes", incarnation_id: "i", version: 1 };
+    const region = (markup: string) =>
+      deskNodes(`<div>${renderCapabilitySurface(surface, markup)}</div>`)[0] as El;
     const record = `/capability/notes/${RECORD}`;
     const own = region(holding(RECORD));
     expect(windowAddress(record, "notes", own)).toBe(record);
     expect(windowAddress(`/capability/notes/${RECORD.toUpperCase()}/`, "notes", own)).toBe(record);
-    // Another record's view, a collection, another capability and the collection's own address
-    // all put the bar on the collection's.
-    expect(windowAddress(record, "notes", region(holding(randomUUID())))).toBe("/capability/notes");
+    // While the bar names a record, another record's view puts it on that record, as a record's way
+    // back lands one.
+    const other = randomUUID();
+    expect(windowAddress(record, "notes", region(holding(other)))).toBe(
+      `/capability/notes/${other}`,
+    );
+    // A list in the window, a view standing in another capability's surface, or a bar naming the
+    // list puts it on the list.
     expect(windowAddress(record, "notes", region("<section></section>"))).toBe("/capability/notes");
     expect(windowAddress(record, "recipes", own)).toBe("/capability/recipes");
     expect(windowAddress("/capability/notes", "notes", own)).toBe("/capability/notes");

@@ -69,8 +69,8 @@
     <!--
       What a capability shows, inside the one window. Four dumb presentation-glue files
       (ARCH §6.1: the shell places what the server sends, never infers intent):
-        - record-view.js — pressing a record swaps the collection out for that record's
-          form under a back control, and back swaps the collection in again.
+        - record-view.js — pressing a record opens its form at its record address, under a
+          back control that returns to where the record was opened from.
         - record-mutations.js — request feedback for the create and update forms, and
           where each one lands once its outcome is known.
         - search-chrome.js — the collection's debounced search controller. It imports

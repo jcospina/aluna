@@ -103,20 +103,21 @@ desk, `/capability/:id` is the desk with that capability in the window, and
 its record view. Nothing else is ever in it: the search term and a half-typed edit live
 in the DOM and die with the tab, so a reload comes back to the collection or the record
 without them. Logo open/switch and put-away push, and so does a card press. The record
-view's back control, a save and a delete step back to the collection when it is the
-entry before, and otherwise replace the entry with the collection's address, as after
-an address, a reload or an answer link pressed over another capability. `popstate`
+view's back control, Save, Cancel and Delete step back to wherever the record was opened
+from, when this page knows that entry and it is a collection or a record the page has
+shown, and otherwise replace the entry with the address of the record's own collection,
+as after a pasted address, a reload or the bare desk (see *Contextual Back*). `popstate`
 renders the addressed record or capability without pushing again, and focusing the
 already-open capability adds no duplicate. A traversal that would take a running build
 or evolution is held instead of taken: it is stepped back off while the question stands
 and taken again exactly once if the person confirms, so asking costs no entry and
-answering costs no more than the one move. That hold and the leave question for a
-form's unsaved changes cover a record address like any other traversal. During a build
-the address keeps naming what the build displaced; a successful v1 activation pushes
-the new capability only when its canonical collection takes the window, and evolution
-and every non-activating terminal add no entry. A build that displaced a record gives
-back the collection, and the address is replaced with `/capability/:id` when it does
-(design D14; M5 plan 6; ARCH §6.1; ADR-0010).
+answering costs no more than the one move. That hold and the leave question for a form's
+unsaved changes cover a record address like any other traversal. During a build the
+address keeps naming what the build displaced; a successful v1 activation pushes the new
+capability only when its canonical collection takes the window, and evolution and every
+non-activating terminal add no entry. A build that displaced a record gives back the
+collection, and the address is replaced with `/capability/:id` when it does (design D14;
+M5 plan 6; ARCH §6.1; ADR-0010).
 _Avoid_: url, route, path, location, deep link, query string
 
 **Record address**:
@@ -188,7 +189,8 @@ The record's back control from 8.3 on. It returns to the list or record the reco
 opened from and names it, "← The Way of Kings", and Save, Cancel and Delete leave the
 same way. A record opened from an answer link returns to what the window held under the
 answer. One opened from a pasted address, a reload or the bare desk opens the record's own
-list on Back instead (M8 plan 40, 41).
+list on Back instead. If the record Back returns to has been deleted, Back opens that
+record's list (M8 plan 40, 41).
 _Avoid_: breadcrumb, history trail, return link
 
 **Put away**:

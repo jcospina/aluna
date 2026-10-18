@@ -10,18 +10,32 @@
 
 import { recordAddress } from "../../core/routes.js";
 import {
+  backToLabel,
   focusLanded,
   PROMPT_FIELD_ID,
+  RECORD_BACK_ATTRIBUTE,
+  RECORD_BACK_LABEL_ATTRIBUTE,
   RECORD_ID_FIELD,
+  RECORD_TITLE_ATTRIBUTE,
   WINDOW_TOOK_CAPABILITY_EVENT,
 } from "../../core/shell-dom.js";
 import {
   capabilityAddress,
+  capabilityIdFromAddress,
   correctUnfilledAddress,
   DESK_ADDRESS,
+  deskHistory,
+  followWindow,
+  isAnotherPlace,
+  nameRecord,
   recordFromAddress,
+  wayBack,
 } from "../desk-address.js";
 import { PROMPT_BAR_MESSAGE_EVENT } from "../prompt-bar.js";
+
+/** A record's view, and the surface of the capability standing in the window. */
+const RECORD_VIEW_SELECTOR = "[data-record-view]";
+const SURFACE_SELECTOR = ":scope > [data-active-capability-id]";
 
 /**
  * A window an address stood up, as much of it as filling it asks for.
@@ -158,10 +172,10 @@ function settle(pathname, window_, heard) {
  * @returns {string | null}
  */
 function addressOfWhatItShows(region) {
-  const surface = region.querySelector(":scope > [data-active-capability-id]");
+  const surface = region.querySelector(SURFACE_SELECTOR);
   const id = surface?.getAttribute("data-active-capability-id");
-  if (!id) return null;
-  const record = recordInWindow(region);
+  if (!surface || !id) return null;
+  const record = recordInWindow(surface);
   return record === null ? capabilityAddress(id) : recordAddress(id, record);
 }
 
@@ -296,25 +310,67 @@ function htmx() {
  */
 export function recordInWindow(region) {
   const field = /** @type {{ getAttribute(name: string): string | null } | null | undefined} */ (
-    region?.querySelector(`[data-record-view] input[name="${RECORD_ID_FIELD}"]`)
+    region?.querySelector(`${RECORD_VIEW_SELECTOR} input[name="${RECORD_ID_FIELD}"]`)
   );
   return field?.getAttribute("value")?.toLowerCase() ?? null;
 }
 
 /**
- * Where the bar belongs while capability `id` stands in the window: the record address it names,
- * spelled as the desk spells it, while that record's view is what the window holds or is being asked
- * for (its collection's records can land first), and otherwise the collection's.
+ * Where the bar belongs while capability `id` stands in the window: what it names while that is
+ * still being asked for, since what the window held can land first; else, while it names a record,
+ * the record whose view the window shows, and otherwise the collection, spelled as the desk does.
  *
  * @param {string} pathname the address in the bar
  * @param {string} id
- * @param {{ querySelector(selector: string): unknown } | null | undefined} region
+ * @param {Element | null | undefined} region
  * @returns {string}
  */
 export function windowAddress(pathname, id, region) {
-  const addressed = recordFromAddress(pathname);
-  if (addressed?.capability !== id) return capabilityAddress(id);
-  const record = recordAddress(id, addressed.record);
-  const asking = filling?.pathname === record && filling.live();
-  return addressed.record === recordInWindow(region) || asking ? record : capabilityAddress(id);
+  if (filling !== null && isBeingAsked(pathname)) return filling.pathname;
+  const shown = recordFromAddress(pathname) && region ? addressOfWhatItShows(region) : null;
+  const ofThis = shown !== null && recordFromAddress(shown)?.capability === id;
+  return ofThis ? shown : capabilityAddress(id);
+}
+
+/**
+ * Whether the window is still asking for the place `pathname` names, which will take it over.
+ *
+ * @param {string} pathname
+ */
+export function isBeingAsked(pathname) {
+  return filling?.live() === true && !isAnotherPlace(filling.pathname, pathname);
+}
+
+/**
+ * The bar follows what capability `id`'s window shows. A record the window shows is called by its
+ * title wherever an entry names it, and its back control names where its way back goes: a
+ * record by its title, a list by `labelOf` its capability.
+ *
+ * @param {Element} region @param {string} id @param {boolean} navigated
+ * @param {(capability: string) => string} labelOf the label a capability's logo carries
+ */
+export function followRegion(region, id, navigated, labelOf) {
+  const bar = deskHistory();
+  if (bar === null) return;
+  followWindow(windowAddress(bar.location.pathname, id, region), navigated, bar);
+  const shows = addressOfWhatItShows(region);
+  const view = region.querySelector(SURFACE_SELECTOR)?.querySelector(RECORD_VIEW_SELECTOR);
+  if (shows === null || recordFromAddress(shows) === null || !view) return;
+  nameRecord(shows, view.getAttribute(RECORD_TITLE_ATTRIBUTE) ?? "");
+  const way = wayBack(capabilityAddress(id), shows, bar, isBeingAsked);
+  if (way === null) return;
+  const to = way.title ?? labelOf(capabilityIdFromAddress(way.address) ?? id);
+  const back = view.querySelector(`[${RECORD_BACK_ATTRIBUTE}]`);
+  if (back !== null && to !== "") nameTheWayBack(back, to);
+}
+
+/**
+ * Write a back control's visible label and its accessible name together, so the two agree.
+ *
+ * @param {Element} back @param {string} to
+ */
+function nameTheWayBack(back, to) {
+  const label = back.querySelector(`[${RECORD_BACK_LABEL_ATTRIBUTE}]`);
+  if (label !== null) label.textContent = to;
+  back.setAttribute("aria-label", backToLabel(to));
 }

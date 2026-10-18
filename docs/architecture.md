@@ -320,10 +320,22 @@ The address has three shapes: `/` is the bare desk, `/capability/:id` a capabili
 collection, and `/capability/:id/:record` the record address, one record open in its
 record view (ADR-0010). Logo open/switch and put-away push `/capability/:id` or `/`
 into browser history, and a card press pushes the record address. The record view's
-back control, a save and a delete leave it the same way: they step back when the
-entry before is this capability's collection, and otherwise replace the entry with the
-collection's address, as after an address, a reload or an answer link pressed over
-another capability.
+back control names wherever the record was opened from, a collection or another
+record, and returns there; Save, Cancel and Delete leave the same way (Module 8 PLAN
+decisions 40 and 41). When this page knows the entry before and it is a collection, or
+a record the page has shown, they read it afresh and step back onto it, so the visible
+Back and the browser's Back land on one entry. An answer window writes no history, so a
+record opened from an answer link returns to what the window held under the answer. If
+the record Back returns to has been deleted, Back opens that record's collection
+instead. Otherwise, after a pasted address, a reload or from the bare desk, they replace
+the entry with the address of the record's own collection. The desk keeps each entry's
+address and a shown record's title in the page, never in the entry, so a reload
+forgets them. Pressed while a navigation the person started is still landing over the
+record, the back control waits for it, and it never draws over changes typed while it
+was reading. A place briefly unreadable leaves the record standing and the prompt bar
+says why, except after a delete, which reads on past it; if nothing Back could return to
+is left, the window is put away. A logo press that fails over a window still holding what it held puts
+the address and the window's name back.
 `popstate` renders the addressed record or capability without pushing another entry,
 and focusing the already-open capability adds none. Every entry the desk writes
 carries its place in the run of them, which is what lets a traversal that would take

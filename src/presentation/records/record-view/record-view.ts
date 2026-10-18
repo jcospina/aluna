@@ -2,9 +2,9 @@
 // Platform-owned and presentational only — no capability rule, no canonical state.
 //
 // Opening a record is an ordinary view swap. The record view takes the collection's place inside
-// the window, under a back control that swaps the collection in again, so nothing opens over
-// anything else and Aluna has no modal (design D2). What opens is the form, in edit mode: there
-// is no read view of a record, so no field is ever printed rather than filled.
+// the window, under a back control that returns to the place the record was opened from, so
+// nothing opens over anything else and Aluna has no modal (design D2). What opens is the form, in
+// edit mode: there is no read view of a record, so no field is ever printed rather than filled.
 //
 // Markup is here; mechanics are in `public/records/record-view.js`. The record address's route
 // draws it, for a card press as for a pasted address (ADR-0010), so the
@@ -13,7 +13,12 @@
 // by opening it.
 
 import { capabilityActionUrl } from "#shell/core/routes.js";
-import { RECORD_TITLE_ATTRIBUTE } from "#shell/core/shell-dom.js";
+import {
+  backToLabel,
+  RECORD_BACK_ATTRIBUTE,
+  RECORD_BACK_LABEL_ATTRIBUTE,
+  RECORD_TITLE_ATTRIBUTE,
+} from "#shell/core/shell-dom.js";
 import { activeSpecFields, hasActiveFileField } from "../../../registry/index.ts";
 import { ALUNA_RECORD_ID_MARKER } from "../../../runtime/router/wire/wire-protocol.ts";
 import { escapeHtml } from "../../../server/http/html.ts";
@@ -35,7 +40,7 @@ import {
 export const RECORD_VIEW_ATTR = "data-record-view";
 
 /** The back control's marker: navigation out of the record, above the form. */
-export const RECORD_BACK_ATTR = "data-record-back";
+export const RECORD_BACK_ATTR = RECORD_BACK_ATTRIBUTE;
 
 /**
  * The bar's control, whichever way in was taken. Request feedback disables it while a mutation is
@@ -61,17 +66,18 @@ const BACK_ARROW =
   `<path d="M14 6l-6 6 6 6" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 
 /**
- * The bar the form arrives under, whichever way in was taken. The control names the capability it
- * goes back to, so its accessible name and its visible text agree (the label-in-name rule).
+ * The bar the form arrives under, whichever way in was taken. The control names the capability's
+ * list. The desk renames a record's for the place it was opened from,
+ * and writes the accessible name with the visible label, so the two agree (label-in-name).
  */
 export function renderRecordFormBar(label: string, controlAttributes: string): string {
   const safeLabel = escapeHtml(label);
   return (
     `<div class="capability-record-view__bar">` +
     `<button type="button" class="capability-record-view__back" ${RECORD_FORM_BACK_ATTR}` +
-    `${controlAttributes} aria-label="Back to ${safeLabel}">` +
+    `${controlAttributes} aria-label="${backToLabel(safeLabel)}">` +
     `<span class="capability-record-view__arrow">${BACK_ARROW}</span>` +
-    `<span>${safeLabel}</span>` +
+    `<span ${RECORD_BACK_LABEL_ATTRIBUTE}>${safeLabel}</span>` +
     `</button>` +
     `</div>`
   );
@@ -93,9 +99,9 @@ function clipped(text: string): string {
 }
 
 /**
- * What the record's render view calls the record on its way back: the first line of its first
- * filled text field as it was saved, or its noun when it has none. Never the capability's name,
- * which the form's own way back to the collection already carries.
+ * What a record is called on the way back to it, by its render view and by the back control of a
+ * record opened from it: the first line of its first filled text field as it was saved, or its
+ * noun when it has none. Never the capability's name, which names the list.
  */
 export function recordTitle(
   capability: RenderableCapability,

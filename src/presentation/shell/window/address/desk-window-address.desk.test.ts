@@ -128,6 +128,25 @@ describe("a press that fails", () => {
     ]);
   });
 
+  test("over a window still holding what it held puts the bar and the window's name back", async () => {
+    // A record's way back reads where the bar is, so a bar left naming what never opened over it
+    // would leave its Back with nowhere to go.
+    const desk = await deskAt(DESK_ADDRESS);
+    desk.press(desk.logo("Notes"));
+    land(desk.region(), "notes");
+    const recipes = desk.logo("Recipes");
+    desk.press(recipes);
+    expect(desk.desk.windows()[0]?.querySelector("h2")?.textContent).toBe("Recipes");
+    desk.desk.doc.dispatchEvent({
+      type: "htmx:afterRequest",
+      detail: { elt: recipes, successful: false },
+    } as never);
+    expect(desk.desk.windows()).toHaveLength(1);
+    expect(desk.desk.windows()[0]?.querySelector("h2")?.textContent).toBe("Notes");
+    expect(desk.written().at(-1)).toBe(`replace ${capabilityAddress("notes")}`);
+    expect(desk.desk.address.pathname).toBe(capabilityAddress("notes"));
+  });
+
   for (const unnamed of ["no id", "an empty id"]) {
     test(`on a logo with ${unnamed} pushes nothing, so puts nothing back`, async () => {
       const desk = await deskAt(capabilityAddress("recipes"), () => new Promise(() => {}));

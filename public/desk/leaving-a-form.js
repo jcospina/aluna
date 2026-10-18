@@ -12,6 +12,7 @@ import {
   CARD_CAPABILITY_ATTRIBUTE,
   PROMPT_FIELD_ID,
   PROMPT_FORM_ID,
+  RECORD_BACK_ATTRIBUTE,
   RECORD_FORM_SELECTOR,
   WINDOW_CONTENT_ID,
 } from "../core/shell-dom.js";
@@ -28,7 +29,11 @@ import { closeLogoMenu } from "./logos/logo-menu.js";
 import { hasSomethingToBuild } from "./prompt-bar.js";
 
 /** A form's own way out: a record's Back and Cancel, and the create panel's Cancel. */
-const FORM_CLOSE_SELECTOR = "[data-record-back], [data-record-cancel], [data-create-cancel]";
+const FORM_CLOSE_SELECTOR = [
+  `[${RECORD_BACK_ATTRIBUTE}]`,
+  "[data-record-cancel]",
+  "[data-create-cancel]",
+].join(", ");
 
 /**
  * The create panel's Back only hides the panel, its form still filled under **New**. A person

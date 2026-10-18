@@ -70,13 +70,17 @@ notice. Record ids are random, so a capability deleted and built again under the
 finds none of the old records, and the address needs no incarnation.
 
 **Opening a record moves the address.** A card press pushes the record address. The
-back control, a save and a delete all leave the record view the same way. When the
-entry before is this capability's collection, they step back. Otherwise, as after an
-address, a reload or an answer link pressed over another capability, they replace the
-entry with the collection's address. Back and Forward render a record or a collection
-without pushing. The leave question for unsaved changes and the hold on a running build
-cover a record address like any other traversal. `desk-address.js` keeps its single
-`pushState` and its single `replaceState`.
+back control, a save and a delete all leave the record view the same way. *Amended
+2026-10-18 (Module 8 PLAN decisions 40 and 41):* the back control, Save, Cancel and
+Delete return to wherever the record was opened from, a collection or another record,
+and the back control names it. When this page knows the entry before and it is a
+collection, or a record the page has shown, they read it afresh and step back onto it.
+If that record has been deleted, they open its collection instead, as a Back onto it
+does. Otherwise, as after a pasted address, a reload or the bare desk, they replace the
+entry with the address of the record's own collection. Back and Forward render a record
+or a collection without pushing. The leave question for unsaved changes and the hold on
+a running build cover a record address like any other traversal. `desk-address.js`
+keeps its single `pushState` and its single `replaceState`.
 
 **A build gives back the collection, and the address follows it.** A build's restoration
 descriptor stays capability-only. A build started from a record address keeps that

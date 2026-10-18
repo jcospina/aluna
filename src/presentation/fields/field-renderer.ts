@@ -187,8 +187,8 @@ export function renderEditForm(
   const escapedRecordId = escapeHtml(recordId);
   const label = escapeHtml(capability.label);
 
-  // No refresh wiring and no marker naming the item: going back is a fresh read of the
-  // collection, and the record view around the form is what the way back reads the item from.
+  // No refresh wiring and no marker naming the item: going back is a fresh read of the place
+  // the record was opened from, and the record view around the form is what it reads the item from.
   return (
     `<form id="${capabilityEditFormId(capability.id)}" class="capability-edit-form"` +
     ` data-record-edit-form aria-label="Edit ${label}"` +

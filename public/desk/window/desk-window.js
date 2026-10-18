@@ -31,6 +31,7 @@ import { RELEASE_REGION_EVENT } from "../../core/region-scope.js";
 import {
   ACTIVE_CAPABILITY_ATTRIBUTE,
   PROMPT_FORM_ID,
+  PUT_WINDOW_AWAY_EVENT,
   WINDOW_CONTENT_ID,
   WINDOW_TOOK_CAPABILITY_EVENT,
 } from "../../core/shell-dom.js";
@@ -54,7 +55,7 @@ import {
   runIsUsingWindow,
   startLeavingGuard,
 } from "../leaving-a-run.js";
-import { fillAddressedWindow, recordInWindow, stayPut, windowAddress } from "./addressed-window.js";
+import { fillAddressedWindow, followRegion, recordInWindow, stayPut } from "./addressed-window.js";
 import { joinStack, leaveStack, raise, raiseFromPress } from "./desk-stack.js";
 import {
   centredBox,
@@ -124,11 +125,8 @@ export const BUILD_WINDOW_TITLE = "Aluna";
  */
 export const NAME_THE_WINDOW_EVENT = "aluna:name-the-window";
 
-/**
- * Ask for the window to be put away, from a script that cannot import this module: `app.js` is
- * the one that notices the window has been left holding nothing. Pinned by a platform test.
- */
-export const PUT_WINDOW_AWAY_EVENT = "aluna:put-window-away";
+/** Ask for the window to be put away (`../../core/shell-dom.js`). */
+export { PUT_WINDOW_AWAY_EVENT } from "../../core/shell-dom.js";
 
 /**
  * Set on the desk ground below the breakpoint, so the page states the form the script believes it
@@ -531,9 +529,7 @@ export function tearDownWindow(entry, api) {
  * @param {Element | null | undefined} opener
  */
 function focusOpener(opener) {
-  if (opener && "focus" in opener && opener.isConnected) {
-    /** @type {HTMLElement} */ (opener).focus();
-  }
+  if (opener?.isConnected && "focus" in opener) /** @type {HTMLElement} */ (opener).focus();
 }
 
 /* ── the lamps ─────────────────────────────────────────────────────────────── */
@@ -664,13 +660,14 @@ function watchViewport(root, layer) {
 
 /**
  * What a logo says it is. The label is the capability's canonical one, rendered by
- * the server, so the title bar and the ground agree by construction.
+ * the server, so the title bar and the ground agree by construction. A missing logo gives an
+ * empty label.
  *
- * @param {LogoNode} logo
+ * @param {LogoNode | null} logo
  * @returns {string}
  */
 export function logoTitle(logo) {
-  return logo.querySelector(".logo-label")?.textContent?.trim() ?? "";
+  return logo?.querySelector(".logo-label")?.textContent?.trim() ?? "";
 }
 
 /**
@@ -717,15 +714,16 @@ export { WINDOW_TOOK_CAPABILITY_EVENT };
 
 /**
  * Point the address at the capability standing in the window, or at the record whose view it
- * holds (`followWindow` decides whether that is owed an entry).
+ * holds (`followWindow` decides whether that is owed an entry), naming lists by their logos.
  *
- * @param {boolean} navigated
+ * @param {LogoRoot} root @param {boolean} navigated
+ * @returns {LogoNode | null} the logo of the capability standing there
  */
-function addressTheWindow(navigated) {
+function addressTheWindow(root, navigated) {
   const id = capabilityInWindow(mounted);
-  const bar = deskHistory();
-  if (id === null || bar === null) return;
-  followWindow(windowAddress(bar.location.pathname, id, mounted?.region), navigated, bar);
+  const labelOf = (/** @type {string} */ of) => logoTitle(logoFor(root, of));
+  if (id !== null && mounted) followRegion(mounted.region, id, navigated, labelOf);
+  return id === null ? null : logoFor(root, id);
 }
 
 /**
@@ -904,10 +902,13 @@ function asElement(logo) {
 function standDownUnsuccessfulPress(root, logo, region, attempted, cameFrom) {
   whenTheRequestFails(root, logo, () => {
     /* This press's own request and no other: a logo attempt can run for the better part of a
-     * minute, and standing down on the first answer would let it hide the failure. */
-    if (putAwayUnfilledWindow(region) && attempted !== null) {
-      correctUnfilledAddress(attempted, cameFrom ?? DESK_ADDRESS);
-    }
+     * minute, and standing down on the first answer would let it hide the failure. A window still
+     * holding what it held goes back to its name, and the bar to its address. */
+    const emptied = putAwayUnfilledWindow(region);
+    if (attempted === null || (!emptied && mounted?.region !== region)) return;
+    correctUnfilledAddress(attempted, cameFrom ?? DESK_ADDRESS);
+    const detail = { navigated: false };
+    if (!emptied) root.dispatchEvent(new CustomEvent(WINDOW_TOOK_CAPABILITY_EVENT, { detail }));
   });
 }
 
@@ -1077,9 +1078,7 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
    * new name is read off the ground, so the title bar and the logo can only agree. */
   root.addEventListener(WINDOW_TOOK_CAPABILITY_EVENT, (event) => {
     const detail = /** @type {CustomEvent<{ navigated?: boolean }>} */ (event).detail;
-    addressTheWindow(detail?.navigated === true);
-    const showing = capabilityInWindow(mounted);
-    const logo = showing === null ? null : logoFor(root, showing);
+    const logo = addressTheWindow(root, detail?.navigated === true);
     if (logo !== null && mounted) {
       mounted.displacedTitle = null;
       mounted.win.setTitle(logoTitle(logo));
@@ -1101,7 +1100,7 @@ export function startDeskWindow(root, pathname = window.location.pathname) {
     hold: (go) => askBeforeLeaving(mounted?.el ?? null, go),
     /* Put away while the bar was away, the window is not there to say where the bar belongs. */
     follow: (go) =>
-      mounted ? addressTheWindow(go) : followWindow(DESK_ADDRESS, go, deskHistory()),
+      mounted ? addressTheWindow(root, go) : followWindow(DESK_ADDRESS, go, deskHistory()),
     knows: (id) => logoFor(root, id) !== null,
     bring: () => mounted && raise(mounted),
   });

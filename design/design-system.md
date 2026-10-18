@@ -233,7 +233,8 @@ The desk holds one capability window and that window is the content area.
 Everything a capability shows happens inside it: the collection, a record, a
 confirmation, the narration of a build. Opening another capability swaps the
 contents and the frame does not move. There is no modal anywhere in Aluna, so
-opening a record replaces the collection inside the window and Back returns to it.
+opening a record replaces the collection inside the window, and Back returns to the
+place the record was opened from.
 
 Two further windows may stand beside it and neither holds a capability: the
 developer panel (D13) and the answer window, which opens for a question and is
@@ -266,6 +267,9 @@ linking here"). The heading is the linking capability's label and a count in sma
 headed alike. The cards are the linking capability's own, in its own layout, five and
 then a `.btn--outline` **Show all** that adds the rest and goes away. A section is always
 open and never collapses, and the actions stay the last row: nothing is drawn below them.
+
+A record's bar holds only that back control and no title, and the back control names
+where it returns (`design/index.html`, "The record's bar").
 
 The collection's order is fixed and is the same for every capability: the search
 rail with the create action beside it, then the count, then the records in the

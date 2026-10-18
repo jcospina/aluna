@@ -221,6 +221,10 @@ export class El implements EventNode {
     return this.children[0] ?? null;
   }
 
+  get lastElementChild(): El | null {
+    return this.children.at(-1) ?? null;
+  }
+
   get childNodes(): El[] {
     return this.children;
   }

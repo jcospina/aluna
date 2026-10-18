@@ -12,7 +12,7 @@ import { FILE_FIELD_OPEN } from "../../design/scripts/files/file-field.js";
 import { esc } from "../../design/scripts/files/file-parts.js";
 import { mountPlayer } from "../../design/scripts/files/file-player.js";
 import { registerRegionRelease } from "../core/region-scope.js";
-import { RECORD_TITLE_ATTRIBUTE } from "../core/shell-dom.js";
+import { backToLabel, RECORD_TITLE_ATTRIBUTE } from "../core/shell-dom.js";
 
 /**
  * @typedef {import("../../design/scripts/files/file-parts.js").Held} Held
@@ -82,7 +82,7 @@ export function pausePreviews(surface) {
  */
 export function viewMarkup(title, held) {
   const back = esc(title);
-  return `<div class="detail__bar"><button class="detail__back" type="button" data-file-view-back aria-label="Back to ${back}"><span class="detail__arrow">${BACK_ARROW}</span><span>${back}</span></button><b class="detail__title">${esc(held.name)}</b></div><div data-file-view></div>`;
+  return `<div class="detail__bar"><button class="detail__back" type="button" data-file-view-back aria-label="${backToLabel(back)}"><span class="detail__arrow">${BACK_ARROW}</span><span>${back}</span></button><b class="detail__title">${esc(held.name)}</b></div><div data-file-view></div>`;
 }
 
 /**

@@ -741,8 +741,8 @@
         <p class="sm">
           They are two views of one surface rather than a page and a popup over it (D2). Click any
           record in the collection below and the record form takes its place, with a back control
-          above it; <strong>New record</strong> opens the same view empty. In a window that replaces
-          the whole window, and it is the only record surface there is.
+          above it that names the collection; <strong>New record</strong> opens the same view empty.
+          In a window that replaces the whole window, and it is the only record surface there is.
         </p>
 
         <!-- One column, not two: each stage has to be wider than the 620px the rail
@@ -850,6 +850,38 @@
             Save never posts them and nothing in a section is an unsaved change. The actions stay
             <strong>the last row</strong>, and nothing is drawn below them. A relation with no
             record linking here has no section, and a record being created has none.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="kicker">The record's bar</h3>
+          <div class="cols">
+            <div>
+              <div class="stage stage--flush stage--paper" style="padding: 18px">
+                <div data-pattern-back-record></div>
+              </div>
+              <p class="xs" style="margin-top: 12px">
+                Ursula K. Le Guin, opened from The Left Hand of Darkness by the open icon in its
+                Author field. Back names the book and returns to it.
+              </p>
+            </div>
+            <div>
+              <div class="stage stage--flush stage--paper" style="padding: 18px">
+                <div data-pattern-back-list></div>
+              </div>
+              <p class="xs" style="margin-top: 12px">
+                Susanna Clarke, opened from the Authors list. Back names the list.
+              </p>
+            </div>
+          </div>
+          <p class="xs" style="margin-top: 12px">
+            The bar holds only the back control. The form's values say which record is open, so the
+            bar carries no title. Back names the place the record was opened from, a record by its
+            title and a list by its capability's label, and returns there. An answer window writes
+            no history, so a record opened from a name in an answer returns to whatever the window
+            held under the answer. A record opened from a pasted address, after a reload or from the
+            bare desk has no place before it, so Back names its own list and opens that. Save,
+            Cancel and Delete leave the way Back does.
           </p>
         </div>
       </section>
@@ -1056,8 +1088,12 @@
                     opens it with that record in its record view; putting the window away returns to
                     <code>/</code>. One window is exactly what makes a single path enough to
                     describe the whole desk, and it is why reload, a pasted address, history and
-                    sharing all keep working unchanged. Opening a record moves the address, and the
-                    record's back control, a save and a delete all leave it on the collection's.
+                    sharing all keep working unchanged. Opening a record moves the address. The
+                    record's back control names wherever the record was opened from, a collection or
+                    another record, and steps back onto that entry. Save, Cancel and Delete leave
+                    the same way. A record opened from a pasted address, after a reload or from the
+                    bare desk returns to its own collection, and the address is replaced with the
+                    collection's.
                     <br><br>
                     <strong>A record that is gone leaves its capability open.</strong>
                     When a record address names a record that was deleted, never existed or belongs
@@ -1089,7 +1125,8 @@
                   <td class="sm">
                     The address readout under the desk, for the bare desk and a capability. The
                     desk's fixture records have no ids, so the record address is stated here and not
-                    drawn
+                    drawn. The record's bar, with Back naming a record and a list, is in Capability
+                    patterns
                   </td>
                 </tr>
               </tbody>
