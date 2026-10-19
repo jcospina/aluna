@@ -23,7 +23,10 @@ import {
   deleteSourceLinkRows,
   deleteTargetLinkRows,
   LINK_TABLE,
+  type LinkEdge,
   type LinkTarget,
+  readLinksFrom,
+  readLinksTo,
   readSourceLinkRows,
   writeLinkRow,
 } from "./link-table.ts";
@@ -156,6 +159,49 @@ describe("a row", () => {
     expect(readSourceLinkRows(database, "authors", "author-0")).toEqual(new Map());
     expect(readSourceLinkRows(database, "quotes", "quote-1")).toEqual(new Map());
     expect(readSourceLinkRows(database, "quotes", "quote-2")).toEqual(new Map([["by", people]]));
+  });
+});
+
+describe("a search's hop along one relation (8.5)", () => {
+  const BOOK_AUTHOR: LinkEdge = {
+    source: { capability: "books", field: "author" },
+    target: { capability: "authors", incarnation: "authors-1" },
+  };
+
+  beforeEach(() => {
+    const database = env.conns.readwrite;
+    writeLinkRow(database, MISTBORN_AUTHOR, SANDERSON);
+    writeLinkRow(database, { ...MISTBORN_AUTHOR, record: "book-2" }, SANDERSON);
+    writeLinkRow(database, { ...MISTBORN_AUTHOR, record: "book-3" }, LE_GUIN);
+    writeLinkRow(database, { ...MISTBORN_AUTHOR, field: "editor" }, LE_GUIN);
+    writeLinkRow(
+      database,
+      { ...MISTBORN_AUTHOR, record: "book-4" },
+      { ...LE_GUIN, incarnation: "authors-0" },
+    );
+    writeLinkRow(database, { capability: "quotes", record: "quote-1", field: "author" }, LE_GUIN);
+  });
+
+  test("back from the records picked: the rows of the records whose field picked one, in that lifetime", () => {
+    const database = env.conns.readonly;
+    const picking = (targets: string[]) =>
+      readLinksTo(database, BOOK_AUTHOR, targets)
+        .map((link) => link.source)
+        .toSorted();
+    expect(picking(["author-2"])).toEqual(["book-1", "book-2"]);
+    expect(picking(["author-0", "author-2"])).toEqual(["book-1", "book-2", "book-3"]);
+    expect(picking(["author-9"])).toEqual([]);
+  });
+
+  test("on from the records picking: the records their field picked, in that lifetime", () => {
+    const database = env.conns.readonly;
+    const picked = (sources: string[]) =>
+      [
+        ...new Set(readLinksFrom(database, BOOK_AUTHOR, sources).map((link) => link.target)),
+      ].toSorted();
+    expect(picked(["book-1", "book-2"])).toEqual(["author-2"]);
+    expect(picked(["book-1", "book-3", "book-4"])).toEqual(["author-0", "author-2"]);
+    expect(picked(["quote-1"])).toEqual([]);
   });
 });
 

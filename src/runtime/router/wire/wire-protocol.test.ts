@@ -304,6 +304,16 @@ describe("reserved capability wire protocol — the search value is bounded", ()
         .q,
     ).toBe(atLimit);
   });
+
+  test("counts terms split by any whitespace a Handler may split on, JavaScript's or Unicode's", async () => {
+    // U+FEFF is JavaScript whitespace and not Unicode's; U+0085 is Unicode's and not JavaScript's.
+    for (const between of ["\uFEFF", "\u0085"]) {
+      const tooMany = Array.from({ length: MAX_SEARCH_TERMS + 1 }, (_, i) => `t${i}`).join(between);
+      await expect(
+        parseCapabilityRequest(get("search", [["q", tooMany]]), "search", spec()),
+      ).rejects.toThrow(WireProtocolError);
+    }
+  });
 });
 
 describe("reserved capability wire protocol — marker and record-target validation", () => {

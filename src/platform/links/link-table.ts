@@ -138,16 +138,80 @@ export function deleteFieldLinkRowsTo(
 export function readLinkingRecords(
   database: Database,
   source: Omit<LinkSource, "record">,
-  target: LinkTarget,
+  { record, ...target }: LinkTarget,
 ): string[] {
+  return readLinksTo(database, { source, target }, [record]).map((link) => link.source);
+}
+
+/** One relation's field and the target lifetime its picks name: an edge search walks. */
+export interface LinkEdge {
+  readonly source: Omit<LinkSource, "record">;
+  readonly target: Omit<LinkTarget, "record">;
+}
+
+/** The records whose field picked a record of the edge's target lifetime: those holding a copy. */
+export function readPickingRecords(database: Database, { source, target }: LinkEdge): string[] {
   return database
-    .query<{ source_record: string }, [string, string, string, string, string]>(
-      `SELECT source_record FROM ${LINK_TABLE}
-       WHERE target_capability = ? AND target_incarnation = ? AND target_record = ?
+    .query<{ record: string }, [string, string, string, string]>(
+      `SELECT source_record AS record FROM ${LINK_TABLE}
+       WHERE source_capability = ? AND source_field = ?
+         AND target_capability = ? AND target_incarnation = ?`,
+    )
+    .all(source.capability, source.field, target.capability, target.incarnation)
+    .map((row) => row.record);
+}
+
+/** One link row along an edge: the record whose field picked, and the record it picked. */
+export interface EdgeLink {
+  readonly source: string;
+  readonly target: string;
+}
+
+/** The edge's link rows that picked one of `targets`, read from the target end's index. */
+export function readLinksTo(
+  database: Database,
+  { source, target }: LinkEdge,
+  targets: readonly string[],
+): EdgeLink[] {
+  return database
+    .query<EdgeLink, [string, string, string, string, string]>(
+      `SELECT source_record AS source, target_record AS target FROM ${LINK_TABLE}
+       WHERE target_capability = ? AND target_incarnation = ?
+         AND target_record IN (SELECT value FROM json_each(?))
          AND source_capability = ? AND source_field = ?`,
     )
-    .all(target.capability, target.incarnation, target.record, source.capability, source.field)
-    .map((row) => row.source_record);
+    .all(
+      target.capability,
+      target.incarnation,
+      JSON.stringify(targets),
+      source.capability,
+      source.field,
+    );
+}
+
+/**
+ * The edge's link rows that one of `sources` made, read from the source end. The unary `+` keeps
+ * the target's columns off the target-end index, which SQLite otherwise prefers and which reads
+ * every link into the target capability.
+ */
+export function readLinksFrom(
+  database: Database,
+  { source, target }: LinkEdge,
+  sources: readonly string[],
+): EdgeLink[] {
+  return database
+    .query<EdgeLink, [string, string, string, string, string]>(
+      `SELECT source_record AS source, target_record AS target FROM ${LINK_TABLE}
+       WHERE source_capability = ? AND source_record IN (SELECT value FROM json_each(?))
+         AND source_field = ? AND +target_capability = ? AND +target_incarnation = ?`,
+    )
+    .all(
+      source.capability,
+      JSON.stringify(sources),
+      source.field,
+      target.capability,
+      target.incarnation,
+    );
 }
 
 /** What each of one record's fields picked, by field. */

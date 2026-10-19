@@ -13,6 +13,7 @@ import {
   MAX_SEARCH_QUERY_LENGTH,
   MAX_SEARCH_TERMS,
   MissingRequiredFieldsError,
+  searchTerms,
 } from "../../data/index.ts";
 import { listInputModeForField, normalizeListInputValues } from "../../field-types/list-input.ts";
 import type { CapabilityInput, CapabilityInputValue } from "../contract.ts";
@@ -380,8 +381,8 @@ function boundedSearchQuery(value: CapabilityInputValue): CapabilityInputValue {
       `A search may be at most ${MAX_SEARCH_QUERY_LENGTH} characters; this one is ${value.length}.`,
     );
   }
-  // Counted the way the generated SQL splits it, so the bound is the bound on the work.
-  const terms = value.split(/\s+/).filter((term) => term.length > 0);
+  // Counted at least as finely as any generated Handler splits it: the bound is on the work.
+  const terms = searchTerms(value);
   if (terms.length > MAX_SEARCH_TERMS) {
     throw new WireProtocolError(
       `A search may carry at most ${MAX_SEARCH_TERMS} terms; this one carries ${terms.length}.`,

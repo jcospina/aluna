@@ -1295,8 +1295,11 @@ For M4's mandatory search baseline, both the live and the scratch connection
 register one platform function. It applies JavaScript compatibility decomposition,
 lowercases locale-independently, removes combining diacritics only when they follow
 a Latin-script base, and recomposes canonically, which folds Latin accents without
-erasing voicing, vowel, or tone marks in other scripts. Generated search SQL calls
-it instead of SQLite's ASCII-only `NOCASE` and `lower()`. Bun does not expose
+erasing voicing, vowel, or tone marks in other scripts. An empty field reads as
+empty text rather than NULL, so a term is never in it: generated search SQL that
+asks whether a term is in no field rules the record out instead of leaving the
+answer unknown and listing it for every search. Generated search SQL calls it
+instead of SQLite's ASCII-only `NOCASE` and `lower()`. Bun does not expose
 scalar-function registration directly, so the platform compiles a small loadable
 bridge once into the OS temp directory and calls the canonical JavaScript
 normalizer through it. That keeps persistence in-process and adds no service, at
@@ -1308,15 +1311,26 @@ instead of Apple's extension-disabled library; setup details live in
 Search also follows links, in platform code. The generated search Handler runs
 unchanged, and its whole answer is records drawn through the platform's `present()`,
 so the platform adds to the results without touching it. It wraps `present()` to note
-which records the Handler showed, follows every relation out of the searched
-capability and every relation into it, then the same from each capability reached,
-and searches each capability once with the same normalizer under a read token. It
-follows the link table back to the searched capability's records and appends those
-the Handler did not show, one link away before two and newest first within each
-distance. It never removes or reorders what the Handler returned, and the count the
-answer carries includes the appended records. Adding or removing a relation moves no
-generated code, so search follows links for capabilities built before links existed
-(ADR-0011).
+which records and cards the Handler drew; an answer that is nothing but those cards,
+in the order drawn, shows the ones it holds, and an answer holding anything else gets
+nothing appended, since where more cards would land cannot be told. It reaches every
+capability that relations holding either way round join to the searched one, each
+under its own read token taken apart from the request's and given back the moment that
+capability starts closing. A path of relations from the searched capability enters
+each capability once, so a loop such as Books → Authors → Books ends. Along each path,
+shortest first, it matches the far end's records by the rule a search Handler is
+given, every term in their own text with the same normalizer, leaving out a linked
+field whose text is a copy from a capability already on the path, and follows the link
+table back a hop at a time, reading each hop's records through that capability's query
+port, to the searched capability's records. It appends those the Handler did not show,
+one link away before two and newest first within each distance. It never removes or
+reorders what the Handler returned, and the count the answer carries includes the
+appended records. A blank search walks nowhere. A capability closed by its own
+deletion is not reached, and one whose read fails is left out. The walk has what is
+left of the Handler time limit, counted from the Handler's start, and lets other
+requests run as it goes; run out, it appends what it found by then. Adding or removing
+a relation moves no generated code, so search follows links for capabilities built
+before links existed (ADR-0011).
 
 M6 `data_query` is the ephemeral whole-catalog reader and persists no reverse
 dependency. A cheap classifier may route or reject obvious non-queries early

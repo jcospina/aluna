@@ -38,6 +38,23 @@ export class CapabilityHandlerTimeoutError extends Error {
   override readonly name = "CapabilityHandlerTimeoutError";
 }
 
+/** Whether a Handler time limit limits anything: a positive, finite number of milliseconds. */
+function isBounded(timeoutMs: number): boolean {
+  return Number.isFinite(timeoutMs) && timeoutMs > 0;
+}
+
+/** When the Handler time limit, started at `from`, runs out: never, where there is no limit. */
+export function handlerDeadline(timeoutMs: number, from = performance.now()): number {
+  return isBounded(timeoutMs) ? from + timeoutMs : Number.POSITIVE_INFINITY;
+}
+
+/** Refuse work `done` after the Handler time limit has run out. */
+export function assertBeforeDeadline(deadline: number, done: string): void {
+  if (performance.now() > deadline) {
+    throw new CapabilityHandlerTimeoutError(`${done} after the Handler time limit.`);
+  }
+}
+
 /**
  * The reader went away before its answer did — not a failure. The browser aborts when the content
  * region is replaced or put away, and abandoning here hands the read tokens back immediately.
@@ -57,7 +74,7 @@ export async function withHandlerDeadline<T>(
   action: string,
   abandonOn?: AbortSignal,
 ): Promise<T> {
-  const bounded = Number.isFinite(timeoutMs) && timeoutMs > 0;
+  const bounded = isBounded(timeoutMs);
   if (!bounded && !abandonOn) return await work;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let onAbandon: (() => void) | undefined;

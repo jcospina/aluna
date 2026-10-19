@@ -167,16 +167,18 @@ function whenItEnds(element: HTMLRewriterTypes.Element, then: () => void): void 
 
 /**
  * Deliver a Handler's fragment, scrubbed, and as a platform refusal when it carries a declared
- * marker. `countSidecar` reads the scrubbed fragment; the enforcer's subject is the model's markup.
+ * marker. `follow` adds the platform's own cards after the scrubbed fragment, as a search does its
+ * link matches, and `countSidecar` counts both; the enforcer's subject is the model's markup.
  */
-export function answerWithHandlerFragment(
+export async function answerWithHandlerFragment(
   c: Context,
   id: string,
   spec: CapabilitySpec,
   action: WireProtocolAction,
   fragment: string,
   countSidecar: (html: string) => string,
-): Response {
+  follow?: (cleaned: string) => Promise<string>,
+): Promise<Response> {
   const outcome = readHandlerFragment(fragment, spec, action);
   if (outcome.neutralized) {
     // Precise for the developer, invisible to the user: the fragment still renders minus whatever
@@ -188,7 +190,8 @@ export function answerWithHandlerFragment(
   if (outcome.refusal !== undefined && isRefusableAction(action)) {
     return declaredRefusal(c, id, action, outcome.refusal);
   }
-  return c.html(`${countSidecar(outcome.html)}${outcome.html}`);
+  const html = follow ? `${outcome.html}${await follow(outcome.html)}` : outcome.html;
+  return c.html(`${countSidecar(html)}${html}`);
 }
 
 /** Only a mutation has a form error region for a refusal to be retargeted into. */

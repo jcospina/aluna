@@ -30,8 +30,9 @@ import {
 import { createCapabilityQueryPort, deriveCapabilityTableDdl } from "../../../data/index.ts";
 import { assertReadOwnership } from "../../wire/failure-responses.ts";
 import {
-  CapabilityHandlerTimeoutError,
+  assertBeforeDeadline,
   CapabilityReadAbandonedError,
+  handlerDeadline,
   type ItemRendererLoader,
   withHandlerDeadline,
 } from "../generated-code.ts";
@@ -172,12 +173,6 @@ function restAddress(linked: LinkedRecord, { source, relation }: Pointing, start
   return `${recordAddress(linked.row.id, linked.recordId)}/${path}?${query}`;
 }
 
-/** The time after which a renderer's answer is too late. Unbounded where the limit is. */
-function deadlineFrom(timeoutMs: number): number {
-  const bounded = Number.isFinite(timeoutMs) && timeoutMs > 0;
-  return bounded ? performance.now() + timeoutMs : Number.POSITIVE_INFINITY;
-}
-
 /** What is left of a section's time, for the wait on its renderer to load; 0 is no limit. */
 function remaining(deadline: number): number {
   return Number.isFinite(deadline) ? Math.max(1, deadline - performance.now()) : 0;
@@ -228,7 +223,7 @@ async function readSection(
   start: ListedAfter | undefined,
   limit: number,
 ): Promise<ReadSection> {
-  const deadline = deadlineFrom(deps.handlerTimeoutMs);
+  const deadline = handlerDeadline(deps.handlerTimeoutMs);
   const { readonly } = deps.databases;
   const linking = readLinkingRecords(
     readonly,
@@ -269,11 +264,7 @@ async function readSection(
   const cards = rows.map(({ record }) => {
     const card = present(record);
     assertReadOwnership(signal);
-    if (performance.now() > deadline) {
-      throw new CapabilityHandlerTimeoutError(
-        `Capability ${source.id}'s cards were drawn after the Handler time limit.`,
-      );
-    }
+    assertBeforeDeadline(deadline, `Capability ${source.id}'s cards were drawn`);
     return card;
   });
   // As stored, so the page after compares against the column itself.

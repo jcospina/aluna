@@ -59,6 +59,7 @@ import {
   WireProtocolError,
 } from "../wire/wire-protocol.ts";
 import type { HandlerLoader, ItemRendererLoader } from "./generated-code.ts";
+import { searchFollowingLinks, type WalkGates } from "./search/links-appended.ts";
 
 /**
  * What a Handler's request read: its declared dependencies, the active desk around it, and the
@@ -69,6 +70,14 @@ export interface HandlerRead extends SaveRelations {
   readonly catalog: readonly CapabilityRow[];
   /** What an edit's refresh or a deletion's clearing reaches, on the desk its transaction finds. */
   readonly settleReach: (desk: () => readonly CapabilityRow[]) => RefreshReach;
+  /** A search's: where its walk through links takes other capabilities' read tokens. */
+  readonly walk?: WalkGates;
+}
+
+/** What a Handler returned, and for a search, what follows its cleaned answer: link matches. */
+export interface HandlerAnswer {
+  readonly fragment: unknown;
+  readonly follow?: (cleaned: string) => Promise<string>;
 }
 
 /** Where a save's picks are checked, each target's records named by the noun its row stores. */
@@ -96,7 +105,8 @@ export async function invokeCapabilityHandler(
   action: WireProtocolAction,
   parsedRequest: ParsedCapabilityRequest,
   signal: AbortSignal,
-): Promise<string> {
+): Promise<HandlerAnswer> {
+  const startedAt = performance.now();
   const { input, recordTarget, drawnFiles } = parsedRequest;
   const query = createCapabilityQueryPort(databases.readonly, {
     target: spec,
@@ -141,21 +151,23 @@ export async function invokeCapabilityHandler(
   };
 
   if (action === "create") {
-    return runSave(
+    const fragment = await runSave(
       action,
       (files, links) => createCapabilityMutationPort(spec, files, signal, links),
       (handler, context) => (handler as CapabilityCreateHandler)(context),
     );
+    return { fragment };
   }
   if (action === "update") {
     const target = requireRecordTarget(recordTarget, action);
     const submittedFields = new Set(input.submittedFields);
-    return runSave(
+    const fragment = await runSave(
       action,
       (files, links) =>
         createCapabilityUpdateMutationPort(spec, target, submittedFields, files, signal, links),
       (handler, context) => (handler as CapabilityUpdateHandler)(context),
     );
+    return { fragment };
   }
   if (action === "delete") {
     assertReadOwnership(signal);
@@ -173,7 +185,7 @@ export async function invokeCapabilityHandler(
     );
     assertReadOwnership(signal);
     assertSaveStands(databases.readwrite);
-    return fragment;
+    return { fragment };
   }
 
   assertReadOwnership(signal);
@@ -181,9 +193,22 @@ export async function invokeCapabilityHandler(
   assertReadOwnership(signal);
   const handler = await loadHandler(row.artifacts_path, action);
   assertReadOwnership(signal);
-  const fragment = await (handler as CapabilityReadHandler)({ input, query, present });
+  const searched = {
+    database: databases.readonly,
+    catalog: read.catalog,
+    searched: row,
+    signal,
+    startedAt,
+  };
+  const search =
+    read.walk && searchFollowingLinks(read.walk, { ...searched, query: input.values.q }, present);
+  const fragment = await (handler as CapabilityReadHandler)({
+    input,
+    query,
+    present: search?.present ?? present,
+  });
   assertReadOwnership(signal);
-  return fragment;
+  return { fragment, follow: search?.follow };
 }
 
 /**

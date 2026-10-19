@@ -254,7 +254,9 @@ async function handleCapabilityRequest(
   try {
     linking = admitLinkingCapabilities(readGates, row, catalog, action);
     const settleReach = linking.settle;
-    const read: HandlerRead = { dependencies, catalog, relations, dormant, settleReach };
+    const abandonOn = c.req.raw.signal;
+    const walk = action === "search" ? { readGates, handlerTimeoutMs, abandonOn } : undefined;
+    const read: HandlerRead = { dependencies, catalog, relations, dormant, settleReach, walk };
     // The refusals the platform owns — an undeclared choice value, an over-long string, a file it
     // may not claim or keep, a pick naming no record — settle before any generated code loads, so
     // a Handler cannot answer 200. Under the read tokens: an edit's file check reads the
@@ -411,7 +413,7 @@ async function executeCapabilityHandler(
     assertReadOwnership(signal);
     // Bounded: a Handler that never settles must not pin this route's read tokens,
     // because that would make the capability permanently undeletable.
-    const fragment = await withHandlerDeadline(
+    const answer = await withHandlerDeadline(
       invokeCapabilityHandler(
         databases,
         loadHandler,
@@ -428,12 +430,13 @@ async function executeCapabilityHandler(
       action,
       abandonOn,
     );
+    const { fragment } = answer;
     if (typeof fragment !== "string") {
       throw new TypeError(
         `Handler ${id}/${action} returned ${typeof fragment}; the contract requires an HTML string.`,
       );
     }
-    return answerWithHandlerFragment(c, id, spec, action, fragment, (html) =>
+    const countSidecar = (html: string) =>
       collectionCountSidecar({
         spec,
         databases,
@@ -441,7 +444,15 @@ async function executeCapabilityHandler(
         nouns: { noun: row.noun, plural: row.plural_noun },
         action,
         fragment: html,
-      }),
+      });
+    return await answerWithHandlerFragment(
+      c,
+      id,
+      spec,
+      action,
+      fragment,
+      countSidecar,
+      answer.follow,
     );
   } catch (error) {
     return capabilityHandlerFailure(c, row, action, asFormChanged(error, parsedRequest.input));

@@ -424,6 +424,37 @@ describe("split capability data ports", () => {
     });
   });
 
+  test("a record with an empty searched field is found only by a word it holds", () => {
+    withFileDatabase((databases) => {
+      const notes = notesSpec();
+      notes.schema.fields.push({
+        name: "details",
+        label: "Details",
+        type: "string",
+        required: false,
+        lifecycle: "active",
+      });
+      applyCapabilityTableDdl(notes, databases.readwrite);
+      createCapabilityMutationPort(notes, noFiles(notes, databases.readwrite)).create({
+        text: "Jupiter",
+        pinned: false,
+      });
+      const query = createCapabilityQueryPort(databases.readonly, { target: notes });
+      // Every term in some field, as generated search Handlers write it: no `coalesce` around `instr`.
+      const searched = (term: string) =>
+        query.records({
+          sql:
+            'WITH "search_terms" AS (SELECT "value" AS "term" FROM json_each(?)) SELECT "id" AS "target_id"' +
+            ' FROM "cap_notes" AS "target" WHERE NOT EXISTS (SELECT 1 FROM "search_terms" WHERE NOT (' +
+            ' instr(platform_search_normalize("target"."text"), platform_search_normalize("term")) > 0' +
+            ' OR instr(platform_search_normalize("target"."details"), platform_search_normalize("term")) > 0))',
+          parameters: [JSON.stringify([term])],
+        });
+      expect(searched("jupiter")).toHaveLength(1);
+      expect(searched("zzzz")).toHaveLength(0);
+    });
+  });
+
   test("a write through the query port fails at the physically read-only connection", () => {
     withFileDatabase((databases) => {
       const spec = notesSpec();

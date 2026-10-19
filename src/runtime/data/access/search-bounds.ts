@@ -13,3 +13,12 @@
 
 export const MAX_SEARCH_QUERY_LENGTH = 512;
 export const MAX_SEARCH_TERMS = 16;
+
+/**
+ * A search's terms: none when it is blank. A search Handler is told to split on Unicode whitespace
+ * and most split on JavaScript's `\s`, which differ by a few characters; this splits on either, so
+ * it counts at least as many terms as any Handler, and the bound is a bound on the Handler's work.
+ */
+export function searchTerms(query: string): string[] {
+  return query.split(/[\s\p{White_Space}]+/u).filter((term) => term.length > 0);
+}

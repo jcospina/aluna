@@ -31,8 +31,13 @@ static void platform_search_normalize(
   int argc,
   sqlite3_value **argv
 ) {
-  if (argc != 1 || sqlite3_value_type(argv[0]) == SQLITE_NULL) {
+  if (argc != 1) {
     sqlite3_result_null(context);
+    return;
+  }
+  /* An empty field holds no text, so no term is in it: NULL would leave the question open. */
+  if (sqlite3_value_type(argv[0]) == SQLITE_NULL) {
+    sqlite3_result_text(context, "", 0, SQLITE_STATIC);
     return;
   }
   if (!callback) {

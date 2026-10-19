@@ -87,7 +87,7 @@ interface Answer {
 }
 
 /** One answer exactly as a producer writes it: its status and its body, through Hono. */
-async function answered(produce: (c: Context) => Response): Promise<Answer> {
+async function answered(produce: (c: Context) => Response | Promise<Response>): Promise<Answer> {
   const response = await new Hono().get("/", produce).request("/");
   return { status: response.status, body: await response.text() };
 }
