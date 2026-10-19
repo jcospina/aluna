@@ -11,5 +11,6 @@ export const A_DATA_QUERY_CLASSIFICATION = {
   proposed_identity: null,
   proposed_action: "Look at what is saved.",
   user_facing_label: "Let me look at what you've saved.",
+  related_capabilities: [],
   requires_confirmation: false,
 };

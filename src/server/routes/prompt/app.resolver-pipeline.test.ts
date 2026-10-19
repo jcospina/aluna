@@ -415,6 +415,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
       proposed_identity: null,
       proposed_action: "Add another way to track notes inside the existing Notes capability.",
       user_facing_label: "I can add that to your notes.",
+      related_capabilities: [],
       requires_confirmation: false,
     };
     const { provider, prompts } = makePromptBuildProvider(extendIntent);

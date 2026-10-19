@@ -80,6 +80,7 @@ export function notesIntent(overrides: Partial<IntentClassification> = {}): Inte
     proposed_identity: null,
     proposed_action: "Create a place to keep the user's notes.",
     user_facing_label: "I'll make a place for your notes.",
+    related_capabilities: [],
     requires_confirmation: false,
     ...overrides,
   };

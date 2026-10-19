@@ -5,6 +5,7 @@
 
 import type { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { zodSchema } from "ai";
 import type { ZodType } from "zod";
 import { PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
@@ -14,19 +15,26 @@ import {
   teardownScratchDbEnv,
 } from "../../platform/persistence/scratch-db.test-support.ts";
 import type { DeepPartial, GenerateResult, Provider } from "../../platform/provider/index.ts";
-import { occurrences } from "../../platform/provider/prompt-lines.test-support.ts";
+import {
+  addedLines,
+  linesNaming,
+  occurrences,
+} from "../../platform/provider/prompt-lines.test-support.ts";
 import {
   FIRST_INCARNATION_ID,
   SECOND_INCARNATION_ID,
+  THIRD_INCARNATION_ID,
 } from "../../registry/incarnations.test-support.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilityRow,
   FULL_CAPABILITY_TOOLS,
   insertCapability,
+  insertCapabilityDeletionTombstone,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
 } from "../../registry/index.ts";
 import {
+  buildIntentPrompt,
   classifyIntent,
   classifyIntentWithUsage,
   INTENT_DATA_QUERY_CONTEXT_RULE,
@@ -194,6 +202,7 @@ describe("intent resolver classification — schema", () => {
           proposed_identity: null,
           proposed_action: "Classify the user's request.",
           user_facing_label: "I'm sorting out what you want to track.",
+          related_capabilities: [],
           requires_confirmation: false,
         }).type,
       ).toBe(type);
@@ -208,6 +217,7 @@ describe("intent resolver classification — schema", () => {
         proposed_identity: null,
         proposed_action: "Create a notes space.",
         user_facing_label: "I'll start a place for your notes.",
+        related_capabilities: [],
         requires_confirmation: true,
       }),
     ).toThrow();
@@ -221,6 +231,7 @@ describe("intent resolver classification — schema", () => {
         proposed_identity: null,
         proposed_action: "Create a separate work contacts capability.",
         user_facing_label: "I'll keep work contacts separately.",
+        related_capabilities: [],
         requires_confirmation: false,
       }),
     ).toThrow(/proposed identity/i);
@@ -233,9 +244,131 @@ describe("intent resolver classification — schema", () => {
         proposed_identity: { id: "work_contacts", label: "Work contacts" },
         proposed_action: "Create a separate work contacts capability.",
         user_facing_label: "I'll keep work contacts separately.",
+        related_capabilities: [],
         requires_confirmation: false,
       }).proposed_identity,
     ).toEqual({ id: "work_contacts", label: "Work contacts" });
+  });
+});
+
+describe("intent resolver classification — related capabilities", () => {
+  const flagging = (related_capabilities: unknown) => ({
+    type: "new_capability",
+    confidence: 0.9,
+    target_capability: null,
+    resolution: "new",
+    proposed_identity: null,
+    proposed_action: "Count the copies of each book.",
+    user_facing_label: "I'll keep count of your copies.",
+    related_capabilities,
+    requires_confirmation: false,
+  });
+
+  test("the answer always carries the list, and the provider schema leaves no key optional", async () => {
+    const { related_capabilities: _flags, ...unflagged } = flagging([]);
+    expect(intentClassificationSchema.safeParse(unflagged).success).toBe(false);
+    const parsedFlags = (flags: unknown) =>
+      intentClassificationSchema.parse(flagging(flags)).related_capabilities;
+    expect(parsedFlags(null)).toStrictEqual([]);
+    expect(parsedFlags(["books", null])).toStrictEqual(["books"]);
+
+    const objects: { properties: Record<string, unknown>; required?: string[] }[] = [];
+    const visit = (node: unknown): void => {
+      if (node === null || typeof node !== "object") return;
+      const { properties } = node as { properties?: Record<string, unknown> };
+      if (properties) objects.push(node as (typeof objects)[number]);
+      for (const child of Object.values(node)) visit(child);
+    };
+    visit(await zodSchema(intentClassificationSchema).jsonSchema);
+    expect(objects.some(({ properties }) => "related_capabilities" in properties)).toBe(true);
+    for (const { properties, required } of objects) {
+      expect([...(required ?? [])].sort()).toEqual(Object.keys(properties).sort());
+    }
+  });
+
+  test("the catalog shows each capability's record noun and plural noun, and nothing else changes", () => {
+    const promptFor = (row: CapabilityRow) =>
+      buildIntentPrompt({ prompt: "track my friends", capabilities: [row] });
+    const added = addedLines(
+      promptFor(notesRow()),
+      promptFor(notesRow({ noun: "person", plural_noun: "people" })),
+    );
+    expect(added).toHaveLength(2);
+    expect(linesNaming(added.join("\n"), ["person"])).toHaveLength(1);
+    expect(linesNaming(added.join("\n"), ["people"])).toHaveLength(1);
+  });
+
+  describe("against the registry", () => {
+    let env: ScratchDbEnv;
+    let conns: PlatformDatabase;
+
+    beforeEach(() => {
+      env = createScratchDbEnv("omni-crud-intent-");
+      conns = env.conns;
+    });
+
+    afterEach(() => {
+      teardownScratchDbEnv(env);
+    });
+
+    test("drops a flagged id that names no active capability and keeps each one that does", async () => {
+      const deleted = notesRow({
+        id: "journal",
+        label: "Journal",
+        incarnation_id: THIRD_INCARNATION_ID,
+        artifacts_path: `capabilities/journal/${THIRD_INCARNATION_ID}/v1/`,
+      });
+      insertRows(conns.readwrite, [recipesRow(), notesRow(), deleted]);
+      insertCapabilityDeletionTombstone(
+        { capabilityId: deleted.id, incarnationId: deleted.incarnation_id, manifest: [] },
+        conns.readwrite,
+      );
+      const flags = ["recipes", deleted.id, null, "ghosts", "notes", "recipes", ""];
+      const intent = await classifyIntent({
+        provider: makeRecordingProvider(flagging(flags)),
+        prompt: "track how many copies of each recipe book I own",
+        database: conns.readonly,
+      });
+
+      expect(intent.related_capabilities).toHaveLength(2);
+      expect(new Set(intent.related_capabilities)).toStrictEqual(new Set(["notes", "recipes"]));
+    });
+
+    test("a null list reads as none, and no flag survives on its own target or on no build", async () => {
+      insertRows(conns.readwrite, [recipesRow(), notesRow()]);
+      const flagsOf = async (answer: Record<string, unknown>) =>
+        (
+          await classifyIntent({
+            provider: makeRecordingProvider(answer),
+            prompt: "track my notes",
+            database: conns.readonly,
+          })
+        ).related_capabilities;
+      const both = ["notes", "recipes"];
+      const onNotes = { target_capability: "notes", related_capabilities: both };
+
+      expect(await flagsOf(flagging(null))).toStrictEqual([]);
+      expect(
+        await flagsOf({
+          ...flagging(both),
+          ...onNotes,
+          type: "extend_capability",
+          resolution: "extend",
+        }),
+      ).toStrictEqual(["recipes"]);
+      expect(
+        await flagsOf({
+          ...flagging(both),
+          ...onNotes,
+          resolution: "namespace",
+          proposed_identity: { id: "work_notes", label: "Work notes" },
+        }),
+      ).toStrictEqual(["recipes"]);
+      for (const type of ["ui_change", "data_query", "reject"] as const) {
+        const answer = { ...flagging(both), type, resolution: resolutionFor(type) };
+        expect(await flagsOf({ ...answer, target_capability: targetFor(type) })).toStrictEqual([]);
+      }
+    });
   });
 });
 
@@ -261,6 +394,7 @@ describe("intent resolver classification — prompt assembly", () => {
       proposed_identity: null,
       proposed_action: "Create a trips capability.",
       user_facing_label: "I'll make a place for your trips.",
+      related_capabilities: [],
       requires_confirmation: false,
     });
     insertRows(conns.readwrite, [recipesRow(), notesRow()]);
@@ -308,6 +442,7 @@ describe("intent resolver classification — narration and round-trip results", 
       proposed_identity: null,
       proposed_action: "Create a trips capability.",
       user_facing_label: "I'll make a place for your trips.",
+      related_capabilities: [],
       requires_confirmation: false,
     });
     const send: IntentResolverSend = async (event, data) => {
@@ -347,6 +482,7 @@ describe("intent resolver classification — narration and round-trip results", 
       proposed_identity: null,
       proposed_action: "Add another way to track notes inside the existing Notes capability.",
       user_facing_label: "I can add that to your notes.",
+      related_capabilities: [],
       requires_confirmation: false,
     };
     insertRows(conns.readwrite, [notesRow()]);
@@ -382,6 +518,7 @@ describe("intent resolver classification — narration and round-trip results", 
       proposed_identity: null,
       proposed_action: "Create notes.",
       user_facing_label: "I'll make a place for that.",
+      related_capabilities: [],
       requires_confirmation: true,
     });
 

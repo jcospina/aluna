@@ -129,6 +129,7 @@ describe("homepage active context and semantic overlap", () => {
       proposed_identity: null,
       proposed_action: "Count saved contacts.",
       user_facing_label: "I'll look through your contacts.",
+      related_capabilities: [],
       requires_confirmation: false,
     };
     const { provider, prompts } = makeSequenceProvider([intent]);
@@ -162,6 +163,7 @@ describe("homepage existing-capability evolution", () => {
       proposed_identity: null,
       proposed_action: "Add an optional due date and emphasize it in each contact item.",
       user_facing_label: "I'll add a due date and bring it forward.",
+      related_capabilities: [],
       requires_confirmation: false,
     };
     const candidate: CapabilitySpec = {
@@ -225,6 +227,7 @@ describe("homepage existing-capability evolution", () => {
       proposed_identity: null,
       proposed_action: "Make the contact list feel more compact.",
       user_facing_label: "I'll make your contacts more compact.",
+      related_capabilities: [],
       requires_confirmation: false,
     };
     const invalidCandidate: CapabilitySpec = {
@@ -280,6 +283,7 @@ describe("homepage separate semantic overlap", () => {
       proposed_identity: { id: "work_contacts", label: "Work contacts" },
       proposed_action: "Create a separate capability for work contacts.",
       user_facing_label: "I'll keep your work contacts in their own place.",
+      related_capabilities: [],
       requires_confirmation: false,
     };
     const { provider, prompts } = makeSequenceProvider([
@@ -322,6 +326,7 @@ describe("homepage separate semantic overlap", () => {
       proposed_identity: { id: "work_contacts", label: "Work contacts" },
       proposed_action: "Create a separate capability for work contacts.",
       user_facing_label: "I'll keep your work contacts in their own place.",
+      related_capabilities: [],
       requires_confirmation: false,
     };
     const mechanicalDuplicate: CapabilitySpec = {
@@ -373,6 +378,7 @@ describe("homepage namespace source admission", () => {
       proposed_identity: { id: "work_contacts", label: "Work contacts" },
       proposed_action: "Create a separate capability for work contacts.",
       user_facing_label: "I'll keep your work contacts in their own place.",
+      related_capabilities: [],
       requires_confirmation: false,
     };
     const { provider, prompts } = makeSequenceProvider([intent]);
@@ -413,6 +419,7 @@ describe("homepage namespace source admission", () => {
       proposed_identity: { id: notes.id, label: "Meeting notes" },
       proposed_action: "Create a separate capability for meeting notes.",
       user_facing_label: "I'll keep your meeting notes in their own place.",
+      related_capabilities: [],
       requires_confirmation: false,
     };
     const { provider, prompts } = makeSequenceProvider([intent]);

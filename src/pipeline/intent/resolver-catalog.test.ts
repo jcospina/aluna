@@ -40,6 +40,7 @@ describe("intent resolver active catalog", () => {
       proposed_identity: null,
       proposed_action: "Do not build.",
       user_facing_label: "I'm not quite sure what to make from that yet.",
+      related_capabilities: [],
       requires_confirmation: false,
     } as const;
     const provider: Provider = {

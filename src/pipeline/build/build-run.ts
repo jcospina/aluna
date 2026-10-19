@@ -25,6 +25,7 @@ import {
   generateSpec,
   type HandlerUnitName,
   publishCapabilitySnapshot,
+  readRelatedCapabilities,
   resolveBehavioralTierEnabled,
   runCapabilityGate,
   type UnitGenerationAttempt,
@@ -146,6 +147,10 @@ async function authorInitialSpec(input: {
       intent: input.intent,
       send: input.send,
       incarnationId: input.incarnationId,
+      relatedCapabilities: readRelatedCapabilities(
+        input.intent.related_capabilities,
+        input.database.readonly,
+      ),
     });
     input.acc.timings.specGenMs = generated.durationMs;
     input.acc.usages.push(generated.usage);

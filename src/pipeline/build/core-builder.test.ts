@@ -126,6 +126,7 @@ function extendIntent() {
     proposed_identity: null,
     proposed_action: "Add a due date to notes.",
     user_facing_label: "Adding a due date.",
+    related_capabilities: [],
     requires_confirmation: false as const,
   };
 }
@@ -139,6 +140,7 @@ function newCapabilityIntent(proposedId: string | null) {
     proposed_identity: proposedId === null ? null : { id: proposedId, label: "Work Notes" },
     proposed_action: "Create a separate capability.",
     user_facing_label: "Setting that up.",
+    related_capabilities: [],
     requires_confirmation: false as const,
   };
 }

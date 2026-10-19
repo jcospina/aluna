@@ -61,6 +61,7 @@ test("lease expiry cancels a stalled stage send before the next owner starts", a
         proposed_identity: null,
         proposed_action: "Create a reading list.",
         user_facing_label: "Setting that up.",
+        related_capabilities: [],
         requires_confirmation: false,
       },
       catalogFingerprint: readActiveRegistryCatalog(env.conns.readonly).fingerprint,

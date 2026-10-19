@@ -14,6 +14,7 @@ import {
   MAX_CAPABILITY_NOUN_LENGTH,
   MAX_LOGO_SUBJECT_LENGTH,
 } from "./spec.ts";
+import { CATALOG_LINE_MESSAGE } from "./spec-text.ts";
 
 const INCARNATION_ID = FIRST_INCARNATION_ID;
 
@@ -135,15 +136,53 @@ describe("the authored logo keys", () => {
         .success,
     ).toBe(true);
   });
+});
 
-  test("noun is one short non-blank line", () => {
-    expect(capabilitySpecSchema.safeParse(validSpec({ noun: "" })).success).toBe(false);
-    expect(capabilitySpecSchema.safeParse(validSpec({ noun: "note\nbook" })).success).toBe(false);
-    expect(
-      capabilitySpecSchema.safeParse(
-        validSpec({ noun: "x".repeat(MAX_CAPABILITY_NOUN_LENGTH + 1) }),
-      ).success,
-    ).toBe(false);
+describe("what the Resolver's catalog prints on one line", () => {
+  test("each noun is one short non-blank line", () => {
+    for (const key of ["noun", "plural_noun"] as const) {
+      const parses = (value: string) =>
+        capabilitySpecSchema.safeParse(validSpec({ [key]: value })).success;
+      expect(parses(""), key).toBe(false);
+      expect(parses("note\nbook"), key).toBe(false);
+      expect(parses("x".repeat(MAX_CAPABILITY_NOUN_LENGTH)), key).toBe(true);
+      expect(parses("x".repeat(MAX_CAPABILITY_NOUN_LENGTH + 1)), key).toBe(false);
+    }
+  });
+
+  test("the nouns and prompt_context break no line of the resolver's catalog, and keep any script", () => {
+    type CatalogText = { noun?: string; plural_noun?: string; prompt_context?: string };
+    const issuesOf = (text: CatalogText) =>
+      (capabilitySpecSchema.safeParse(validSpec(text)).error?.issues ?? []).map(
+        ({ message }) => message,
+      );
+    for (const kept of ["\u200c", "\u200d", "\u00ad", "\u200f"]) {
+      const word = `کتاب${kept}ها`;
+      expect(
+        issuesOf({ noun: word, plural_noun: word, prompt_context: `Stores ${word}.` }),
+      ).toEqual([]);
+    }
+    const breakers = [
+      "\n",
+      "\t",
+      "\u2028",
+      "\u2029",
+      "\u0085",
+      "\v",
+      "\u202a",
+      "\u202e",
+      "\u2066",
+      "\u2069",
+    ];
+    for (const breaking of breakers) {
+      for (const text of [
+        { noun: `bo${breaking}ok` },
+        { plural_noun: `bo${breaking}oks` },
+        { prompt_context: `Stores books.${breaking}And more.` },
+      ]) {
+        expect(issuesOf(text)).toContain(CATALOG_LINE_MESSAGE);
+      }
+    }
   });
 });
 

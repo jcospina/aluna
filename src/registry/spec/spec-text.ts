@@ -3,6 +3,7 @@
 // uses rather than re-deriving them.
 
 import { z } from "zod";
+import { LINE_OR_DIRECTION_BREAK } from "#shell/core/one-line.js";
 
 // Capability ids and field names both end up inside SQL identifiers — `cap_<id>` and one column
 // per field — so both are confined to a shape that needs no quoting and cannot smuggle SQL.
@@ -35,6 +36,15 @@ export const nonBlankText = z
  */
 export const singleLinePhrase = (max: number) =>
   nonBlankText.max(max).refine((text) => !/[\r\n]/.test(text), "must be one line");
+
+/** Exported so a suite pins the rule rather than a copy of its wording. */
+export const CATALOG_LINE_MESSAGE =
+  "must be one line of printable text: no control character, line separator or direction override";
+/** Free text printed on one line of the Intent Resolver's catalog (`LINE_OR_DIRECTION_BREAK`). */
+export const catalogLineText = nonBlankText.refine(
+  (text) => !LINE_OR_DIRECTION_BREAK.test(text),
+  CATALOG_LINE_MESSAGE,
+);
 
 export function allUnique(values: readonly string[]): boolean {
   return new Set(values).size === values.length;

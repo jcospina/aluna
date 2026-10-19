@@ -56,6 +56,7 @@ const EXTEND_INTENT: IntentClassification = {
   proposed_identity: null,
   proposed_action: "Add a due date to notes.",
   user_facing_label: "I'll add a due date.",
+  related_capabilities: [],
   requires_confirmation: false,
 };
 

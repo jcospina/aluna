@@ -18,6 +18,7 @@ function intent(type: "extend_capability" | "ui_change"): IntentClassification {
     proposed_identity: null,
     proposed_action: "Apply the requested change to the journal.",
     user_facing_label: "I'll make that change to your journal.",
+    related_capabilities: [],
     requires_confirmation: false,
   };
 }

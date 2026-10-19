@@ -45,7 +45,7 @@ import {
   promptCapabilitySpecSchema,
   uiCollectionLayoutSchema,
 } from "../../registry/index.ts";
-import { buildSpecPrompt, generateSpec } from "../index.ts";
+import { buildSpecPrompt, generateSpec, relatedCapabilityPromptLines } from "../index.ts";
 
 import {
   makeSpecProvider,
@@ -294,6 +294,31 @@ describe("spec generation stage — authored prompt", () => {
     }
     expect(prompt).not.toContain("signal");
     expect(prompt).not.toContain("ui_intent.detail");
+  });
+});
+
+describe("spec generation stage — flagged capabilities", () => {
+  test("a flagged capability is one block added whole, and an empty flag adds nothing", () => {
+    const input = {
+      provider: makeSpecProvider(notesSpec()),
+      prompt: "track how many copies of each book I own",
+      intent: notesIntent(),
+      send: recordingSend().send,
+      incarnationId: "inc_spec_test",
+    };
+    const books = {
+      name: "Books",
+      description: "Books read, with their author.",
+      record_noun: "book",
+      single_line_text_fields: [{ name: "title", label: "Title", max_length: null }],
+    };
+    const plain = buildSpecPrompt(input);
+    const flagged = buildSpecPrompt({ ...input, relatedCapabilities: [books] });
+    const block = `${relatedCapabilityPromptLines([books]).join("\n")}\n`;
+
+    expect(buildSpecPrompt({ ...input, relatedCapabilities: [] })).toBe(plain);
+    expect(occurrences(flagged, block)).toBe(1);
+    expect(flagged.replace(block, "")).toBe(plain);
   });
 });
 

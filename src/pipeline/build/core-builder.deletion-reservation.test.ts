@@ -40,6 +40,7 @@ test("a proposed id reserved by pending deletion cleanup is refused at the provi
           proposed_identity: { id: "notes", label: "Notes" },
           proposed_action: "Recreate notes.",
           user_facing_label: "Setting that up.",
+          related_capabilities: [],
           requires_confirmation: false,
         },
         catalogFingerprint: fingerprint,

@@ -157,6 +157,10 @@ export {
 } from "./gate/rungs/structural/gate-structural.ts";
 export { createCapabilityIncarnationId } from "./incarnation.ts";
 export {
+  readRelatedCapabilities,
+  relatedCapabilityPromptLines,
+} from "./spec/related-capabilities.ts";
+export {
   buildSpecPrompt,
   type GenerateSpecInput,
   generateSpec,

@@ -74,6 +74,7 @@ describe("resolver duplicate guard", () => {
       proposed_identity: null,
       proposed_action: "Create another Notes capability.",
       user_facing_label: "I'll make another place for notes.",
+      related_capabilities: [],
       requires_confirmation: false,
     };
     const { provider, prompts } = recordingProvider(fallback);
@@ -110,6 +111,7 @@ describe("resolver duplicate guard", () => {
       proposed_identity: null,
       proposed_action: "Do not build during this guard test.",
       user_facing_label: "I'm not quite sure what to make from that yet.",
+      related_capabilities: [],
       requires_confirmation: false,
     };
     const { provider, prompts } = recordingProvider(reject);

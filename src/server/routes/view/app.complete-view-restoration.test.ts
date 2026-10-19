@@ -50,6 +50,7 @@ function newCapabilityThenFailingSpec(): Provider {
       proposed_identity: null,
       proposed_action: "Create a recipes capability.",
       user_facing_label: "Got it. I'm putting that together now.",
+      related_capabilities: [],
       requires_confirmation: false,
     },
     {},
@@ -90,6 +91,7 @@ function newCapabilityThenHangingSpec(): {
           proposed_identity: null,
           proposed_action: "Create a recipes capability.",
           user_facing_label: "Got it. I'm putting that together now.",
+          related_capabilities: [],
           requires_confirmation: false,
         } as T;
         return {
@@ -122,6 +124,7 @@ function successfulBuildProvider(): Provider {
       proposed_identity: null,
       proposed_action: "Create a notes capability.",
       user_facing_label: "Got it. I'm putting that together now.",
+      related_capabilities: [],
       requires_confirmation: false,
     },
     NOTES_SPEC,

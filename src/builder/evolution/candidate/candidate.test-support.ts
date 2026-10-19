@@ -44,6 +44,7 @@ export function evolutionIntentFor(
     proposed_identity: null,
     proposed_action: intentText,
     user_facing_label: "Let me think through that change.",
+    related_capabilities: [],
     requires_confirmation: false,
     ...overrides,
   };

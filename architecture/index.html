@@ -935,6 +935,8 @@
           </p>
           <pre class="payload"><code>- id: books
   label: Books
+  noun: book
+  plural_noun: books
   version: 1
   prompt_context: Books read, with their author, page count, publisher and tags.
   content_free_field_catalog:
@@ -1309,6 +1311,8 @@
           <p>The resolver's prompt now lists both capabilities:</p>
           <pre class="payload"><code>- id: books
   label: Books
+  noun: book
+  plural_noun: books
   version: 2
   prompt_context: Books read, with their author, page count, publisher and tags.
   content_free_field_catalog:
@@ -1320,6 +1324,8 @@
     - finished: date, lifecycle active
 - id: films
   label: Films
+  noun: film
+  plural_noun: films
   version: 1
   prompt_context: Films watched, with their director, year and the date watched.
   content_free_field_catalog:
@@ -1391,7 +1397,11 @@
             <code>prompt_context</code>. When a new request overlaps something that already exists,
             the model settles it: evolve the existing capability, or start a separate one. For a
             separate capability, the platform refuses a name already on the desk and a numbered copy
-            of one, such as <code>books_2</code> or <em>Books 2</em>.
+            of one, such as <code>books_2</code> or <em>Books 2</em>. A request for records of their
+            own, each about one record already on the desk, such as
+            <em>track how many copies of each book I own</em>, starts a new capability with Books in
+            <code>related_capabilities</code>, and the spec writer sees Books' name, description,
+            record word and single-line text fields.
           </p>
           <p>Aluna accepts an occasional wrong resolution so that she never stops to ask you.</p>
 
@@ -1490,6 +1500,16 @@
                   <dd>
                     A line in Aluna's voice, such as "I'll make a place for the films you watch",
                     which opens the narration when the classification leads to a build
+                  </dd>
+                </dl>
+              </div>
+              <div class="fields__row">
+                <dl>
+                  <dt><code>related_capabilities</code></dt>
+                  <dd>
+                    The ids of the capabilities whose records the request is about, usually none.
+                    The platform keeps only ids of other capabilities on the desk, and only on a new
+                    capability or an extension.
                   </dd>
                 </dl>
               </div>

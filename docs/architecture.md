@@ -480,6 +480,7 @@ object:
   "resolution": "extend",
   "proposed_action": "show metadata in each photo's detail view",
   "user_facing_label": "Adding more detail to your photos",
+  "related_capabilities": [],
   "requires_confirmation": false
 }
 ```
@@ -498,16 +499,27 @@ Three responsibilities live here rather than in separate modules:
   resolution and metrics term: it creates no hierarchy and no shared schema, and the
   user simply sees an independent capability called Work contacts, never
   `contacts_2`. The chosen `resolution` is logged to metrics for the experiment. The
-  user is never asked to reconcile schemas.
+  user is never asked to reconcile schemas. A request for records of its own, each
+  naming one record another capability holds, is a new capability (resolution `new`)
+  with that one flagged, not an extension of it: "track how many copies of each book I
+  own" beside Books builds an Inventory, and its records point at the books. A request
+  that adds a field to an existing capability's own records stays an extension, with
+  the capability that field names flagged.
 - **Related capabilities.** The same call flags the existing capabilities a request
   is about, and it judges records, not field names: does each record of the new
   capability name one record that already exists? Movies, Books and Articles each
   have a title and are unrelated, while every Inventory record is about one book in
-  Books. No flag is the ordinary answer. The spec writer and the link step see only
-  the flagged capabilities, each with its name, description, record noun and
-  single-line text fields, so the two cannot disagree; with nothing flagged, the spec
-  writer's prompt is unchanged and the link step does not run. A flag is a judgment
-  for one build and never a `read_dependency` (ADR-0011).
+  Books. No flag is the ordinary answer. The answer carries the flags as
+  `related_capabilities`, a list of capability ids that is empty when nothing is
+  flagged. The openai-compatible wire holds the model to no schema, so the platform
+  reads a null list or entry as none and keeps only ids naming an active capability
+  other than the answer's own target, and only on a `new_capability` or
+  `extend_capability` answer; any other entry fails the answer, as a malformed key
+  does. The spec writer and the link step see only the flagged capabilities, each
+  with its name, description, record noun and single-line text fields with their
+  length limits, so the two cannot disagree; with nothing flagged, the spec writer's
+  prompt is unchanged and the link step does not run. A flag is a judgment for one
+  build and never a `read_dependency` (ADR-0011).
 - **The friendly label.** The same call emits `user_facing_label`, one warm
   product-voice sentence about what is happening. That single phrase threads through
   the build narration, the confirmation prompt, and the implicit proposal, so copy
@@ -525,9 +537,11 @@ coordinator (§8). Prompt resolution happens before admission and creates no dur
 generation row. The request carries one stale-target binding — `expected_absent`
 for a new semantic id, or `{ capability_id, incarnation_id, expected_version }` for
 evolution — plus the resolver-catalog revision or fingerprint that produced its
-classification. From Module 8 it also carries the resolver's related-capability flags,
-and says when the request is only about linking; the shape of both is settled when the
-resolver gains them (ADR-0011).
+classification. From Module 8 that classification also carries the resolver's
+`related_capabilities`: the build of a new capability reads each flagged capability
+from the registry under the build lease, and an evolution's flags reach only its link
+step. The request will also say when it is only about linking; that
+shape is settled when the resolver gains it (ADR-0011).
 
 The core Builder emits lifecycle events and owns neither the prompt route, the
 active DOM, nor SSE. The explicit-loop presenter turns those events into the
@@ -1552,9 +1566,11 @@ never `contacts_2`, and `namespace` is metrics-only. There are no shared fields 
 no foreign keys. A single-line text field may instead be linked to a single-line text
 field of another capability: it keeps its own text, which record it picked is kept in
 the link table, and the resolver's related-capability flag is how it marks the
-capability a request relates to (ADR-0011). Persistent cross-capability joins declare
-exact incarnation dependencies in the reading capability's spec; ephemeral
-`data_query` joins and link joins do not. The user never reconciles data models.
+capability a request relates to (ADR-0011). A request for records of its own, each about
+one record another capability holds, such as the copies of each book beside Books, is a
+new capability (resolution `new`) with that one flagged. Persistent cross-capability joins declare exact
+incarnation dependencies in the reading capability's spec; ephemeral `data_query` joins
+and link joins do not. The user never reconciles data models.
 
 ### Concurrency
 

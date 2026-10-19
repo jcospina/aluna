@@ -464,6 +464,7 @@ export const NEW_CAPABILITY_INTENT: IntentClassification = {
   proposed_identity: null,
   proposed_action: "Create a notes capability.",
   user_facing_label: "Got it. I'm putting that together now.",
+  related_capabilities: [],
   requires_confirmation: false,
 };
 
@@ -476,6 +477,7 @@ export const REJECT_INTENT: IntentClassification = {
   proposed_identity: null,
   proposed_action: "Refuse a sentence with nothing to make in it.",
   user_facing_label: "I'm not sure what to make from that.",
+  related_capabilities: [],
   requires_confirmation: false,
 };
 
@@ -488,6 +490,7 @@ export const DATA_QUERY_INTENT: IntentClassification = {
   proposed_identity: null,
   proposed_action: "Answer a question about saved notes.",
   user_facing_label: "I can look across your notes.",
+  related_capabilities: [],
   requires_confirmation: false,
 };
 

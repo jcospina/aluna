@@ -49,6 +49,7 @@ function intent(type: IntentType, standing: string | null = null): IntentClassif
     proposed_identity: null,
     proposed_action: "Look at what is saved.",
     user_facing_label: "Let me look at what you've saved.",
+    related_capabilities: [],
     requires_confirmation: false,
   } as IntentClassification;
 }

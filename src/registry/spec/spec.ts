@@ -40,6 +40,7 @@ import { relationsSchema } from "../relations.ts";
 import { capabilityToolsSchema, readDependenciesSchema } from "../tools.ts";
 import {
   allUnique,
+  catalogLineText,
   nonBlankText,
   sameOrderedStrings,
   singleLinePhrase,
@@ -135,6 +136,7 @@ export const MAX_CAPABILITY_NOUN_LENGTH = 32;
 
 /** The subject phrase alone — the registry re-validates it when a claim hands it out. */
 export const logoSubjectSchema = singleLinePhrase(MAX_LOGO_SUBJECT_LENGTH);
+const capabilityNounText = catalogLineText.max(MAX_CAPABILITY_NOUN_LENGTH);
 
 export const SCALAR_FIELD_TYPES = [
   "string",
@@ -308,8 +310,8 @@ const commonSpecShape = {
   // The singular common noun for one record, and the plural the collection count says it in. The
   // model writes both, so no platform rule guesses a plural in any language. Platform-View facts:
   // they may evolve, and they never select logo generation.
-  noun: singleLinePhrase(MAX_CAPABILITY_NOUN_LENGTH),
-  plural_noun: singleLinePhrase(MAX_CAPABILITY_NOUN_LENGTH),
+  noun: capabilityNounText,
+  plural_noun: capabilityNounText,
   schema: specSchemaShapeOf(specFieldSchema),
   ui_intent: uiIntentSchema,
   // Free text. The behavioral tier generates tests from this — from stated
@@ -320,8 +322,8 @@ const commonSpecShape = {
   behavioral_errors: z.array(behavioralErrorCaseSchema).max(MAX_BEHAVIORAL_ERRORS),
   tools: capabilityToolsSchema,
   read_dependencies: readDependenciesSchema,
-  // What the intent resolver reads to understand this capability.
-  prompt_context: nonBlankText,
+  // What the intent resolver reads to understand this capability, on one line of its catalog.
+  prompt_context: catalogLineText,
 };
 
 export const capabilitySpecSchema = z

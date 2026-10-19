@@ -44,6 +44,15 @@ const intentClassificationObject = z.strictObject({
     .nullable(),
   proposed_action: nonBlankText,
   user_facing_label: nonBlankText,
+  /**
+   * The existing capabilities whose records this request is about. The openai-compatible wire holds
+   * the model to no schema, so a null list or id reads as none and the resolver drops an id naming
+   * no active capability; any other entry fails the answer.
+   */
+  related_capabilities: z
+    .array(z.string().nullable())
+    .nullable()
+    .transform((ids) => (ids ?? []).filter((id): id is string => id !== null)),
   // Confirmations are reserved for capability delete and implicit-loop proposals.
   // Data questions named the first of those proposals — the gap answer — and deliberately shipped
   // it with no control, so the implicit loop inherits a customer rather than a shape guessed at.

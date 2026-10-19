@@ -41,6 +41,10 @@ import {
 } from "../../registry/index.ts";
 import { FILE_FIELD_CARD_LINE, FILE_FIELD_PROMPT_LINES } from "./file-field-guidance.ts";
 import { drawFileCardLayout, drawnFileCardLayout } from "./layout-draw.ts";
+import {
+  type RelatedCapabilityView,
+  relatedCapabilityPromptLines,
+} from "./related-capabilities.ts";
 
 export interface GenerateSpecInput {
   readonly provider: Provider;
@@ -53,6 +57,9 @@ export interface GenerateSpecInput {
   readonly send: SendBuildEvent;
   // The capability's incarnation, which draws the layout of a card that shows a file.
   readonly incarnationId: string;
+  // The capabilities the resolver flagged, read under the build lease. Absent or empty, the prompt
+  // is the one an unflagged build has always had.
+  readonly relatedCapabilities?: readonly RelatedCapabilityView[];
 }
 
 /**
@@ -149,6 +156,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
     `  - ${platformOwnedErrorCodeList()} are platform-owned refusals Aluna answers itself; never author a case for any of them.`,
     "- prompt_context: one concise sentence describing what this capability stores, used later to recognise related requests.",
     "",
+    ...relatedCapabilityPromptLines(input.relatedCapabilities ?? []),
     "Resolved intent:",
     `- type: ${input.intent.type}`,
     `- proposed_action: ${input.intent.proposed_action}`,

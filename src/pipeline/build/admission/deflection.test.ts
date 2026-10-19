@@ -30,6 +30,7 @@ describe("deterministic exact-identity collision guard", () => {
       proposed_identity: null,
       proposed_action: "Add this to an existing place.",
       user_facing_label: "This belongs with something you've already started.",
+      related_capabilities: [],
       requires_confirmation: false,
     });
     expect(duplicateIntentForPrompt("please create contacts", [contacts])).toMatchObject({
