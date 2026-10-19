@@ -17,6 +17,7 @@
 import { SQLiteError } from "bun:sqlite";
 
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { LINK_TABLE } from "../../../platform/persistence/table-names.ts";
 import {
   type ActiveRegistryCatalog,
   type CapabilityRow,
@@ -34,6 +35,7 @@ import {
 } from "../../data/index.ts";
 import { isPlannedOpcode, readQuestionPlan } from "../endings/question-nothing-found.ts";
 import { NO_PLAN, type QuestionStepPlan } from "../step/question-step.ts";
+import { QUESTION_LINK_COLUMNS } from "./question-views.ts";
 
 /** A question asked of a desk that holds nothing to read. */
 export class EmptyCatalogQueryError extends Error {
@@ -152,12 +154,14 @@ export function assertWholeCatalogQuery(
   }
   const plan = assertStatementIsWellFormed(database, sql, parameters);
   // `allowTargetId` because a question may count records and group by one; `wholeCatalog` because
-  // the nominated target is an artefact of the scope's shape rather than a chosen capability.
+  // the nominated target is an artefact of the scope's shape rather than a chosen capability. The
+  // link table by its real name, since the worker's view of it does not exist on this connection.
   try {
     const opened = new Set(
       assertScopedQuery(database, scope, sql, parameters, {
         allowTargetId: true,
         wholeCatalog: true,
+        platformTables: { [LINK_TABLE]: QUESTION_LINK_COLUMNS },
       }),
     );
     // Filtered through `specs` rather than mapped from the `EXPLAIN`'s own order, so two runs of

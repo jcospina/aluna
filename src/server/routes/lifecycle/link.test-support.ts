@@ -133,7 +133,7 @@ export function installDesk(conns: PlatformDatabase): void {
 
 /** Set a capability's relations in storage directly, as only a test may. */
 export function storeRelations(
-  conns: PlatformDatabase,
+  conns: Pick<PlatformDatabase, "readwrite">,
   capabilityId: string,
   relations: readonly Relation[],
 ): void {

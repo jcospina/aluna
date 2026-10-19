@@ -78,9 +78,10 @@ sign-off).* The link table is the first platform table a question reads. "How ma
 copies of Le Guin's books do I have?" follows Inventory to Books to Authors through
 it, instead of guessing a join on plain columns. The table bound admits the link
 table by its real name on the platform's connection, and the worker shadows it with a
-view of the same name and columns that holds only active relations' rows, while every
-other platform table stays an empty view. A link join, like every question statement,
-declares no read dependency.
+view of the same name that holds only active relations' rows, while every other
+platform table stays an empty view. The view leaves out the target's incarnation, so
+the worker still never learns one, and the bound refuses a statement that names that
+column. A link join, like every question statement, declares no read dependency.
 
 **Ownership stays on the main thread.** The complete per-incarnation read-token set is
 acquired atomically against one catalog snapshot or not at all, and released in

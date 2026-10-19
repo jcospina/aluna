@@ -1411,12 +1411,13 @@ Inventory to Books to Authors through the link table instead of guessing a join 
 plain columns, and a link join declares no read dependency. Every statement is
 checked on the platform's own connection, where the worker's views do not exist, so
 the link table is admitted to that check by its real name, and the worker shadows it
-with a view of the same name and columns holding only active relations' rows
-(ADR-0011). The query creates no registry row, no logo on the ground, and no version,
-artifact, cache, or persisted read dependency. Once M10 exists the Event Log may
-still record the ordinary user action, which does not turn the query into a built
-capability. Scope follows the context-aware prompt bar: the open capability resolves
-vague references and never fences the search.
+with a view of the same name holding only active relations' rows. The view leaves out
+the target's incarnation, which the worker never learns, and the check refuses a
+statement that names that column (ADR-0011). The query creates no registry row, no
+logo on the ground, and no version, artifact, cache, or persisted read dependency.
+Once M10 exists the Event Log may still record the ordinary user action, which does
+not turn the query into a built capability. Scope follows the context-aware prompt
+bar: the open capability resolves vague references and never fences the search.
 
 **Aluna speaks the answer.** There is no auto-table — a grid headed by SQL aliases is
 the engineering tool §9.7 forbids. Removing it removes the user's only audit, and two

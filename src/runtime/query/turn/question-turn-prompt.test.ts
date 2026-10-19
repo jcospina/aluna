@@ -9,6 +9,7 @@ import { buildQuestionTurnPrompt, QUESTION_STATEMENT_RULES } from "./question-tu
 const prompt = buildQuestionTurnPrompt({
   question: "how many notes do I have?",
   specs: [notesSpec()],
+  relations: [],
   steps: [],
   budget: 5,
   openCapability: null,

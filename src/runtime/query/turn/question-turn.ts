@@ -14,6 +14,7 @@ import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import { abortableProvider, type Provider } from "../../../platform/provider/index.ts";
 import type { CapabilitySpec } from "../../../registry/index.ts";
 import { questionOpenedACollection } from "../endings/question-nothing-found.ts";
+import { questionRelations } from "../scope/question-views.ts";
 import {
   assertWholeCatalogQuery,
   scopedCapabilitySpecs,
@@ -217,6 +218,7 @@ export async function runQuestionTurn(
   const prompt = buildQuestionTurnPrompt({
     question: input.question,
     specs,
+    relations: questionRelations(deps.scope.catalog),
     steps,
     budget: input.budget,
     openCapability: input.openCapability,

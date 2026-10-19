@@ -10,12 +10,14 @@
 // The byte counters live here rather than beside the caps, because what they weigh is `formatStep`'s
 // own output: what is counted has to be what is sent, and two renderings would be two answers.
 //
-// The collections block and the one line naming the open window are the parts neither budget
-// weighs: they measure steps, and these are re-sent whole with every one of them. What bounds
-// them is the spec gate — `MAX_SPEC_FIELDS`, `MAX_CHOICE_OPTIONS`, and a capability name's own
-// 48 characters — and, for a file field, admission's closed table of types.
+// The collections block, the links block and the one line naming the open window are the parts
+// neither budget weighs: they measure steps, and these are re-sent whole with every one of them.
+// What bounds them is the spec gate — `MAX_SPEC_FIELDS`, which bounds the relations too at one a
+// field, `MAX_CHOICE_OPTIONS`, and a capability name's own 48 characters — and, for a file field,
+// admission's closed table of types.
 
 import { admittedTypes } from "../../../platform/files/admission/admission.ts";
+import { CAPABILITY_TABLE_PREFIX, LINK_TABLE } from "../../../platform/persistence/table-names.ts";
 import {
   type CapabilitySpec,
   choiceFieldOptions,
@@ -27,6 +29,7 @@ import {
   type SpecField,
 } from "../../../registry/index.ts";
 import { deriveCapabilityTableDdl, SQLITE_TYPE_BY_FIELD_TYPE } from "../../data/index.ts";
+import { QUESTION_LINK_COLUMNS, type QuestionRelation } from "../scope/question-views.ts";
 import { QUESTION_FILE_WITHHELD_RULE } from "../step/question-file-scrub.ts";
 import {
   DATA_FENCE_CLOSE,
@@ -39,6 +42,8 @@ import { QUESTION_TOOLS } from "../step/question-tool.ts";
 export interface QuestionPromptContext {
   readonly question: string;
   readonly specs: readonly CapabilitySpec[];
+  /** The relations that hold on the snapshot; one whose ends are not both listed is not shown. */
+  readonly relations: readonly QuestionRelation[];
   readonly steps: readonly QuestionStep[];
   readonly budget: number;
   /**
@@ -139,6 +144,34 @@ export const QUESTION_FILE_RULES = Object.freeze([
 /** What the catalog below is headed with, and what the block under it sends the model to weigh. */
 export const QUESTION_COLLECTIONS_HEADING = "The collections:";
 
+/** What the link table is headed with, below the collections, when a relation holds. */
+export const QUESTION_LINKS_HEADING = "The links between them:";
+
+/**
+ * How a question follows a link, sent only when one is listed: through
+ * the link table, because a linked column's text is a copy, and plain columns holding the same
+ * text are the join a model guesses without it.
+ */
+export const QUESTION_LINK_RULES = Object.freeze([
+  "- A linked column holds a copy of the text its row picked in another collection, when it",
+  `  picked one. Reach that collection from it by following the link through ${LINK_TABLE} to the`,
+  "  row it picked, never by joining on the copy: two rows can hold the same text.",
+  `- A row that picked nothing keeps its own text and has no row in ${LINK_TABLE}, so a join`,
+  "  through the link leaves it out.",
+  `- Each join below gives ${LINK_TABLE} an alias of its own, so the joins along a chain of links`,
+  "  go into one statement as written. Where you give a table an alias, or join one table twice,",
+  "  write that alias wherever a join names the table.",
+]);
+
+/** What each of the link table's readable columns holds, listed the way a collection's are. */
+const LINK_COLUMNS = {
+  source_capability: `the table of the linked column, without ${CAPABILITY_TABLE_PREFIX}`,
+  source_record: "the id of the row that picked",
+  source_field: "the linked column",
+  target_capability: `the table it picked from, without ${CAPABILITY_TABLE_PREFIX}`,
+  target_record: "the id of the row it picked",
+} as const satisfies Record<(typeof QUESTION_LINK_COLUMNS)[number], string>;
+
 /**
  * Where the subject would live, worked out before anything is ruled out. The
  * resolver's own version of this check is one prompt line away (`src/pipeline/intent/resolver.ts`,
@@ -234,14 +267,43 @@ function anArticleFor(noun: string): string {
   return /^[aeiou]/i.test(noun) ? "an" : "a";
 }
 
-function formatCollection(spec: CapabilitySpec): string {
+/** A relation the prompt can name: one whose ends are both among the listed collections. */
+interface ListedLink {
+  readonly source: CapabilitySpec;
+  readonly field: string;
+  readonly target: CapabilitySpec;
+  readonly targetField: string;
+}
+
+function listedLinks(context: QuestionPromptContext): readonly ListedLink[] {
+  const listed = new Map(context.specs.map((spec) => [spec.id, spec]));
+  return context.relations.flatMap(({ source, relation }) => {
+    const from = listed.get(source);
+    const to = listed.get(relation.to.capability);
+    if (!from || !to) return [];
+    return [{ source: from, field: relation.field, target: to, targetField: relation.to.field }];
+  });
+}
+
+const tableOf = (spec: CapabilitySpec) => deriveCapabilityTableDdl(spec).tableName;
+
+/** What a linked column holds, under it: a copy of the column it picked from, and where from. */
+function formatLinkedColumn(link: ListedLink): string {
+  const copied = `${tableOf(link.target)}.${link.targetField}`;
+  return `      links to ${link.target.label}: holds a copy of ${copied} from the row it picked, which ${LINK_TABLE} names`;
+}
+
+function formatCollection(spec: CapabilitySpec, links: readonly ListedLink[]): string {
   const { tableName } = deriveCapabilityTableDdl(spec);
+  const linksFrom = (name: string) =>
+    links.filter((link) => link.source.id === spec.id && link.field === name);
   const fields = spec.schema.fields
     .filter((field) => field.lifecycle === "active")
     .flatMap((field) => [
       `    - ${field.name}: ${SQLITE_TYPE_BY_FIELD_TYPE[field.type]}, holds a ${field.type}${nullability(field)}`,
       ...(isChoiceFieldType(field.type) ? [formatChoiceValues(field)] : []),
       ...(isFileFieldType(field.type) ? [formatFileReference(field)] : []),
+      ...linksFrom(field.name).map(formatLinkedColumn),
     ]);
   return [
     `- ${spec.label} — one row is ${anArticleFor(spec.noun)} ${spec.noun}`,
@@ -253,9 +315,34 @@ function formatCollection(spec: CapabilitySpec): string {
   ].join("\n");
 }
 
-function formatCollections(specs: readonly CapabilitySpec[]): string {
+function formatCollections(specs: readonly CapabilitySpec[], links: readonly ListedLink[]): string {
   if (specs.length === 0) return "- none";
-  return specs.map(formatCollection).join("\n");
+  return specs.map((spec) => formatCollection(spec, links)).join("\n");
+}
+
+/**
+ * The join that follows one link, from its column's table to the table it picked from. Its alias
+ * for the link table is numbered by its place in the list, so no two joins share one.
+ */
+function formatJoin({ source, field, target }: ListedLink, index: number): string {
+  const [from, to, link] = [tableOf(source), tableOf(target), `link_${index + 1}`];
+  const picked = `${link}.source_capability = '${source.id}' AND ${link}.source_field = '${field}'`;
+  const join = `JOIN ${LINK_TABLE} AS ${link} ON ${picked} AND ${link}.source_record = ${from}.id JOIN ${to} ON ${to}.id = ${link}.target_record`;
+  return `    - ${from}.${field} to ${to}: ${join}`;
+}
+
+/** The link table, listed the way a collection is, with the join that follows each link. */
+function formatLinks(links: readonly ListedLink[]): readonly string[] {
+  if (links.length === 0) return [];
+  return [
+    "",
+    QUESTION_LINKS_HEADING,
+    `- ${LINK_TABLE} — one row is what one row's linked column picked`,
+    "  columns:",
+    ...QUESTION_LINK_COLUMNS.map((name) => `    - ${name}: TEXT, ${LINK_COLUMNS[name]}`),
+    "  joins:",
+    ...links.map(formatJoin),
+  ];
 }
 
 /**
@@ -314,6 +401,8 @@ function formatBudget(context: QuestionPromptContext): string {
 }
 
 export function buildQuestionTurnPrompt(context: QuestionPromptContext): string {
+  const links = listedLinks(context);
+  const readable = links.length === 0 ? "the collections" : `the collections and ${LINK_TABLE}`;
   return [
     `${QUESTION_TURN_PROMPT_PREFIX} what this person has saved. Decide what to do next.`,
     "",
@@ -325,13 +414,14 @@ export function buildQuestionTurnPrompt(context: QuestionPromptContext): string 
     '- When the steps so far are enough to answer the question, set next to "answer" and leave read null.',
     ...QUESTION_NO_HOME_RULES,
     ...QUESTION_STATEMENT_RULES,
-    "- Read only the collections listed below. There is no other table.",
+    `- Read only ${readable} listed below. There is no other table.`,
     "- Name each table exactly as it is listed, with no schema before it, and read id, not rowid.",
     QUESTION_FILE_WITHHELD_RULE,
     ...QUESTION_VOCABULARY_RULES,
     ...(context.specs.some((spec) => hasActiveFileField(spec.schema.fields))
       ? QUESTION_FILE_RULES
       : []),
+    ...(links.length === 0 ? [] : QUESTION_LINK_RULES),
     ...QUESTION_COMPUTATION_RULES,
     ...QUESTION_NAMING_RULES,
     ...QUESTION_RECORD_ID_RULES,
@@ -346,7 +436,8 @@ export function buildQuestionTurnPrompt(context: QuestionPromptContext): string 
     ...QUESTION_WHERE_IT_LIVES_RULES,
     "",
     QUESTION_COLLECTIONS_HEADING,
-    formatCollections(context.specs),
+    formatCollections(context.specs, links),
+    ...formatLinks(links),
     ...formatOpenWindow(context),
     "",
     "Steps taken so far:",

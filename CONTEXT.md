@@ -713,8 +713,8 @@ The platform table that records which record each linked field picked: rows of s
 capability, record and field, pointing at a target capability, incarnation and record,
 on the **file ledger**'s pattern. It lies outside every Handler's query scope by
 construction and is indexed both ways. Only the platform writes it: a save in the
-record's own transaction, the matching scan, Unlink and deletion (ADR-0011; M8 plan 11,
-12).
+record's own transaction, the matching scan, Unlink and deletion. A question reads it
+through a view that holds only active relations' rows (ADR-0011; M8 plan 11, 12, 47).
 _Avoid_: join table, junction table, foreign-key table, hidden column
 
 **Link step**:

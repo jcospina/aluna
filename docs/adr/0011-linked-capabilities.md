@@ -299,8 +299,8 @@ Guin's books do I have?" follows Inventory to Books to Authors through the link 
 instead of guessing a join on plain columns. A link join declares no `read_dependency`.
 Every question statement is checked on the platform's own connection, where the worker's
 views do not exist, so the link table is admitted to the whole-catalog check by its real
-name. The worker shadows it with a view of the same name and columns that holds only active
-relations' rows.
+name. The worker shadows it with a view of the same name that holds only active relations'
+rows and leaves out the target's incarnation, which the worker never learns.
 
 ## Considered options
 

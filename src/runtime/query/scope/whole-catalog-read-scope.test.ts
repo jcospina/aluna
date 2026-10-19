@@ -434,10 +434,11 @@ describe("what a whole-catalog read scope hands the worker, and what it leaves b
       },
     );
 
-    // What it is told at birth is a view for each capability: no token, and no incarnation.
+    // What it is told at birth is a view for each capability and one for the link table: no token,
+    // and no incarnation.
     const [[shadow]] = log.factoryArguments as [[QueryShadow]];
     const catalog = readActiveRegistryCatalog(database.readonly);
-    expect(shadow.views).toHaveLength(catalog.capabilities.length);
+    expect(shadow.views).toHaveLength(catalog.capabilities.length + 1);
     const told = JSON.stringify(shadow);
     expect(told).not.toMatch(/token/i);
     for (const { incarnationId } of [NOTES, TASKS]) expect(told).not.toContain(incarnationId);

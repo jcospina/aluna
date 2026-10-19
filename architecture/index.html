@@ -1981,7 +1981,8 @@
                     On the main thread, the check requires a single statement starting with
                     <code>SELECT</code>
                     or <code>WITH</code>, with nothing after a semicolon, that reads only this
-                    question's capabilities. The check looks only at what a statement reads, so a
+                    question's capabilities and the link table. The check looks only at what a
+                    statement reads, so a
                     <code>WITH</code>
                     that writes gets through when it reads nothing outside them. A statement
                     starting with <code>INSERT</code>,

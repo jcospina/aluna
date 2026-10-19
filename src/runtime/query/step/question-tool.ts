@@ -95,9 +95,9 @@ export interface QuestionTool {
 const readOnlyQueryTool: QuestionTool = Object.freeze({
   name: READ_ONLY_QUERY_TOOL,
   description: Object.freeze([
-    "Run one read-only SQL SELECT across the collections below and get its rows back.",
-    "Write one statement. It may join across every collection listed, and no other table exists to it.",
-    "Never write a value into the SQL. Put a ? where the value goes and pass the value in parameters, in order.",
+    "Run one read-only SQL SELECT across the tables below and get its rows back.",
+    "Write one statement. It may join across every table listed, and no other table exists to it.",
+    "Never write a value from the question into the SQL. Put a ? where it goes and pass the value in parameters, in order.",
     "A statement that fails comes back to you with what went wrong, and you may write another one.",
     "Set label to the kind of step this is, so the person can be told what is happening. One of:",
     ...QUESTION_STEP_LABELS.map((label) => `  ${label} — ${QUESTION_STEP_LABEL_HINTS[label]}`),

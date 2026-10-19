@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite";
+import { escapeRegExp } from "../../../platform/escape-regexp.ts";
 import { sqlIdentifier } from "../../../platform/persistence/sql-identifier.ts";
 
 import {
@@ -208,6 +209,12 @@ interface QueryScopeOptions {
    * so protecting one capability leaves `extra` and retired fields readable on all the others.
    */
   readonly wholeCatalog?: boolean;
+  /**
+   * Platform tables admitted by their real names, each with the columns its worker's view shows: a
+   * question's link table. A statement naming another of its columns is refused, as is one whose
+   * plan reads it; the view, which lacks them, is what keeps them unread.
+   */
+  readonly platformTables?: Readonly<Record<string, readonly string[]>>;
 }
 
 /**
@@ -227,7 +234,10 @@ export function assertScopedQuery(
     throw new CapabilityDataValidationError("The query port accepts one SELECT statement.");
   }
   assertNoAmbientSchemaReader(sql);
-  const allowedTables = new Set(capabilityQueryScopeTableNames(scope));
+  const allowedTables = new Set([
+    ...capabilityQueryScopeTableNames(scope),
+    ...Object.keys(options.platformTables ?? {}),
+  ]);
   // One snapshot over both: a `CREATE` committing between the schema read and the plan would
   // leave the rootpage map stale, and the names read off it are a sentence a person reads.
   const { sourceByRoot, opcodes, jsonTables } = withReadSnapshot(database, () => {
@@ -254,7 +264,8 @@ export function assertScopedQuery(
       `Query accesses undeclared capability table${forbidden.length === 1 ? "" : "s"}: ${forbidden.join(", ")}.`,
     );
   }
-  assertTargetColumnAccess(database, scope, opcodes, sourceByRoot, jsonTables, options);
+  const named = namedPlatformColumns(database, sql, accessed, options);
+  assertTargetColumnAccess(database, scope, opcodes, sourceByRoot, jsonTables, options, named);
   return [...accessed];
 }
 
@@ -308,20 +319,16 @@ function assertTargetColumnAccess(
   sourceByRoot: ReadonlyMap<number, SchemaRoot>,
   jsonTables: ReadonlySet<unknown>,
   options: QueryScopeOptions,
+  named: readonly string[],
 ): void {
   const virtual = opcodes.filter(({ opcode, p4 }) => opcode === "VOpen" && !jsonTables.has(p4));
   if (options.wholeCatalog && virtual.length > 0) {
     throw new CapabilityDataValidationError("Query access to virtual tables is not available.");
   }
-  const bounded = options.wholeCatalog
-    ? [scope.target, ...(scope.dependencies ?? [])]
-    : [scope.target];
-  const exposed = new Set<string>();
-  for (const spec of bounded) {
-    const table = deriveCapabilityTableDdl(spec).tableName;
-    const forbiddenColumns = protectedTargetColumns(spec, options);
+  const exposed = new Set(named);
+  for (const [table, isProtected] of protectedColumnsByTable(scope, options)) {
     const cursorColumns = targetCursorColumns(database, opcodes, sourceByRoot, table);
-    for (const column of accessedProtectedColumns(opcodes, cursorColumns, forbiddenColumns)) {
+    for (const column of accessedProtectedColumns(opcodes, cursorColumns, isProtected)) {
       exposed.add(column);
     }
   }
@@ -330,6 +337,53 @@ function assertTargetColumnAccess(
       `Query reads protected target column${exposed.size === 1 ? "" : "s"}: ${[...exposed].sort().join(", ")}.`,
     );
   }
+}
+
+type IsProtected = (column: string) => boolean;
+
+/**
+ * The hidden columns of each platform table the plan opens that the statement names anywhere. An
+ * index seek compares a column with no `Column` read, and a view without the column reads it
+ * double-quoted as a string, so naming one is refused as reading it is, in a string or not.
+ */
+function namedPlatformColumns(
+  database: Database,
+  sql: string,
+  accessed: ReadonlySet<string>,
+  options: QueryScopeOptions,
+): string[] {
+  return Object.entries(options.platformTables ?? {})
+    .filter(([table]) => accessed.has(table))
+    .flatMap(([table, readable]) =>
+      database
+        .query<{ name: string }, []>(`PRAGMA table_xinfo(${sqlIdentifier(table)})`)
+        .all()
+        .map(({ name }) => name)
+        .filter(
+          (column) =>
+            !readable.includes(column) &&
+            new RegExp(`\\b${escapeRegExp(column)}\\b`, "i").test(sql),
+        ),
+    );
+}
+
+/** Each bounded table, and which of its columns no statement may read. */
+function protectedColumnsByTable(
+  scope: CapabilityQueryScope,
+  options: QueryScopeOptions,
+): [string, IsProtected][] {
+  const bounded = options.wholeCatalog
+    ? [scope.target, ...(scope.dependencies ?? [])]
+    : [scope.target];
+  return [
+    ...bounded.map((spec): [string, IsProtected] => {
+      const forbidden = protectedTargetColumns(spec, options);
+      return [deriveCapabilityTableDdl(spec).tableName, (column) => forbidden.has(column)];
+    }),
+    ...Object.entries(options.platformTables ?? {}).map(
+      ([table, readable]): [string, IsProtected] => [table, (column) => !readable.includes(column)],
+    ),
+  ];
 }
 
 function protectedTargetColumns(
@@ -365,13 +419,13 @@ function targetCursorColumns(
 function accessedProtectedColumns(
   opcodes: readonly ExplainOpcode[],
   cursorColumns: ReadonlyMap<number, ReadonlyMap<number, string>>,
-  forbiddenColumns: ReadonlySet<string>,
+  isProtected: IsProtected,
 ): ReadonlySet<string> {
   const exposed = new Set<string>();
   for (const opcode of opcodes) {
     if (opcode.opcode !== "Column") continue;
     const column = cursorColumns.get(opcode.p1)?.get(opcode.p2);
-    if (column && forbiddenColumns.has(column)) exposed.add(column);
+    if (column && isProtected(column)) exposed.add(column);
   }
   return exposed;
 }

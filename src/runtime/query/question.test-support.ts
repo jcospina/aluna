@@ -31,6 +31,7 @@ import {
   type QuestionLoopResult,
   runQuestionLoop,
 } from "./loop/question-loop.ts";
+import type { QuestionRelation } from "./scope/question-views.ts";
 import { gatesFor, readerCounts, type ScratchPlatforms } from "./scope/read-scope.test-support.ts";
 import { capabilityQuerySpec } from "./scope/whole-catalog-query-scope.ts";
 import {
@@ -250,10 +251,12 @@ export function nextPrompt(
   specs: readonly CapabilitySpec[],
   steps: readonly QuestionStep[],
   openCapability: string | null = null,
+  relations: readonly QuestionRelation[] = [],
 ): string {
   return buildQuestionTurnPrompt({
     question,
     specs,
+    relations,
     steps,
     budget: QUESTION_STEP_BUDGET,
     openCapability,
@@ -445,6 +448,8 @@ export interface QuestionDesk {
   readonly statements: () => readonly string[];
   /** How many of them, which is what most suites here are asking. */
   readonly executed: () => number;
+  /** The views each worker was opened with, in the order the workers started. */
+  readonly shadows: () => readonly QueryShadow[];
   run(
     provider: ScriptedProvider,
     question?: string,
@@ -470,10 +475,12 @@ export function questionDesk(
   seed?.(platform.database.readwrite);
   const readGates = gatesFor(platform.database);
   const statements: string[] = [];
+  const shadows: QueryShadow[] = [];
   const scopeDeps = {
     readGates,
     database: platform.database.readonly,
     createWorker: (shadow: QueryShadow) => {
+      shadows.push(shadow);
       const worker = createQueryWorker(platform.path, shadow);
       return {
         ...worker,
@@ -491,6 +498,7 @@ export function questionDesk(
     readerCounts: () => readerCounts(readGates),
     statements: () => statements,
     executed: () => statements.length,
+    shadows: () => shadows,
     inScope: (body) => withWholeCatalogReadScope(scopeDeps, body),
     async run(provider, question = "how much did I spend on groceries?", onStep, openCapability) {
       const steps: QuestionStep[] = [];
