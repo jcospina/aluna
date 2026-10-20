@@ -5,7 +5,8 @@
 // path: from a resolved `new_capability` intent it
 // generates the spec, derives + applies the migration, generates the units, runs the
 // fail-closed gate, publishes a verified snapshot, and commits — streaming developer previews and product-voice
-// narration along the way, and filling the metrics accumulator as each stage lands.
+// narration along the way, and filling the metrics accumulator as each stage lands. The link step
+// runs beside the tests and the units, and its relations commit with the capability.
 
 import { Database } from "bun:sqlite";
 import type { ZodType } from "zod";
@@ -65,6 +66,7 @@ import {
   validateBuiltOverlapIdentity,
   validateProposedOverlapIdentity,
 } from "./admission/overlap-identity.ts";
+import { connectingNarration, type LinkStepRun, startLinkStep } from "./linking.ts";
 
 /**
  * An aborted stream mid-build, thrown before activation. The caller finalizes the lifecycle as
@@ -200,39 +202,58 @@ export async function runSpecBuildStages(
   onActivated: () => void,
   targetExpectation: CapabilityRegistryExpectation = { state: "absent" },
 ): Promise<CommitCapabilityResult | undefined> {
+  const stage = { send, provider, prompt, intent, incarnationId, acc, database: buildDatabases };
   // Spec generation runs before the transaction opens, so a spec failure has nothing to roll back.
-  const { spec, durationMs, usage } = await authorInitialSpec({
-    send,
-    provider,
-    prompt,
-    intent,
-    incarnationId,
-    acc,
-    database: buildDatabases,
-  });
+  const { spec, durationMs, usage } = await authorInitialSpec(stage);
   acc.capabilityId = spec.id;
   acc.incarnationId = incarnationId;
   // Admission assigns the incarnation before Builder provider work. Once the
   // validated authored spec supplies the semantic id, enrich the same durable row.
   onCapabilityIdentified(spec.id);
   if (isAborted()) return;
+  const linking = startLinkStep({ ...stage, spec });
+  try {
+    return await buildFromSpec({
+      send,
+      isAborted,
+      provider,
+      spec,
+      buildId,
+      incarnationId,
+      acc,
+      buildDatabases,
+      artifactsRoot,
+      onActivated,
+      targetExpectation,
+      linking,
+      specGen: { durationMs, usage },
+    });
+  } finally {
+    await linking.stop();
+  }
+}
+
+/** Everything a build does once its spec exists, the link step already under way beside it. */
+async function buildFromSpec(input: {
+  readonly send: Send;
+  readonly isAborted: () => boolean;
+  readonly provider: Provider;
+  readonly spec: CapabilitySpec;
+  readonly buildId: string;
+  readonly incarnationId: string;
+  readonly acc: DemoBuildAccumulator;
+  readonly buildDatabases: PlatformDatabase;
+  readonly artifactsRoot: string;
+  readonly onActivated: () => void;
+  readonly targetExpectation: CapabilityRegistryExpectation;
+  readonly linking: LinkStepRun;
+  readonly specGen: { readonly durationMs: number; readonly usage: TokenUsage };
+}): Promise<CommitCapabilityResult> {
+  const { send, isAborted, provider, spec, incarnationId, acc } = input;
   // The first point at which a name exists for the blank tile on the desk. Sent as `fragment` to
   // ride the tile's own guarded listener, and it addresses the label span: the tile is mid-crawl.
-  await send("fragment", renderProvisionalLogoName(buildId, spec.label));
-
-  // Preview the deterministic migration plan against scratch SQLite. The real data
-  // store must remain untouched until Gate success and filesystem publication.
-  const database = buildDatabases.readwrite;
-  const previewDatabase = new Database(":memory:");
-  try {
-    const migration = applyCapabilityMigration({ database: previewDatabase, spec });
-    await send(
-      "migration-preview",
-      JSON.stringify(buildMigrationPreview(previewDatabase, migration)),
-    );
-  } finally {
-    previewDatabase.close();
-  }
+  await send("fragment", renderProvisionalLogoName(input.buildId, spec.label));
+  await sendMigrationPreview(send, spec);
   throwIfAborted(isAborted);
 
   // Behavioral intent freezes before the first Handler byte (ADR-0006): tests
@@ -245,20 +266,24 @@ export async function runSpecBuildStages(
   if (frozenTests) recordBehavioralFreezeMetrics(acc, frozenTests);
   throwIfAborted(isAborted);
 
-  await send("narration", " I'm shaping it into something you can use.");
+  await send("narration", " I’m shaping it into something you can use.");
   const unitResult = await generateUnitsWithPreview(send, isAborted, provider, spec);
   throwIfAborted(isAborted);
   recordUnitMetrics(acc, unitResult.units);
   const finalUnits = unitResult.units.map(finalUnitPreview);
   await send("units-preview", JSON.stringify(buildUnitsPreview(finalUnits, "complete")));
 
-  await send("narration", " I'm checking the first version now.");
+  const linked = await input.linking.settled();
+  throwIfAborted(isAborted);
+  const connecting = connectingNarration(spec, linked);
+  if (connecting) await send("narration", ` ${connecting}`);
+  await send("narration", " I’m checking the first version now.");
   let gateResult: CapabilityGateResult;
-  const plannedDdl = deriveCapabilityTableDdl(spec);
+  const database = input.buildDatabases.readwrite;
   try {
     gateResult = await runCapabilityGate({
       spec,
-      ddl: plannedDdl,
+      ddl: deriveCapabilityTableDdl(spec),
       handlers: unitResult.handlers,
       itemRenderer: unitResult.itemRenderer,
       provider,
@@ -293,19 +318,20 @@ export async function runSpecBuildStages(
     ),
   );
 
+  const { durationMs, usage } = input.specGen;
   logBuildVerification(spec, durationMs, usage, commitUnits, gateResult);
 
   // Publish first, then one short transaction: DDL, registry CAS, lifecycle success. Its COMMIT is
   // the sole point of no return; until it the old registry stays live and the candidate inert.
   acc.publicationAttempted = true;
   const publication = publishCapabilitySnapshot({
-    buildId,
+    buildId: input.buildId,
     spec,
     incarnationId,
     version: FIRST_CAPABILITY_VERSION,
     units: commitUnits,
     gate: gateResult,
-    artifactsRoot,
+    artifactsRoot: input.artifactsRoot,
   });
   throwIfAborted(isAborted);
   acc.activationAttempted = true;
@@ -313,14 +339,32 @@ export async function runSpecBuildStages(
     database,
     spec,
     publication,
-    expected: targetExpectation,
+    expected: input.targetExpectation,
+    relations: linked.relations,
     isAborted,
     applyMigration: (activationDatabase) => {
       const migration = applyCapabilityMigration({ database: activationDatabase, spec });
       acc.timings.migrationMs = migration.durationMs;
     },
-    finalizeMetrics: () => onActivated(),
+    finalizeMetrics: () => input.onActivated(),
   });
+}
+
+/**
+ * Preview the deterministic migration plan against scratch SQLite. The real data store must remain
+ * untouched until Gate success and filesystem publication.
+ */
+async function sendMigrationPreview(send: Send, spec: CapabilitySpec): Promise<void> {
+  const previewDatabase = new Database(":memory:");
+  try {
+    const migration = applyCapabilityMigration({ database: previewDatabase, spec });
+    await send(
+      "migration-preview",
+      JSON.stringify(buildMigrationPreview(previewDatabase, migration)),
+    );
+  } finally {
+    previewDatabase.close();
+  }
 }
 
 /**

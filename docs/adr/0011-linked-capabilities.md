@@ -224,17 +224,19 @@ Each flagged capability reaches them with its name, description, record noun and
 single-line text fields, read under the build lease, and each field carries its length
 limit, so the spec writer can give the field that names the record a limit that fits. When
 nothing is flagged, the spec writer's prompt is unchanged and the link step does not run.
-The flag judges records, not field names: the Resolver asks whether each record of the new
-capability names one record that already exists, and no flag is the ordinary answer. The
-spec writer is told not to add a text field that a flagged capability already holds.
+The flag judges what each capability keeps, not field names or phrasing: the Resolver flags
+every capability one of whose records a new record would be about or would name. The spec
+writer authors the fields the request needs, as it would with nothing flagged, except that
+when one of its fields names a flagged capability's record it copies none of the facts that
+record keeps: they are read through the connection.
 
 **The link step is one model call with one job, and it fails open.** It reads the
 request, the finished spec and the flagged capabilities, and answers which
 single-line text field of the spec points at which single-line text field of each. It
 returns relations only and never adds, removes or edits a field, because removing a
 field after the spec is written would leave sentences about it in the prose the tests
-and the code writer read. It never relates on a field name alone: the target's noun
-or label has to appear in the request, the field's label or the spec's description.
+and the code writer read. It relates a field only when its values would name the
+target's records, and a shared field name alone relates nothing.
 On a build it runs beside the frozen tests and the code writer, because nothing
 generated depends on a relation, and its relations are written in the activation
 transaction. On an evolution it runs only for the text fields the change adds. Aluna
@@ -280,7 +282,7 @@ their link rows with it, in the same transaction. A relation is no `read_depende
 never blocks a capability's deletion.
 
 **Search follows links, in platform code.** Searching Inventory for "sanderson" finds the
-copies of his books, though Inventory holds only titles and counts. The generated search
+copies of his books when Inventory holds only titles and counts. The generated search
 Handler runs unchanged, and its whole answer is records drawn through Aluna's `present()`,
 so Aluna adds to the results without touching it. Aluna wraps `present()` to note which
 records the Handler showed, and keeps only those whose wrapper reaches the cleaned answer,

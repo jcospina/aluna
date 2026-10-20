@@ -7,6 +7,7 @@
 import type { Database } from "bun:sqlite";
 import { errorMessage } from "../../../../platform/errors.ts";
 import { sqlIdentifier } from "../../../../platform/persistence/sql-identifier.ts";
+import { searchQueryMatches } from "../../../../platform/persistence/sqlite-functions.ts";
 import {
   activeFileFields,
   activeSpecFields,
@@ -86,7 +87,7 @@ type TextLocation = { readonly field: SpecField; readonly kind: "scalar" | "list
 
 /** Seed the complete applicable fixture and assert every runtime search contract. */
 export async function runAdversarialSearchBaseline(input: SearchBaselineInput): Promise<number> {
-  const fixture = seedAdversarialSearchFixture(input);
+  const fixture = settleChoiceCases(input, seedAdversarialSearchFixture(input));
   const readRows = await invokeRecordHandler(
     "read",
     input.read,
@@ -155,6 +156,7 @@ function seedAdversarialSearchFixture(input: SearchBaselineInput): SearchFixture
       locations.find((candidate) => candidate.field.name !== first.field.name) ?? first;
     addUpdatedCase(state, input.updatedField, input.updatedId);
     addInclusionCases(state, scalar, lists);
+    addChoiceInclusionCases(state, locations);
     addCrossFieldCase(state, first, second);
     addLiteralCases(state, first);
     addLatinCases(state, first);
@@ -248,6 +250,48 @@ function addInclusionCases(
         expectedIds: [row.id],
       },
     );
+  });
+}
+
+/**
+ * One row per active choice field that only a Handler reading that choice finds: a fresh needle in
+ * every text field, and one of the choice's stored values, in a form only the normalizer matches.
+ */
+function addChoiceInclusionCases(state: FixtureState, locations: readonly TextLocation[]): void {
+  const searchable = searchableFields(state.spec);
+  searchable
+    .filter((field) => isChoiceFieldType(field.type))
+    .forEach((choice, index) => {
+      const needle = `choice${index}needle`;
+      const row = state.row(`search_choice_inclusion_${index}`);
+      for (const location of locations) setText(row, location, needle);
+      const others = searchable.filter((field) => field.name !== choice.name);
+      const found = choiceProbes(choice).find(({ value, probe }) => {
+        const holding = { ...row.values, [choice.name]: value };
+        const q = `${needle} ${probe}`;
+        return rowMatches(searchable, holding, q) && !rowMatches(others, holding, q);
+      });
+      if (found === undefined) return;
+      row.values[choice.name] = found.value;
+      state.rows.push(row);
+      state.cases.push({
+        label: `active choice inclusion: ${choice.name}`,
+        q: `${needle} ${found.probe}`,
+        expectedIds: [row.id],
+      });
+    });
+}
+
+/**
+ * Each selectable value of `choice`, and the terms a query may find it by: upper-cased with its
+ * last character cut first, so only a Handler that normalizes and matches inside the value finds
+ * it, then the value itself.
+ */
+function choiceProbes(choice: SpecField): { readonly value: string; readonly probe: string }[] {
+  return [...selectableChoiceValues(choice)].flatMap((value) => {
+    const upper = [...value.toUpperCase()];
+    const cut = upper.length > 2 ? [upper.slice(0, -1).join("")] : [];
+    return [...cut, value].map((probe) => ({ value, probe }));
   });
 }
 
@@ -413,6 +457,89 @@ function choiceMatches(spec: CapabilitySpec): (q: string) => boolean {
   };
 }
 
+/**
+ * The cases whose frozen match set a correct Handler still returns. A case right on text alone and
+ * wrong once choice values count holds a fixture word an option happens to contain, so it is set
+ * aside rather than fail a Handler that searches the choice as it must. A capability with no text
+ * field to hold a needle proves its choices against the rows stored instead.
+ */
+function settleChoiceCases(input: SearchBaselineInput, fixture: SearchFixture): SearchFixture {
+  const searchable = searchableFields(input.spec);
+  const text = searchable.filter((field) => !isChoiceFieldType(field.type));
+  if (text.length === searchable.length) return fixture;
+  const stored = input.readwrite
+    .query(`SELECT * FROM ${sqlIdentifier(input.tableName)}`)
+    .all() as Record<string, unknown>[];
+  const matching = (fields: readonly SpecField[], q: string) =>
+    stored.filter((row) => rowMatches(fields, row, q)).map((row) => String(row.id));
+  const holds = (fields: readonly SpecField[], { q, expectedIds }: SearchFixtureCase) =>
+    sameIdSet(matching(fields, q), expectedIds);
+  const kept = fixture.cases.filter(
+    (searchCase) => holds(searchable, searchCase) || !holds(text, searchCase),
+  );
+  return { cases: text.length > 0 ? kept : [...kept, ...storedChoiceCases(searchable, matching)] };
+}
+
+/**
+ * With no text field to hold a needle, each choice proves itself on the rows already stored: every
+ * searchable field is a choice here.
+ */
+function storedChoiceCases(
+  searchable: readonly SpecField[],
+  matching: (fields: readonly SpecField[], q: string) => string[],
+): SearchFixtureCase[] {
+  return searchable.flatMap((choice) => {
+    const others = searchable.filter((field) => field.name !== choice.name);
+    for (const { probe } of choiceProbes(choice)) {
+      const expectedIds = matching(searchable, probe);
+      if (!sameIdSet(matching(others, probe), expectedIds)) {
+        return [{ label: `active choice inclusion: ${choice.name}`, q: probe, expectedIds }];
+      }
+    }
+    return [];
+  });
+}
+
+/**
+ * Searchable text, decided as the Diff Engine and the behavioral total inputs decide it
+ * (`isSearchableTextType`). All must move together, or a case claims something untrue.
+ */
+function searchableFields(spec: CapabilitySpec): SpecField[] {
+  return activeSpecFields(spec.schema.fields).filter((field) => isSearchableTextType(field.type));
+}
+
+/** Whether every term of `q` lands in one of `fields`' values on `row`, as search compares them. */
+function rowMatches(
+  fields: readonly SpecField[],
+  row: Record<string, unknown>,
+  q: string,
+): boolean {
+  return searchQueryMatches(
+    fields.flatMap((field) => searchableTexts(field, row[field.name])),
+    q,
+  );
+}
+
+/** The text one value offers search: each element of a list, stored as JSON or not; else itself. */
+function searchableTexts(field: SpecField, value: unknown): string[] {
+  const listed = field.type === "string[]" && typeof value === "string" ? jsonList(value) : value;
+  return (Array.isArray(listed) ? listed : [listed]).filter(
+    (text): text is string => typeof text === "string",
+  );
+}
+
+function jsonList(stored: string): unknown {
+  try {
+    return JSON.parse(stored);
+  } catch {
+    return [];
+  }
+}
+
+function sameIdSet(observed: readonly string[], expected: readonly string[]): boolean {
+  return observed.length === expected.length && expected.every((id) => observed.includes(id));
+}
+
 function addBehaviorNeutralOrderRows(
   state: FixtureState,
   location: TextLocation | undefined,
@@ -512,10 +639,6 @@ function setText(row: FixtureRow, location: TextLocation, value: string | readon
         : value;
 }
 
-/**
- * Searchable text, decided as the Diff Engine and the behavioral total inputs decide it. All
- * must move together, or an exclusion assertion claims something untrue.
- */
 function insertFixtureRow(
   spec: CapabilitySpec,
   tableName: string,

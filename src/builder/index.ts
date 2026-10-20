@@ -156,6 +156,7 @@ export {
   type StructuralUnitOutcome,
 } from "./gate/rungs/structural/gate-structural.ts";
 export { createCapabilityIncarnationId } from "./incarnation.ts";
+export { runLinkStep } from "./link/link-step.ts";
 export {
   readRelatedCapabilities,
   relatedCapabilityPromptLines,

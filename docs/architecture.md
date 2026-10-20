@@ -506,10 +506,10 @@ Three responsibilities live here rather than in separate modules:
   that adds a field to an existing capability's own records stays an extension, with
   the capability that field names flagged.
 - **Related capabilities.** The same call flags the existing capabilities a request
-  is about, and it judges records, not field names: does each record of the new
-  capability name one record that already exists? Movies, Books and Articles each
-  have a title and are unrelated, while every Inventory record is about one book in
-  Books. No flag is the ordinary answer. The answer carries the flags as
+  is related to, judging what each one keeps rather than field names or phrasing: a
+  capability is flagged when a new record, or the field an extension adds, would be about
+  or would name one of its records, whatever words the request uses. Movies, Books and
+  Articles each have a title and are unrelated. The answer carries the flags as
   `related_capabilities`, a list of capability ids that is empty when nothing is
   flagged. The openai-compatible wire holds the model to no schema, so the platform
   reads a null list or entry as none and keeps only ids naming an active capability
@@ -622,8 +622,8 @@ The lifecycle is spec-first and recoverable across SQLite and the filesystem:
    completeness, then atomically publish to the final incarnation/version path
    with no overwrite.
 7. In one SQLite transaction apply additive DDL, compare-and-swap the registry
-   spec/version/pointer, write the link step's relations that pass their checks, wake
-   each relation whose rules hold again, and finalize `success/activated` metrics.
+   spec/version/pointer, wake each relation whose rules hold again, write the link
+   step's relations that pass their checks, and finalize `success/activated` metrics.
    Commit is the activation point of no return.
    Only afterward may the presenter attempt the terminal complete View `commit` swap.
 
@@ -651,6 +651,16 @@ and never fails the build or the evolution: a unit fails closed because it is co
 that runs against the person's data, and a relation is optional platform state that
 nothing generated reads (ADR-0003, ADR-0011). The step looks only at the capability
 being built, so building Authors never links Books on its own.
+
+The step's call goes out once the spec exists, before the first test or unit. The
+build reads its answer once the units are done, so the tests and the Handlers never
+wait on it and never see it. A step still silent then gets a 30-second grace, and the
+build goes on with no relations rather than hold the Gate and the build lease; every
+way out of the build stops a step still running. The answer is
+`{ "relations": [{ "field", "capability", "target_field" }] }`, each key a required
+string, and `capability` names a flagged capability by id. Before the Gate's line the
+narration says which fields the build connects ("I'm connecting every copy's book to
+your books"), while the person can still read it: the commit swap hides the narration.
 
 A request only about linking, such as "link each book to its author", runs the link
 step alone on the current spec under the build lease: no spec writer, no units, no
@@ -740,9 +750,10 @@ proof, and an unmapped admitted fact fails closed. The matrix also projects
 generation context, so a unit ruled unaffected was never shown the changed fact.
 
 Changing an existing field's identity or type is invalid. A new field regenerates
-create and update, plus search when the field is text or list-text; the item
-renderer changes only through its declared `item.shows` dependency. Free-text
-behavior has no reliable Action ownership, so it regenerates all five Handlers.
+create and update, plus search when search reads the field (a string, a choice or a
+list of strings); the item renderer changes only through its declared `item.shows`
+dependency. Free-text behavior has no reliable Action ownership, so it regenerates all
+five Handlers.
 Action-owned error and read-dependency changes select the named Handler, and
 malformed or unknown ownership fails candidate validation before Diff. The all-five
 fallback is reserved for valid but semantically unscoped facts such as free
@@ -764,18 +775,19 @@ The normative matrix lives in the Module 4 PLAN (ADR-0006).
 Relations never reach the change-fact contract. They live on the registry row and not
 in the spec, so the evolution writer never sees one and every evolution carries them
 forward unchanged. A relation diff of its own (`relationDiff`) maps every relation
-change to platform work only. Link, Unlink, a capability's deletion and an activation
-all go through it, and the work is the registry row, the matching scan and the link
-rows. One executor does that work in one transaction, a savepoint of the caller's when
-it holds one. The diff never maps to a version, a unit or Gate work, and the
-change-fact contract does not grow. An evolution that hides a relation's field makes
-the relation dormant (§6.3), and the diff finds no work for it. Reactivating the field
-revives the relation with its link rows in the activation transaction: each record a
-row names shows its target's current text, carried down every chain, and the names
-typed into the field while it slept are matched as at startup (ADR-0011). A revival
-that fails is undone alone and logged, and the activation goes on, because no link
-may fail a build. An error after which SQLite ends the whole transaction itself, a full
-disk among them, fails the activation whole.
+change to platform work only. Link, the link step, Unlink, a capability's deletion and
+an activation all go through it, and the work is the registry row, the matching scan
+and the link rows. The link step's relations are written with no matching scan,
+because no record has a value in their fields yet. One executor does that work in one
+transaction, a savepoint of the caller's when it holds one. The diff never maps to a
+version, a unit or Gate work, and the change-fact contract does not grow. An evolution
+that hides a relation's field makes the relation dormant (§6.3), and the diff finds no
+work for it. Reactivating the field revives the relation with its link rows in the
+activation transaction: each record a row names shows its target's current text,
+carried down every chain, and the names typed into the field while it slept are
+matched as at startup (ADR-0011). A revival that fails is undone alone and logged, and
+the activation goes on, because no link may fail a build. An error after which SQLite
+ends the whole transaction itself, a full disk among them, fails the activation whole.
 
 Test artifact generation follows behavior and error intent, the canonical
 active-schema validation shape, and per-Action dependency identities, while test

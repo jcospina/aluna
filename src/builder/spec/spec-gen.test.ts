@@ -45,6 +45,7 @@ import {
   promptCapabilitySpecSchema,
   uiCollectionLayoutSchema,
 } from "../../registry/index.ts";
+import { escapeHtml } from "../../server/http/html.ts";
 import { buildSpecPrompt, generateSpec, relatedCapabilityPromptLines } from "../index.ts";
 
 import {
@@ -351,10 +352,10 @@ describe("spec generation stage — authored modes, narration, and identity", ()
     expect(await issuePathsOf(listSpec(unlisted))).toEqual(["ui_intent.form.list_inputs.0.mode"]);
   });
 
-  test("narrates in product voice from the intent label and leaks no internals", async () => {
+  test("narrates in product voice from the intent label, as text, and leaks no internals", async () => {
     const provider = makeSpecProvider(notesSpec());
     const { events, send } = recordingSend();
-    const intent = notesIntent();
+    const intent = { ...notesIntent(), user_facing_label: "Got it — <b>notes</b> & more." };
 
     await generateSpec({
       provider,
@@ -366,7 +367,7 @@ describe("spec generation stage — authored modes, narration, and identity", ()
 
     const narration = events.filter((event) => event.event === "narration");
     expect(narration).toHaveLength(1);
-    expect(narration[0]?.data).toBe(intent.user_facing_label);
+    expect(narration[0]?.data).toBe(escapeHtml(intent.user_facing_label));
     // The hard rule: no engineering internals in anything user-visible.
     for (const event of narration) {
       expect(event.data).not.toMatch(/\bspec\b|\bschema\b|\bhandler\b|\bmigration\b/i);

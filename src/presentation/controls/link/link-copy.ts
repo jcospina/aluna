@@ -1,6 +1,7 @@
-// The Link control's words (`design/controls.html` § Links).
-// Product copy says connect, never link. Every phrase is built from what the registry stores: the
-// record noun is singular and takes `’s`, and a field label is never pluralised or given an article.
+// The Link control's words (`design/controls.html` § Links), and the build's sentence about the
+// fields it connects. Product copy says connect, never link. Every phrase is built from what the
+// registry stores: the record noun is singular and takes `’s`, and a field label is never
+// pluralised or given an article.
 
 import type { SpecField } from "../../../registry/index.ts";
 import type { MatchCounts } from "../../../runtime/data/links/matching-scan.ts";
@@ -8,6 +9,25 @@ import type { MatchCounts } from "../../../runtime/data/links/matching-scan.ts";
 /** What one field is, inside a sentence: "every book’s author". */
 export function everyRecordsField(noun: string, field: Pick<SpecField, "label">): string {
   return `every ${noun}’s ${labelInSentence(field.label)}`;
+}
+
+/** A field a build connects, and the plural noun of the records it picks from. */
+export interface ConnectedField {
+  readonly field: Pick<SpecField, "label">;
+  readonly targetPlural: string;
+}
+
+/**
+ * What a build says while it connects fields: "I’m connecting every copy’s book to your books."
+ * Nothing when it connects none.
+ */
+export function buildConnecting(noun: string, connected: readonly ConnectedField[]): string {
+  const clauses = connected.map(
+    ({ field, targetPlural }) => `${everyRecordsField(noun, field)} to your ${targetPlural}`,
+  );
+  const last = clauses.pop();
+  if (last === undefined) return "";
+  return `I’m connecting ${clauses.length > 0 ? `${clauses.join(", ")} and ${last}` : last}.`;
 }
 
 /** The chain's accessible name, and the chooser's heading after it. */

@@ -36,6 +36,7 @@ import {
   promptCapabilitySpecSchema,
   uiCollectionLayoutSchema,
 } from "../../../registry/index.ts";
+import { escapeHtml } from "../../../server/http/html.ts";
 import { FILE_FIELD_PROMPT_LINES } from "../../spec/file-field-guidance.ts";
 import type { DependencyGenerationCatalogEntry } from "../dependency-catalog.ts";
 import { committedSpecView, validateCandidateSpec } from "./candidate-validation.ts";
@@ -162,7 +163,7 @@ export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): str
 export async function generateCandidateSpec(
   input: GenerateCandidateSpecInput,
 ): Promise<CandidateSpecGenResult> {
-  await input.send("narration", input.intent.user_facing_label);
+  await input.send("narration", escapeHtml(input.intent.user_facing_label));
 
   const startedAt = performance.now();
 

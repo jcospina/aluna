@@ -183,6 +183,10 @@ export const QUERY_PORT_RULES: readonly string[] = Object.freeze([
   "- Capability-table SQL may name only this capability's target table and the dependencies declared for this Action; the static checker rejects every other `cap_*` table before execution.",
 ]);
 
+/** Search's rule when nothing is searchable, which the field list alone would leave unsaid. */
+export const NO_SEARCHABLE_FIELDS_RULE =
+  "- No field here is searchable, so a nonblank query matches no record: return an empty string.";
+
 /** Search's own query rule: every term and stored value goes through the registered normalizer. */
 export const SEARCH_NORMALIZATION_RULE =
   "- Search SQL must normalize both stored values and terms with the registered `platform_search_normalize(value)` SQL function (JavaScript NFKD compatibility decomposition + locale-independent lowercase + Latin-base combining-diacritic folding + NFKC recomposition).";
@@ -352,10 +356,11 @@ function actionBehavior(spec: CapabilitySpec, action: HandlerUnitName): string {
   }
   return [
     "- Read scalar `q` from `input.values`; missing, empty, or Unicode-whitespace-only input must return exactly the canonical read rows in default order.",
-    "- Split a nonblank query on Unicode whitespace into literal terms. Every normalized term must match somewhere across any active string field or any element of any active string[] field (AND across terms, OR across fields/elements).",
+    "- Split a nonblank query on Unicode whitespace into literal terms. Search every field listed under Action-safe target fields below, whatever its type, and no other. Every normalized term must match somewhere among them: in a single-valued field's stored value, or in any one element of a string[] field (AND across terms, OR across fields/elements).",
+    ...(handlerFieldProjection(spec, "search").length === 0 ? [NO_SEARCHABLE_FIELDS_RULE] : []),
     "- Use parameterized SQL and `instr(platform_search_normalize(stored_value), platform_search_normalize(term))`; do not use `LIKE`, `lower`, or `NOCASE`. Quotes and SQL wildcard characters are literal data.",
     '- Pass all terms as one JSON array parameter: `parameters: [JSON.stringify(terms)]`, then expand them in SQL with `WITH "search_terms" AS (SELECT "value" AS "term" FROM json_each(?))`. Do not generate dynamic placeholders or parameter objects.',
-    "- For string[] fields, search elements through `json_each`. Exclude non-text fields, inactive fields, platform columns, and undeclared dependency data.",
+    "- Search a string[] field element by element through `json_each`, never its stored JSON text. Match no platform column, and read no undeclared dependency data.",
     `- Return ordered unique target ids from "${tableName}" through \`query.records\`; omit \`result\` unless projecting additional declared dependency values, map records through \`present\`, and join them.`,
     "- When behavior explicitly authors a deterministic search-specific ranking for nonblank matches, implement it instead of the default; the behavioral tier must prove that authored ranking. A general collection/read ordering that agrees with the default is behavior-neutral, not a search-specific rerank.",
     "- For a behavior-neutral search, order nonblank matches by `created_at DESC, id DESC`.",

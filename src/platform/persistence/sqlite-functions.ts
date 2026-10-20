@@ -175,6 +175,18 @@ export function normalizeSearchText(value: string): string {
   return folded.normalize("NFKC");
 }
 
+/**
+ * Whether every whitespace-separated term of `q` lies inside one of `texts`, both normalized as
+ * the registered function normalizes them: the match a search Handler must reproduce.
+ */
+export function searchQueryMatches(texts: readonly string[], q: string): boolean {
+  const normalized = texts.map(normalizeSearchText);
+  return q
+    .split(/\s+/u)
+    .filter((term) => term.length > 0)
+    .every((term) => normalized.some((text) => text.includes(normalizeSearchText(term))));
+}
+
 function ensureNativeBridge(): NativeBridge {
   if (nativeBridge) return nativeBridge;
   const extensionPath = compileExtension();

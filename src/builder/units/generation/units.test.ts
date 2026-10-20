@@ -51,6 +51,7 @@ import {
   FEW_SHOT_DESIGN_EXAMPLES,
 } from "./few-shot/few-shot-gallery.ts";
 import { DELETE_HANDLER, ITEM_RENDERER, READ_HANDLER } from "./unit-fixtures.test-support.ts";
+import { actionGenerationContext } from "./unit-prompts.test-support.ts";
 import type { UnitDescriptor } from "./units.ts";
 
 const STUB_USAGE: TokenUsage = { inputTokens: 3, outputTokens: 5, totalTokens: 8 };
@@ -151,13 +152,6 @@ function makeQueuedProvider(contents: readonly string[]): RecordedProvider {
       };
     },
   };
-}
-
-function actionGenerationContext(prompt: string): Record<string, unknown> {
-  const marker = "Action generation context JSON:\n";
-  const start = prompt.indexOf(marker);
-  if (start < 0) throw new Error("missing Action generation context JSON");
-  return JSON.parse(prompt.slice(start + marker.length)) as Record<string, unknown>;
 }
 
 function projectedContextFixture(): {

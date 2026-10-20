@@ -5,6 +5,7 @@ import {
   type CapabilityRow,
   fitsLength,
   isLinkableField,
+  type RelatedCapability,
   relationOf,
   type SpecField,
 } from "../../registry/index.ts";
@@ -18,20 +19,23 @@ export type LinkRefusalCode =
   | "target_too_long"
   | "link_would_loop";
 
-/** One end of a prospective relation: a capability as the registry holds it, and a field name. */
-export interface LinkEnd {
-  readonly row: CapabilityRow;
+/**
+ * One end of a prospective relation: a capability as the registry holds it, and a field name. The
+ * rules read only what a relation reads, so a build checks the capability it has not committed yet.
+ */
+export interface LinkEnd<Row extends RelatedCapability = CapabilityRow> {
+  readonly row: Row;
   readonly field: string;
 }
 
 /** The field a pair's end names, when it is one the relation could hold. */
-export function linkableField(end: LinkEnd): SpecField | undefined {
+export function linkableField(end: LinkEnd<RelatedCapability>): SpecField | undefined {
   const field = end.row.schema.fields.find((candidate) => candidate.name === end.field);
   return field && isLinkableField(end.row.ui_intent.form, field) ? field : undefined;
 }
 
 /** Why the source end cannot take a new relation at all, whatever it would point at. */
-export function sourceRefusal(source: LinkEnd): LinkRefusalCode | null {
+export function sourceRefusal(source: LinkEnd<RelatedCapability>): LinkRefusalCode | null {
   if (!linkableField(source)) return "source_not_linkable";
   if (relationOf(source.row.relations, source.field)) return "source_already_linked";
   return null;
@@ -42,9 +46,9 @@ export function sourceRefusal(source: LinkEnd): LinkRefusalCode | null {
  * active registry the pair was read from, which the loop rule walks.
  */
 export function linkRefusal(
-  source: LinkEnd,
-  target: LinkEnd,
-  catalog: readonly CapabilityRow[],
+  source: LinkEnd<RelatedCapability>,
+  target: LinkEnd<RelatedCapability>,
+  catalog: readonly RelatedCapability[],
 ): LinkRefusalCode | null {
   const refused = sourceRefusal(source);
   if (refused) return refused;
@@ -62,9 +66,13 @@ export function linkRefusal(
  * Whether following relations from `start` arrives at `goal`. Dormant relations count, so reviving
  * a field can never close a loop; one whose target incarnation is gone leads nowhere.
  */
-function reaches(start: LinkEnd, goal: LinkEnd, catalog: readonly CapabilityRow[]): boolean {
+function reaches(
+  start: LinkEnd<RelatedCapability>,
+  goal: LinkEnd<RelatedCapability>,
+  catalog: readonly RelatedCapability[],
+): boolean {
   const visited = new Set<string>();
-  let at: LinkEnd | undefined = start;
+  let at: LinkEnd<RelatedCapability> | undefined = start;
   while (at && !visited.has(endKey(at))) {
     if (endKey(at) === endKey(goal)) return true;
     visited.add(endKey(at));
@@ -73,12 +81,15 @@ function reaches(start: LinkEnd, goal: LinkEnd, catalog: readonly CapabilityRow[
   return false;
 }
 
-function endKey(end: LinkEnd): string {
+function endKey(end: LinkEnd<RelatedCapability>): string {
   return `${end.row.id}\u0000${end.field}`;
 }
 
 /** Where one end's relation leads: nowhere when it holds none or its target's lifetime is over. */
-function followed(end: LinkEnd, catalog: readonly CapabilityRow[]): LinkEnd | undefined {
+function followed(
+  end: LinkEnd<RelatedCapability>,
+  catalog: readonly RelatedCapability[],
+): LinkEnd<RelatedCapability> | undefined {
   const relation = relationOf(end.row.relations, end.field);
   if (!relation) return undefined;
   const { capability, incarnation, field } = relation.to;

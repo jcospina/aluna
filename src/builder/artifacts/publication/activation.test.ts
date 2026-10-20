@@ -17,12 +17,15 @@ import {
 import {
   FIRST_INCARNATION_ID,
   SECOND_INCARNATION_ID,
+  THIRD_INCARNATION_ID,
 } from "../../../registry/incarnations.test-support.ts";
 import { getCapability } from "../../../registry/index.ts";
 import { createMutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
 import { applyCapabilityTableDdl } from "../../../runtime/data/index.ts";
+import { install } from "../../../runtime/router/dispatch/router.test-support.ts";
 import { renderCachedCapabilityCommitSwap } from "../../../server/http/index.ts";
 import { createTestApp } from "../../../server/isolated-app.test-support.ts";
+import { BOOKS, deskRow } from "../../../server/routes/lifecycle/link.test-support.ts";
 import { generatedUnitsFor, notesFixtureGate, notesSpec } from "../../gate/gate.test-support.ts";
 import type { CapabilityGateResult } from "../../gate/gate.ts";
 import { activatePublishedSnapshot, expectedActiveCapability } from "./activation.ts";
@@ -186,6 +189,41 @@ describe("activatePublishedSnapshot — point of no return", () => {
     expect(swap).toContain(`name="version" value="${commit.row.version}"`);
     // And inert: an evolution never enters the logo path.
     expect(swap).not.toContain("logo-attempt");
+  });
+
+  test("the link step's relations are written inside the transaction, before its COMMIT", async () => {
+    install(conns, deskRow({ ...BOOKS, incarnation: THIRD_INCARNATION_ID }));
+    const toTitle = {
+      field: "text",
+      to: { capability: BOOKS.id, incarnation: THIRD_INCARNATION_ID, field: "title" },
+    };
+    const buildId = "build-v2-linked";
+    startLifecycle(conns, buildId, INCARNATION_ID);
+    const seen: { writing?: unknown; committed?: unknown } = {};
+
+    const activated = await activatePublishedSnapshot({
+      database: conns.readwrite,
+      spec: notesSpec(),
+      publication: publish(artifactsRoot, buildId, INCARNATION_ID, 2),
+      expected: expectedActiveCapability({
+        capabilityId: "notes",
+        incarnationId: INCARNATION_ID,
+        version: 1,
+      }),
+      relations: [toTitle],
+      applyMigration: addEvolutionMarker,
+      finalizeMetrics: () => finalizeSuccess(conns, buildId, INCARNATION_ID),
+      faults: {
+        afterMetricsFinalized: () => {
+          seen.writing = getCapability("notes", conns.readwrite)?.relations;
+          seen.committed = getCapability("notes", conns.readonly)?.relations;
+        },
+      },
+    });
+
+    expect(seen).toStrictEqual({ writing: [toTitle], committed: [] });
+    expect(activated.row.relations).toStrictEqual([toTitle]);
+    expect(getCapability("notes", conns.readonly)?.relations).toStrictEqual([toTitle]);
   });
 
   test("wrong expected incarnation and version are stale CAS writes that touch no pointer", async () => {

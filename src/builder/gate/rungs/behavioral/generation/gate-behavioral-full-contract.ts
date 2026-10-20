@@ -9,7 +9,7 @@
 // Checks run per Action at generation time, before a single Handler byte exists, and again over
 // the assembled frozen artifact before the Gate executes it.
 
-import { normalizeSearchText } from "../../../../../platform/persistence/sqlite-functions.ts";
+import { searchQueryMatches } from "../../../../../platform/persistence/sqlite-functions.ts";
 import {
   activeSpecFields,
   type CapabilitySpec,
@@ -353,15 +353,8 @@ function setupRowMatchesSearchQuery(
       .filter((field) => isSearchableTextType(field.type))
       .map((field) => field.name),
   );
-  const normalizedValues = row.values
-    .filter((entry) => searchableFields.has(entry.field))
-    .flatMap(scalarStrings)
-    .map(normalizeSearchText);
-  return query
-    .trim()
-    .split(/\s+/u)
-    .map(normalizeSearchText)
-    .every((term) => normalizedValues.some((value) => value.includes(term)));
+  const values = row.values.filter((entry) => searchableFields.has(entry.field));
+  return searchQueryMatches(values.flatMap(scalarStrings), query);
 }
 
 function assertMissingRequiredTrigger(testCase: FullBehavioralTestCase): void {

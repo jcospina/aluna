@@ -3,13 +3,17 @@
 // Filesystem publication has already completed before this module is entered.
 // SQLite then owns the sole point of no return: additive migration, exact registry
 // CAS, and success/activated metrics commit together or roll back together. The
-// relations the swap wakes commit with them, unless their own revival fails and is
-// undone alone.
+// relations the swap wakes and the link step's relations commit with them, unless
+// their own write fails and is undone alone.
 
 import type { Database } from "bun:sqlite";
 
 import { withWriteTransaction } from "../../../platform/persistence/db.ts";
-import type { CapabilityRegistryExpectation, CapabilitySpec } from "../../../registry/index.ts";
+import type {
+  CapabilityRegistryExpectation,
+  CapabilitySpec,
+  Relation,
+} from "../../../registry/index.ts";
 import {
   type CommitCapabilityResult,
   commitCapability,
@@ -34,6 +38,8 @@ export interface ActivatePublishedSnapshotInput {
   readonly spec: CapabilitySpec;
   readonly publication: VerifiedPublishedSnapshot;
   readonly expected?: CapabilityRegistryExpectation;
+  /** The link step's relations, written on the swapped-in row in this transaction. */
+  readonly relations?: readonly Relation[];
   /** Apply only platform-derived additive DDL through the supplied write connection. */
   readonly applyMigration: (database: Database) => void;
   /** Finalize this publication's already-running lifecycle as success/activated. */
@@ -78,6 +84,7 @@ export async function activatePublishedSnapshot(
         publication: input.publication,
         database: input.database,
         expected: input.expected ?? { state: "absent" },
+        relations: input.relations,
       });
       input.faults?.afterRegistryCas?.();
 

@@ -13,6 +13,7 @@ import {
   behavioralResponseFor,
   type FullBehavioralTestSuite,
 } from "../builder/gate/gate.test-support.ts";
+import { LINK_STEP_PROMPT_PREFIX } from "../builder/link/link-step.ts";
 import {
   DELETE_HANDLER,
   ITEM_RENDERER,
@@ -494,7 +495,7 @@ export const DATA_QUERY_INTENT: IntentClassification = {
   requires_confirmation: false,
 };
 
-/** The generated units a build suite may override, plus the Gate's repair answers. */
+/** The generated units a build suite may override, the Gate's repair answers and the link step's. */
 export interface PromptBuildUnits {
   readonly item?: string;
   readonly create?: string;
@@ -506,7 +507,12 @@ export interface PromptBuildUnits {
   readonly searchRepair?: string;
   /** Additional Gate repair responses in provider-call order. */
   readonly repairs?: readonly string[];
+  /** A flagged build's link step answer, which links nothing unless a test says so. */
+  readonly link?: unknown;
 }
+
+/** What every call to the fake build provider costs. */
+export const PROMPT_BUILD_USAGE = { inputTokens: 41, outputTokens: 12, totalTokens: 53 };
 
 /**
  * A fake provider for the whole production build: classification, then the capability spec, then
@@ -532,14 +538,17 @@ export function makePromptBuildProvider(
     ...(units.searchRepair ? [{ content: units.searchRepair }] : []),
     ...(units.repairs ?? []).map((content) => ({ content })),
   ];
+  const linkAnswer = "link" in units ? units.link : { relations: [] };
   const provider: Provider = {
     generate<T>(prompt: string, _schema: ZodType<T>): GenerateResult<T> {
       prompts.push(prompt);
-      // Behavioral tests are generated per Action and before the units, so they are answered by
-      // prompt rather than by queue position; the queue keeps the spec and unit order it had.
+      // Behavioral tests and the link step run beside the units, so they are answered by prompt
+      // rather than by queue position; the queue keeps the spec and unit order it had.
       const response = prompt.startsWith("Generate deterministic black-box behavioral tests")
         ? behavioralResponseFor(prompt, behavioralSuite)
-        : responses.shift();
+        : prompt.startsWith(LINK_STEP_PROMPT_PREFIX)
+          ? linkAnswer
+          : responses.shift();
       if (response === undefined) {
         throw new Error(`fake provider exhausted after ${prompts.length} prompt(s)`);
       }
@@ -549,7 +558,7 @@ export function makePromptBuildProvider(
       return {
         partialStream: stream(),
         object: Promise.resolve(response as T),
-        usage: Promise.resolve({ inputTokens: 41, outputTokens: 12, totalTokens: 53 }),
+        usage: Promise.resolve(PROMPT_BUILD_USAGE),
       };
     },
   };

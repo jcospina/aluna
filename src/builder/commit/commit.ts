@@ -6,13 +6,12 @@
 // reverifies the published snapshot evidence and inserts the registry row pointing at that
 // directory, in the same transaction. For a new capability the insert is the pointer flip; for an
 // evolution an incarnation/version CAS replaces the live row, and a relation the new spec lets
-// hold again wakes beside it.
+// hold again wakes beside it. The link step's relations are written on the row last.
 //
 // Atomicity is the SQLite transaction's, not the filesystem's: a failed insert rolls back table
 // and row, leaving a verified never-activated candidate for reconciliation, never a live partial.
 
 import type { Database } from "bun:sqlite";
-import { errorDetail } from "../../platform/errors.ts";
 import {
   type CapabilityRegistryExpectation,
   type CapabilityRegistryWrite,
@@ -24,6 +23,7 @@ import {
   getCapability,
   incarnationIdSchema,
   listCapabilities,
+  type Relation,
 } from "../../registry/index.ts";
 import { applyRelationWork, relationDiff } from "../../runtime/data/index.ts";
 import {
@@ -31,6 +31,7 @@ import {
   type SnapshotManifest,
   type VerifiedPublishedSnapshot,
 } from "../artifacts/publication/artifact-lifecycle.ts";
+import { failingOpen, writeLinkStepRelations } from "../link/link-relations.ts";
 
 /**
  * Every committed capability starts at version 1. Later regenerations bump it (the
@@ -48,6 +49,8 @@ export interface CommitCapabilityInput {
   readonly database: Database;
   /** New v1 expects absence; evolution binds the exact active incarnation/version. */
   readonly expected?: CapabilityRegistryExpectation;
+  /** The link step's relations, checked again against the desk this transaction holds. */
+  readonly relations?: readonly Relation[];
 }
 
 export interface CommitCapabilityResult {
@@ -109,7 +112,7 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
   if (previous) wakeRelations(input.database, previous);
 
   return {
-    row,
+    row: writeLinkStepRelations(input.database, row, input.relations ?? []),
     previousLabel,
     artifactsPath,
     incarnationId,
@@ -125,23 +128,20 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
 /**
  * The swap carries every relation forward unchanged. One whose rules hold again wakes with its link
  * rows in this transaction, as the relation diff maps it (ADR-0011). The desk before the swap is the
- * desk after it with the evolved row as it was. A wake that fails is undone by its savepoint and
- * logged, and the activation goes on: no link may fail a build. An error after which SQLite has
- * ended the whole transaction, a full disk among them, has ended the activation too, so it throws.
+ * desk after it with the evolved row as it was.
  */
 function wakeRelations(database: Database, previous: CapabilityRow): void {
-  const activating = database.inTransaction;
-  try {
-    const after = listCapabilities(database);
-    const before = after.map((row) => (row.id === previous.id ? previous : row));
-    applyRelationWork(database, relationDiff({ kind: "activation", before, after }));
-  } catch (error) {
-    if (activating && !database.inTransaction) throw error;
-    console.error(
-      `omni-crud could not wake the relations ${previous.id}'s activation let hold:`,
-      errorDetail(error),
-    );
-  }
+  const work = `wake the relations ${previous.id}'s activation let hold`;
+  failingOpen(
+    database,
+    work,
+    () => {
+      const after = listCapabilities(database);
+      const before = after.map((row) => (row.id === previous.id ? previous : row));
+      applyRelationWork(database, relationDiff({ kind: "activation", before, after }));
+    },
+    undefined,
+  );
 }
 
 function isExpectedNextVersion(

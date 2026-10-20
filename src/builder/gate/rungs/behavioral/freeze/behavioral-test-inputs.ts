@@ -242,10 +242,6 @@ function canonicalReadDependencies(
     );
 }
 
-/**
- * Searchability, decided as the Diff Engine decides it (`diff-engine.ts`). They must move
- * together: a new list type would otherwise leave this projection carrying a stale suite.
- */
 function byName(left: { readonly name: string }, right: { readonly name: string }): number {
   return compareStrings(left.name, right.name);
 }

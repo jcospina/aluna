@@ -1,6 +1,6 @@
-// The relation diff: Link, Unlink, a deletion and an activation each map to platform work
-// on the registry row, the matching scan and the link rows. None of it is a version. An activation
-// re-decides no relation: the only work it ever has is waking one whose rules hold again.
+// The relation diff: Link, the link step, Unlink, a deletion and an activation each map to
+// platform work on the registry row, the matching scan and the link rows. None of it is a version.
+// An activation re-decides no relation: the only work it ever has is waking one whose rules hold again.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { LINK_TABLE, writeLinkRow } from "../../../../platform/links/link-table.ts";
@@ -72,6 +72,24 @@ describe("each relation change maps to platform work", () => {
         relations: [title],
       },
       { kind: "delete_field_link_rows", capability: "books", field: "author" },
+    ]);
+  });
+
+  test("fields no record has a value in are linked beside the row's relations, with no matching scan", () => {
+    const title = { ...BOOK_AUTHOR, field: "title" };
+    const linkedBooks = { ...books, relations: [BOOK_AUTHOR] };
+    const work = relationDiff({ kind: "link_new_fields", source: linkedBooks, relations: [title] });
+    expect(work).toStrictEqual([
+      {
+        kind: "write_relations",
+        expectation: {
+          capabilityId: "books",
+          incarnationId: BOOKS_INCARNATION,
+          version: books.version,
+          relations: [BOOK_AUTHOR],
+        },
+        relations: [BOOK_AUTHOR, title],
+      },
     ]);
   });
 

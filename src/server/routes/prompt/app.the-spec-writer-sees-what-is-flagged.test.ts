@@ -1,4 +1,4 @@
-// A request the Intent Resolver flags as about Books reaches the spec writer with what Books
+// A request the Intent Resolver flags as related to Books reaches the spec writer with what Books
 // holds: its name, description, record noun and single-line text fields
 // with their limits, and nothing else. Scripted end to end through POST /prompt with a fake provider.
 

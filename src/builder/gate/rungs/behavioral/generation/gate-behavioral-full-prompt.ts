@@ -140,7 +140,7 @@ function coverage(inputs: ActionTestInputs): readonly string[] {
 function searchCoverage(inputs: ActionTestInputs): readonly string[] {
   if (!hasSearchableFields(inputs)) {
     return [
-      "- This capability has no active string/string[] fields. The normal search case must still submit exactly one nonblank `q`, but it cannot produce matching rows: leave all three fragment assertion arrays empty. Platform smoke owns the empty match-set evidence; behavioral ordering is honestly inapplicable.",
+      "- This capability has no searchable fields. The normal search case must still submit exactly one nonblank `q`, but it cannot produce matching rows: leave all three fragment assertion arrays empty. Platform smoke owns the empty match-set evidence; behavioral ordering is honestly inapplicable.",
     ];
   }
   return [

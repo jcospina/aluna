@@ -590,7 +590,8 @@ function contributeGlobalFact(fact: GlobalScopedFact, sink: WorkSink): void {
 }
 
 // A schema write change (new field, required change, hide/reactivate) regenerates
-// the two writing Handlers and their tests; text/list-text fields also touch search.
+// the two writing Handlers and their tests; searchable fields (`isSearchableTextType`) also
+// touch search.
 function selectWrites(sink: WorkSink): void {
   sink.units.add("create");
   sink.units.add("update");

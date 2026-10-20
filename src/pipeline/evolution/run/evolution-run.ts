@@ -625,7 +625,7 @@ function streamAssembly(
               ),
             );
           }
-          await input.send("narration", " I'm shaping that into something you can use.");
+          await input.send("narration", " I’m shaping that into something you can use.");
         },
         onUnitCopied: async (unit) => {
           unitPreviews.record(unit);
@@ -635,7 +635,7 @@ function streamAssembly(
         // so the remaining wait is visibly the Gate's, not a stalled generation.
         onGateStart: async () => {
           await unitPreviews.flush("complete", true);
-          await input.send("narration", " I'm checking it over now.");
+          await input.send("narration", " I’m checking it over now.");
         },
         // …and re-send it if the Gate's repairs changed the bytes underneath that view.
         onUnitsFinalized: recordFinal,

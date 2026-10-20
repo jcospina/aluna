@@ -48,7 +48,7 @@ export interface BuildJobQueueOptions {
   readonly now?: Now;
 }
 
-const DEFAULT_BUILD_NARRATION = "Got it. I'm putting that together now.";
+const DEFAULT_BUILD_NARRATION = "Got it. I’m putting that together now.";
 const DEFAULT_PENDING_JOB_TTL_MS = 60_000;
 const NEUTRAL_RESTORATION: RestorationDescriptor = { kind: "neutral" };
 

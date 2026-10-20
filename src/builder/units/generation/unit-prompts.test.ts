@@ -15,22 +15,26 @@ import {
   BEHAVIORAL_ERROR_MARKERS,
   type CapabilitySpec,
   defaultBehavioralErrorsForSchema,
-  fieldTypeSchema,
-  isFileFieldType,
   isSearchableTextType,
   MISSING_REQUIRED_FIELDS_ERROR_CODE,
   type SpecField,
 } from "../../../registry/index.ts";
 import { notesSpec } from "../../gate/gate.test-support.ts";
 import {
+  actionTestInputs,
+  isSearchSchemaInput,
+} from "../../gate/rungs/behavioral/freeze/behavioral-test-inputs.ts";
+import {
   FILE_PROJECTION_SHAPE,
   handlerContractDeclarations,
   handlerContractType,
 } from "../../generated-code-check.ts";
+import { actionGenerationContext, anySpec, RUNS } from "./unit-prompts.test-support.ts";
 import {
   buildUnitPrompt,
   FILE_ARRIVES_ON_CREATE,
   FILE_ARRIVES_ON_UPDATE,
+  NO_SEARCHABLE_FIELDS_RULE,
   PRESENT_ADAPTER_RULES,
   QUERY_PORT_RULES,
   SEARCH_NORMALIZATION_RULE,
@@ -90,71 +94,6 @@ function contextTypeOf(action: HandlerUnitName): string {
   if (!type) throw new Error(`no context type declared for ${action}`);
   return type;
 }
-
-const fieldName = fc.stringMatching(/^zq[a-z]{6}$/);
-const anyField = fc
-  .record({
-    name: fieldName,
-    label: fc.stringMatching(/^L[A-Z]{7}$/),
-    type: fc.constantFrom(...fieldTypeSchema.options),
-    required: fc.boolean(),
-    lifecycle: fc.constantFrom("active" as const, "inactive" as const),
-    options: fc.uniqueArray(
-      fc.record({
-        value: fc.stringMatching(/^v[a-z]{7}$/),
-        label: fc.stringMatching(/^O[A-Z]{7}$/),
-      }),
-      { minLength: 1, maxLength: 3, selector: (option) => option.value },
-    ),
-  })
-  .map(({ options, ...field }): SpecField => {
-    if (field.type === "choice") return { ...field, values: options, groups: [] };
-    if (isFileFieldType(field.type)) return { ...field, accepts: PHOTO_FIELD.accepts };
-    return field;
-  });
-
-/** A valid capability of generated fields, one of them always active, showing a generated subset. */
-const anySpec = fc
-  .uniqueArray(anyField, { minLength: 1, maxLength: 6, selector: (field) => field.name })
-  .map((fields) =>
-    fields.map((field, index) =>
-      index === 0 ? { ...field, lifecycle: "active" as const } : field,
-    ),
-  )
-  .chain((fields) => {
-    const active = fields.filter((field) => field.lifecycle === "active");
-    return fc
-      .subarray(
-        active.map((field) => field.name),
-        { minLength: 1 },
-      )
-      .map((shows) => {
-        const base = notesSpec();
-        const schema = { fields };
-        const named = (type: string) => active.filter((field) => field.type === type);
-        return notesSpec({
-          schema,
-          behavioral_errors: defaultBehavioralErrorsForSchema(schema),
-          ui_intent: {
-            ...base.ui_intent,
-            form: {
-              ...base.ui_intent.form,
-              list_inputs: named("string[]").map(({ name }) => ({
-                field: name,
-                mode: "repeatable",
-              })),
-              choice_inputs: named("choice").map(({ name }) => ({
-                field: name,
-                presentation: "picker",
-              })),
-            },
-            item: { ...base.ui_intent.item, shows },
-          },
-        });
-      });
-  });
-
-const RUNS = { seed: 20260926, numRuns: 120 };
 
 function optionsOf(field: SpecField): readonly { value: string; label: string }[] {
   return field.values ?? [];
@@ -223,6 +162,35 @@ describe("which of a capability's fields reach which unit", () => {
       fc.property(anySpec, (spec) => {
         const all = prompts(spec);
         for (const field of spec.schema.fields) expectSearchedOrUnread(all, field);
+      }),
+      RUNS,
+    );
+  });
+
+  test("search and the tests frozen for it search the same fields", () => {
+    const pairs = (fields: readonly { name: string; type: string }[]) =>
+      fields.map(({ name, type }) => `${name}:${type}`).sort();
+    fc.assert(
+      fc.property(anySpec, (spec) => {
+        const context = actionGenerationContext(buildUnitPrompt(spec, handler("search"))) as {
+          schema: { fields: { name: string; type: string }[] };
+        };
+        const tested = actionTestInputs(spec, "search").schema;
+        if (!isSearchSchemaInput(tested)) throw new Error("search projected no search schema");
+        expect(pairs(context.schema.fields)).toStrictEqual(pairs(tested.searchable_fields));
+      }),
+      RUNS,
+    );
+  });
+
+  test("search is told a query matches nothing exactly when no field is searchable", () => {
+    fc.assert(
+      fc.property(anySpec, (spec) => {
+        const none = !spec.schema.fields.some(
+          (field) => field.lifecycle === "active" && isSearchableTextType(field.type),
+        );
+        const told = buildUnitPrompt(spec, handler("search")).includes(NO_SEARCHABLE_FIELDS_RULE);
+        expect(told).toBe(none);
       }),
       RUNS,
     );

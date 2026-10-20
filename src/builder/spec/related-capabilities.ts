@@ -21,7 +21,13 @@ export interface RelatedCapabilityView {
   }[];
 }
 
-export function relatedCapabilityView(row: CapabilityRow): RelatedCapabilityView {
+/** What the view reads of a capability: a registry row, or a spec about to become one. */
+export type ViewedCapability = Pick<
+  CapabilityRow,
+  "id" | "label" | "display_label_override" | "prompt_context" | "noun" | "schema" | "ui_intent"
+>;
+
+export function relatedCapabilityView(row: ViewedCapability): RelatedCapabilityView {
   return {
     name: canonicalCapabilityLabel(row),
     description: row.prompt_context,
@@ -51,10 +57,10 @@ export function readRelatedCapabilities(
 export function relatedCapabilityPromptLines(related: readonly RelatedCapabilityView[]): string[] {
   if (related.length === 0) return [];
   return [
-    "Existing capabilities this request is about — each record of the capability you author may name one of their records. Each is listed with its name, description, record noun and single-line text fields; a max_length of null means the field has no limit:",
+    "Existing capabilities this request is related to. A field of the capability you author may name one of their records, and Aluna then connects it, so the person picks that record instead of typing it again. Each is listed with its name, description, record noun and single-line text fields; a max_length of null means the field has no limit:",
     JSON.stringify(related, null, 2),
-    "- Do not add a text field one of them already holds: a fact one of their records keeps stays with that record. The exception is a field naming which of their records each record of yours is about: Inventory built beside Books gets a book field and no author or ISBN of its own, because a book's author and ISBN are Books' fields.",
-    "- A field naming one of their records is a string field left out of ui_intent.form.long_text, and it holds the text of one of that record's single-line text fields, such as a book's title: give it no max_length when that field's max_length is null, and otherwise no max_length or one at least as large.",
+    "- Choose the fields this request needs as you would without this list, with one exception. A field of yours names one of their records when it holds the text one of their single-line text fields holds for that record, whatever you call the field. When one does, leave out the facts that record already keeps: they are read through the connection, and a copy would drift from the record it copies.",
+    "- A field that names one of their records is a string field left out of ui_intent.form.long_text, holding the text of one of that record's single-line text fields: give it no max_length when that field's max_length is null, and otherwise no max_length or one at least as large.",
     "",
   ];
 }

@@ -97,7 +97,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(events[0]?.data).toContain("new place");
     expect(events[0]?.data).toContain("already started");
     const narrations = events.filter((event) => event.event === "narration");
-    expect(narrations[0]?.data).toBe(NEW_CAPABILITY_INTENT.user_facing_label);
+    expect(narrations[0]?.data).toBe(escapeHtml(NEW_CAPABILITY_INTENT.user_facing_label));
     const metricEvents = events.filter((event) => event.event === "metrics-preview");
     expect(JSON.parse(metricEvents[0]?.data ?? "null")).toMatchObject({
       lifecycleStatus: "running",

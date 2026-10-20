@@ -39,6 +39,7 @@ import {
   promptCapabilitySpecSchema,
   uiCollectionLayoutSchema,
 } from "../../registry/index.ts";
+import { escapeHtml } from "../../server/http/html.ts";
 import { FILE_FIELD_CARD_LINE, FILE_FIELD_PROMPT_LINES } from "./file-field-guidance.ts";
 import { drawFileCardLayout, drawnFileCardLayout } from "./layout-draw.ts";
 import {
@@ -174,7 +175,7 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
 export async function generateSpec(input: GenerateSpecInput): Promise<SpecGenResult> {
   // The one user-visible line for this stage. The label is the intent's warm
   // sentence; nothing about how the spec is built crosses into it.
-  await input.send("narration", input.intent.user_facing_label);
+  await input.send("narration", escapeHtml(input.intent.user_facing_label));
 
   const startedAt = performance.now();
 

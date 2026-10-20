@@ -396,8 +396,8 @@ function existing({ port, table }: Reached, ids: readonly string[]): string[] {
 
 /**
  * Which terms each searchable field of each record holds, by the rule a search Handler is given
- * (`unit-prompts.ts`): a string field, or an element of a list field. One read of the capability;
- * a record holding no term anywhere is left out.
+ * (`unit-prompts.ts`): a single-valued field's stored value (a string or a choice), or an element
+ * of a list field. One read of the capability; a record holding no term anywhere is left out.
  */
 function termsHeld(
   { spec, table, port }: Reached,

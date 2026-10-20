@@ -22,7 +22,10 @@ import {
 } from "../../../server/app.test-support.ts";
 import { renderBuildEnding } from "../../../server/http/index.ts";
 import type { BuildJob, SendBuildEvent } from "../../jobs/build-jobs.ts";
-import { STALE_BUILD_ENDING } from "../../streaming/terminal-presentation.ts";
+import {
+  STALE_BUILD_ENDING,
+  UNSHOWN_ACTIVATION_LINE,
+} from "../../streaming/terminal-presentation.ts";
 import type { CoreBuildTerminal } from "../core-builder.ts";
 import { createExplicitPresenter } from "./explicit-presenter.ts";
 
@@ -198,7 +201,7 @@ test("an activation that could not be shown still tells the person their version
   // out — asserting the latter would pin scheduler timing rather than behaviour.
   expect(transport.events.map((entry) => entry.event)).toContain("narration");
   expect(transport.events.find((entry) => entry.event === "narration")?.data).toContain(
-    "Refresh and I'll bring it back.",
+    UNSHOWN_ACTIVATION_LINE,
   );
 });
 

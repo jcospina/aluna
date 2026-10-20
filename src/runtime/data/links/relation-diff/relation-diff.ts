@@ -37,6 +37,12 @@ export type RelationChange =
       readonly target: CapabilityRow;
       readonly relation: Relation;
     }
+  /** Link fields no record has a value in yet, as a build's link step does: no matching scan follows. */
+  | {
+      readonly kind: "link_new_fields";
+      readonly source: CapabilityRow;
+      readonly relations: readonly Relation[];
+    }
   /** Unlink: the relation one field of `source` holds comes off. */
   | { readonly kind: "unlink"; readonly source: CapabilityRow; readonly field: string }
   /** A deletion ends a lifetime, and every relation it is an end of goes with it. */
@@ -94,6 +100,8 @@ export function relationDiff(change: RelationChange): RelationWork[] {
         { kind: "match_typed_names", source, target, relation },
       ];
     }
+    case "link_new_fields":
+      return [writeRelations(change.source, [...change.source.relations, ...change.relations])];
     case "unlink": {
       const { source, field } = change;
       const kept = source.relations.filter((relation) => relation.field !== field);
@@ -169,8 +177,8 @@ class RelationRowMovedError extends Error {}
 /**
  * Do the work in the order listed, in one transaction of its own, a savepoint of the caller's when
  * it holds one, under the caller's lease. A relation write that finds its row moved undoes all of
- * it and the answer is `null`. Only Link's and Unlink's work writes a relation, so a deletion's or
- * an activation's is never answered `null`.
+ * it and the answer is `null`. Only Link's, Unlink's and the link step's work writes a relation, so
+ * a deletion's or an activation's is never answered `null`.
  */
 export function applyRelationWork(
   database: Database,

@@ -7,14 +7,14 @@ import { buildDemoErrorPreview } from "./previews.ts";
 export const DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS = 2_000;
 
 /** The product-voice failure line: the last thing the narration says. */
-export const FAILED_BUILD_ENDING = "Hmm, that didn't work. Mind trying again?";
+export const FAILED_BUILD_ENDING = "Hmm, that didn’t work. Mind trying again?";
 
 /**
  * A capability id a deletion tombstone still reserves cannot be rebuilt until that deletion's
  * cleanup is discharged, so the generic "mind trying again?" invites a retry that cannot succeed.
  */
 export const RESERVED_ID_BUILD_ENDING =
-  "I'm still tidying up after the last one of those. Give me a moment, then ask me again.";
+  "I’m still tidying up after the last one of those. Give me a moment, then ask me again.";
 
 /**
  * Spec generation never sees the ids already taken, so a clash can be two different subjects that
@@ -149,7 +149,7 @@ export async function deliverRestoredPresentation(
  * beyond its metrics row; an accepted candidate publishes, activates and ends in `commit`.
  */
 export const CANDIDATE_REJECTED_ENDING =
-  "Hmm, I couldn't quite shape that change safely. Mind telling me again, a little differently?";
+  "Hmm, I couldn’t quite shape that change safely. Mind telling me again, a little differently?";
 export const CANDIDATE_NO_CHANGE_ENDING =
   "That's already exactly how this works — nothing to change.";
 
@@ -206,7 +206,7 @@ export async function deliverCandidateNoChangePresentation(
  * the world moved while Aluna was queued and their words were about the older one.
  */
 export const STALE_BUILD_ENDING =
-  "Something on your desk changed after you asked, so I didn't go ahead. If you still want it, ask me again.";
+  "Something on your desk changed after you asked, so I didn’t go ahead. If you still want it, ask me again.";
 
 /**
  * Delivers a refused admission: the `failed/stale` row's preview, the ending line, the current
@@ -231,6 +231,9 @@ export async function deliverStalePresentation(
   );
 }
 
+export const UNSHOWN_ACTIVATION_LINE =
+  "It’s ready, but I couldn’t show it just now. Refresh and I’ll bring it back.";
+
 /** Activation is durable; tell the user to refresh if its View could not be prepared. */
 export async function deliverActivatedRecoveryPresentation(
   send: Send,
@@ -239,10 +242,7 @@ export async function deliverActivatedRecoveryPresentation(
   return runBoundedTerminalPresentation(
     send,
     async (sendWhileActive) => {
-      await sendWhileActive(
-        "narration",
-        "It's ready, but I couldn't show it just now. Refresh and I'll bring it back.",
-      );
+      await sendWhileActive("narration", UNSHOWN_ACTIVATION_LINE);
       await sendWhileActive("done", "error");
     },
     timeoutMs,

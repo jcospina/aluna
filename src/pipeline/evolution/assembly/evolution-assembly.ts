@@ -247,8 +247,8 @@ export async function assembleEvolutionCandidate(
     ),
   });
 
-  // Fold any bounded Gate repair back into the assembled bytes, as a v1 build does. A correctly
-  // copied unit is behavior-neutral against the candidate schema, so its bytes stay identical.
+  // Fold any bounded Gate repair back into the assembled bytes, as a v1 build does. A copied unit
+  // keeps its bytes unless a Gate repair rewrote it.
   const finalUnits = applyGateFixes(units, gate);
   assertFixtureRepairsProven(fixtureUnits, units, finalUnits, gate);
   // A repair rewrote bytes an observer already shows as final, so report the reconciled inventory

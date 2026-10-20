@@ -1,14 +1,22 @@
 import { describe, expect, setDefaultTimeout, test } from "bun:test";
-
+import {
+  type CapabilitySpec,
+  defaultBehavioralErrorsForSchema,
+  type SpecField,
+} from "../../../../registry/index.ts";
 import { deriveCapabilityTableDdl } from "../../../../runtime/data/index.ts";
 import { buildUnitPrompt } from "../../../units/generation/unit-prompts.ts";
 import {
+  createHandlerFor,
   expectGateFailure,
+  fullHandlersFor,
   gateInput,
   generatedUnitsFor,
   makeBehaviorProvider,
   makeSequenceProvider,
   notesSpec,
+  readHandlerFor,
+  searchHandlerFor,
 } from "../../gate.test-support.ts";
 import { runCapabilityGate } from "../../gate.ts";
 
@@ -289,5 +297,166 @@ describe("capability gate — adversarial search failure integrity", () => {
     });
     expect(result.handlers.search).toBe(goodSearch);
     expect(prompts).toHaveLength(2);
+  });
+});
+
+const TEXT: SpecField = {
+  name: "text",
+  label: "Text",
+  type: "string",
+  required: true,
+  lifecycle: "active",
+};
+
+function choice(name: string, options: readonly string[]): SpecField {
+  const values = options.map((value) => ({ value, label: value }));
+  return {
+    name,
+    label: name,
+    type: "choice",
+    required: true,
+    lifecycle: "active",
+    values,
+    groups: [],
+  };
+}
+
+/** The notes capability holding exactly `fields`, with the form and error cases they imply. */
+function specOf(fields: readonly SpecField[]): CapabilitySpec {
+  const base = notesSpec();
+  const schema = { fields: [...fields] };
+  const named = (type: string) => fields.filter((field) => field.type === type);
+  return notesSpec({
+    schema,
+    behavioral_errors: defaultBehavioralErrorsForSchema(schema),
+    ui_intent: {
+      ...base.ui_intent,
+      form: {
+        ...base.ui_intent.form,
+        choice_inputs: named("choice").map(({ name }) => ({ field: name, presentation: "picker" })),
+        list_inputs: named("string[]").map(({ name }) => ({ field: name, mode: "repeatable" })),
+      },
+      item: { ...base.ui_intent.item, shows: fields.slice(0, 1).map(({ name }) => name) },
+    },
+  });
+}
+
+const textAndChoice = (options: readonly string[]) => specOf([TEXT, choice("stage", options)]);
+
+/** The reference search Handler for `spec` with `fields` left out, as a Handler blind to them is. */
+function searchWithout(spec: CapabilitySpec, ...fields: readonly string[]): string {
+  const kept = spec.schema.fields.filter(({ name }) => !fields.includes(name));
+  return searchHandlerFor({ ...spec, schema: { fields: kept } });
+}
+
+function choiceGateInput(spec: CapabilitySpec, search: string) {
+  const handlers = fullHandlersFor(spec, {
+    create: createHandlerFor(spec),
+    read: readHandlerFor(spec),
+    search,
+  });
+  const units = generatedUnitsFor(spec, handlers);
+  return gateInput({
+    spec,
+    ddl: deriveCapabilityTableDdl(spec),
+    handlers,
+    itemRenderer: units.find((unit) => unit.kind === "item-renderer")?.content ?? "",
+    provider: undefined,
+    behavioralTier: { enabled: false },
+  });
+}
+
+async function expectSearchRejected(spec: CapabilitySpec, search: string): Promise<void> {
+  const error = await expectGateFailure(choiceGateInput(spec, search));
+  expect(error.failedRung).toBe("smoke");
+  expect(error.diagnostic).toMatchObject({ smoke: { action: "search" } });
+}
+
+async function expectSearchPasses(spec: CapabilitySpec): Promise<void> {
+  const result = await runCapabilityGate(choiceGateInput(spec, searchHandlerFor(spec)));
+  expect(result.outcomes.every((outcome) => outcome.status !== "failed")).toBe(true);
+}
+
+describe("capability gate — a choice is searched", () => {
+  // An option the needle row's own text holds would let a Handler blind to the choice pass.
+  test.each([
+    [["draft", "sent"]],
+    [["needle", "sent"]],
+  ])("rejects a search Handler that reads no choice field, offering %p", async (options) => {
+    const spec = textAndChoice(options);
+    await expectSearchRejected(spec, searchWithout(spec, "stage"));
+  });
+
+  test("rejects a search Handler that reads only one of two choices", async () => {
+    const spec = specOf([
+      TEXT,
+      choice("stage", ["draft", "sent"]),
+      choice("tone", ["calm", "loud"]),
+    ]);
+    await expectSearchRejected(spec, searchWithout(spec, "tone"));
+  });
+
+  test.each([
+    ["exactly as stored", '("target"."stage" = "search_term"."term")'],
+    ["without the normalizer", '(coalesce(instr("target"."stage", "search_term"."term"), 0) > 0)'],
+    [
+      "only whole",
+      '(platform_search_normalize("target"."stage") = platform_search_normalize("search_term"."term"))',
+    ],
+  ])("rejects a search Handler that matches a choice %s", async (_, clause) => {
+    const spec = textAndChoice(["draft", "sent"]);
+    const normalized =
+      '(coalesce(instr(platform_search_normalize("target"."stage"), platform_search_normalize("search_term"."term")), 0) > 0)';
+    const broken = searchHandlerFor(spec).replace(normalized, clause);
+    if (broken === searchHandlerFor(spec)) throw new Error("reference choice clause missing");
+    await expectSearchRejected(spec, broken);
+  });
+
+  // Both choices may hold "x", so only "y" tells Stage apart; a probe matched through Phase proves nothing.
+  test("rejects a search Handler blind to one of two choices that are the only text", async () => {
+    const spec = specOf([
+      { name: "on", label: "On", type: "date", required: false, lifecycle: "active" },
+      choice("stage", ["x", "y"]),
+      choice("phase", ["x"]),
+    ]);
+    await expectSearchRejected(spec, searchWithout(spec, "stage"));
+  });
+
+  test("rejects a choice-blind search Handler when the choices are the only text", async () => {
+    const spec = specOf([choice("stage", ["draft", "sent"])]);
+    const blind = searchHandlerFor(spec).replace(
+      /WHERE NOT EXISTS \(SELECT 1 FROM "search_terms" AS "search_term" WHERE NOT \(.*?\)\) ORDER BY/,
+      'WHERE NOT EXISTS (SELECT 1 FROM "search_terms") ORDER BY',
+    );
+    if (blind === searchHandlerFor(spec)) throw new Error("reference search clause missing");
+    await expectSearchRejected(spec, blind);
+  });
+
+  test("still rejects a broken search Handler beside a choice, so the guard keeps every other case", async () => {
+    const spec = textAndChoice(["draft", "sent"]);
+    await expectSearchRejected(
+      spec,
+      searchHandlerFor(spec).replaceAll("platform_search_normalize", "lower"),
+    );
+  });
+
+  test.each([
+    ["an option holds the fixture's own words", textAndChoice(["cafe", "gate update", "sent"])],
+    ["the only option is in the needle", textAndChoice(["needle"])],
+    ["the choices are the only text", specOf([choice("stage", ["draft", "sent"])])],
+    [
+      "two choices hold the same lone option, so neither can be told apart",
+      specOf([
+        { name: "on", label: "On", type: "date", required: false, lifecycle: "active" },
+        choice("stage", ["x"]),
+        choice("phase", ["x"]),
+      ]),
+    ],
+    [
+      "the only text field is a list",
+      specOf([{ ...TEXT, name: "tags", type: "string[]" }, choice("stage", ["draft", "sent"])]),
+    ],
+  ])("a correct search Handler passes when %s", async (_, spec) => {
+    await expectSearchPasses(spec);
   });
 });

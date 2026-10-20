@@ -728,12 +728,12 @@ failed build (ADR-0011; M8 plan 52 to 54).
 _Avoid_: linker, relation writer, link pass, link agent
 
 **Related-capability flag**:
-The Intent Resolver's judgment that a request is about records already on the desk,
-naming the capabilities that hold them. It judges records, not field names, and no flag
-is the ordinary answer. The spec writer and the link step see only the flagged
-capabilities, so the two cannot disagree; with none flagged the spec writer's prompt is
-unchanged and the link step does not run. A flag is no `read_dependency` (ADR-0011; M8
-plan 48 to 50).
+The Intent Resolver's judgment of which capabilities on the desk a request is related
+to: those one of whose records a new record, or the field an extension adds, would be
+about or would name. It judges what each capability keeps, not field names or phrasing.
+The spec writer and the link step see only the flagged capabilities, so the two cannot
+disagree; with none flagged the spec writer's prompt is unchanged and the link step does
+not run. A flag is no `read_dependency` (ADR-0011; M8 plan 48 to 51).
 _Avoid_: relation detection, dependency flag; overlap, which is the separate
 extend-or-separate decision
 
