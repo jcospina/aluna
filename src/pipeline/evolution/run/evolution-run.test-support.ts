@@ -30,6 +30,7 @@ import {
   runCapabilityGate,
   verifyCapabilitySnapshot,
 } from "../../../builder/index.ts";
+import { LINK_STEP_PROMPT_PREFIX } from "../../../builder/link/link-step.ts";
 import type { StoredGenerationLifecycle } from "../../../platform/metrics/index.ts";
 import { makeMetricsRecorder } from "../../../platform/metrics/metrics-test-recorder.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
@@ -172,12 +173,14 @@ export function tearDownCommitted(env: EngineEnv): void {
 
 /**
  * Answers whatever the engine asks, by reading the prompt rather than the call order: a case
- * proving "these units were copied" must not depend on the test knowing the request order.
+ * proving "these units were copied" must not depend on the test knowing the request order. The
+ * link step's call answers `link`, and rejects when that is an Error.
  */
 export function engineProvider(
   candidate: CapabilitySpec,
   unitOverrides: Readonly<Record<string, UnitOverride>> = {},
   onRepairGeneration?: (unit: string) => Promise<void>,
+  link: unknown = { relations: [] },
 ): {
   provider: Provider;
   prompts: string[];
@@ -233,6 +236,7 @@ export function engineProvider(
     if (prompt.startsWith("Generate deterministic black-box behavioral tests")) {
       return behavioralResponseFor(prompt, suite);
     }
+    if (prompt.startsWith(LINK_STEP_PROMPT_PREFIX)) return link;
     return candidate;
   };
 
@@ -251,7 +255,9 @@ export function engineProvider(
       }
       return {
         partialStream: stream(),
-        object: held.then(() => response as T),
+        object: held.then(
+          () => (response instanceof Error ? Promise.reject(response) : response) as T,
+        ),
         usage: held.then(() => ({ inputTokens: 32, outputTokens: 16, totalTokens: 48 })),
       };
     },
@@ -319,6 +325,8 @@ export type EvolveOptions = Partial<
    * only point from which a case can stop a run inside the bounded repair loop.
    */
   readonly onRepairGeneration?: (unit: string) => Promise<void>;
+  /** What the link step's call answers, an Error rejecting it: unset, it links nothing. */
+  readonly link?: unknown;
 };
 
 /** Run the whole engine once over the committed capability. */
@@ -332,6 +340,7 @@ export async function evolve(
     candidate,
     options.unitOverrides ?? {},
     options.onRepairGeneration,
+    options.link,
   );
   const active = options.active ?? getCapability("notes", env.conns.readonly);
   if (!active) throw new Error("committed capability did not activate");

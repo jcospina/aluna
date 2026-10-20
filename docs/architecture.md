@@ -652,14 +652,15 @@ that runs against the person's data, and a relation is optional platform state t
 nothing generated reads (ADR-0003, ADR-0011). The step looks only at the capability
 being built, so building Authors never links Books on its own.
 
-The step's call goes out once the spec exists, before the first test or unit. The
-build reads its answer once the units are done, so the tests and the Handlers never
-wait on it and never see it. A step still silent then gets a 30-second grace, and the
-build goes on with no relations rather than hold the Gate and the build lease; every
-way out of the build stops a step still running. The answer is
+The step's call goes out once the spec exists, before the first test or unit. An
+evolution sends it once the Diff finds work, and offers only the fields the change
+adds. Either reads the answer once the units are done, so the tests and the Handlers
+never wait on it and never see it. A step still silent then gets a 30-second grace,
+and the run goes on with no relations rather than hold the Gate and the build lease;
+every way out of the run stops a step still running. The answer is
 `{ "relations": [{ "field", "capability", "target_field" }] }`, each key a required
 string, and `capability` names a flagged capability by id. Before the Gate's line the
-narration says which fields the build connects ("I'm connecting every copy's book to
+narration says which fields the run connects ("I'm connecting every copy's book to
 your books"), while the person can still read it: the commit swap hides the narration.
 
 A request only about linking, such as "link each book to its author", runs the link

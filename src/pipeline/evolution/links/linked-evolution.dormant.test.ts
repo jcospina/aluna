@@ -14,6 +14,7 @@ import {
   createRecord,
   deleteRecord,
   evolveTo,
+  fieldDrawnAs,
   LINK_URL,
   type LinkedDesk,
   linkRows,
@@ -25,7 +26,6 @@ import {
   refusal,
   row,
   saveRecord,
-  shelfDrawnAs,
   shelfNamed,
   shelfTexts,
   shelvesWith,
@@ -48,7 +48,7 @@ describe("a hidden source", () => {
   test("sleeps with its relation and rows, drawn nowhere, its dropdown answering none", async () => {
     expect(row(desk, "notes").relations).toEqual(relations);
     expect(linkRows(desk)).toEqual(linked);
-    expect(await shelfDrawnAs(desk)).toBe("absent");
+    expect(await fieldDrawnAs(desk)).toBe("absent");
     expect(await pickStatus(desk)).toBe(422);
   });
 
@@ -75,7 +75,7 @@ describe("a hidden source", () => {
       ["note-birch", birch],
       ["note-oak", "shelf-oak"],
     ]);
-    expect(await shelfDrawnAs(desk)).toBe("dropdown");
+    expect(await fieldDrawnAs(desk)).toBe("dropdown");
     expect(await pickStatus(desk)).toBe(200);
   });
 });
@@ -97,7 +97,7 @@ describe("a hidden target", () => {
   test("leaves its source asleep with its rows: plain text, with neither dropdown nor chain", async () => {
     expect(row(desk, "notes").relations).toEqual(relations);
     expect(linkRows(desk)).toEqual(linked);
-    expect(await shelfDrawnAs(desk)).toBe("plain");
+    expect(await fieldDrawnAs(desk)).toBe("plain");
     expect(await pickStatus(desk)).toBe(422);
   });
 
@@ -120,6 +120,6 @@ describe("a hidden target", () => {
 
     expect(shelfTexts(desk)).toMatchObject({ "note-oak": "Oak, top", "note-pine": "Pine" });
     expect(linkRows(desk)).toEqual([["note-pine", "shelf-pine"]]);
-    expect(await shelfDrawnAs(desk)).toBe("dropdown");
+    expect(await fieldDrawnAs(desk)).toBe("dropdown");
   });
 });

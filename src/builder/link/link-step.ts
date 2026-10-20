@@ -39,6 +39,8 @@ export interface LinkStepInput {
   readonly flagged: readonly CapabilityRow[];
   /** The active desk they were read from, which the loop rule walks. */
   readonly catalog: readonly CapabilityRow[];
+  /** The only fields the step may link, on an evolution the ones it adds: absent, any open field. */
+  readonly fields?: readonly string[];
 }
 
 export interface LinkStepResult {
@@ -54,10 +56,11 @@ const NO_RELATIONS: LinkStepResult = { relations: [], usage: null };
 type TextFields = RelatedCapabilityView["single_line_text_fields"];
 
 /** The source's single-line text fields that hold no relation yet: the only ones it may link. */
-function openFields(source: LinkSource): TextFields {
+function openFields(source: LinkSource, only: readonly string[] | undefined): TextFields {
   return source.schema.fields
     .filter((field) => isLinkableField(source.ui_intent.form, field))
     .filter((field) => !relationOf(source.relations, field.name))
+    .filter((field) => only?.includes(field.name) ?? true)
     .map(({ name, label, max_length }) => ({ name, label, max_length: max_length ?? null }));
 }
 
@@ -102,7 +105,7 @@ function buildLinkStepPrompt(
  */
 export async function runLinkStep(input: LinkStepInput): Promise<LinkStepResult> {
   try {
-    const fields = openFields(input.source);
+    const fields = openFields(input.source, input.fields);
     const targets = input.flagged
       .map((row) => ({ row, view: { id: row.id, ...relatedCapabilityView(row) } }))
       .filter(({ view }) => view.single_line_text_fields.length > 0);
@@ -119,9 +122,13 @@ export async function runLinkStep(input: LinkStepInput): Promise<LinkStepResult>
     if (answer.status === "rejected") return { ...NO_RELATIONS, usage, failure: answer.reason };
     const parsed = linkStepAnswerSchema.safeParse(answer.value);
     if (!parsed.success) return { ...NO_RELATIONS, usage, failure: parsed.error };
+    // An entry is dropped when its field was not offered or it names no flagged capability.
+    const offered = (field: string) => fields.some(({ name }) => name === field);
     const candidates = parsed.data.relations.map((entry) => ({
       field: entry.field,
-      target: targets.find(({ row }) => row.id === entry.capability)?.row,
+      target: offered(entry.field)
+        ? targets.find(({ row }) => row.id === entry.capability)?.row
+        : undefined,
       targetField: entry.target_field,
     }));
     const relations = admittedRelations(input.source, candidates, input.catalog);

@@ -516,4 +516,28 @@ describe("evolution assembly liveness", () => {
     expect(prompts).toHaveLength(0);
     expect(log).toEqual([]);
   });
+
+  test("a cancel while the Gate's start waits stops the assembly before the Gate", async () => {
+    const candidate = candidateWithMood();
+    const diff = diffCapabilitySpec(committedSpec(), candidate);
+    const active = getCapability("notes", env.conns.readonly);
+    if (!active) throw new Error("committed capability did not activate");
+    let cancelled = false;
+
+    const assembling = assembleEvolutionCandidate({
+      committed: active,
+      candidate,
+      diff,
+      provider: newFieldProvider().provider,
+      behavioralTierEnabled: false,
+      isAborted: () => cancelled,
+      progress: {
+        onGateStart: () => {
+          cancelled = true;
+        },
+      },
+    });
+
+    await expect(assembling).rejects.toThrow(AbortedBuildError);
+  });
 });

@@ -11,6 +11,7 @@ import type { Relation } from "../../../registry/index.ts";
 import {
   closeLinkedDesk,
   evolveTo,
+  fieldDrawnAs,
   type LinkedDesk,
   linkRows,
   notesWith,
@@ -21,7 +22,6 @@ import {
   row,
   SHELF_FIELD,
   saveRecord,
-  shelfDrawnAs,
   shelfTexts,
   shelvesWith,
 } from "./linked-evolution.test-support.ts";
@@ -46,7 +46,7 @@ describe("a target allowed longer names than its source holds", () => {
   test("puts the relation to sleep with its rows, the shelf active and plain", async () => {
     expect(row(desk, "notes").relations).toEqual(relations);
     expect(linkRows(desk)).toEqual(linked);
-    expect(await shelfDrawnAs(desk)).toBe("plain");
+    expect(await fieldDrawnAs(desk)).toBe("plain");
     expect(await pickStatus(desk)).toBe(422);
     expect(await refusal(await pressUnlink(desk))).toEqual([422, FIELD_NOT_LINKED_CODE]);
   });
@@ -64,7 +64,7 @@ describe("a target allowed longer names than its source holds", () => {
 
     expect(shelfTexts(desk)).toMatchObject({ "note-oak": "Old Oak", "note-pine": "Pine, low" });
     expect(linkRows(desk)).toEqual([["note-oak", "shelf-oak"]]);
-    expect(await shelfDrawnAs(desk)).toBe("dropdown");
+    expect(await fieldDrawnAs(desk)).toBe("dropdown");
   });
 });
 
@@ -77,7 +77,7 @@ describe("a source moved into long text", () => {
   test("puts the relation to sleep with its rows, drawn as plain text", async () => {
     expect(row(desk, "notes").relations).toEqual(relations);
     expect(linkRows(desk)).toEqual([["note-oak", "shelf-oak"]]);
-    expect(await shelfDrawnAs(desk)).toBe("plain");
+    expect(await fieldDrawnAs(desk)).toBe("plain");
     expect(await pickStatus(desk)).toBe(422);
   });
 
@@ -87,6 +87,6 @@ describe("a source moved into long text", () => {
 
     expect(shelfTexts(desk)).toMatchObject({ "note-oak": "Oak" });
     expect(linkRows(desk)).toEqual([["note-oak", "shelf-oak"]]);
-    expect(await shelfDrawnAs(desk)).toBe("dropdown");
+    expect(await fieldDrawnAs(desk)).toBe("dropdown");
   });
 });

@@ -220,6 +220,9 @@ a target record on a field that keeps its text, and links broken by clearing a t
 
 **The Intent Resolver alone flags the existing capabilities a request relates to.** The
 spec writer and the link step see only the flagged ones, so the two steps cannot disagree.
+An evolution's flags reach only its link step, so the field a person asks for is added as
+asked. The relation is then dropped if the evolution writer gave that field a length limit
+below the target's, or any limit when the target has none.
 Each flagged capability reaches them with its name, description, record noun and
 single-line text fields, read under the build lease, and each field carries its length
 limit, so the spec writer can give the field that names the record a limit that fits. When

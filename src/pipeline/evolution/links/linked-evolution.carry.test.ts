@@ -17,6 +17,7 @@ import { activated, DUE_DATE_FIELD, type EvolveResult } from "../run/evolution-r
 import {
   closeLinkedDesk,
   evolveTo,
+  fieldDrawnAs,
   LINK_URL,
   type LinkedDesk,
   linkRows,
@@ -24,7 +25,6 @@ import {
   openLinkedDesk,
   row,
   saveRecord,
-  shelfDrawnAs,
   shelfTexts,
   shelvesWith,
 } from "./linked-evolution.test-support.ts";
@@ -95,7 +95,7 @@ describe("an evolution of either end carries the link forward", () => {
   });
 
   test("the shelf is still a dropdown whose pick and whose target's rename both reach the note", async () => {
-    expect(await shelfDrawnAs(desk)).toBe("dropdown");
+    expect(await fieldDrawnAs(desk)).toBe("dropdown");
     const picked = { shelf: "shelf-elm" };
     expect((await saveRecord(desk, "notes", "note-birch", { shelf: "x" }, picked)).status).toBe(
       200,

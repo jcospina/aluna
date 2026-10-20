@@ -199,6 +199,7 @@ export async function assembleEvolutionCandidate(
   input: AssembleEvolutionCandidateInput,
 ): Promise<AssembledEvolutionCandidate> {
   const { committed, candidate, diff } = input;
+  const isAborted = input.isAborted ?? NEVER_ABORTED;
   const verified = verifyEvolutionBase(committed);
   const additiveMigration = deriveAdditiveCapabilityMigration(verified.spec, candidate);
   const regenerated = new Set<GeneratedUnitName>(diff.workPlan.regeneratedUnits);
@@ -216,7 +217,7 @@ export async function assembleEvolutionCandidate(
   // Only an Action whose own inputs changed is regenerated: a rename moves no digest.
   const frozenTests = await freezeEvolutionTests(input, verified);
   await reportFrozenTests(input, frozenTests);
-  throwIfAborted(input.isAborted ?? NEVER_ABORTED);
+  throwIfAborted(isAborted);
 
   const fixtureUnits = new Set<GeneratedUnitName>();
   const units = await assembleUnits(
@@ -232,8 +233,10 @@ export async function assembleEvolutionCandidate(
     recordUnitMetrics(input.measurement, units);
     input.measurement.copiedUnits = new Set(copiedUnitNames(regenerated));
   }
-  throwIfAborted(input.isAborted ?? NEVER_ABORTED);
+  throwIfAborted(isAborted);
   await input.progress?.onGateStart?.();
+  // The hook waits on the link step, and a cancel in that wait must not run the Gate.
+  throwIfAborted(isAborted);
   const gate = await runCapabilityGate({
     spec: candidate,
     ddl: deriveCapabilityTableDdl(candidate),

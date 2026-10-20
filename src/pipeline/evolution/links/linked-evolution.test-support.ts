@@ -29,6 +29,7 @@ import {
   addCommittedDependency,
   committedGate,
   type EngineEnv,
+  type EvolveOptions,
   type EvolveResult,
   evolve,
   setUpCommitted,
@@ -48,8 +49,8 @@ const NAME_FIELD: SpecField = { ...SHELF_FIELD, name: "name", label: "Name" };
 
 export const LINK_URL = capabilityLinkUrl("notes", "shelf");
 
-/** One capability's spec with `extra` beside its text, `long_text` naming the long ones. */
-function withField(
+/** One capability's spec with `extra` beside its fields, `long_text` naming the long ones. */
+export function withField(
   base: CapabilitySpec,
   extra: SpecField,
   longText: readonly string[],
@@ -199,11 +200,13 @@ export async function evolveTo(
   desk: LinkedDesk,
   candidate: CapabilitySpec,
   buildId: string,
+  options: Pick<EvolveOptions, "resolvedIntent" | "link"> = {},
 ): Promise<EvolveResult> {
   const result = await evolve(desk.env, candidate, `change ${candidate.id}`, {
     buildId,
     behavioralTierEnabled: false,
     active: row(desk, candidate.id),
+    ...options,
   });
   activated(result);
   return result;
@@ -249,20 +252,20 @@ export async function deleteRecord(
 }
 
 /**
- * How a note's Edit form draws the shelf field: a dropdown, the chain, plain text, or not at all.
- * No card carries the form, so it is read at a note's record address.
+ * How a note's Edit form draws `field`: a dropdown, the chain, plain text, or not at all. No card
+ * carries the form, so it is read at a note's record address.
  */
-export async function shelfDrawnAs(desk: LinkedDesk) {
+export async function fieldDrawnAs(desk: LinkedDesk, field = SHELF_FIELD.name) {
   const address = recordAddress("notes", ADDRESSED_NOTE);
   const answer = await desk.app.request(address, { headers: { "HX-Request": "true" } });
   if (answer.status !== 200) throw new Error(`${address} answered ${answer.status}`);
   const html = await answer.text();
-  if (html.includes(`data-pick-url="${capabilityPickUrl("notes", "shelf")}"`)) return "dropdown";
-  if (html.includes(`data-link-url="${LINK_URL}"`)) return "chain";
-  return html.includes('name="shelf"') ? "plain" : "absent";
+  if (html.includes(`data-pick-url="${capabilityPickUrl("notes", field)}"`)) return "dropdown";
+  if (html.includes(`data-link-url="${capabilityLinkUrl("notes", field)}"`)) return "chain";
+  return html.includes(`name="${field}"`) ? "plain" : "absent";
 }
 
-/** The status the shelf field's dropdown is answered with when it asks for its records. */
-export async function pickStatus(desk: LinkedDesk): Promise<number> {
-  return (await desk.app.request(capabilityPickUrl("notes", "shelf"))).status;
+/** The status a note field's dropdown is answered with when it asks for its records. */
+export async function pickStatus(desk: LinkedDesk, field = SHELF_FIELD.name): Promise<number> {
+  return (await desk.app.request(capabilityPickUrl("notes", field))).status;
 }
