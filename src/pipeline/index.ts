@@ -8,6 +8,8 @@
 //                 into a `ResolvedBuildRequest`, `core-builder.ts` runs it behind the presenter
 //                 interface `explicit-presenter.ts` implements
 //   evolution/  — the one evolution path: candidate assembly, publication and activation
+//   intent/     — the Intent Resolver: the classification schema and its one model call
+//   linking-only/ — a classified link_capability: the link step alone under the build lease
 //   query/     — a classified data_query: the whole-catalog read scope opened around the loop
 //   streaming/  — what goes on the wire during a run
 //   metrics-recorder.ts — one durable metrics row per run, v1 build and evolution alike

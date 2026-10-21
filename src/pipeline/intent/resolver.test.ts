@@ -55,7 +55,8 @@ interface RecordingProvider extends Provider {
 
 function resolutionFor(type: (typeof INTENT_TYPES)[number]) {
   if (type === "new_capability") return "new" as const;
-  if (type === "extend_capability" || type === "ui_change") return "extend" as const;
+  const onExisting = ["extend_capability", "ui_change", "link_capability"] as const;
+  if (onExisting.some((each) => each === type)) return "extend" as const;
   return "none" as const;
 }
 
@@ -193,19 +194,24 @@ function insertRows(database: Database, rows: readonly CapabilityRow[]): void {
 describe("intent resolver classification — schema", () => {
   test("the schema speaks the full intent enum plus the reject bucket and keeps confirmations off in M2", () => {
     for (const type of INTENT_TYPES) {
-      expect(
-        intentClassificationSchema.parse({
-          type,
-          confidence: 0.8,
-          target_capability: targetFor(type),
-          resolution: resolutionFor(type),
-          proposed_identity: null,
-          proposed_action: "Classify the user's request.",
-          user_facing_label: "I'm sorting out what you want to track.",
-          related_capabilities: [],
-          requires_confirmation: false,
-        }).type,
-      ).toBe(type);
+      const answer = {
+        type,
+        confidence: 0.8,
+        target_capability: targetFor(type),
+        resolution: resolutionFor(type),
+        proposed_identity: null,
+        proposed_action: "Classify the user's request.",
+        user_facing_label: "I'm sorting out what you want to track.",
+        related_capabilities: [],
+        requires_confirmation: false,
+      };
+      expect(intentClassificationSchema.parse(answer).type).toBe(type);
+      // Every intent about an existing capability but a question must name it.
+      const untargeted = intentClassificationSchema.safeParse({
+        ...answer,
+        target_capability: null,
+      });
+      expect(untargeted.success).toBe(answer.target_capability === null || type === "data_query");
     }
 
     expect(() =>
@@ -353,6 +359,14 @@ describe("intent resolver classification — related capabilities", () => {
           ...flagging(both),
           ...onNotes,
           type: "extend_capability",
+          resolution: "extend",
+        }),
+      ).toStrictEqual(["recipes"]);
+      expect(
+        await flagsOf({
+          ...flagging(both),
+          ...onNotes,
+          type: "link_capability",
           resolution: "extend",
         }),
       ).toStrictEqual(["recipes"]);

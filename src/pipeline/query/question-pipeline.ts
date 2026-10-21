@@ -5,7 +5,7 @@
 // finished still speaks in product voice (ADR-0001, ARCH §9.7).
 //
 // Nothing on this path writes to the desk. The scope creates nothing (`data-query.ts`), and the
-// one row a question leaves behind is the resolver measurement every non-build prompt leaves.
+// one row a question leaves behind is the resolver measurement a refusal and a deflection leave too.
 
 import { errorDetail } from "../../platform/errors.ts";
 import {
@@ -93,7 +93,7 @@ interface QuestionSoFar {
 }
 
 /**
- * The resolver measurement every non-build prompt leaves, and what this one cost on top. `outcome`
+ * The resolver measurement a refusal and a deflection leave too, and what this one cost on top. `outcome`
  * is passed in rather than read here: the preview and the row are two readings of it, and a row
  * built inside the platform-write queue would otherwise sample it after the desk had closed.
  */

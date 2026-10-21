@@ -53,7 +53,7 @@ const PICKERS = {
     },
     {
       title: "Nothing to publish.",
-      body: `An evolution whose candidate meant exactly what was committed. No version is made, the model call is still measured and Aluna says "That's already exactly how this works — nothing to change."`,
+      body: `An evolution whose candidate meant exactly what was committed. No version is made, the model call is still measured and Aluna says "That’s already exactly how this works — nothing to change."`,
       rule: "success · no_change",
     },
     {

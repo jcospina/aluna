@@ -402,9 +402,9 @@ export function lifecycleFailureOutcome(failure: GenerationFailure): GenerationF
 }
 
 /**
- * Write the resolver-only metrics row: the one a prompt leaves when nothing was built. A refusal
- * and a deflection leave it because the platform does not act on them; a question leaves it
- * because answering one builds nothing (ARCH §9.6). Best-effort in every case.
+ * Write the resolver-only metrics row: the one a refusal, a deflection or a question leaves. A
+ * refusal and a deflection leave it because the platform does not act on them; a question leaves
+ * it because answering one builds nothing (ARCH §9.6). Best-effort in every case.
  */
 export function writeResolverOnlyMetrics(
   recordMetrics: RecordMetrics,
@@ -418,8 +418,8 @@ export function writeResolverOnlyMetrics(
 }
 
 /**
- * Queue that row behind the platform's write lease and never wait for it. Both non-build prompt
- * paths leave the same one, so the fire-and-forget shape and the sentence it logs live here.
+ * Queue that row behind the platform's write lease and never wait for it. The deflection and the
+ * question paths leave the same one, so the fire-and-forget shape and the sentence it logs live here.
  * `row` is called *inside* the write, so a shape the schema refuses is lost as quietly as a write
  * that failed — and nothing is awaited, because a question calls this from a `finally` over an
  * answer already delivered and a throw there would take the delivery down with it.

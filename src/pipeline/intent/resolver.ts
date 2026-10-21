@@ -14,7 +14,11 @@ import {
   readActiveRegistryCatalog,
 } from "../../registry/index.ts";
 import { renderPromptNotice } from "../../server/http/fragments/fragments.ts";
-import { type IntentClassification, intentClassificationSchema } from "./schema.ts";
+import {
+  type IntentClassification,
+  type IntentType,
+  intentClassificationSchema,
+} from "./schema.ts";
 
 /**
  * What the existing `target_capability` field means on a question. The rule
@@ -25,7 +29,7 @@ export const INTENT_DATA_QUERY_CONTEXT_RULE =
   "- On a data_query, target_capability is the active capability when the question leans on it for a vague word — these, ones, how many did I add — and null when the question names its own subject. It says what those words point at; it never limits what may be searched.";
 
 export const INTENT_RESOLUTION_NARRATION =
-  "I'm sorting out whether this is a new place or belongs with something you've already started. ";
+  "I’m sorting out whether this is a new place or belongs with something you’ve already started. ";
 
 /**
  * Aluna working out what a sentence is belongs on the prompt bar, not in a window. It used to
@@ -123,6 +127,7 @@ export function buildIntentPrompt(context: IntentPromptContext): string {
     "- extend_capability: the user wants the records an existing capability already keeps to hold or do something more or different, or asks again for what it already keeps.",
     "- ui_change: the user wants the presentation or interaction of an existing capability to change.",
     "- data_query: the user wants to find, summarize, filter, or ask about stored data.",
+    "- link_capability: the user wants only that a field the records of an existing capability already have name records another existing capability keeps, with nothing added, removed or changed.",
     "- reject: the prompt is unclear, unsafe, unrelated to Aluna, or cannot be handled as an app-building intent.",
     "",
     "Existing capability and overlap check — do this before deciding:",
@@ -131,6 +136,7 @@ export function buildIntentPrompt(context: IntentPromptContext): string {
     "- The active capability is strong context for vague references such as 'this', 'these', or an unnamed change.",
     "- Explicit wording overrides active context when the user names another capability or asks for a distinct context/lifecycle.",
     "- Choose extend_capability when each record the request describes is still one of that capability's records, in the same lifecycle.",
+    "- Choose link_capability rather than extend_capability when the only change the request asks for is that its target's records name another capability's records through fields they already have. A request that also asks the target to hold something it does not hold yet is extend_capability.",
     "- A request whose records are not already an existing capability's records, but each name one record another capability holds, is a new capability, even when its wording names that capability's subject: a count of the copies of a book is a record of its own about one book. Choose new_capability with resolution new, and flag the capability that holds those records (see the related-capability check below).",
     "- Choose new_capability with resolution namespace when the request keeps the same kind of record as an existing capability but explicitly separates a distinct context or lifecycle. A request whose records each name a record an existing capability holds is never a namespace of it.",
     "- A namespace resolution creates one fully independent capability. Its label and eventual id must carry the meaningful distinction, such as Work contacts / work_contacts, never contacts_2.",
@@ -145,7 +151,7 @@ export function buildIntentPrompt(context: IntentPromptContext): string {
     "- Example: if Contacts exists, 'track my work contacts separately' is new_capability with resolution namespace, because it asks for an independent work lifecycle. The meaningful name is Work contacts, not contacts_2.",
     "",
     "Related-capability check — do this with the overlap check:",
-    "- related_capabilities names the other existing capabilities this request is related to. A capability is related when a record this request creates would be about or would name one of its records, or, on an extension, when the field the extension adds would name one of its records. Aluna then lets the person pick that record instead of typing it again.",
+    "- related_capabilities names the other existing capabilities this request is related to. A capability is related when a record this request creates would be about or would name one of its records, or, on an extension, when the field the extension adds would name one of its records, or, on link_capability, when a field the target's records already have would name one of its records. Aluna then lets the person pick that record instead of typing it again.",
     "- Judge relatedness by what each capability keeps, read from its label, noun, plural_noun and prompt_context, as someone who knows every capability in the registry context would. The request does not have to name the capability or use any particular wording to be related to it.",
     "- A shared field name alone relates nothing: two capabilities can each have a title or a name and keep unrelated things.",
     "- Flag every capability the request is related to and none it is not. [] is right when it is related to no other existing capability.",
@@ -164,9 +170,9 @@ export function buildIntentPrompt(context: IntentPromptContext): string {
     "- There is no preview-adjust-approve coding loop.",
     "",
     "Structured-output rules:",
-    "- resolution is new for a new capability keeping a kind of record no existing capability keeps, including one whose records each name a record another capability holds; namespace for a meaningfully separate capability keeping the same kind of record as an existing one; extend for extend_capability/ui_change; and none for data_query/reject.",
+    "- resolution is new for a new capability keeping a kind of record no existing capability keeps, including one whose records each name a record another capability holds; namespace for a meaningfully separate capability keeping the same kind of record as an existing one; extend for extend_capability/ui_change/link_capability; and none for data_query/reject.",
     '- proposed_identity is { id, label } only for namespace: bind the meaningful distinction independently before Builder work (for example { id: "work_contacts", label: "Work contacts" }). It is null for every other resolution.',
-    "- target_capability is the overlapping existing capability id for namespace and the existing target for extend/ui_change; it is null for reject and for a new capability with resolution new, whatever related_capabilities names.",
+    "- target_capability is the overlapping existing capability id for namespace and the existing target for extend_capability/ui_change/link_capability, which on link_capability is the capability whose records would name the others'; it is null for reject and for a new capability with resolution new, whatever related_capabilities names.",
     INTENT_DATA_QUERY_CONTEXT_RULE,
     "- related_capabilities lists ids from the registry context, each at most once, and never names target_capability. It is [] when the request is related to no other capability, and always [] on ui_change, data_query and reject.",
     "- user_facing_label must be one warm product-voice sentence for the user; do not expose internals.",
@@ -185,11 +191,16 @@ export function buildIntentPrompt(context: IntentPromptContext): string {
 
 /**
  * The flagged ids naming an active capability other than the answer's target, once each, in catalog
- * order, on a new capability or an extension only. A capability links only to another,
- * and a namespace keeps its target's kind of record rather than naming its records.
+ * order, on a new capability, an extension or a linking-only request only. A capability links only
+ * to another, and a namespace keeps its target's kind of record.
  */
 function flaggedActiveIds(intent: IntentClassification, catalog: ActiveRegistryCatalog): string[] {
-  if (intent.type !== "new_capability" && intent.type !== "extend_capability") return [];
+  const flagging: readonly IntentType[] = [
+    "new_capability",
+    "extend_capability",
+    "link_capability",
+  ];
+  if (!flagging.includes(intent.type)) return [];
   const flagged = new Set(intent.related_capabilities);
   return catalog.capabilities
     .filter(({ id }) => flagged.has(id) && id !== intent.target_capability)

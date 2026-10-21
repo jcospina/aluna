@@ -1119,7 +1119,7 @@
             new version, and Books stays at v1. The build's metrics row shows a success with the
             outcome <code>no_change</code>, and the model call that produced the candidate is still
             measured. The window holds Aluna's line until you press Continue:
-            <em>That's already exactly how this works — nothing to change.</em>
+            <em>That’s already exactly how this works — nothing to change.</em>
           </p>
 
           <h3>Rules the matrix keeps</h3>
@@ -1336,11 +1336,12 @@
 
           <h3 id="bench-eight-sentences">Eight sentences to classify</h3>
           <p>
-            The resolver has five classifications: <code>new_capability</code>,
-            <code>extend_capability</code>, <code>ui_change</code>, <code>reject</code> and
-            <code>data_query</code>, for a question about your data. The platform can also answer a
-            sentence before the resolver is called at all. Guess where each sentence lands, then
-            pick it.
+            The resolver has six classifications: <code>new_capability</code>,
+            <code>extend_capability</code>, <code>ui_change</code>, <code>reject</code>,
+            <code>data_query</code>, for a question about your data, and
+            <code>link_capability</code>, for a request only to connect a field to another
+            capability's records. The platform can also answer a sentence before the resolver is
+            called at all. Guess where each sentence lands, then pick it.
           </p>
           <div class="scroller" tabindex="0" role="group" aria-labelledby="bench-eight-sentences">
             <div
@@ -1445,7 +1446,9 @@
                   <dt><code>type</code></dt>
                   <dd>
                     <code>new_capability</code>, <code>extend_capability</code>,
-                    <code>ui_change</code>, <code>data_query</code> or <code>reject</code>
+                    <code>ui_change</code>, <code>data_query</code>,
+                    <code>link_capability</code>
+                    or <code>reject</code>
                   </dd>
                 </dl>
               </div>

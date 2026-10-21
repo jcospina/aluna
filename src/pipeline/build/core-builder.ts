@@ -188,12 +188,17 @@ export type ResolvedRequestRevalidation =
   | { readonly kind: "new_capability" }
   | { readonly kind: "existing_capability"; readonly active: CapabilityRow };
 
+/** What the lease-head check reads off a request: a build's, or a linking-only request's. */
+export type RevalidatedRequest =
+  | Pick<ResolvedNewCapabilityRequest, "kind" | "expectedAbsentCapabilityId" | "catalogFingerprint">
+  | Pick<ResolvedExistingCapabilityRequest, "kind" | "targetExpectation" | "catalogFingerprint">;
+
 /**
  * Revalidates a resolved request against the registry, stable only once the lease is held. Order
  * picks only the recorded reason, and the target expectation goes first because it is precise.
  */
 export function revalidateResolvedRequest(
-  request: ResolvedBuildRequest,
+  request: RevalidatedRequest,
   buildDatabases: PlatformDatabase,
 ): ResolvedRequestRevalidation {
   const database = buildDatabases.readonly;

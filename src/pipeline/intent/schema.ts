@@ -17,6 +17,7 @@ export const INTENT_TYPES = [
   "extend_capability",
   "ui_change",
   "data_query",
+  "link_capability",
   "reject",
 ] as const;
 
@@ -64,6 +65,7 @@ function validateTarget(intent: ParsedIntentClassification, ctx: RefinementCtx):
   const requiresTarget =
     intent.type === "extend_capability" ||
     intent.type === "ui_change" ||
+    intent.type === "link_capability" ||
     (intent.type === "new_capability" && intent.resolution === "namespace");
   const forbidsTarget =
     intent.type === "reject" ||
@@ -90,6 +92,7 @@ function resolutionMatches(intent: ParsedIntentClassification): boolean {
       return intent.resolution === "new" || intent.resolution === "namespace";
     case "extend_capability":
     case "ui_change":
+    case "link_capability":
       return intent.resolution === "extend";
     case "data_query":
     case "reject":

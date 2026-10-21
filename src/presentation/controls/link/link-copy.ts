@@ -22,13 +22,63 @@ export interface ConnectedField {
  * Nothing when it connects none.
  */
 export function buildConnecting(noun: string, connected: readonly ConnectedField[]): string {
+  const fields = connectedClauses(noun, connected);
+  return fields === "" ? "" : `I’m connecting ${fields}.`;
+}
+
+function connectedClauses(noun: string, connected: readonly ConnectedField[]): string {
   const clauses = connected.map(
     ({ field, targetPlural }) => `${everyRecordsField(noun, field)} to your ${targetPlural}`,
   );
-  const last = clauses.pop();
-  if (last === undefined) return "";
-  return `I’m connecting ${clauses.length > 0 ? `${clauses.join(", ")} and ${last}` : last}.`;
+  const last = clauses.pop() ?? "";
+  return clauses.length > 0 ? `${clauses.join(", ")} and ${last}` : last;
 }
+
+/** A field a linking-only request connected, the target's record nouns, and what its scan matched. */
+export interface RequestConnectedField extends ConnectedField {
+  readonly targetNoun: string;
+  readonly matched: MatchCounts;
+}
+
+/**
+ * What the prompt bar says once a linking-only request has connected fields: each field's matching
+ * report, then the build's sentence in the past for the fields no record named anything in, "I
+ * connected every book’s author to your authors.", as no report is said for those. Two fields
+ * picking from one kind of record are each reported by their own label, so the two read apart.
+ */
+export function requestConnected(
+  source: { readonly noun: string; readonly plural: string },
+  connected: readonly RequestConnectedField[],
+): string {
+  const shared = (noun: string) => connected.filter((each) => each.targetNoun === noun).length > 1;
+  const reports = connected.map((each) => {
+    const picked = shared(each.targetNoun) ? labelInSentence(each.field.label) : each.targetNoun;
+    return matchingReport(source, picked, each.matched);
+  });
+  const unnamed = connectedClauses(
+    source.noun,
+    connected.filter((_, index) => reports[index] === ""),
+  );
+  return [...reports, unnamed === "" ? "" : `I connected ${unnamed}.`]
+    .filter((sentence) => sentence !== "")
+    .join(" ");
+}
+
+/**
+ * What the prompt bar says when a linking-only request finds its fields already connected: "I’ve
+ * already connected every book’s author to your authors."
+ */
+export function alreadyConnected(noun: string, connected: readonly ConnectedField[]): string {
+  const fields = connectedClauses(noun, connected);
+  return fields === "" ? "" : `I’ve already connected ${fields}.`;
+}
+
+/** What follows `alreadyConnected` when the step was asked about other fields and connected none. */
+export const NOTHING_ELSE_TO_CONNECT = "I couldn’t find anything else to connect.";
+
+/** What the prompt bar says when a linking-only request finds nothing it can connect. */
+export const NOTHING_TO_CONNECT =
+  "I couldn’t find anything to connect, so I left everything as it was.";
 
 /** The chain's accessible name, and the chooser's heading after it. */
 export function connectFieldName(noun: string, field: Pick<SpecField, "label">): string {
@@ -84,9 +134,16 @@ export function pickAgainLine(targetNouns: readonly string[]): string {
   return `I couldn’t find that ${noun} anymore. Mind picking one again?`;
 }
 
-/** The one note atop the form while the names a field holds are matched. */
-export function connectingNote(sourcePlural: string, targetPlural: string): string {
-  return `Connecting your ${sourcePlural} to ${targetPlural}…`;
+/**
+ * The one note atop the form while the names a field holds are matched, and on the prompt bar
+ * while a linking-only request decides what to connect, there to each kind of record it could pick
+ * from, once.
+ */
+export function connectingNote(sourcePlural: string, ...targetPlurals: string[]): string {
+  const targets = [...new Set(targetPlurals)];
+  const last = targets.pop() ?? "";
+  const named = targets.length > 0 ? `${targets.join(", ")} and ${last}` : last;
+  return `Connecting your ${sourcePlural} to ${named}…`;
 }
 
 export type { MatchCounts };

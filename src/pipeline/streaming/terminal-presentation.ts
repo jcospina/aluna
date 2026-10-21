@@ -22,7 +22,7 @@ export const RESERVED_ID_BUILD_ENDING =
  * again, because the resolver reads only the sentence it is given, never the one that clashed.
  */
 export function takenIdBuildEnding(label: string): string {
-  return `You already have ${label}. If this is something else, ask again and say what sets it apart, and I'll give it its own place.`;
+  return `You already have ${label}. If this is something else, ask again and say what sets it apart, and I’ll give it its own place.`;
 }
 
 /** Which ending a failure gets. Everything but a taken or reserved id shares the generic one. */
@@ -125,7 +125,7 @@ export interface RestoredPresentationOptions {
 export async function deliverRestoredPresentation(
   send: Send,
   restorationFragment: string,
-  outcome: "ok" | "no_change" | "stale" | "cancelled",
+  outcome: "ok" | "no_change" | "stale" | "cancelled" | "failed",
   timeoutMs = DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS,
   options: RestoredPresentationOptions = {},
 ): Promise<boolean> {
@@ -151,7 +151,7 @@ export async function deliverRestoredPresentation(
 export const CANDIDATE_REJECTED_ENDING =
   "Hmm, I couldn’t quite shape that change safely. Mind telling me again, a little differently?";
 export const CANDIDATE_NO_CHANGE_ENDING =
-  "That's already exactly how this works — nothing to change.";
+  "That’s already exactly how this works — nothing to change.";
 
 /**
  * Delivers the warm rejection: the candidate preview carrying every validation issue, the line

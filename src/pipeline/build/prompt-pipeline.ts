@@ -9,7 +9,8 @@
 //
 // Neither `reject` nor `data_query` reaches the Builder. A refusal deflects with a warm line; a
 // question runs and is answered in the answer window. Both leave the same best-effort
-// resolver-only metrics row and nothing else.
+// resolver-only metrics row and nothing else. A `link_capability` takes the build lease and links
+// in place, with no Builder work.
 
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";
 import { abortableProvider, type Provider } from "../../platform/provider/index.ts";
@@ -35,6 +36,7 @@ import type {
   BuildPipelineContext,
 } from "../jobs/build-jobs.ts";
 import { renderRestorationFragment, standingCapabilityId } from "../jobs/restoration.ts";
+import { runLinkingOnlyRequest } from "../linking-only/linking-only-request.ts";
 import { carriedResolverMeasurement, type RecordMetrics } from "../metrics-recorder.ts";
 import { streamQuestion } from "../query/question-pipeline.ts";
 import {
@@ -307,6 +309,18 @@ async function runPromptJob(
       resolver,
       builtAt,
     );
+  }
+  if (intent.type === "link_capability") {
+    return runLinkingOnlyRequest({
+      context,
+      provider,
+      intent,
+      resolver,
+      catalog,
+      buildDatabases: deps.buildDatabases,
+      mutationCoordinator: deps.mutationCoordinator,
+      terminalPresenterTimeoutMs: deps.terminalPresenterTimeoutMs,
+    });
   }
   if (intent.type !== "new_capability") {
     return runNonBuildIntent(

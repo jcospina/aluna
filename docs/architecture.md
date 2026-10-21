@@ -474,7 +474,7 @@ object:
 
 ```json
 {
-  "type": "new_capability | extend_capability | ui_change | data_query | reject",
+  "type": "new_capability | extend_capability | ui_change | data_query | link_capability | reject",
   "confidence": 0.85,
   "target_capability": "images",
   "resolution": "extend",
@@ -507,15 +507,16 @@ Three responsibilities live here rather than in separate modules:
   the capability that field names flagged.
 - **Related capabilities.** The same call flags the existing capabilities a request
   is related to, judging what each one keeps rather than field names or phrasing: a
-  capability is flagged when a new record, or the field an extension adds, would be about
-  or would name one of its records, whatever words the request uses. Movies, Books and
+  capability is flagged when a new record, the field an extension adds, or on a
+  linking-only request a field the target's records already have, would be about or
+  would name one of its records, whatever words the request uses. Movies, Books and
   Articles each have a title and are unrelated. The answer carries the flags as
   `related_capabilities`, a list of capability ids that is empty when nothing is
   flagged. The openai-compatible wire holds the model to no schema, so the platform
   reads a null list or entry as none and keeps only ids naming an active capability
-  other than the answer's own target, and only on a `new_capability` or
-  `extend_capability` answer; any other entry fails the answer, as a malformed key
-  does. The spec writer and the link step see only the flagged capabilities, each
+  other than the answer's own target, and only on a `new_capability`,
+  `extend_capability` or `link_capability` answer; any other entry fails the answer,
+  as a malformed key does. The spec writer and the link step see only the flagged capabilities, each
   with its name, description, record noun and single-line text fields with their
   length limits, so the two cannot disagree; with nothing flagged, the spec writer's
   prompt is unchanged and the link step does not run. A flag is a judgment for one
@@ -540,8 +541,9 @@ evolution — plus the resolver-catalog revision or fingerprint that produced it
 classification. From Module 8 that classification also carries the resolver's
 `related_capabilities`: the build of a new capability reads each flagged capability
 from the registry under the build lease, and an evolution's flags reach only its link
-step. The request will also say when it is only about linking; that
-shape is settled when the resolver gains it (ADR-0011).
+step. A **linking-only request** is its own `type`, `link_capability`, which targets
+the capability being linked and flags the capabilities its records would name
+(ADR-0011).
 
 The core Builder emits lifecycle events and owns neither the prompt route, the
 active DOM, nor SSE. The explicit-loop presenter turns those events into the
@@ -570,10 +572,10 @@ The lifecycle is spec-first and recoverable across SQLite and the filesystem:
    after that check does the separate active dependency-generation catalog freeze. A
    v1 build gets a new incarnation; evolution retains the committed one. Only now
    create a durable `running` generation row, immediately before the first
-   Builder-owned provider call; whether a request only about linking writes one is
-   settled in epic 8.7. A stale or collision refusal instead writes one direct
+   Builder-owned provider call. A stale or collision refusal instead writes one direct
    terminal `failed/stale` admission row with all generation stages skipped, and
-   starts no Builder work.
+   starts no Builder work. A linking-only request writes neither row, stale or not: it
+   runs no generation.
 2. Generate one complete candidate authored spec from the resolved intent plus the
    committed field-lifecycle catalog, active-field projections of the dependency
    catalog, and each flagged capability's name, description, record noun and
@@ -663,14 +665,24 @@ string, and `capability` names a flagged capability by id. Before the Gate's lin
 narration says which fields the run connects ("I'm connecting every copy's book to
 your books"), while the person can still read it: the commit swap hides the narration.
 
-A request only about linking, such as "link each book to its author", runs the link
-step alone on the current spec under the build lease: no spec writer, no units, no
-Gate and no version. Its source may be any active single-line text field with no
-relation, its target must belong to a flagged capability, and the target's
-incarnation is checked at once. Its relation is written in place through the code the
-Link control uses, and the matching scan follows inside the same lease. Whether it
-writes a generation row, and with which outcome, is settled when the request is built
-(Module 8, epic 8.7).
+A linking-only request, such as "link each book to its author", takes the build lease,
+passes the lease-head check an evolution passes, and runs the link step alone on the
+committed spec: no spec writer, no units, no Gate and no version
+(`src/pipeline/linking-only/linking-only-request.ts`). Its source may be any active
+single-line text field with no relation, its target must belong to a flagged
+capability, and the target's incarnation is checked at once. The step checks each
+relation by the Link control's rules against the desk the lease holds, and each one
+admitted is written in place through the Link control's write, the matching scan with
+it, all of them in one transaction inside that lease. The step has the build's 30-second
+grace, so a stuck call cannot hold the lease and every record save behind it. The
+prompt bar says each field's matching report, or that the field is connected when no
+record named anything in it; two fields picking from one capability are each reported
+by their own label. A step that fails or finds nothing, and a stale request, change
+nothing and say so on the prompt bar, and a request whose fields already pick from the
+flagged capabilities says they are already connected. It stores no metrics row: a
+generation row records a generation's stages and this request runs none, and the
+developer panel reads the resolver's measurement and the step's cost from the live
+preview.
 
 A database failure after publication leaves an unreferenced complete candidate,
 never a live partial one. For an active incarnation at version `N`, every verified
@@ -737,7 +749,10 @@ a duplicate, the platform's own `extend_capability` at zero cost), timing, and o
 spent and the wall-clock the person waited — may be written best-effort to a
 separate content-free `intent_resolution_metrics` row through a queued short
 platform write. Neither the query nor the user-visible completion waits for that
-write, so a crash may lose an unwritten non-admitted row. The table's schema also
+write, so a crash may lose an unwritten non-admitted row. A linking-only request
+writes neither row. No code reads an `intent_resolution_metrics` row yet, of any
+outcome, and Module 11's analysis, its first planned reader, adds the linking-only
+request's row when it is built. The table's schema also
 admits an `expired` outcome, but nothing writes one. A build cancelled or expired
 before it holds the lease writes no metrics row at all. Durable lifecycle begins
 with a direct stale admission row or a `running` generation row.
@@ -920,7 +935,7 @@ is absent or at least the target's, so a picked name always fits. A target may i
 be a linked field, and a relation that would close a loop, counting dormant ones, is
 refused (proposed in ADR-0011). The link step proposes a relation during a build, the
 Link control writes one in place under the platform-write lease as rename writes the
-override, and a request only about linking writes one in place under its build lease;
+override, and a linking-only request writes one in place under its build lease;
 nothing records which. Changing a relation makes no version, regenerates no code and
 moves no frozen test, and the evolution writer never sees one. Hiding the source or
 the target field makes the relation dormant: it stays on the row unchanged, Aluna
@@ -1496,10 +1511,12 @@ surface is Module 10's. ADR-0008 is the contract.
 User types in Prompt Bar
         │
         ▼
-Intent Resolver  ── classify (new/extend/ui/query) + overlap resolve + friendly label
+Intent Resolver  ── classify (new/extend/ui/query/link) + overlap resolve + friendly label
         │           + related-capability flags
         ├─ data_query ──▶ M6 ephemeral query path
         ├─ reject ──────▶ friendly refusal
+        ├─ link_capability ─▶ build lease → link step alone: relation in place
+        │                     + matching scan, no version; the prompt bar reports
         └─ resolved request + target/catalog fingerprint binding
                     │
                     ▼
@@ -1510,8 +1527,6 @@ Intent Resolver  ── classify (new/extend/ui/query) + overlap resolve + frien
                     │
                     ▼
           Capability Builder
-                    │  (a request only about linking instead runs the link step
-                    │   alone: relation in place + matching scan, no version)
                     ├─ complete candidate spec
                     ├─ Diff Engine: facts → DDL/unit/Gate scope (or measured no-op)
                     ├─ generate/copy complete snapshot + layered Gate
@@ -1611,7 +1626,7 @@ press read: when the build changed either end, the press is refused as stale, no
 is written, and the prompt bar says so. A queued press whose connection closes is
 dropped from the queue and writes nothing. While Link's matching scan runs, both
 buttons fade with Save and Delete; nothing fades during a build, which takes the
-window (ADR-0011). A request only about linking takes the build lease like any resolved
+window (ADR-0011). A linking-only request takes the build lease like any resolved
 build, and its relation write and matching scan run inside that lease with no lease
 of their own. The linked-text refresh and the clearing a target record's deletion
 brings take no lease either: they run inside the save or deletion that caused them,
@@ -1731,11 +1746,12 @@ External cleanup retries cannot resurrect the deleted surface.
    undo or relabel success, and the UI recovers from the registry.
 
 6. **Generation is measured, and slowness is expected.** Latency is data, not a
-   defect. Every admitted build gets one generation or admission row (a request only
-   about linking is settled in epic 8.7): successful lease-head revalidation enters
-   `running`, while a stale or collision refusal writes a direct terminal row without
-   provider work. Resolver-only outcomes retain their measurement without pretending
-   a build occurred. Conclusions come from querying the dataset.
+   defect. Every admitted build gets one generation or admission row: successful
+   lease-head revalidation enters `running`, while a stale or collision refusal writes
+   a direct terminal row without provider work. Resolver-only outcomes retain their
+   measurement without pretending a build occurred. A linking-only request runs no
+   generation and stores no row; the developer panel reads its cost from the live
+   preview. Conclusions come from querying the dataset.
 
 7. **Friendly app, never a coding agent or engineering tool.** Users state the
    capability-level outcome they want; they do not choose types, migrations,

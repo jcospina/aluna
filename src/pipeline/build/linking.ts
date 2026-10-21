@@ -22,9 +22,9 @@ import type { IntentClassification } from "../intent/index.ts";
 import type { DemoBuildAccumulator } from "../metrics-recorder.ts";
 
 /**
- * How long a build or an evolution waits on the link step once its units are done. The step starts
- * before the tests and usually answers in seconds, so one still silent this late is stuck, and the
- * run goes on with no relations rather than hold the Gate and the build lease.
+ * How long a build or an evolution waits on the link step once its units are done, and a
+ * linking-only request from the step's start. The step usually answers in seconds, so one still
+ * silent this late is stuck, and the run goes on with no relations rather than hold the build lease.
  */
 export const LINK_STEP_GRACE_MS = 30_000;
 

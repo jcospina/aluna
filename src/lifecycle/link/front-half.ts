@@ -143,17 +143,38 @@ async function linkUnderLease(
   const code = linkRefusal(source, target, catalog);
   if (code) return { status: "refused", code, source, target };
 
+  await deps.onAdmitted?.({ source: source.row, target: target.row });
+  // Nothing that moves either end writes without the lease this holds, so the rules still stand.
+  const written = writeLink(deps.database, source, target);
+  if (!written) return { status: "stale", moved: getCapability(source.row.id, deps.database) };
+  return { status: "linked", source: written.row, target: target.row, matched: written.matched };
+}
+
+/** What a link left: the source's row holding the new relation, and what the scan matched. */
+export interface WrittenLink {
+  readonly row: CapabilityRow;
+  readonly matched: MatchCounts;
+}
+
+/**
+ * The relation a pair the rules admitted makes, then the matching scan's link rows, in one
+ * transaction under the lease the caller holds and none of its own: the Link control's platform
+ * write, or a linking-only request's build lease. Null when the source is no longer the row it was
+ * read as.
+ */
+export function writeLink(
+  database: Database,
+  source: LinkEnd,
+  target: LinkEnd,
+): WrittenLink | null {
   const relation = {
     field: source.field,
     to: { capability: target.row.id, incarnation: target.row.incarnation_id, field: target.field },
   };
-  await deps.onAdmitted?.({ source: source.row, target: target.row });
-  // Nothing that moves either end writes without the lease this holds, so the rules still stand.
   const change = { kind: "link", source: source.row, target: target.row, relation } as const;
-  const done = applyRelationWork(deps.database, relationDiff(change));
+  const done = applyRelationWork(database, relationDiff(change));
   const row = done?.rows.get(source.row.id);
-  if (!done || !row) return { status: "stale", moved: getCapability(source.row.id, deps.database) };
-  return { status: "linked", source: row, target: target.row, matched: done.matched };
+  return done && row ? { row, matched: done.matched } : null;
 }
 
 type StaleOutcome = Extract<CapabilityLinkOutcome, { status: "stale" }>;

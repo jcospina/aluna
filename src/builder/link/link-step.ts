@@ -32,7 +32,7 @@ export type LinkSource = RelatedCapability & ViewedCapability;
 
 export interface LinkStepInput {
   readonly provider: Provider;
-  /** The user's request, as the spec writer read it. */
+  /** The user's request, as the person typed it. */
   readonly request: string;
   readonly source: LinkSource;
   /** The flagged capabilities, read under the build lease, in the desk's order. */
@@ -64,6 +64,19 @@ function openFields(source: LinkSource, only: readonly string[] | undefined): Te
     .map(({ name, label, max_length }) => ({ name, label, max_length: max_length ?? null }));
 }
 
+/**
+ * The flagged capabilities the step would offer `source`'s open fields, in their order: none when
+ * the source has no open field or no flagged capability keeps a single-line text field.
+ */
+export function joinableTargets<Row extends CapabilityRow>(
+  source: LinkSource,
+  flagged: readonly Row[],
+  only?: readonly string[],
+): Row[] {
+  if (openFields(source, only).length === 0) return [];
+  return flagged.filter((row) => relatedCapabilityView(row).single_line_text_fields.length > 0);
+}
+
 function buildLinkStepPrompt(
   request: string,
   source: LinkSource,
@@ -72,23 +85,23 @@ function buildLinkStepPrompt(
 ): string {
   const built = { ...relatedCapabilityView(source), single_line_text_fields: fields };
   return [
-    `${LINK_STEP_PROMPT_PREFIX} Decide which fields of the capability being built name records that a flagged capability already keeps.`,
+    `${LINK_STEP_PROMPT_PREFIX} Decide which fields of the source capability name records that a flagged capability already keeps.`,
     "",
     "The Intent Resolver flagged the existing capabilities below as related to this request. A flag says a field may name their records, not that one does.",
     "",
     "Rules:",
-    "- A relation points one single-line text field of the capability being built at one single-line text field of a flagged capability: each record's value in the field is that field's text on one of the flagged capability's records.",
+    "- A relation points one single-line text field of the source capability at one single-line text field of a flagged capability: each record's value in the field is that field's text on one of the flagged capability's records.",
     "- Point at the field that names the flagged capability's records, such as a title or a name.",
     "- Relate a field only when its values would name the flagged capability's records, judged from what both capabilities keep. A shared field name alone relates nothing: two capabilities that both have a title may keep unrelated things.",
-    "- Return no relation for a flagged capability when no field of the capability being built names its records. An empty list is a fine answer.",
-    "- Give each field of the capability being built at most one relation.",
+    "- Return no relation for a flagged capability when no field of the source capability names its records. An empty list is a fine answer.",
+    "- Give each field of the source capability at most one relation.",
     "- A max_length is the most characters a field holds, and null means no limit. A field with a limit can only point at a field whose limit is no larger.",
     "- Answer relations only. Never add, remove, rename or edit a field, and use field names and capability ids exactly as listed.",
     "",
     "Answer with exactly this shape. Every key is present and every value is a string:",
-    '{ "relations": [ { "field": "<a field of the capability being built>", "capability": "<the id of a flagged capability>", "target_field": "<a field of that capability>" } ] }',
+    '{ "relations": [ { "field": "<a field of the source capability>", "capability": "<the id of a flagged capability>", "target_field": "<a field of that capability>" } ] }',
     "",
-    "The capability being built, with the single-line text fields it may link:",
+    "The source capability, with the single-line text fields it may link:",
     JSON.stringify(built, null, 2),
     "",
     "The flagged capabilities, each with its id and single-line text fields:",
@@ -106,10 +119,11 @@ function buildLinkStepPrompt(
 export async function runLinkStep(input: LinkStepInput): Promise<LinkStepResult> {
   try {
     const fields = openFields(input.source, input.fields);
-    const targets = input.flagged
-      .map((row) => ({ row, view: { id: row.id, ...relatedCapabilityView(row) } }))
-      .filter(({ view }) => view.single_line_text_fields.length > 0);
-    if (fields.length === 0 || targets.length === 0) return NO_RELATIONS;
+    const targets = joinableTargets(input.source, input.flagged, input.fields).map((row) => ({
+      row,
+      view: { id: row.id, ...relatedCapabilityView(row) },
+    }));
+    if (targets.length === 0) return NO_RELATIONS;
     const prompt = buildLinkStepPrompt(
       input.request,
       input.source,

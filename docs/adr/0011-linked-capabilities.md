@@ -264,7 +264,9 @@ step runs on Books' current spec under the build lease, with no spec writer, no 
 version. Its source may be any active single-line text field with no relation, its target
 must belong to a flagged capability, and the target's incarnation is checked at once. The
 relation is written in place through the code the Link control uses, and the matching scan
-follows. Both run inside the build lease the request already holds.
+follows. Both run inside the build lease the request already holds. The Resolver answers
+such a request with its own type, `link_capability`. A step that fails or finds nothing
+changes nothing and says so on the prompt bar, and the request writes no metrics row.
 
 **Building a capability never links an existing one on its own.** A build changes one
 capability, and the link step looks only at the capability being built. Building Authors

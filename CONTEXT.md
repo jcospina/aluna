@@ -139,7 +139,7 @@ linked to Authors still shows the author's name, but the name follows her record
 the book knows which record it is. A link is made for a field once and applies to that
 field in every record, so Aluna stores it as one **relation** for the field and one
 **link row** for each record. It is made with the **Link control**, by a build whose
-request is about records already on the desk, or by a request only about linking. Links
+request is about records already on the desk, or by a **linking-only request**. Links
 are soft: text with no match still saves, nothing about a link can stop a record loading
 or a build publishing, and **Unlink** takes one away (ADR-0011; M8 plan 1 to 29).
 _Avoid_: relationship, reference, association, foreign key; connection in docs, since
@@ -722,7 +722,7 @@ The one model call that proposes relations during a build. It reads the request,
 finished spec and the flagged capabilities, and answers which single-line text field of
 the spec points at which single-line text field of each; it never adds, removes or edits
 a field. On a build it runs beside the frozen tests and the Handlers; on an evolution,
-only for the text fields the change adds; and alone for a request only about linking.
+only for the text fields the change adds; and alone for a **linking-only request**.
 It fails open: a bad entry is dropped, and a failed step means no relations, never a
 failed build (ADR-0011; M8 plan 52 to 54).
 _Avoid_: linker, relation writer, link pass, link agent
@@ -736,6 +736,20 @@ disagree; with none flagged the spec writer's prompt is unchanged and the link s
 not run. A flag is no `read_dependency` (ADR-0011; M8 plan 48 to 51).
 _Avoid_: relation detection, dependency flag; overlap, which is the separate
 extend-or-separate decision
+
+**Linking-only request**:
+A prompt-bar request whose only change is that a field an existing capability's
+records already have names records another capability keeps. The Intent Resolver
+answers it `link_capability`, its target the capability being linked and its flags the
+capabilities those records would name. The link step runs alone on the target as it is
+committed, under the build lease: no spec writer, no Handler, no Gate and no version.
+Each relation the Link control's rules admit is written in place through its write,
+with the matching scan, inside that lease and no other, and the prompt bar reports the
+scan's counts. A field that already has a relation keeps it, and a request whose fields
+already pick from the flagged capabilities says so. A step that fails or finds nothing
+changes nothing and says so on the prompt bar. The request leaves no metrics row
+(ADR-0011; M8 plan 27).
+_Avoid_: link request, relink, linking build
 
 **Matching scan**:
 What links the values already typed when a field is linked, and at startup those of a
