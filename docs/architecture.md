@@ -679,7 +679,10 @@ prompt bar says each field's matching report, or that the field is connected whe
 record named anything in it; two fields picking from one capability are each reported
 by their own label. A step that fails or finds nothing, and a stale request, change
 nothing and say so on the prompt bar, and a request whose fields already pick from the
-flagged capabilities says they are already connected. It stores no metrics row: a
+flagged capabilities says they are already connected. Those endings leave the window as
+it was. A request that connects something draws the window again from the registry, and
+asks the unsaved-changes question first when the open form was changed after the prompt
+was sent or has a save on its way. It stores no metrics row: a
 generation row records a generation's stages and this request runs none, and the
 developer panel reads the resolver's measurement and the step's cost from the live
 preview.
@@ -715,9 +718,12 @@ Restoration waits whenever Aluna has something to say. A build that fails, is
 refused as stale, or comes back a measured no-op adds one final line to the
 narration in the window, in the same voice, and holds the window until the user
 dismisses it; only then does the presenter give back what the build displaced.
-Cancellation restores at once, because the user already knows why. A structured
-refusal lands the same way any other message does: inside the window it renders in
-the window, and from the prompt bar it renders on the bar.
+Cancellation restores at once, because the user already knows why. A run that never
+drew in the window left the form live, so what it gives back waits behind the
+unsaved-changes question when the form was changed after the prompt was sent or has a
+save on its way: a yes places it and a no keeps the form. A structured refusal lands
+the same way any other message does: inside the window it renders in the window, and
+from the prompt bar it renders on the bar.
 
 The behavioral rung is a tier rather than an always-on default because generating
 and executing a suite adds measured latency. A global toggle keeps tier-off

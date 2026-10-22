@@ -168,6 +168,16 @@ export function runRefusesThePrompt(el) {
 export function runHasDrawn(el) {
   const run = buildRunIn(el);
   if (run === null || run.querySelector(BUILD_ENDING_SELECTOR) !== null) return false;
+  return runDrew(run);
+}
+
+/**
+ * Whether a run drew anything in its window: a story, or a capability's own surface.
+ *
+ * @param {RunNode} run
+ * @returns {boolean}
+ */
+export function runDrew(run) {
   return [RUN_NARRATION_SELECTOR, BUILD_COMMIT_SELECTOR].some((part) =>
     holdsSomething(run.querySelector(part)),
   );
@@ -532,17 +542,25 @@ export function askBeforeLeaving(el, go, scope = el, how = {}) {
  * @param {WindowNode | null} el the window the form stands in
  * @param {() => unknown} go what the yes does, answering `PLACES_ITS_OWN_FOCUS` as a navigation would
  * @param {unknown} scope the form the question is about
- * @param {{ draw: () => import("./leaving-unsaved-changes.js").Veil, pressed?: unknown }} how what
- *   the question says, and what was pressed
+ * @param {{
+ *   draw?: () => import("./leaving-unsaved-changes.js").Veil,
+ *   pressed?: unknown,
+ *   stay?: () => void,
+ * }} how what the question says, the unsaved-changes question unless drawn otherwise; what was
+ *   pressed; and what the back-out does besides taking the question down
  * @returns {boolean} whether it is being asked
  */
-export function askOverTheWindow(el, go, scope, { draw, pressed = null }) {
+export function askOverTheWindow(el, go, scope, { draw, pressed = null, stay = () => {} }) {
   if (sentBackToTheQuestion()) return true;
   const how = { unsaved: () => true, keep: true, draw, pressed };
   const question = el === null ? null : unsavedQuestionIn(el, /** @type {never} */ (scope), how);
   if (question === null) return false;
   question.show(true);
-  asking = { question, go };
+  const show = (/** @type {boolean} */ on) => {
+    question.show(on);
+    if (!on) stay();
+  };
+  asking = { question: { ...question, show }, go };
   return true;
 }
 

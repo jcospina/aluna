@@ -1,0 +1,101 @@
+{
+  "id": "reading_log",
+  "subject": "a stack of books",
+  "ground": "amethyst_violet",
+  "companion": "golden_yellow",
+  "noun": "book",
+  "plural_noun": "books",
+  "schema": {
+    "fields": [
+      {
+        "name": "title",
+        "label": "Title",
+        "type": "string",
+        "required": true,
+        "lifecycle": "active",
+        "max_length": 300
+      },
+      {
+        "name": "takeaway",
+        "label": "Brief takeaway",
+        "type": "string",
+        "required": true,
+        "lifecycle": "active",
+        "max_length": 280
+      },
+      {
+        "name": "notes",
+        "label": "Full notes",
+        "type": "string",
+        "required": true,
+        "lifecycle": "active"
+      },
+      {
+        "name": "author",
+        "label": "Author",
+        "type": "string",
+        "required": false,
+        "lifecycle": "active"
+      }
+    ]
+  },
+  "ui_intent": {
+    "form": {
+      "list_inputs": [],
+      "choice_inputs": [],
+      "long_text": ["notes"],
+      "guidance": [
+        {
+          "field": "takeaway",
+          "text": "Keep this to the main idea or lasting impression from the book."
+        }
+      ]
+    },
+    "item": {
+      "direction": "Show the title prominently, followed by the brief takeaway and full reading notes.",
+      "shows": ["title", "takeaway", "notes", "created_at"]
+    },
+    "collection": {
+      "layout": "feed"
+    }
+  },
+  "behavior": "Each book requires a title, a brief takeaway, and full notes. Reading log entries are shown newest first.",
+  "behavioral_errors": [
+    {
+      "action": "create",
+      "trigger": "missing_required_fields",
+      "code": "missing_required_fields",
+      "fields": ["title", "takeaway", "notes"],
+      "expected_markers": {
+        "role_attribute": "data-role",
+        "role": "error",
+        "code_attribute": "data-error-code",
+        "fields_attribute": "data-error-fields",
+        "fields_separator": " "
+      }
+    },
+    {
+      "action": "update",
+      "trigger": "missing_required_fields",
+      "code": "missing_required_fields",
+      "fields": ["title", "takeaway", "notes"],
+      "expected_markers": {
+        "role_attribute": "data-role",
+        "role": "error",
+        "code_attribute": "data-error-code",
+        "fields_attribute": "data-error-fields",
+        "fields_separator": " "
+      }
+    }
+  ],
+  "tools": ["create", "read", "update", "delete", "search"],
+  "read_dependencies": {
+    "create": [],
+    "read": [],
+    "update": [],
+    "delete": [],
+    "search": []
+  },
+  "prompt_context": "Stores books read with their titles, concise takeaways, and detailed personal notes.",
+  "label": "Reading Log"
+}

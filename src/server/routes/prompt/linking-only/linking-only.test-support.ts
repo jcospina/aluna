@@ -1,9 +1,17 @@
 // The desk a linking-only request is tested on: Books and Authors from the Link control's
 // demo desk, the authors seeded and the books typed against them, a request said through POST
-// /prompt with Books standing, and a fake provider answering the resolver and the link step.
+// /prompt with Books standing, and a fake provider answering the resolver and the link step. A
+// published desk stands Notes instead, its artifacts the committed fixture's real published bytes.
 
 import type { ZodType } from "zod";
 import { LINK_STEP_PROMPT_PREFIX } from "../../../../builder/link/link-step.ts";
+import {
+  addCommittedDependency,
+  committedGate,
+  committedSpec,
+  INCARNATION_ID,
+  setUpCommitted,
+} from "../../../../pipeline/evolution/run/evolution-run.test-support.ts";
 import {
   INTENT_RESOLUTION_NARRATION,
   type IntentClassification,
@@ -14,7 +22,8 @@ import {
 } from "../../../../pipeline/jobs/restoration.ts";
 import { LINK_TABLE } from "../../../../platform/persistence/table-names.ts";
 import type { GenerateResult, Provider } from "../../../../platform/provider/index.ts";
-import type { Relation, SpecField } from "../../../../registry/index.ts";
+import { SIXTH_INCARNATION_ID } from "../../../../registry/incarnations.test-support.ts";
+import type { CapabilitySpec, Relation, SpecField } from "../../../../registry/index.ts";
 import {
   createMutationCoordinator,
   type MutationCoordinator,
@@ -74,8 +83,10 @@ export const isLinkPrompt = (prompt: string) => prompt.startsWith(LINK_STEP_PROM
 
 /** One scratch desk and the coordinator the app runs on it, which a test may replace. */
 export interface LinkingDesk {
-  readonly env: ScratchDbEnv;
+  readonly env: Pick<ScratchDbEnv, "dir" | "conns" | "artifactsRoot">;
   coordinator: MutationCoordinator;
+  /** The capability standing in the window as the request is said: Books, unless named. */
+  readonly standing?: { readonly id: string; readonly incarnation: string };
 }
 
 /** Books and Authors on the desk, the authors seeded, and the books typed against them. */
@@ -99,7 +110,21 @@ export function freshDesk(books: readonly (readonly [string, string | null])[]):
   return { env, coordinator: createMutationCoordinator() };
 }
 
-/** Say `prompt` with Books standing in the window, `provider` answering every call. */
+/**
+ * The committed notes v1 published on disk and `shelves` published beside it, Notes standing: a
+ * desk whose every artifact is a real published byte.
+ */
+export async function publishedDesk(shelves: CapabilitySpec): Promise<LinkingDesk> {
+  const engine = await setUpCommitted(await committedGate());
+  await addCommittedDependency(engine, shelves, SIXTH_INCARNATION_ID);
+  return {
+    env: { dir: engine.root, conns: engine.conns, artifactsRoot: engine.artifactsRoot },
+    coordinator: createMutationCoordinator(),
+    standing: { id: committedSpec().id, incarnation: INCARNATION_ID },
+  };
+}
+
+/** Say `prompt` with the desk's capability standing in the window, `provider` answering every call. */
 export async function start(desk: LinkingDesk, provider: Provider, prompt = "connect these") {
   const metrics = makeMetricsRecorder();
   const app = createTestApp({
@@ -110,9 +135,10 @@ export async function start(desk: LinkingDesk, provider: Provider, prompt = "con
     capabilityRouter: { databases: desk.env.conns },
     mutationCoordinator: desk.coordinator,
   });
+  const { id, incarnation } = desk.standing ?? { id: BOOKS.id, incarnation: BOOKS_INCARNATION };
   const standing = {
-    [RESTORATION_CAPABILITY_ID_FIELD]: BOOKS.id,
-    [RESTORATION_INCARNATION_ID_FIELD]: BOOKS_INCARNATION,
+    [RESTORATION_CAPABILITY_ID_FIELD]: id,
+    [RESTORATION_INCARNATION_ID_FIELD]: incarnation,
   };
   const jobId = buildJobIdFromSubscriber(
     await responseText(await postPrompt(app, prompt, standing)),

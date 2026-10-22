@@ -5,14 +5,19 @@
 // afterwards, and the capability's own routes answer as they did: the changes on the page are the
 // chain leaving the linked field and the mark on each unlinked card. A pick saved through the
 // router leaves the Gate's inputs as they were, and the Gate passes on both ends. Unlink then takes
-// the relation off as it came, and every page is the page it was before the link.
+// the relation off as it came, and every page is the page it was before the link; linked again,
+// deleting `shelves` takes it off the same way, and every byte of `notes` stays.
 
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { createHash } from "node:crypto";
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { LINK_MARK_CHAIN } from "#shell/controls/listbox-glyphs.js";
-import { capabilityLinkUrl, capabilityPickUrl, unlinkFieldUrl } from "#shell/core/routes.js";
+import {
+  capabilityDeletionUrl,
+  capabilityLinkUrl,
+  capabilityPickUrl,
+  unlinkFieldUrl,
+} from "#shell/core/routes.js";
 import {
   assertSuccessfulGate,
   FROZEN_BEHAVIORAL_TEST_FILE,
@@ -26,6 +31,7 @@ import {
 import {
   addCommittedDependency,
   committedTierOnGate,
+  digests,
   type EngineEnv,
   HISTORICAL_TEXT,
   INCARNATION_ID,
@@ -33,6 +39,7 @@ import {
   tearDownCommitted,
   versionDirectory,
 } from "../../pipeline/evolution/run/evolution-run.test-support.ts";
+import { LINK_TABLE } from "../../platform/persistence/table-names.ts";
 import { linkableShell } from "../../presentation/controls/link/link-control.ts";
 import { pickTargetMark } from "../../presentation/controls/link/link-copy.ts";
 import { renderableFromRow } from "../../presentation/fields/renderable-capability.ts";
@@ -53,6 +60,7 @@ import { saveBody } from "../../runtime/router/dispatch/links/router.links.test-
 import { formBody } from "../../runtime/router/dispatch/router.test-support.ts";
 import { elementsOf } from "../../server/http/served-page.test-support.ts";
 import { createTestApp } from "../../server/isolated-app.test-support.ts";
+import { confirmationRequest } from "../../server/routes/lifecycle/deletion.test-support.ts";
 import type { PickList } from "./pick/pick.ts";
 
 const SHELVES = notesSpec({ id: "shelves", label: "Shelves", prompt_context: "Stores shelves." });
@@ -89,21 +97,6 @@ function row(id: string): CapabilityRow {
   const found = getCapability(id, env.conns.readonly);
   if (!found) throw new Error(`${id} is not active`);
   return found;
-}
-
-/** Every file under `root`, by path, as a digest of its bytes. */
-function digests(root: string): Record<string, string> {
-  const files: Record<string, string> = {};
-  const walk = (directory: string) => {
-    for (const name of readdirSync(directory).sort()) {
-      const path = join(directory, name);
-      if (statSync(path).isDirectory()) walk(path);
-      else
-        files[relative(root, path)] = createHash("sha256").update(readFileSync(path)).digest("hex");
-    }
-  };
-  walk(root);
-  return files;
 }
 
 function standing(): Standing {
@@ -210,6 +203,12 @@ async function pressFor(target: string): Promise<string> {
 /** Every stored note, as its own table holds it. */
 function storedNotes(): unknown[] {
   return env.conns.readonly.query('SELECT * FROM "cap_notes" ORDER BY "id"').all();
+}
+
+/** How many link rows the notes hold. */
+function notesLinkRows(): number {
+  const sql = `SELECT count(*) AS n FROM ${LINK_TABLE} WHERE source_capability = 'notes'`;
+  return (env.conns.readonly.query(sql).get() as { n: number }).n;
 }
 
 /**
@@ -495,5 +494,57 @@ describe("Unlink, on the same capability", () => {
   test("every route draws what it drew before the link: the chain back, and no mark", () => {
     expect(answeredBefore.record).toContain(`data-link-url="${LINK_URL}"`);
     expect(answeredUnlinked).toEqual(answeredBefore);
+  });
+
+  describe("then deleting the capability the link points at", () => {
+    let notesBytes: Record<string, string>;
+    let linkedRelations: CapabilityRow["relations"];
+    let notesLinked: unknown[];
+    let linkedRows: number;
+    let deletedStatus: number;
+
+    beforeAll(async () => {
+      notesBytes = digests(join(env.artifactsRoot, "notes"));
+      const linked = await app.request(LINK_URL, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: await pressFor("shelves.text"),
+      });
+      await linked.text();
+      linkedRelations = row("notes").relations;
+      linkedRows = notesLinkRows();
+      notesLinked = storedNotes();
+      const deleted = await app.request(
+        `${capabilityDeletionUrl(SHELVES.id)}/confirm`,
+        confirmationRequest(SIXTH_INCARNATION_ID),
+      );
+      deletedStatus = deleted.status;
+      await deleted.text();
+    }, 60_000);
+
+    test("takes the relation and its link rows off as Unlink does, and leaves every stored note as it was", () => {
+      expect(linkedRelations).toStrictEqual(after.notes.relations);
+      expect(deletedStatus).toBe(200);
+      expect(getCapability(SHELVES.id, env.conns.readonly)).toBeNull();
+      expect(row("notes")).toEqual(before.notes);
+      expect(storedNotes()).toStrictEqual(notesLinked);
+      expect(linkedRows).toBeGreaterThan(0);
+      expect(notesLinkRows()).toBe(0);
+    });
+
+    test("makes no version: every published byte of the linking capability, and its versions, stay", () => {
+      expect(Object.keys(notesBytes)).toContain(
+        join(INCARNATION_ID, "v1", FROZEN_BEHAVIORAL_TEST_FILE),
+      );
+      expect(digests(join(env.artifactsRoot, "notes"))).toStrictEqual(notesBytes);
+      expect(readdirSync(join(env.artifactsRoot, "notes", INCARNATION_ID)).sort()).toStrictEqual([
+        ...before.versions,
+      ]);
+      const notes = row("notes");
+      const verified = verifyStoredCapabilitySnapshot(notes.artifacts_path, {
+        pluralNoun: notes.plural_noun,
+      });
+      expect(readFrozenBehavioralTests(verified)).toStrictEqual(before.frozen);
+    });
   });
 });

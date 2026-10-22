@@ -206,18 +206,29 @@ describe("a search's hop along one relation (8.5)", () => {
 });
 
 describe("a Handler's query", () => {
-  test("cannot read the table, alone or joined to its own records", () => {
+  test("cannot read the table through any read the port offers, alone or joined to its own records", () => {
     const spec = notesSpec();
     applyCapabilityTableDdl(spec, env.conns.readwrite);
+    const own = deriveCapabilityTableDdl(spec).tableName;
+    env.conns.readwrite.run(`INSERT INTO "${own}" ("id", "text") VALUES (?, ?)`, [
+      MISTBORN_AUTHOR.record,
+      "Mistborn",
+    ]);
     writeLinkRow(env.conns.readwrite, { ...MISTBORN_AUTHOR, capability: "notes" }, SANDERSON);
     const port = createCapabilityQueryPort(env.conns.readonly, { target: spec });
-    const own = deriveCapabilityTableDdl(spec).tableName;
-    for (const sql of [
-      `SELECT * FROM ${LINK_TABLE}`,
-      `SELECT n."id" FROM "${own}" AS n JOIN ${LINK_TABLE} AS l ON l.source_record = n."id"`,
-    ]) {
-      expect(() => port.all({ sql, result: [] })).toThrow(CapabilityDataValidationError);
-      expect(() => port.all({ sql, result: [] })).toThrow(LINK_TABLE);
+    const target = [{ alias: "target_id", type: "string" as const }];
+    const reads = {
+      all: (sql: string) => port.all({ sql, result: target }),
+      records: (sql: string) => port.records({ sql }),
+    };
+    for (const [entry, read] of Object.entries(reads)) {
+      for (const sql of [
+        `SELECT l.source_record AS target_id FROM ${LINK_TABLE} AS l`,
+        `SELECT n."id" AS target_id FROM "${own}" AS n JOIN ${LINK_TABLE} AS l ON l.source_record = n."id"`,
+      ]) {
+        expect(() => read(sql), entry).toThrow(CapabilityDataValidationError);
+        expect(() => read(sql), entry).toThrow(LINK_TABLE);
+      }
     }
   });
 });

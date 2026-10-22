@@ -251,10 +251,15 @@ async function present(
   const { context } = input;
   if (!context.canPresent()) return undefined;
   const sentence = "sentence" in ending ? ending.sentence : SAID[ending.kind];
-  const answered = sentence === "" || ending.kind === "connected";
+  // Only a connection redraws the window. Every other ending wrote nothing, so the bar says it over
+  // the window as the person left it: an open record and whatever they typed into it stay.
+  const fragment =
+    ending.kind === "connected"
+      ? endingFragment(input, sentence)
+      : renderPromptNotice(sentence, sentence === "" ? "answer" : "refusal");
   await deliverRestoredPresentation(
     context.send,
-    endingFragment(input, sentence, answered ? "answer" : "refusal"),
+    fragment,
     DONE[ending.kind],
     input.terminalPresenterTimeoutMs,
     { metricsPreview: preview(input, ending) },
@@ -285,22 +290,12 @@ function preview(input: LinkingOnlyRequestInput, ending: Ending): string | undef
  * cannot be drawn takes nothing back that was written: the bar still says it, over the window as it
  * was, which shows the link once it is opened again.
  */
-function endingFragment(
-  input: LinkingOnlyRequestInput,
-  sentence: string,
-  tone: "answer" | "refusal",
-): string {
+function endingFragment(input: LinkingOnlyRequestInput, sentence: string): string {
   const { restoration } = input.context.job;
   try {
-    return renderRestorationFragment(
-      restoration,
-      input.buildDatabases.readonly,
-      sentence,
-      "replace",
-      tone,
-    );
+    return renderRestorationFragment(restoration, input.buildDatabases.readonly, sentence);
   } catch (error) {
     console.error("omni-crud could not draw the window again after linking:", errorDetail(error));
-    return renderPromptNotice(sentence, tone);
+    return renderPromptNotice(sentence);
   }
 }

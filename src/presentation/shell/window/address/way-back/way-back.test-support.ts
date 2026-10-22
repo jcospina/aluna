@@ -4,6 +4,7 @@
 // read can be held in flight, and a place can have gone.
 
 import { randomUUID } from "node:crypto";
+import { OPENER, RecordOpener } from "#shell/controls/open/open-linked-record.js";
 import { recordAddress } from "#shell/core/routes.js";
 import { PUT_WINDOW_AWAY_EVENT, WINDOW_TOOK_CAPABILITY_EVENT } from "#shell/core/shell-dom.js";
 import {
@@ -288,3 +289,26 @@ function scene(desk: Awaited<ReturnType<typeof recordDesk>>) {
 }
 
 export type WayBackDesk = Awaited<ReturnType<typeof wayBackDesk>>;
+
+/** The ways the note opens its recipe: the card it lists, or the open icon in a linked field. */
+export const OPENED_BY = {
+  "a listed card": (at: WayBackDesk) => at.pressOn(at.listedCard()),
+  "the open icon in a linked field": (at: WayBackDesk) => pressOpenIcon(at, "recipes"),
+};
+
+/**
+ * The shipped open icon a linked field carries, on the standing record's form, pointed by hand at
+ * `id`'s record and pressed: the desk's double runs no dropdown to point it.
+ */
+async function pressOpenIcon(at: WayBackDesk, id: Id): Promise<void> {
+  const [icon] = parseHtml(OPENER, new Doc()).children as El[];
+  at.view()
+    .querySelector("form")
+    ?.append(icon as El);
+  const opener = new RecordOpener(icon as never, new AbortController().signal, {
+    pressed: () => {},
+    gone: () => {},
+  });
+  opener.point({ capability: id, record: at.stored[id].id, name: at.stored[id].text });
+  await at.pressOn(icon as El);
+}

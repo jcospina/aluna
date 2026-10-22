@@ -1433,9 +1433,10 @@
             every other typed name carries a mark asking for a pick. The name a book shows is its
             author's: picking an author stores that author's name, whatever the handler made of it,
             and renaming the author rewrites every book that picked them in the same save. Deleting
-            the author leaves the name on the book and marks its card for a new pick. Unlinking the
-            field forgets every pick in one write and leaves each book the name it shows, and
-            deleting Authors does the same to every field linked to it.
+            the author empties an optional author field, and a required one keeps the name and marks
+            its card for a new pick. Unlinking the field forgets every pick in one write and leaves
+            each book the name it shows, and deleting Authors does the same to every field linked to
+            it.
           </p>
 
           <details class="aside">
@@ -1512,7 +1513,7 @@
                   <dd>
                     The ids of the other capabilities on the desk the request is related to, empty
                     when it relates to none. The platform keeps only ids of other capabilities on
-                    the desk, and only on a new capability or an extension.
+                    the desk, and only on a new capability, an extension or a linking-only request.
                   </dd>
                 </dl>
               </div>

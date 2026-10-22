@@ -19,7 +19,7 @@ import * as store from "../../../../registry/store/store.ts";
 import { createMutationCoordinator } from "../../../../runtime/concurrency/mutation-coordinator.ts";
 import { install } from "../../../../runtime/router/dispatch/router.test-support.ts";
 import { eventData, lastEventData, teardownScratchDbEnv } from "../../../app.test-support.ts";
-import { PROMPT_REFUSAL_ATTRIBUTE } from "../../../http/fragments/fragments.ts";
+import { renderPromptNotice } from "../../../http/fragments/fragments.ts";
 import {
   AUTHORS,
   BOOKS,
@@ -110,7 +110,8 @@ describe("a linking-only request that changes nothing", () => {
     expect(getCapability(BOOKS.id, desk.env.conns.readonly)).toStrictEqual(booksBefore);
     expect(linkRows(desk)).toBe(0);
     expect(sentences).toStrictEqual(noted ? [RESOLVING, NOTE, sentence] : [RESOLVING, sentence]);
-    expect(lastEventData(events, "fragment")).toContain(PROMPT_REFUSAL_ATTRIBUTE);
+    // Nothing was written, so the window is left as it was: the fragment is the bar's sentence alone.
+    expect(lastEventData(events, "fragment")).toBe(renderPromptNotice(sentence, "refusal"));
     expect(eventData(events, "done")).toBe(done);
   });
 
@@ -132,9 +133,12 @@ describe("a linking-only request that changes nothing", () => {
       return writing(...args);
     });
     try {
-      const { said } = await ask(desk, provider);
+      const { said, events } = await ask(desk, provider);
       expect(writes).toBe(2);
       expect(said).toBe(FAILED_BUILD_ENDING);
+      expect(lastEventData(events, "fragment")).toBe(
+        renderPromptNotice(FAILED_BUILD_ENDING, "refusal"),
+      );
     } finally {
       failing.mockRestore();
     }
@@ -157,6 +161,9 @@ describe("a linking-only request that changes nothing", () => {
     expect(getCapability(BOOKS.id, desk.env.conns.readonly)?.relations).toStrictEqual([]);
     expect(prompts.some(isLinkPrompt)).toBe(false);
     expect(said).toBe(STALE_BUILD_ENDING);
+    expect(lastEventData(events, "fragment")).toBe(
+      renderPromptNotice(STALE_BUILD_ENDING, "refusal"),
+    );
     expect(eventData(events, "done")).toBe("error");
   });
 });
@@ -166,10 +173,13 @@ describe("a linking-only request that is stopped", () => {
     desk = freshDesk([["Kindred", "Octavia E. Butler"]]);
     desk.coordinator = createMutationCoordinator({ buildLeaseTtlMs: 50 });
     const { provider } = answering(new Promise(() => {}));
-    const { said } = await ask(desk, provider);
+    const { said, events } = await ask(desk, provider);
 
     expect(getCapability(BOOKS.id, desk.env.conns.readonly)?.relations).toStrictEqual([]);
     expect(said).toBe(FAILED_BUILD_ENDING);
+    expect(lastEventData(events, "fragment")).toBe(
+      renderPromptNotice(FAILED_BUILD_ENDING, "refusal"),
+    );
   });
 
   test.each([
@@ -213,7 +223,7 @@ describe("a linking-only request that is stopped", () => {
     expect(linkRows(desk)).toBe(0);
     expect(prompts.filter(isLinkPrompt).length).toBe(when === "while the step decides" ? 1 : 0);
     expect(sentences.at(-1)).toBe("");
-    expect(lastEventData(events, "fragment")).not.toContain(PROMPT_REFUSAL_ATTRIBUTE);
+    expect(lastEventData(events, "fragment")).toBe(renderPromptNotice(""));
     expect(eventData(events, "done")).toBe("error");
     expect(preview).toMatchObject({ outcome: "cancelled" });
   });

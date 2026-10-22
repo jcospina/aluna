@@ -1,0 +1,92 @@
+{
+  "id": "book_collection",
+  "subject": "a stack of books",
+  "ground": "amethyst_violet",
+  "companion": "golden_yellow",
+  "noun": "book",
+  "plural_noun": "books",
+  "schema": {
+    "fields": [
+      {
+        "name": "title",
+        "label": "Title",
+        "type": "string",
+        "required": true,
+        "lifecycle": "active"
+      },
+      {
+        "name": "author",
+        "label": "Author",
+        "type": "string",
+        "required": true,
+        "lifecycle": "active"
+      },
+      {
+        "name": "quotes",
+        "label": "Relevant quotes",
+        "type": "string[]",
+        "required": false,
+        "lifecycle": "active"
+      }
+    ]
+  },
+  "ui_intent": {
+    "form": {
+      "list_inputs": [
+        {
+          "field": "quotes",
+          "mode": "repeatable"
+        }
+      ],
+      "choice_inputs": [],
+      "long_text": [],
+      "guidance": []
+    },
+    "item": {
+      "direction": "Show each book as a text-forward entry with its title prominent and author beneath.",
+      "shows": ["title", "author"]
+    },
+    "collection": {
+      "layout": "feed"
+    }
+  },
+  "behavior": "Books require a title and author. Entries are shown with the most recently created book first.",
+  "behavioral_errors": [
+    {
+      "action": "create",
+      "trigger": "missing_required_fields",
+      "code": "missing_required_fields",
+      "fields": ["title", "author"],
+      "expected_markers": {
+        "role_attribute": "data-role",
+        "role": "error",
+        "code_attribute": "data-error-code",
+        "fields_attribute": "data-error-fields",
+        "fields_separator": " "
+      }
+    },
+    {
+      "action": "update",
+      "trigger": "missing_required_fields",
+      "code": "missing_required_fields",
+      "fields": ["title", "author"],
+      "expected_markers": {
+        "role_attribute": "data-role",
+        "role": "error",
+        "code_attribute": "data-error-code",
+        "fields_attribute": "data-error-fields",
+        "fields_separator": " "
+      }
+    }
+  ],
+  "tools": ["create", "read", "update", "delete", "search"],
+  "read_dependencies": {
+    "create": [],
+    "read": [],
+    "update": [],
+    "delete": [],
+    "search": []
+  },
+  "prompt_context": "Stores books along with the author of each book.",
+  "label": "Books"
+}

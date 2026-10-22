@@ -116,10 +116,10 @@ function shell() {
           // A sentence about the run that just ended retires with it. Words typed while the
           // person was told to wait were never submitted, so they stay.
           //
-          // Only a bar this run actually locked: a question woke it when it opened its window,
-          // and the next question may be half typed by the time the answer lands. Waking again
-          // would take those words away and pull focus off whatever the person is doing.
-          if (this.promptBusy) wakePrompt(!theWordsInTheFieldStay());
+          // Only a bar this run locked: a question woke it at its window, and waking again would
+          // take away the next one, half typed. Nor is the keyboard taken off the question the
+          // desk asks over the window before it puts back what the run displaced.
+          if (this.promptBusy) wakePrompt(!theWordsInTheFieldStay(), !theDeskIsAsking);
           return;
         }
         this.promptBusy = false;
@@ -212,6 +212,16 @@ const REFUSED_PROMPT_ATTRIBUTE = "data-refused-prompt";
 const REFUSE_IN_THE_ANSWER_WINDOW_EVENT = "aluna:refuse-in-the-answer-window";
 
 /**
+ * A run about to put back what it displaced, offered to the desk first, which may hold it while it
+ * asks about a form that would go. Kept in sync with `public/desk/leaving-a-form.js`, and pinned
+ * by a test that runs both.
+ */
+const RESTORE_THE_WINDOW_EVENT = "aluna:restore-the-window";
+
+/** Whether the desk took this close's restoration to ask first, which then has the keyboard. */
+let theDeskIsAsking = false;
+
+/**
  * Whether the run now ending refused what was typed. The words stay in the field either way,
  * because a refusal asks the person to tell her one thing they would like to keep track of, and
  * a field emptied under that sentence takes back the very thing it asks for.
@@ -245,9 +255,15 @@ function nameTheWindow(title) {
  * @returns {string | undefined}
  */
 function closeTypeOf(event) {
-  return event instanceof CustomEvent && typeof event.detail === "object" && event.detail !== null
-    ? event.detail.type
-    : undefined;
+  return event instanceof CustomEvent ? event.detail?.type : undefined;
+}
+
+/**
+ * What in the window's content region matches `selector`, if anything does.
+ * @param {string} selector
+ */
+function inTheWindow(selector) {
+  return document.getElementById(WINDOW_REGION_ID)?.querySelector(selector) ?? null;
 }
 
 /**
@@ -255,9 +271,7 @@ function closeTypeOf(event) {
  * @returns {HTMLElement | null}
  */
 function heldRunEnding() {
-  const ending = document
-    .getElementById(WINDOW_REGION_ID)
-    ?.querySelector(`${BUILD_SUBSCRIBER_SELECTOR} ${BUILD_ENDING_SELECTOR}`);
+  const ending = inTheWindow(`${BUILD_SUBSCRIBER_SELECTOR} ${BUILD_ENDING_SELECTOR}`);
   return ending instanceof HTMLElement ? ending : null;
 }
 
@@ -375,14 +389,8 @@ function markedFragment(listener, raw, attribute) {
  * @returns {boolean}
  */
 function preserveActiveView(listener, raw) {
-  if (!listener.classList.contains("build-stream__fragment")) return false;
-
-  const template = document.createElement("template");
-  template.innerHTML = raw;
-  const restoration = template.content.querySelector(
-    '[data-build-restoration-behavior="preserve"]',
-  );
-  if (!(restoration instanceof HTMLElement)) return false;
+  const restoration = markedFragment(listener, raw, 'data-build-restoration-behavior="preserve"');
+  if (!restoration) return false;
 
   const subscriber = listener.closest("[data-build-job-id]");
   const output = subscriber?.closest(`#${WINDOW_REGION_ID}`);
@@ -401,7 +409,7 @@ function preserveActiveView(listener, raw) {
   );
   if (!shouldPreserve) return false;
 
-  const explanation = template.content.querySelector(`#${PROMPT_NOTICE_ID}`);
+  const explanation = restoration.parentNode?.querySelector(`#${PROMPT_NOTICE_ID}`);
   if (explanation instanceof HTMLElement) {
     const marked = explanation.querySelector(PROMPT_REFUSAL_SELECTOR) !== null;
     tellThePromptBar(explanation.textContent ?? "", marked);
@@ -556,8 +564,7 @@ document.addEventListener("htmx:sseBeforeMessage", (event) => {
  * @returns {HTMLElement | null}
  */
 function activeCapabilitySurface() {
-  const output = document.getElementById(WINDOW_REGION_ID);
-  const surface = output?.querySelector(":scope > [data-active-capability-id]");
+  const surface = inTheWindow(":scope > [data-active-capability-id]");
   return surface instanceof HTMLElement ? surface : null;
 }
 
@@ -583,8 +590,7 @@ document.addEventListener("htmx:configRequest", (event) => {
 document.addEventListener("htmx:beforeRequest", (event) => {
   const detail = /** @type {CustomEvent<{ elt?: Element }>} */ (event).detail;
   if (!(detail?.elt instanceof HTMLFormElement) || detail.elt.id !== PROMPT_FORM_ID) return;
-  const output = document.getElementById(WINDOW_REGION_ID);
-  const standing = output?.querySelector(BUILD_SUBSCRIBER_SELECTOR);
+  const standing = inTheWindow(BUILD_SUBSCRIBER_SELECTOR);
   if (standing instanceof HTMLElement) {
     // A run still going is what this guard is for; one waiting to be read is not. Dropped rather
     // than given back: what it displaced was covered, so placing it starts a read nothing wants.
@@ -637,9 +643,7 @@ document.addEventListener("htmx:beforeRequest", (event) => {
  * @returns {boolean}
  */
 function runIsUsingTheWindow() {
-  const standing = document
-    .getElementById(WINDOW_REGION_ID)
-    ?.querySelector(`${BUILD_SUBSCRIBER_SELECTOR}:not(${QUESTION_RUN_SELECTOR})`);
+  const standing = inTheWindow(`${BUILD_SUBSCRIBER_SELECTOR}:not(${QUESTION_RUN_SELECTOR})`);
   return standing instanceof HTMLElement && standing.querySelector(BUILD_ENDING_SELECTOR) === null;
 }
 
@@ -889,6 +893,7 @@ function rescueHeldEnding(eventTarget) {
  * @returns {boolean} whether a real pointer activation took the window
  */
 function finishTerminalPresentation(eventTarget) {
+  theDeskIsAsking = false;
   if (!(eventTarget instanceof Element)) return false;
   const subscriber = eventTarget.closest(BUILD_SUBSCRIBER_SELECTOR);
   const output = subscriber?.closest(`#${WINDOW_REGION_ID}`);
@@ -913,7 +918,15 @@ function finishTerminalPresentation(eventTarget) {
     return false;
   }
 
-  return completeTerminalPresentation(subscriber, output, true);
+  // Only what the run displaced is offered: a commit and a story are the run's own to place.
+  const place = () => completeTerminalPresentation(subscriber, output, true);
+  if (terminalPresentationContent(subscriber)?.restorationKind === undefined) return place();
+  const later = () => tellDeskTheWindowTookCapability(place());
+  const detail = { run: subscriber, place: later, drop: () => dropHeldRun(subscriber) };
+  const offer = new CustomEvent(RESTORE_THE_WINDOW_EVENT, { detail, cancelable: true });
+  theDeskIsAsking = !document.dispatchEvent(offer);
+  if (theDeskIsAsking) nameTheWindow(null);
+  return !theDeskIsAsking && place();
 }
 
 // The press that ends the wait. The control is about to be detached, so focus goes to the prompt

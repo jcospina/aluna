@@ -4,7 +4,15 @@
 // build's. Driven through POST /prompt with a fake provider; no test calls a real one.
 
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
+import { readdirSync } from "node:fs";
+import { join } from "node:path";
 import type { ZodType } from "zod";
+import { SNAPSHOT_MANIFEST_FILE } from "../../../../builder/artifacts/publication/snapshot-contract.ts";
+import {
+  digests,
+  HISTORICAL_TEXT,
+  INCARNATION_ID,
+} from "../../../../pipeline/evolution/run/evolution-run.test-support.ts";
 import * as restoration from "../../../../pipeline/jobs/restoration.ts";
 import type { GenerateResult, Provider } from "../../../../platform/provider/index.ts";
 import {
@@ -19,13 +27,15 @@ import {
   SIXTH_INCARNATION_ID,
 } from "../../../../registry/incarnations.test-support.ts";
 import { getCapability } from "../../../../registry/index.ts";
+import { notesSpec } from "../../../../registry/spec/spec.test-support.ts";
 import * as store from "../../../../registry/store/store.ts";
 import { install } from "../../../../runtime/router/dispatch/router.test-support.ts";
 import { eventData, lastEventData, teardownScratchDbEnv } from "../../../app.test-support.ts";
-import { PROMPT_REFUSAL_ATTRIBUTE } from "../../../http/fragments/fragments.ts";
+import { PROMPT_REFUSAL_ATTRIBUTE, renderPromptNotice } from "../../../http/fragments/fragments.ts";
 import {
   AUTHORS,
   BOOKS,
+  BOOKS_INCARNATION,
   type DeskCapability,
   deskRow,
   READING_LOG,
@@ -45,6 +55,7 @@ import {
   LINKING,
   type LinkingDesk,
   linkRows,
+  publishedDesk,
   RESOLVING,
   TITLE_TO_LOG,
 } from "./linking-only.test-support.ts";
@@ -81,6 +92,7 @@ const COMICS: DeskCapability = {
     textField("artist", "Artist", { max_length: 120 }),
   ],
 };
+const SHELVES = notesSpec({ id: "shelves", label: "Shelves", prompt_context: "Stores shelves." });
 
 describe("a linking-only request", () => {
   test("the step runs alone under the build lease, and the relation lands in place with its scan", async () => {
@@ -107,7 +119,7 @@ describe("a linking-only request", () => {
       writeLeases.push(desk.coordinator.snapshot().activeLease?.kind ?? null);
       return writing(...args);
     });
-    const { events, sentences, preview, metrics, jobId } = await ask(desk, watched);
+    const { events, sentences, preview, metrics, jobId, said } = await ask(desk, watched);
     written.mockRestore();
 
     const books = getCapability(BOOKS.id, desk.env.conns.readonly);
@@ -125,6 +137,14 @@ describe("a linking-only request", () => {
       matchingReport(BOOK_NOUNS, AUTHORS.noun, { linked: 2, unmatched: 1 }),
     ]);
     const ending = lastEventData(events, "fragment");
+    // The one ending that wrote something redraws the window from the registry as it now stands.
+    const standing: restoration.RestorationDescriptor = {
+      kind: "capability",
+      capabilityId: BOOKS.id,
+      incarnationId: BOOKS_INCARNATION,
+    };
+    const redrawn = restoration.renderRestorationFragment(standing, desk.env.conns.readonly, said);
+    expect(ending).toBe(redrawn);
     expect(ending).toContain("data-linked-field");
     expect(ending).not.toContain(PROMPT_REFUSAL_ATTRIBUTE);
     expect(eventData(events, "done")).toBe("ok");
@@ -186,6 +206,40 @@ describe("a linking-only request", () => {
   });
 });
 
+describe("a linking-only request on a capability published on disk", () => {
+  test("links in place: every published byte is the byte it was, and no version directory appears", async () => {
+    desk = await publishedDesk(SHELVES);
+    const { conns, artifactsRoot } = desk.env;
+    conns.readwrite.run('INSERT INTO "cap_shelves" ("id", "text") VALUES (?, ?)', [
+      "shelf-0",
+      HISTORICAL_TEXT,
+    ]);
+    const versions = () => readdirSync(join(artifactsRoot, "notes", INCARNATION_ID)).sort();
+    const before = { files: digests(artifactsRoot), versions: versions() };
+    const notesBefore = getCapability("notes", conns.readonly);
+    const intent = { ...LINKING, target_capability: "notes", related_capabilities: [SHELVES.id] };
+    const toShelf = { field: "text", capability: SHELVES.id, target_field: "text" };
+    const { events } = await ask(desk, answering({ relations: [toShelf] }, intent).provider);
+
+    const notes = getCapability("notes", conns.readonly);
+    expect(notes?.relations).toStrictEqual([
+      {
+        field: "text",
+        to: { capability: SHELVES.id, incarnation: SIXTH_INCARNATION_ID, field: "text" },
+      },
+    ]);
+    expect({ ...notes, relations: [] }).toStrictEqual({ ...notesBefore, relations: [] });
+    expect(linkRows(desk)).toBe(1);
+    expect(eventData(events, "done")).toBe("ok");
+    expect(Object.keys(before.files)).toContain(
+      join("notes", INCARNATION_ID, "v1", SNAPSHOT_MANIFEST_FILE),
+    );
+    expect(digests(artifactsRoot)).toStrictEqual(before.files);
+    expect(versions()).toStrictEqual(before.versions);
+    expect(before.versions.filter((name) => /^v\d+$/.test(name))).toStrictEqual(["v1"]);
+  });
+});
+
 describe("a linking-only request whose window stays as it was", () => {
   test("fields that already have a relation keep it, and the bar says they are already connected", async () => {
     desk = freshDesk([["The Dispossessed", "Ursula K. Le Guin"]]);
@@ -206,7 +260,10 @@ describe("a linking-only request whose window stays as it was", () => {
     // No field is open, so no call is made and nothing is said to be under way.
     expect(prompts.some(isLinkPrompt)).toBe(false);
     const connected = [{ field: bookField("author"), targetPlural: AUTHORS.plural }];
-    expect(sentences).toStrictEqual([RESOLVING, alreadyConnected(BOOKS.noun, connected)]);
+    const already = alreadyConnected(BOOKS.noun, connected);
+    expect(sentences).toStrictEqual([RESOLVING, already]);
+    // Nothing was written, so the window is left as it was: the fragment is the bar's sentence alone.
+    expect(lastEventData(events, "fragment")).toBe(renderPromptNotice(already, "refusal"));
     expect(eventData(events, "done")).toBe("ok");
   });
 

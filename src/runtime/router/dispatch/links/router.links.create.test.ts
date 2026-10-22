@@ -108,6 +108,17 @@ describe("a valid pick", () => {
   });
 });
 
+describe("text with no match", () => {
+  test("still saves as text, with no link row, and its card carries the mark", async () => {
+    // The dropdown posts its marker with no record once the text names none.
+    const response = await routerApp(conns).request(CREATE, newNote("Someone typed this", ""));
+    expect(response.status).toBe(200);
+    expect(notes(conns)).toStrictEqual([{ id: created(), text: "Someone typed this" }]);
+    expect(linkRows(conns)).toStrictEqual([]);
+    expect(await response.text()).toContain('class="link-mark"');
+  });
+});
+
 describe("a pick naming no record", () => {
   const refused = async (id: string, deps = {}) => {
     const spy = makeSpyLoader();

@@ -4,8 +4,9 @@
 // Not a test file itself; bun never runs it.
 
 import { expect } from "bun:test";
-import { readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { readdirSync, readFileSync, rmSync, statSync } from "node:fs";
+import { join, relative } from "node:path";
 import type { ZodType } from "zod";
 import { evolutionIntentFor } from "../../../builder/evolution/candidate/candidate.test-support.ts";
 import {
@@ -420,6 +421,21 @@ export function publishedUnit(env: EngineEnv, version: number, filename: string)
 
 export function versionDirectory(env: EngineEnv, version: number): string {
   return join(env.artifactsRoot, "notes", INCARNATION_ID, `v${version}`);
+}
+
+/** Every file under `root`, by path, as a digest of its bytes. */
+export function digests(root: string): Record<string, string> {
+  const files: Record<string, string> = {};
+  const walk = (directory: string) => {
+    for (const name of readdirSync(directory).sort()) {
+      const path = join(directory, name);
+      if (statSync(path).isDirectory()) walk(path);
+      else
+        files[relative(root, path)] = createHash("sha256").update(readFileSync(path)).digest("hex");
+    }
+  };
+  walk(root);
+  return files;
 }
 
 export function tableColumns(env: EngineEnv, table: string): string[] {

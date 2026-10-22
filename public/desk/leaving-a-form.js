@@ -6,6 +6,8 @@
  * prompt. Each asks first when the form has unsaved changes, and a yes
  * makes the same press again. Listened for on the window in the capture phase, so the question
  * comes before every listener of the page's: htmx's, Alpine's, the desk's own and the prompt bar's.
+ * A prompt's run that never drew left the form live under nothing, so what it puts back when it
+ * ends asks the same question before it replaces the form.
  */
 
 import {
@@ -16,12 +18,15 @@ import {
   RECORD_FORM_SELECTOR,
   WINDOW_CONTENT_ID,
 } from "../core/shell-dom.js";
-import { hasUnsavedChanges } from "../records/unsaved-changes.js";
+import { hasUnsavedChanges, STARTING } from "../records/unsaved-changes.js";
 import { WINDOW_DOORWAY_SELECTOR } from "./desk-doorway.js";
 import {
   askBeforeLeaving,
+  askOverTheWindow,
   buildJobIdIn,
   leavingIsBeingAsked,
+  RUN_ID_ATTRIBUTE,
+  runDrew,
   runHasDrawn,
   runRefusesThePrompt,
 } from "./leaving-a-run.js";
@@ -66,6 +71,7 @@ const FORM_SURFACE_SELECTOR = "[data-record-view], .capability-collection__creat
  *   getElementById(id: string): Pressable | null,
  *   querySelectorAll?: (selector: string) => Iterable<{ getAttribute(name: string): string | null }>,
  * }} Desk
+ * @typedef {Desk & Pick<Document, "addEventListener">} Page
  * @typedef {{
  *   el: Pressable,
  *   scope: Pressable,
@@ -206,6 +212,47 @@ export function saveHeldByTheQuestion(form) {
   return leavingIsBeingAsked() && form.matches?.(RECORD_FORM_SELECTOR) === true;
 }
 
+/**
+ * What `public/app.js` offers before a run puts back what it displaced. Cancelled, the desk has
+ * taken it, and calls `place` or `drop` once it knows which.
+ */
+export const RESTORE_THE_WINDOW_EVENT = "aluna:restore-the-window";
+
+/** A save or a delete still on its way from a form in the window, which a swap would abort. */
+const MUTATION_ON_ITS_WAY_SELECTOR = 'form[aria-busy="true"]';
+
+/**
+ * Whether the window has not been gone back into since the prompt was sent, so any changes in it
+ * stood then and were given up by the yes that sent it.
+ */
+let untouchedSinceSend = false;
+
+/**
+ * Hold what a run puts back while it would replace a form with something to lose: what was typed
+ * since the prompt was sent, or a save still on its way. Only a run that never drew is held, as one
+ * that drew had hidden the form. A yes places it and a no keeps the form, the bar having said the
+ * run's sentence either way, and a question already standing keeps the form as well.
+ *
+ * @param {Desk} desk
+ * @param {{
+ *   run: import("./leaving-a-run.js").RunNode & { removeAttribute(name: string): void },
+ *   place: () => unknown,
+ *   drop: () => void,
+ * }} restoring
+ * @returns {boolean} whether the desk took it
+ */
+export function holdTheRestoration(desk, { run, place, drop }) {
+  const el = standingWindow(desk)?.el ?? null;
+  if (el === null || runDrew(run)) return false;
+  const over = /** @type {never} */ (el);
+  const saving = el.querySelector?.(MUTATION_ON_ITS_WAY_SELECTOR) != null;
+  if (!saving && (untouchedSinceSend || !hasUnsavedChanges(over))) return false;
+  // The run is over: what it left waits on the answer, and nothing may take it for a run going.
+  run.removeAttribute(RUN_ID_ATTRIBUTE);
+  if (leavingIsBeingAsked() || !askOverTheWindow(over, place, over, { stay: drop })) drop();
+  return true;
+}
+
 /** @param {Event} event */
 function stop(event) {
   event.preventDefault();
@@ -213,12 +260,35 @@ function stop(event) {
 }
 
 /**
+ * Stand what a run puts back behind the question, and keep whether the window was gone back into
+ * since the prompt was sent: only a prompt's own request says it was sent, not a save's.
+ *
+ * @param {Pick<Window, "addEventListener">} view
+ * @param {Page} desk
+ */
+function startHoldingRestorations(view, desk) {
+  desk.addEventListener(RESTORE_THE_WINDOW_EVENT, (event) => {
+    if (holdTheRestoration(desk, /** @type {CustomEvent} */ (event).detail)) event.preventDefault();
+  });
+  view.addEventListener("htmx:beforeSend", (event) => {
+    const sent = /** @type {CustomEvent<{ elt: { id?: string } }>} */ (event).detail.elt;
+    if (sent.id === PROMPT_FORM_ID) untouchedSinceSend = true;
+  });
+  const touched = (/** @type {Event} */ event) => {
+    const region = standingWindow(desk)?.region;
+    if (region?.contains?.(/** @type {never} */ (event.target))) untouchedSinceSend = false;
+  };
+  for (const type of STARTING) view.addEventListener(type, touched, true);
+}
+
+/**
  * Stand the exits behind the question, on the page's window, before every listener of the page's.
  *
  * @param {Pick<Window, "addEventListener">} view
- * @param {Desk} desk
+ * @param {Page} desk
  */
 export function startLeavingAForm(view, desk) {
+  startHoldingRestorations(view, desk);
   view.addEventListener(
     "click",
     (event) => {

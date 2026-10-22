@@ -21,7 +21,7 @@ import { READ_UNAVAILABLE_FRAGMENT } from "../../../../../runtime/router/wire/fa
 import { Doc, type El, parseHtml } from "../../../../controls/double/choice-picker.test-support.ts";
 import { CAPABILITY } from "../../../../records/record-view/record-view.test-support.ts";
 import { RECORD_VIEW_ATTR, recordTitle } from "../../../../records/record-view/record-view.ts";
-import { type WayBackDesk, wayBackDesk } from "./way-back.test-support.ts";
+import { OPENED_BY, type WayBackDesk, wayBackDesk } from "./way-back.test-support.ts";
 
 let desk: WayBackDesk | undefined;
 afterEach(() => {
@@ -30,11 +30,11 @@ afterEach(() => {
   desk = undefined;
 });
 
-/** The notes list, then its note, then the recipe listed on the note: three entries. */
-async function recipeFromNote(framed = false) {
+/** The notes list, then its note, then the recipe opened from the note: three entries. */
+async function recipeFromNote(framed = false, open = OPENED_BY["a listed card"]) {
   desk = await wayBackDesk((places) => places.list("notes"), framed);
   await desk.pressOn(desk.card());
-  await desk.pressOn(desk.listedCard());
+  await open(desk);
   return desk;
 }
 
@@ -47,16 +47,18 @@ describe("Save, Cancel and Delete leave the way Back does", () => {
     "a committed save": (at) => at.commit("save"),
     "a confirmed delete": (at) => at.commit("delete"),
   };
-  for (const [way, leave] of Object.entries(ways)) {
-    test(`${way} lands on the record it was opened from, drawn fresh`, async () => {
-      const at = await recipeFromNote();
-      leave(at);
-      await at.settled();
-      expect(at.asked().at(-1)).toBe(at.at.record("notes"));
-      await at.tab.arrived();
-      expect([at.tab.at(), at.tab.location.pathname]).toEqual([1, at.at.record("notes")]);
-      expect(onFirstField(at)).toBe(true);
-    });
+  for (const [opener, open] of Object.entries(OPENED_BY)) {
+    for (const [way, leave] of Object.entries(ways)) {
+      test(`${way} on a record opened by ${opener} lands on the record it was opened from, drawn fresh`, async () => {
+        const at = await recipeFromNote(false, open);
+        leave(at);
+        await at.settled();
+        expect(at.asked().at(-1)).toBe(at.at.record("notes"));
+        await at.tab.arrived();
+        expect([at.tab.at(), at.tab.location.pathname]).toStrictEqual([1, at.at.record("notes")]);
+        expect(onFirstField(at)).toBe(true);
+      });
+    }
   }
 
   test("the record it lands on shows what the save changed", async () => {

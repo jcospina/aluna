@@ -208,7 +208,8 @@ cancel teardown and then completes the requested navigation. From Module 7 it al
 guards every in-desk exit from a record form with unsaved changes — a field changed
 since the person started on it, or an upload pending or still streaming — and a
 confirmed leave deletes any upload it held. A form nobody changed, or one whose save
-is already on its way, closes without asking.
+is already on its way, closes without asking. What a run that never drew puts back asks
+first when the form was changed after the prompt was sent or has a save on its way.
 _Avoid_: minimise, hide, exit; "close" names the gesture, "put away" is what it
 does. **Dismiss** is not a synonym for it either — it is the word for ending a
 held ending and getting back whatever it covered (see **Ending**), which leaves
@@ -729,11 +730,12 @@ _Avoid_: linker, relation writer, link pass, link agent
 
 **Related-capability flag**:
 The Intent Resolver's judgment of which capabilities on the desk a request is related
-to: those one of whose records a new record, or the field an extension adds, would be
-about or would name. It judges what each capability keeps, not field names or phrasing.
-The spec writer and the link step see only the flagged capabilities, so the two cannot
-disagree; with none flagged the spec writer's prompt is unchanged and the link step does
-not run. A flag is no `read_dependency` (ADR-0011; M8 plan 48 to 51).
+to: those one of whose records a new record, the field an extension adds, or the field a
+linking-only request links, would be about or would name. It judges what each
+capability keeps, not field names or phrasing. The spec writer and the link step see
+only the flagged capabilities, so the two cannot disagree; with none flagged the spec
+writer's prompt is unchanged and the link step does not run. A flag is no
+`read_dependency` (ADR-0011; M8 plan 48 to 51).
 _Avoid_: relation detection, dependency flag; overlap, which is the separate
 extend-or-separate decision
 
@@ -747,7 +749,8 @@ Each relation the Link control's rules admit is written in place through its wri
 with the matching scan, inside that lease and no other, and the prompt bar reports the
 scan's counts. A field that already has a relation keeps it, and a request whose fields
 already pick from the flagged capabilities says so. A step that fails or finds nothing
-changes nothing and says so on the prompt bar. The request leaves no metrics row
+changes nothing, says so on the prompt bar and leaves the window as it was. The request
+leaves no metrics row
 (ADR-0011; M8 plan 27).
 _Avoid_: link request, relink, linking build
 

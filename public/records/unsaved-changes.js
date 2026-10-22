@@ -24,7 +24,7 @@ const DATETIME_FIELD = "data-edit-datetime-input";
 const LIST_ROW = "[data-list-field-row]";
 
 /** The moments a person starts on a form, each one before the change it brings. */
-const STARTING = ["focusin", "pointerdown", "dragenter"];
+export const STARTING = ["focusin", "pointerdown", "dragenter"];
 
 /**
  * As much of a form and its fields as the reading needs, so a plain object stands in for one.
