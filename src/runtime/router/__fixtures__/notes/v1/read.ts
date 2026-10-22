@@ -1,4 +1,4 @@
-// Hand-written fixture handler.
+// Hand-written fixture handler — the notes fixture's `read`.
 //
 // The `read` half of the notes fixture: it pulls live rows through the physically
 // read-only query port and renders every row through the injected presentation adapter.

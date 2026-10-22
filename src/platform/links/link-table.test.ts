@@ -124,7 +124,7 @@ describe("a row", () => {
     );
   });
 
-  test("naming one record goes with it, or only one field's, and no other (8.1/06)", () => {
+  test("naming one record goes with it, or only one field's, and no other", () => {
     const database = env.conns.readwrite;
     const editor = { ...MISTBORN_AUTHOR, field: "editor" };
     const quote = { capability: "quotes", record: "quote-1", field: "by" };
@@ -145,7 +145,7 @@ describe("a row", () => {
     expect(picked("book-3")).toEqual(new Map([["author", elsewhere]]));
   });
 
-  test("goes with its capability at either end, in every lifetime, and no other's (8.1/07)", () => {
+  test("goes with its capability at either end, in every lifetime, and no other's", () => {
     const database = env.conns.readwrite;
     const byAuthor = { capability: "authors", record: "author-0", field: "mentor" };
     const people = { capability: "people", incarnation: "people-1", record: "person-1" };

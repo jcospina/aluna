@@ -79,7 +79,7 @@ describe("older stored capabilities parse forward", () => {
     for (const field of parsed.schema.fields) expect(field.max_length).toBeUndefined();
   });
 
-  test("every collection this Module added canonicalizes together, from one older shape", () => {
+  test("the choice, long-text and guidance collections canonicalize together, from one older shape", () => {
     const ancient = storedSpecWithout("choice_inputs", "long_text", "guidance");
     const parsed = capabilitySpecSchema.parse(canonicalizeStoredCapabilityShape(ancient));
     expect(parsed).toEqual(

@@ -96,7 +96,7 @@ export function runFullBehavioralRung(input: CapabilityGateInput): Promise<Behav
   const frozen = input.behavioralTier?.frozen;
   if (!frozen) {
     throw new Error(
-      "Behavioral tier is on, but no frozen test suite was supplied. Tests are generated and frozen before Handler generation or repair (PLAN decision 23).",
+      "Behavioral tier is on, but no frozen test suite was supplied. Tests are generated and frozen before Handler generation or repair.",
     );
   }
   assertFrozenTestsContract(input.spec, frozen.frozenTests);

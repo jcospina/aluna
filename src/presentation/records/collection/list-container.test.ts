@@ -83,7 +83,7 @@ describe("collection layout — closed feed | grid map", () => {
     );
   });
 
-  test("the default layout is feed (PLAN decision 5, until 3.3/01)", () => {
+  test("the default layout is feed", () => {
     expect(DEFAULT_COLLECTION_LAYOUT).toBe("feed");
   });
 });
@@ -363,7 +363,7 @@ describe("item wrapper — the record button", () => {
     expect(listed.getAttribute(CARD_RECORD_ATTRIBUTE)).toBe("book-7");
   });
 
-  test("omits what it opens when it opens nothing (frame-only, the 3.2/02 shape)", () => {
+  test("omits what it opens when it opens nothing (frame-only)", () => {
     const card = wrapperOf("<span>x</span>", { title: "x" });
     expect(card.hasAttribute(CARD_CAPABILITY_ATTRIBUTE)).toBe(false);
     expect(card.hasAttribute(CARD_RECORD_ATTRIBUTE)).toBe(false);

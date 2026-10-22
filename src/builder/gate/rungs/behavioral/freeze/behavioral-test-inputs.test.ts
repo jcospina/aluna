@@ -278,7 +278,7 @@ describe("a file field's tokens are create/update validation shape", () => {
 });
 
 describe("per-Action behavioral test inputs — the closed set", () => {
-  test("projects exactly the five keys decision 23 admits, and no others", () => {
+  test("projects exactly the five admitted keys, and no others", () => {
     for (const inputs of specActionTestInputs(RICH_SPEC)) {
       expect(Object.keys(inputs).sort()).toEqual([
         "action",

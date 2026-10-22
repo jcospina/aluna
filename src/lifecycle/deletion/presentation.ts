@@ -118,7 +118,7 @@ export function renderCapabilityDeletionConfirmation(
     // runs, the way the prompt bar says "Making it", and stop the control being pressed twice.
     `  <button class="btn btn--danger" type="submit" ${DELETION_EXIT_ATTRIBUTE}>`,
     `    <span class="capability-deletion__label" data-deletion-idle-label>Delete permanently</span>`,
-    `    <span class="capability-deletion__label" data-deletion-busy-label>Erasing…</span>`,
+    `    <span class="capability-deletion__label" data-deletion-busy-label>Deleting…</span>`,
     `  </button>`,
     `</form>`,
   ].join("\n");

@@ -6,7 +6,7 @@
  * from a literal here, so a swatch cannot drift from the token it names. The
  * measured ratio under each one is computed the same way, from the two tokens
  * it names and nothing else — this page states the numbers the contrast audit
- * asserts (`src/presentation/contrast-audit.ts`), and neither can go stale
+ * asserts (`src/presentation/contrast/contrast-audit.ts`), and neither can go stale
  * without the other going with it.
  */
 

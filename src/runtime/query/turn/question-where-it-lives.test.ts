@@ -87,9 +87,9 @@ let platforms: ScratchPlatforms;
 
 /**
  * The living demo's desk. Expenses is bespoke because the shared fixture declares no choice field
- * and this decision is about a column's own values; Notes is the shared spec. Both hold rows,
- * because a question that matched none would end in `questionFoundNothing`'s weaker sentence
- * before the gap was ever weighed.
+ * and the subject here lives in a column's own values; Notes is the shared spec. Both hold rows,
+ * because a question that matched none would end in `questionFoundNothing`'s weaker sentence before
+ * the gap was ever weighed.
  */
 function desk(): QuestionDesk {
   return questionDesk(platforms, undefined, (database: Database) => {

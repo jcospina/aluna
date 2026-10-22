@@ -135,7 +135,7 @@ function everyAction(row: BehavioralTierTransitionRow): string[] {
   return ACTIONS.map((action) => `${action}:${row}`);
 }
 
-describe("decision 24's transition table — the tier-off rows", () => {
+describe("the tier-transition table — the tier-off rows", () => {
   beforeEach(async () => {
     env = await setUpCommitted(gate);
   });
@@ -219,7 +219,7 @@ describe("decision 24's transition table — the tier-off rows", () => {
   });
 });
 
-describe("decision 24's transition table — the tier-on rows", () => {
+describe("the tier-transition table — the tier-on rows", () => {
   beforeEach(async () => {
     env = await setUpCommitted(gate);
   });
@@ -300,7 +300,7 @@ describe("decision 24's transition table — the tier-on rows", () => {
   });
 });
 
-describe("decision 24's transition table — the on → on rows over one version", () => {
+describe("the tier-transition table — the on → on rows over one version", () => {
   beforeEach(async () => {
     env = await setUpCommitted(gate);
   });

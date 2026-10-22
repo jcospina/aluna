@@ -314,7 +314,7 @@ describe("a desk action asking for the window a run is using", () => {
     expect(pressDeskAction(scene, deskFurniture())).toBe(false);
   });
 
-  test("is what a control hung on a logo is — 5.9's menu and rename editor", () => {
+  test("is what a control hung on a logo is — the logo's menu and rename editor", () => {
     const scene = desk();
     const logo = deskLogo();
     const menuItem = new El("button", {

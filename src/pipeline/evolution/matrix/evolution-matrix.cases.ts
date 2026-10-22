@@ -200,7 +200,7 @@ export const MATRIX: readonly MatrixCase[] = [
     ddl: [],
   },
   {
-    row: "free-text behavior → all five Handlers and the complete suite (decision 22)",
+    row: "free-text behavior → all five Handlers and the complete suite (the conservative fallback)",
     intent: "keep the newest notes at the top and trim the text",
     candidate: () =>
       notesSpec({ behavior: "Text is required and trimmed. Newest notes appear first." }),

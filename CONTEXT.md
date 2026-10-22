@@ -70,10 +70,11 @@ The whole surface Aluna occupies: a wallpaper, the logo of every capability the
 user has, the prompt bar floating clear of all four edges, and the capability window.
 Two further windows may stand beside it — the developer panel and the answer window —
 and neither displaces it. Logos
-fill down a column and wrap to the next, taking as many columns as the desk
-holds. There is no taskbar, so the logos are the only standing list of what
-exists, and a fresh user sees a wallpaper and a prompt bar with nothing withheld
-until a first capability arrives. The address `/` is the bare desk,
+fill down a column and wrap to the next, and columns past the desk's width scroll
+sideways; on a phone they fill rows and scroll down. There is no taskbar, so the
+logos are the only standing list of what exists, and a fresh user sees a wallpaper, a
+prompt bar and the developer panel's tile, with nothing withheld until a first
+capability arrives. The address `/` is the bare desk,
 `/capability/:id` is the desk with that capability in the window, and its
 **record address** is the desk with one record open in that window
 ([design/index.html](design/index.html) D4, D14; M5 plan 3, 4, 6; ADR-0010).
@@ -83,16 +84,16 @@ menu, drawer, taskbar, dock
 **Window**:
 The single frame every capability appears in. It floats on the desk, drags by its
 title bar, resizes from the bottom-right corner, and carries two lamps: leaf
-maximises, clay puts it away. There is no minimise, and there is never a second
-window except the developer panel's. Everything a capability shows happens
+maximises, clay puts it away. There is no minimise, and the only other windows are
+the developer panel and the answer window. Everything a capability shows happens
 inside it — the collection, one record, a confirmation, the narration of a build
 — so opening a record swaps what the frame holds and opening another capability
-swaps the contents without the frame moving. Nothing in Aluna opens over anything
-else, except the one question a navigation asks before it takes a running build or a
-form's unsaved changes, read over that window's own body (see **Put away**). Below the 720px breakpoint the window is the screen, and it neither drags,
-resizes nor maximises; desktop geometry is ignored rather than overwritten, and
-only the frontmost window is exposed if the developer panel is also open (design
-D1, D2, D12; M5 plan 47, 48).
+swaps the contents without the frame moving. No capability content opens over other
+capability content. A question asked about what a window holds is read over that
+window's own body: the one a navigation asks before it takes a running build or a
+form's unsaved changes (see **Put away**), and Unlink's. Below the 720px breakpoint the
+window is the screen, and it neither drags, resizes nor maximises; desktop geometry is ignored rather than overwritten, and
+only the frontmost of the open windows is shown (design D1, D2, D12; M5 plan 47, 48).
 _Avoid_: content area and detail modal (both superseded), modal, dialog, popup,
 main panel, canvas, workspace, body
 
@@ -171,7 +172,8 @@ _Avoid_: remove link, break link, detach; disconnect in docs, since it is the pr
 **Broken-link mark**:
 The mark a linked field carries when it holds text with no record behind it: a name the
 matching scan could not place, a link broken by deleting the record it pointed at on a field
-that keeps its text, or one broken by clearing that record's text (proposed in ADR-0011).
+that keeps its text, or one broken by clearing that record's text, which today leaves every
+linking record its text (ADR-0011 proposes emptying an optional field instead).
 The item wrapper draws it on the card in the list, never the generated card, and in
 the form the line under the field takes its place. It asks for a pick and refuses nothing
 (ADR-0011; M8 plan 17).
@@ -185,7 +187,7 @@ window's (M8 plan 34 to 39).
 _Avoid_: backlink, related record, reverse link, child record
 
 **Contextual Back**:
-The record's back control from 8.3 on. It returns to the list or record the record was
+The record's back control. It returns to the list or record the record was
 opened from and names it, "← The Way of Kings", and Save, Cancel and Delete leave the
 same way. A record opened from an answer link returns to what the window held under the
 answer. One opened from a pasted address, a reload or the bare desk opens the record's own
@@ -195,8 +197,9 @@ _Avoid_: breadcrumb, history trail, return link
 
 **Put away**:
 What the clay lamp does. The window disappears, the logo stays where it was, the
-address falls back to `/`, and nothing in storage changes; the same click on the
-same logo brings the window back. Putting the window away while a build or an
+address falls back to `/`, and no record or capability changes. The window's remembered
+position, size and maximised state are forgotten, so the same click on the same logo
+brings the window back the way a first window opens, centred. Putting the window away while a build or an
 evolution is running warns first, because it kills the run, and proceeds only on
 confirmation through a question read over the window that leaves the run mounted. Deleting a
 capability is a different action and is deliberately
@@ -204,16 +207,17 @@ unreachable from window chrome, which is why no lamp is signal red (design D3;
 M5 plan 17, 19).
 The same leave-run warning guards switching to another capability logo and
 Back/Forward while a build or evolution is mounted; confirmation uses the one
-cancel teardown and then completes the requested navigation. From Module 7 it also
+cancel teardown and then completes the requested navigation. It also
 guards every in-desk exit from a record form with unsaved changes — a field changed
 since the person started on it, or an upload pending or still streaming — and a
 confirmed leave deletes any upload it held. A form nobody changed, or one whose save
 is already on its way, closes without asking. What a run that never drew puts back asks
 first when the form was changed after the prompt was sent or has a save on its way.
 _Avoid_: minimise, hide, exit; "close" names the gesture, "put away" is what it
-does. **Dismiss** is not a synonym for it either — it is the word for ending a
-held ending and getting back whatever it covered (see **Ending**), which leaves
-the window standing
+does. **Dismiss** is not a synonym for it either. It is the word for closing the
+answer window, which has no logo to bring it back. It is also the word for ending a
+held ending and getting back whatever it covered, which leaves the window standing
+(see **Ending**)
 
 **Logo**:
 A capability's picture, and its permanent identity on the desk. A hosted vector
@@ -256,12 +260,13 @@ not the colour that gets drawn)
 The concrete colour a logo is actually drawn with — one of the four rungs each hue
 family opens onto, thirty-two in all. **The spec never authors it**: Aluna resolves
 it from the capability's incarnation seed, so two capabilities that name the same
-hue still come out different colours. This is the only entropy in the colour path,
+hue usually come out different colours; one time in four their seeds give both the same
+shade. This is the only entropy in the colour path,
 and it exists because a spec-authoring model collapses to one modal answer for a
 whole neighbourhood of prompts and cannot see any other capability. Every shade is
 saturated and light enough for daylight, with no near-blacks, no pastels and no
-greys. Shades are not design tokens: they reach the generation request and nothing
-else (ADR-0007, amended 2026-08-25).
+greys. Shades are not design tokens: they reach the generation request and the developer
+panel's commit readout, and style nothing (ADR-0007, amended 2026-08-25).
 _Avoid_: tint, tone, variant, palette token
 
 **Ground colour**:
@@ -309,13 +314,15 @@ the field itself, but the region is the "prompt bar")
 **Drawn line**:
 Every visible boundary in Aluna, drawn rather than ruled. A drawn edge deviates
 from true on a fixed wavelength, is inked twice from two seeds, and is mitred at
-every corner. The weight is 2px everywhere and the hierarchy lives in the
+every corner; only a pill's ends and a radio's mark are drawn round, and the lamps are
+round too. The weight is 2px everywhere and the hierarchy lives in the
 amplitude: a full hand for the things that hold others, a fine hand for what sits
 inside a window, a close hand for small parts. It reaches into generated content,
 so the cards, rows and tables a capability produces are drawn too, seeded from
 the record's own id and therefore stable across a view swap and a resize. No seed
 ever comes from where an element sits. Only what sits on the desk casts a shadow,
-and the logo tile's 10% corner is the surface's one rounded corner. Because the
+and besides those round shapes the logo tile's 10% corner is the surface's one rounded
+corner. Because the
 ink system owns every boundary, generated markup never declares `border`,
 `border-radius`, `box-shadow` or a font family, and takes colour, type size and
 spacing only from the sets in `design/styles/` (design D10, D11;
@@ -328,8 +335,8 @@ a row sliding out of a dragged row's way, a window arriving from somewhere else.
 Named as its own thing because it is the half of motion that Reduce Motion turns
 off, on one axis (`--travel` in `design/styles/tokens.css`) that every travelling
 distance and duration is a multiple of. The other half is in-place life — a mark
-growing into its box, a chevron turning over, the pet breathing — which runs for
-everyone, always. Which half a rule is on is the property it uses: `translate`
+growing into its box, a chevron turning over — which runs for everyone, always.
+Which half a rule is on is the property it uses: `translate`
 travels, `scale` and `rotate` do not, and `transform` only says where a thing sits
 (design D8; M5 plan 44).
 _Avoid_: animation (too broad — it covers both halves), transition, movement
@@ -339,26 +346,13 @@ The second window, and one of the two exceptions to there being one — the othe
 *answer window*. It is read-only,
 opens from its own tile on the desk, and may sit beside the capability being
 watched, because reading what a build did while it does it is one activity. It
-holds the build's raw generation internals — each stage's JSON (spec, migration,
-units, gate, commit) — shown as it streams, and it is the one place in Aluna a
-monospace face appears, because it shows raw payloads and stands outside the
-product voice. It is a curiosity surface for people who want to see how Aluna
+holds raw generation internals in eight readouts — metrics, spec, candidate, behavioral
+tests, migration, units, gate and commit — each one's JSON shown as it streams. It is the
+one place in Aluna a monospace face appears, because it shows raw payloads and stands
+outside the product voice. It is a curiosity surface for people who want to see how Aluna
 works, never a place to steer code, schema, framework, or styling decisions.
-Module 11's experimenter surface lives in it too (design D13; M5 plan).
+Module 11's experimenter surface, not yet built, is to live in it too (design D13; M5 plan).
 _Avoid_: console, debug drawer, inspector, right sidebar
-
-**The pet**:
-An anthropomorphic *spark of Aluna* — a small luminous companion with a face that
-lives on the prompt bar, walks along it, and talks from there. A first-class
-delight feature carrying no business logic. Defined now, deferred to a later issue
-([docs/pet.md](docs/pet.md) is guidance of its vintage, not a contract); its name is
-a TBD authentic Kogi word (do not fabricate one). It is related to Aluna, but it is
-**not Aluna herself**. Its form, anatomy, hue and technique are the user's to decide
-and are not anticipated anywhere. **Nothing depends on it.** Module 6's answer window
-settled the query-answer surface without it (ADR-0008), and Module 10 may settle the
-proposal surface the same way; the pet is a delight feature that may never be built,
-and no plan should be written that waits on it.
-_Avoid_: orb (the superseded concept), mascot, avatar, assistant, bot, spinner
 
 **Step label**:
 The closed six-member vocabulary a question's tool call carries beside its SQL — looking at
@@ -408,8 +402,8 @@ none of these words ever appear in UI copy.
 
 **Action**:
 One operation a capability exposes — `create`, `read`, `update`, `delete`,
-`search` (Module 2 ships create + read). Always reached through the fixed route
-convention; never an AI-invented route.
+`search`. Every capability has all five, and no evolution drops one. Always reached
+through the fixed route convention; never an AI-invented route.
 _Avoid_: endpoint, route, operation
 
 **Capability incarnation**:
@@ -425,7 +419,7 @@ _Avoid_: capability version, capability id, generation id
 The registry's durable record of where one incarnation's artwork has got to:
 a status of `absent`, `generating`, `present` or `abandoned`, and the count of
 attempts spent on it. `generating` is a claim, won atomically by exactly one
-sweep and paid for the moment it is won rather than when a provider answers, so
+attempt, whether from a tile armed at commit or one armed by a desk render, and paid for the moment it is won rather than when a provider answers, so
 two desk loads can never order the same drawing twice, and the third claim is the
 last one any concurrency can win. It is platform-owned and
 absent from every authored spec, and no ordinary registry write can move it —
@@ -438,15 +432,16 @@ _Avoid_: logo job, render status, retry flag, hash seed
 
 **Desk-load sweep**:
 What a desk load does for the work nobody else will finish, because the page load
-is the one moment the platform reliably gets. For the capabilities that have no
-face, a fresh render arms one load-triggered attempt on every `absent` tile, and
-that is the whole self-healing mechanism — no scheduler. From Module 7 it also
-takes every **pending upload** still standing, since a reload has destroyed any
-form that held one, and hands it to the file ledger's cleanup without holding up
-the render. Only a browser loading the page into a tab sweeps. An htmx swap, an
-image, a HEAD or a request from outside a browser is not a desk load. A browser's
-prefetch of the desk is declined, so the load itself arrives. A load that finds no
-pending upload queues nothing.
+is the one moment the platform reliably gets. Every full-page render of a desk address
+is one: it runs **logo recovery**, presses a retry of any stranded deletion cleanup and
+wakes the file cleanup. For the capabilities that have no face, the fresh render arms
+one load-triggered attempt on every `absent` tile, and that is the whole self-healing
+mechanism — no scheduler. A browser loading the page into a tab also takes every
+**pending upload** still standing, since a reload has destroyed any form that held one,
+and hands it to the file ledger's cleanup without holding up the render. An htmx swap,
+an image, a HEAD or a request from outside a browser takes none. A browser's prefetch of
+the desk is declined, so the load itself arrives. A load that finds no pending upload
+queues nothing.
 It is not a background job and holds no queue of its own.
 _Avoid_: retry job, logo worker, background sweep, cron
 
@@ -486,8 +481,9 @@ _Avoid_: cleanup list, orphan list, file list
 **Mutation coordinator**:
 The platform module that atomically admits every write on the shared read-write
 connection. A resolved build receives a bounded FIFO ticket and only the head
-holds the long active lease; record and platform writes hold short leases;
-capability deletion uses a non-queued try-acquire. Reads never enter it. It
+holds the long active lease; platform writes queue behind the tickets for a short lease;
+record writes and capability deletion are non-queued try-acquires, refused while any
+lease is held or awaited. Reads never enter it. It
 replaces advisory busy flags and prevents unrelated requests from joining one open
 SQLite write transaction. A record-write lease contains the complete generated
 Handler lifecycle in one SQLite transaction: a non-success response rolls back the
@@ -497,10 +493,12 @@ _Avoid_: busy flag, build-only queue, mutation lock check
 **Core Builder**:
 Everything between an already-resolved build request and a changed platform: the
 bounded ticket, the exclusive lease, lease-head revalidation, the durable
-admission row, and the run itself — spec or candidate, migration, units, Gate,
-publication, activation. It owns no prompt route, no active DOM, and no SSE. It
-takes a **resolved build request** and a **build presenter**, and emits one terminal
-lifecycle event into that presenter while its lease is still held. This is the
+admission row, and the run itself — spec or candidate, migration, the behavioral freeze
+and units with the **link step** beside both, Gate, publication, activation. It owns no
+prompt route, no active DOM, and no SSE. It takes a **resolved build request** and a
+**build presenter**, and emits one terminal lifecycle event into that presenter while
+its lease is still held. A build cancelled while queued is told so with no lease, and
+any other failure to get the lease is told as a failure. This is the
 reuse seam: the explicit loop resolves a typed prompt and supplies the foreground
 presenter, while Module 10's implicit loop will hand over an already-confirmed
 proposal in the same shape — never reclassified — and choose a presenter of its
@@ -514,25 +512,26 @@ _Avoid_: build pipeline, the builder service, prompt pipeline
 
 **Resolved build request**:
 What prompt resolution hands to the Core Builder. It binds one **target
-expectation** — `expected_absent` for a new semantic id, or the exact
-`{ capability_id, incarnation_id, expected_version }` of the capability being
-evolved — plus the revision or canonical fingerprint of the one active registry
-catalog it was classified against. Both are revalidated at the head of the lease
-(PLAN decision 28).
+expectation** — `absent` for a new capability, or the exact
+`{ capabilityId, incarnationId, version }` of the capability being evolved — plus the
+canonical fingerprint of the one active registry catalog it was classified against. Both
+are revalidated at the head of the lease (PLAN decision 28). Absence is checked over a
+semantic id only when the Resolver proposed one; an id the Builder authors is checked once
+the spec names it, and a clash then fails the build rather than refusing it as stale.
 _Avoid_: build job, build intent, classification
 
 **Build presenter**:
 The adapter that turns the Core Builder's terminal lifecycle event into what a
-person sees. The explicit-loop presenter takes the window, narrates the
-foreground product-voice story, and emits one View `commit` — only for a real
-pointer activation. Every non-activating terminal instead gives back what the
+person sees. The explicit-loop presenter takes the window, carries the narration the
+stages write, and emits one View `commit` — only for a real pointer activation. Every non-activating terminal instead gives back what the
 build displaced, streaming the canonical committed View through `fragment` with
 no sidecar for the desk. Cancellation gives it back at once; a failure, a stale
 refusal and a measured no-op end the narration with their own authored line and
 the window **holds** there until the person dismisses the ending, which is when
 the collection is placed (PLAN decisions 23, 25). Presentation is not a Builder
-invariant: Module 10 may choose another presenter entirely (PLAN decisions 29, 31;
-ADR-0002).
+invariant: Module 10 may choose another presenter, which takes over everything at the
+terminal but not yet the narration the stages send (see **Core Builder**; PLAN decisions
+29, 31; ADR-0002).
 _Avoid_: renderer, view layer, the SSE handler
 
 **Ending**:
@@ -563,9 +562,10 @@ row carries the expected incarnation for an evolution, and none at all for a new
 capability refused before one was assigned. Distinct from the measured no-op
 (`success/no_change`), which is a candidate that was authored and found identical
 (PLAN decisions 28, 31, 37). The catalog binding covers **every active row**, so
-any concurrent registry change refuses a queued build even when it touched an
+any concurrent change to one refuses a queued build even when it touched an
 unrelated capability — deliberate, because the classification was made about a
-world that no longer exists, overlap and naming reasoning included.
+world that no longer exists, overlap and naming reasoning included. Two parts of a row
+are left out of the binding and refuse nothing: its logo lifecycle and its relations.
 _Avoid_: conflict, retry, race error, rebase
 
 **Field name**:
@@ -630,8 +630,10 @@ _Avoid_: deleted option, removed option, inactive option
 
 **File admission**:
 The platform's decision that an uploaded file is a type Aluna accepts. The
-extension must be on the closed allowlist, which holds only what a browser can
-show, a declared type must not contradict it (a blank or generic declaration is
+extension must be on the closed allowlist — images, video and audio a browser can show
+or play, and PDF, Word, Markdown and plain-text documents, of which only a PDF opens in
+the browser while the rest download under their own names. A declared type must not
+contradict the extension (a blank or generic declaration is
 no claim, not a contradiction), and the file's own bytes must confirm the family.
 A file that fails is refused; nothing is ever stored as an unknown type, and the
 type a file is recorded under is the verified one, never the claimed one.
@@ -656,8 +658,7 @@ soon as the form lets it go unsaved: a later pick replaced it, the person cleare
 it or dropped it from a list, or its window or record left the desk. A save whose
 Handler never stored one gives it up in its own transaction. The route moves only
 keys still pending, so a save that got there first keeps its file. Leaving a record whose form holds one
-asks first, through the same question that guards a running build, and a
-confirmed leave deletes it. Anything a crash, a kill or a closed tab leaves behind
+asks first, over the window as a running build does, and a confirmed leave deletes it. Anything a crash, a kill or a closed tab leaves behind
 is taken by the **desk-load sweep**, since a reload destroys an open form; a
 second tab's form loses its upload that way, and its save is refused with a
 sentence asking for the file again. No pending upload expires on a timer.
@@ -683,9 +684,9 @@ never sees it and every evolution carries it forward unchanged. Changing one mak
 version. A relation made by the link step and one made by the Link control are the same,
 and nothing records which made it. Hiding its source or target field makes it dormant.
 Reactivating the field revives it with its link rows, and each linked record shows its
-target's current text again. ADR-0011 proposes dormancy and revival too when an
-evolution breaks one of its rules, with a save that changes the dormant field's text
-dropping its link row. It is no `read_dependency` and never blocks a deletion
+target's current text again. An evolution that breaks one of its rules makes it dormant
+too, and one that mends the rule revives it, as ADR-0011 proposes; a save that changes a
+dormant field's text drops its link row. It is no `read_dependency` and never blocks a deletion
 (ADR-0011; M8 plan 3, 7 to 10).
 _Avoid_: foreign key, reference, association, link definition, schema link
 
@@ -703,10 +704,12 @@ choice presentation
 **Link row**:
 One row of the **link table**: a source capability, record and field, and the target
 capability, incarnation and record that field picked. A save writes it in the record's
-own transaction, and the matching scan writes its rows in the transaction that writes
-the relation; Unlink, deleting either record, clearing the target's text (proposed in
-ADR-0011) and capability deletion remove it. A dormant relation keeps its link rows
-(ADR-0011).
+own transaction, and the matching scan writes its rows in the transaction that writes or
+wakes the relation, and at startup. Unlink, deleting either record, clearing the
+target's text and capability deletion remove it, and so does an edit that leaves the
+field without a pick once its text has changed. A dormant relation keeps its link rows
+until a save changes the field's text, and a revival drops each row naming a record
+that holds no name (ADR-0011).
 _Avoid_: reference row, pointer, foreign key
 
 **Link table**:
@@ -714,7 +717,7 @@ The platform table that records which record each linked field picked: rows of s
 capability, record and field, pointing at a target capability, incarnation and record,
 on the **file ledger**'s pattern. It lies outside every Handler's query scope by
 construction and is indexed both ways. Only the platform writes it: a save in the
-record's own transaction, the matching scan, Unlink and deletion. A question reads it
+record's own transaction, the matching scan, a relation's revival, Unlink and deletion. A question reads it
 through a view that holds only active relations' rows (ADR-0011; M8 plan 11, 12, 47).
 _Avoid_: join table, junction table, foreign-key table, hidden column
 
@@ -755,14 +758,18 @@ leaves no metrics row
 _Avoid_: link request, relink, linking build
 
 **Matching scan**:
-What links the values already typed when a field is linked, and at startup those of a
-field linked before it existed. In the transaction that writes the relation, under its lease, it trims spaces and invisible marks at both ends,
+What links the values already typed when a field is linked or a dormant relation wakes,
+and, at every startup, each name a linked field holds without a working link. A link or
+a wake runs it in the transaction that writes or wakes the relation, under its lease, and
+a startup runs it before the server takes a request. It trims spaces and invisible marks
+at both ends,
 folds case with Unicode case folding and no accent folding, reads an accent the same
 however it was composed, and writes a link row for each value that matches exactly one
 target record. Ambiguous and
 unmatched values keep their text and carry the broken-link mark, and no stored text
-changes. The prompt bar reports how many records
-were connected and how many need a pick (ADR-0011; M8 plan 22, 25).
+changes. When the Link control or a linking-only request links a field, the prompt bar
+reports how many records were connected and how many need a pick (ADR-0011; M8 plan 22,
+25).
 _Avoid_: backfill, migration, auto-link, fuzzy match
 
 **Linked-text refresh**:
@@ -772,7 +779,7 @@ against each linking capability's table. It, the clearing that deleting a target
 brings and a woken relation's revival are the only platform writes into another
 capability's records. A
 rewritten field that is itself a target passes the change on down the chain, each field
-once (proposed in ADR-0011). The clearing empties each optional field linked to a deleted
+once, as ADR-0011 proposes. The clearing empties each optional field linked to a deleted
 record; a required one keeps its text and shows the **broken-link mark** (M8 plan 28). A
 linking capability closed by its own deletion is skipped (ADR-0011; M8 plan 16).
 _Avoid_: sync, cascade update, propagation, denormalization
@@ -823,21 +830,20 @@ markup, never by the renderer (ADR-0011).
 _Avoid_: row helper, card component, template
 
 **View**:
-A capability's data-free surface inside the window. Module 2 generates and caches
-the initial `list`/`create` scaffolding; Module 3 moves that structural chrome
-into platform rendering while live data continues to arrive through capability
-handlers. Module 5 makes the window the only place a View lands, and ties
-teardown to the content it replaces rather than to the window, so a swap from the
+A capability's data-free surface inside the window. The platform draws it from the
+capability's spec, with no model call and nothing generated, while live data arrives
+through the capability's Handlers. The window is the only place a View lands, and
+teardown is tied to the content it replaces rather than to the window, so a swap from the
 collection to one record and back releases what each left running. A View never
 contains cached user data (ADR-0004, amended by ADR-0005; M5 plan 13).
 _Avoid_: template, page, screen
 
 **Gate**:
 The layered, fail-closed validation every publishable candidate must clear before
-commit — type-check, signature assertion, smoke run, and (when the tier is on)
-behavioral tests; Module 3 adds design lint for generated item markup, which
-Module 5 re-derives against the drawn line — three properties picked from the
-High Meadow sets, four never declared at all. It runs against a scratch database
+commit, in four rungs: structural (type-check and signature assertion), smoke run,
+behavioral tests when the tier is on, and design lint, which always runs and holds
+generated item markup to the drawn line — three properties picked from the High Meadow
+sets, four never declared at all. It runs against a scratch database
 through adapters that expose only synthetic data, and its structural/static
 checks reject known direct bypasses. Generated code still executes in-process, so
 the Gate protects against accidental output rather than containing hostile code
@@ -858,13 +864,14 @@ The ownership record one operation holds over the exact incarnations it can obse
 operation acquires its *complete* set atomically against one gate/catalog snapshot or
 receives none, and releases the complete set in `finally`. An exception is the
 linked-text refresh and the clearing a target record's deletion brings. The edit also
-takes the token of every capability its refresh reaches, down the chain where ADR-0011's
-proposed chain rule applies. The deletion also takes the token of each capability holding
+takes the token of every capability its refresh reaches, down every chain. The deletion also takes the token of each capability holding
 an optional field linked to the record through a relation that holds. Each is taken apart
 from the operation's own set and without waiting, so a linking capability closed by its own
 deletion is skipped, never waited on (ADR-0011). The
 record address takes the token of each capability linking to its record apart from its own too,
-so one closed by its own deletion leaves its section out (M8 plan 38). Generated
+so one closed by its own deletion leaves its section out (M8 plan 38). A search that
+follows links takes the token of each capability it reaches the same way and leaves out
+one whose token cannot be taken. Generated
 code never receives the token — it only observes cancellation as a thrown error.
 _Avoid_: read lock, handle, reservation
 
@@ -873,7 +880,8 @@ The element a view is rendered into, and the owner of everything that view start
 The window's content is the one that matters, and each capability's records region is
 one inside it; the shell's own content area was a content region until the window
 replaced it. The window creates its region and takes it away again, so putting the
-window away is the only way a region disappears. Marked `data-content-region` so the
+window away is the only way the window's region disappears; a records region goes
+whenever the window swaps the collection for one record. Marked `data-content-region` so the
 release scope can find it, and never confused with the **window**, which is the frame
 around it — one window holds many successive region contents (M5 plan 13).
 _Avoid_: content area (the shell's one instance, not the concept), container,
@@ -959,26 +967,28 @@ _Avoid_: soft delete, deleted flag, archive row
 
 **Frozen behavioral intent**:
 The behavioral test suite a tier-on version is held to, generated per Action from
-that Action's total inputs and written before any Handler byte exists. Published
+that Action's total inputs and the active fields' row vocabulary, and written before any Handler byte exists. Published
 as `tests/behavioral.json` and digested into the snapshot manifest. Because it
 precedes the code, repair answers to it and never the other way around: a failing
 assertion rewrites a Handler, never a test (PLAN decision 23, ADR-0006).
 _Avoid_: the generated tests, the test file, expectations
 
 **Total inputs**:
-The closed set one Action's behavioral tests may be generated from — free-text
+The closed set one Action's behavioral tests are keyed on — free-text
 `behavior`, that Action's own `behavioral_errors` with their stable markers, its
-declared dependency identities, and a per-Action schema projection. Never Handler
-source, field labels, field order, `ui_intent`, inactive fields, or a
-dependency's schema. Their canonical serialization is content-addressed as the
-Action's **test input digest**: equal digests mean the Action's tests carry
-forward untouched, which is what makes "a label rename regenerates nothing" a
-fact about a hash rather than a policy (PLAN decision 23).
+declared dependency identities, and a per-Action schema projection. The test writer
+also gets the active fields as a vocabulary for synthetic rows, kept outside the set.
+Neither carries Handler source, field labels, field order, `ui_intent`, inactive
+fields, or a dependency's schema. The set's canonical serialization is
+content-addressed as the Action's **test input digest**: an equal digest carries the
+Action's tests forward untouched unless they no longer fit the current fixtures, as
+when their rows name a field since hidden. That is what makes "a label rename
+regenerates nothing" a fact about a hash rather than a policy (PLAN decision 23).
 _Avoid_: test context, the prompt, generation inputs
 
 **Executable impact**:
 Which Handlers a build authors rather than copies forward — the thing test
-*execution* follows, as distinct from the total inputs generation follows. A
+*execution* follows, as distinct from the total inputs that decide regeneration. A
 frozen suite copied byte-for-byte still runs whenever a Handler it covers
 regenerates, and may skip only when no covered Handler moved; each Action's suite
 covers exactly its own Handler, because a case invokes that one Handler and seeds
@@ -1011,8 +1021,16 @@ Narration, proposals, confirmations, and errors all speak in product voice.
 | "All set. Want to add anything else?" | "Build committed; v1 artifacts written." |
 | "Hmm, that didn't work — mind trying again?" | "Smoke test failed; build aborted." |
 
-Authored copy is written where the surface that speaks it is rendered — the prompt bar's
-cold-start placeholder (`public/index.html`), everything the platform says about a build
-or a deletion (`src/web/fragments.ts`, `src/presentation/record-view.ts`,
-`src/capability-deletion/`). The placeholder is still the exemplar: **"What would you like
+Authored copy is written where the surface that speaks it is rendered:
+
+- the prompt bar's placeholder: `public/index.html`
+- a build's narration: the stages that run it
+- a build's endings: `src/pipeline/streaming/terminal-presentation.ts`
+- the question asked before leaving a run: `src/server/http/fragments/fragments.ts`
+- a record's sentences and refusals: `src/presentation/records/record-view/record-view.ts`
+  and `src/runtime/router/wire/failure-responses.ts`
+- the question asked before leaving unsaved changes: `public/desk/leaving-unsaved-changes.js`
+- a deletion's sentences: `src/lifecycle/deletion/`
+
+The placeholder is still the exemplar: **"What would you like
 to keep track of?"** — warm, jargon-free, on-thesis.

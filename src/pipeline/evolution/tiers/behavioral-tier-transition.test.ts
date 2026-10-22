@@ -51,7 +51,7 @@ const ALL_GENERATED = execution(
 );
 const ALL_CARRIED = execution({});
 
-describe("the behavioral-tier transition table (decision 24)", () => {
+describe("the behavioral-tier transition table", () => {
   test("off → off carries no artifacts and names the tier-off row", () => {
     expect(behavioralTierTransition({ prior: "off", candidate: "off" })).toEqual({
       prior: "off",

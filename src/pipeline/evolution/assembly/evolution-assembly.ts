@@ -319,7 +319,7 @@ function unnarrowableEvolutionReason(
   if (input.diff.workPlan.gate.behavioral.fullSuite) {
     return {
       unnarrowableReason:
-        "a changed fact scoped to no single Action (PLAN decision 22's conservative fallback), so no copied suite can be proven unaffected",
+        "a changed fact scoped to no single Action (the conservative fallback), so no copied suite can be proven unaffected",
     };
   }
   // The renderer covers no Action, but every fragment assertion renders through it, so shrinking

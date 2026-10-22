@@ -59,12 +59,7 @@ describe("High Meadow token-layer cutover", () => {
       );
       expect(read(file)).not.toContain("--color-");
     }
-    const deliveredSources = [
-      ...filesUnder("public", new Set([".css", ".html", ".js"])),
-      ...filesUnder("docs", new Set([".html"])),
-      ...filesUnder("modules", new Set([".html"])),
-    ];
-    for (const file of deliveredSources) {
+    for (const file of filesUnder("public", new Set([".css", ".html", ".js"]))) {
       expect(read(file), `${file} still consumes a retired Paper & Ink token`).not.toMatch(
         /var\(--(?:color-|border-|radius-|font-sans|space-0_5)/,
       );
@@ -83,13 +78,6 @@ describe("High Meadow token-layer cutover", () => {
     expect(read("public/css/shell.css")).toContain(
       'url("/design/assets/wallpaper/high-meadow.webp")',
     );
-    expect(read("architecture/index.html")).toContain('href="../design/styles/index.css"');
-    expect(
-      read("modules/04-explicit-loop-ii-full-crud-and-evolution/TECHNICAL-GUIDE.html"),
-    ).toContain('href="../../design/styles/index.css"');
-    const pagesWorkflow = read(".github/workflows/pages.yml");
-    expect(pagesWorkflow).toContain("cp -R design/styles _site/design/styles");
-    expect(pagesWorkflow).toContain("cp -R design/assets _site/design/assets");
   });
 
   test("keeps the empty Desk within one viewport and sizes only its prompt rail", () => {

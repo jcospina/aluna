@@ -106,8 +106,8 @@ describe("prompt notice", () => {
     );
   });
 
-  // The blank-prompt line is product voice the owner approved word for word, so
-  // it is pinned as a literal here rather than only compared against itself at the route.
+  // The blank-prompt line is product voice the owner approved word for word, so it is pinned as
+  // a literal here rather than only compared against itself at the route.
   test("carries the signed-off blank-prompt copy verbatim", () => {
     expect(BLANK_PROMPT_NOTICE).toBe("What would you like me to make?");
     expect(renderPromptNotice(BLANK_PROMPT_NOTICE)).toBe(

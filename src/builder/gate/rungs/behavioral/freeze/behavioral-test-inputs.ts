@@ -38,8 +38,10 @@ export interface ActionSchemaField {
   readonly name: string;
   readonly type: FieldType;
   readonly required: boolean;
-  /** Declared option values, in authored order; absent on every non-choice field. */
+  /** The selectable option values, sorted; absent on every non-choice field. */
   readonly values?: readonly string[];
+  /** Options records may hold but no new write may choose, sorted; absent when there are none. */
+  readonly retired_values?: readonly string[];
   /**
    * The declared length bound, absent when a field has none. Validation shape: the platform
    * refuses a longer write before the Handler runs, so the limit moves the digest (ADR-0006).

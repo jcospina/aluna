@@ -1,7 +1,7 @@
 /* =============================================================================
    Capability field chrome — the create and edit forms and their controls, rendered
    deterministically from a spec by the centralized field renderer
-   (src/presentation/field-renderer.ts).
+   (src/presentation/fields/field-renderer.ts).
 
    Platform CHROME, not the generated item vocabulary (design/styles/layout-kit.css):
    these style the platform-owned surfaces the "New X" button and a record open,

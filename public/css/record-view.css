@@ -1,6 +1,6 @@
 /* =============================================================================
    The record, in the window — platform CHROME.
-   What a record opens into (src/presentation/record-view.ts): a back
+   What a record opens into (src/presentation/records/record-view/record-view.ts): a back
    control above the form, the form itself in edit mode, and the confirmation that stands in for the
    form's action row while a delete is being asked about. There is no modal and no read
    view, so this is the only surface one record has, and the create view arrives under the

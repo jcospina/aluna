@@ -67,7 +67,7 @@ describe("a save's pick", () => {
     expect((await parse(save([]))).drawnLinked).toBeUndefined();
   });
 
-  test("names no record for a field drawn linked that picks none, empty or not (8.1/06)", async () => {
+  test("names no record for a field drawn linked that picks none, empty or not", async () => {
     for (const text of ["Someone typed this", ""]) {
       const parsed = await parse(save([linkFieldValue("text", "")], text));
       expect(parsed.picks).toEqual(new Map());

@@ -1586,10 +1586,9 @@ request to the same Builder that Loop 1 uses, and re-runs no prompt classificati
 > gate, async inference, explicit confirmation, and resolved-request hand-off are
 > fixed. Module 10 decides where and when the proposal appears, and which Builder
 > lifecycle presenter follows confirmation — a foreground interruption, or a
-> quieter background presentation. The desk does not settle it: a proposal is Aluna
-> speaking unprompted, and the expected carrier is the companion, a talking pet
-> that is not designed yet. The Builder itself is independent of the explicit
-> prompt/SSE presenter. Nothing builds without confirmation.
+> quieter background presentation. The desk does not settle it. The Builder itself
+> is independent of the explicit prompt/SSE presenter. Nothing builds without
+> confirmation.
 
 ### Overlap resolution: extend or create a separate capability
 

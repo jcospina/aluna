@@ -418,7 +418,7 @@ describe("multi-fact union is monotone — no fact subtracts another's work", ()
   });
 });
 
-describe("the canonical no-op ignores object-key and set ordering (decision 37)", () => {
+describe("the canonical no-op ignores object-key and set ordering", () => {
   test("reordering a field object's keys is not a change", () => {
     const diff = diffOf((draft) => {
       draft.schema.fields = draft.schema.fields.map((field) => ({
@@ -458,7 +458,7 @@ describe("the canonical no-op ignores object-key and set ordering (decision 37)"
   });
 });
 
-describe("ordered product facts still diff (decision 37)", () => {
+describe("ordered product facts still diff", () => {
   test("a field-order change diffs even though the field set is identical", () => {
     const diff = diffOf((draft) => {
       draft.schema.fields = [...draft.schema.fields].reverse();
@@ -468,7 +468,7 @@ describe("ordered product facts still diff (decision 37)", () => {
   });
 });
 
-describe("fail closed on an unmapped difference (decision 21)", () => {
+describe("fail closed on an unmapped difference", () => {
   test("an admitted region with no matrix row throws before any work", () => {
     expect(() =>
       diffOf((draft) => {

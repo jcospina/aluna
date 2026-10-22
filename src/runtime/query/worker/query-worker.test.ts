@@ -415,7 +415,7 @@ const COLUMNS: readonly QuestionViewColumn[] = [
   { name: "tags", reading: "list" },
 ];
 
-describe("the views a question reads its tables through (Module 7 decision 37)", () => {
+describe("the views a question reads its tables through", () => {
   afterEach(release);
 
   test("shows a file column without its key, and one it cannot read as nothing", async () => {

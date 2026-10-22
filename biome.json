@@ -61,18 +61,6 @@
       }
     }
   },
-  "overrides": [
-    {
-      "includes": ["docs/**/*.html", "modules/**/TECHNICAL-GUIDE.html"],
-      "linter": {
-        "rules": {
-          "nursery": {
-            "noExcessiveLinesPerFile": "off"
-          }
-        }
-      }
-    }
-  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "double",

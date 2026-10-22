@@ -227,7 +227,8 @@ describe("the streamed assembly", () => {
 });
 
 // A pre-flight guard: every event the run puts on the wire needs a `sse-swap` region or a hidden
-// stage listener to land in. An event with no home is invisible and wastes a human check.
+// stage listener to land in. An event with no home is invisible, and only a live run by hand
+// would show it missing.
 describe("the developer panel can receive everything the run emits", () => {
   test("every emitted event has a subscriber region and a real panel stage", async () => {
     const candidate = moodCandidate();

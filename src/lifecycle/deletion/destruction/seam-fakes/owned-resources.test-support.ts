@@ -34,7 +34,7 @@ export const FAKE_OWNED_RESOURCE_ADAPTER = OWNED_RESOURCE_ADAPTER;
  */
 export type OwnedResourceOwnershipState = "cleanup_enqueued" | "committed" | "pending";
 
-/** The two file-shaped field types: `file` is in the spec vocabulary, `file[]` is still ahead. */
+/** The two file-shaped field types the spec vocabulary holds: one file, or a list of them. */
 export type FileFieldShape = "file" | "file[]";
 
 export interface StagedOwnedResource {

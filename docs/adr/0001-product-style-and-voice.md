@@ -3,7 +3,7 @@
 Status: accepted
 
 **Amended 2026-08-20 — the visual half is superseded, the voice half is not.**
-This ADR settles four separable things, and the desktop design session
+This ADR settles three separable things, and the desktop design session
 (`modules/05-the-desk/PLAN.md`, decision 7) supersedes exactly one of them.
 
 *Superseded.* The Paper & Ink palette, the neobrutalist border and shadow ladder,
@@ -26,21 +26,6 @@ lockup that carried the name in the deleted shell goes with that shell — the
 design handbook's wordmark section is a deletion rather than a rewrite (§7a) —
 but the name this ADR introduced stands.
 
-*The pet is still deferred, and has since gained a direction.* It remains
-unimplemented and undesigned, so a future issue still implements it cold. What
-changed is that it is no longer only a delight layer: the companion is a talking
-pet, expected to carry the product's narration once it lands (§13). That is why
-the surfaces for a disposable query answer and for a behavioural proposal wait on
-it rather than being drawn now.
-
-*Amended 2026-09-03 (ADR-0008).* Only the behavioural proposal still waits, and it need
-not. Module 6 settled where a query answer appears **without the pet**: the answer opens
-in a window of its own, a third beside the capability window and the developer panel,
-built on machinery that already existed. The prompt bar's notice slot is untouched and
-still carries what it carried. The pet is a delight feature that may never be built, and
-no plan should be written that waits on it — Module 10 should settle its proposal surface
-the same way rather than inherit this deferral.
-
 *Retired.* "A dark theme stays a purely additive future override" no longer
 holds. High Meadow is daylight and does not invert, and no dark theme is planned
 (§12f). The semantic-token insurance below bought a future that has since been
@@ -53,8 +38,7 @@ typeset in Outfit (vendored locally) and expressed through semantic CSS
 custom-property tokens in a single `public/css/app.css` with one `:root` and no
 theming machinery (light theme only). The product speaks in a warm, first-person
 product voice that never exposes internals (ARCH §9.7). This ADR introduces
-Aluna as the user-facing wordmark. The pet, the anthropomorphic spark of Aluna,
-is specified but deferred: none of it is implemented now.
+Aluna as the user-facing wordmark.
 
 ## Context / why
 
@@ -86,16 +70,10 @@ The product voice is warm, encouraging and gently curious, first person, with
 zero internals jargon (ARCH §9.7). It lives in `CONTEXT.md` as durable guidance
 because it steers every future coding agent's copy.
 
-The pet is deferred because the thesis is the self-building app and the pet is a
-delight layer to build *after* the spine works. The originating issue specifies
-it fully — concept, placement, state vocabulary, rendering constraints,
-reduced-motion — so a future issue can implement it cold. Its name stays TBD
-pending verification of an authentic Kogi word; nothing is fabricated.
-
 ## Consequences
 
-- High Meadow is daylight-only; a dark theme is declined. The talking pet remains
-  future work, while the voice guidance continues to govern every current surface.
+- High Meadow is daylight-only; a dark theme is declined. The voice guidance governs
+  every surface.
 - Coding agents must consult `design/design-system.md` for the practical reference
   and `CONTEXT.md` for language and voice before adding UI. The CSS in
   `design/styles/` is the source of truth for token *values* and names.

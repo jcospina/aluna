@@ -6,10 +6,10 @@
 // and a bare path spelled repo-rooted (`src/server/app.ts`), src-relative (`registry/spec/spec.ts`)
 // or root-absolute (`/design/styles/index.css`). A bare relative path is neither, and stays prose
 // — `scripts/build.ts` quotes one that only ever exists in the bundle. A path is a citation only
-// when its first segment is a directory the repo tracks; a root `.gitignore` names holds build or
-// runtime output, so whether the tree has been built cannot change a verdict, and a generated
-// artifact's `tests/behavioral.json` stays prose. The cost is that a citation whose whole root is
-// gone reads as prose and goes unchecked.
+// when its first segment is a directory the repo tracks; a root `.gitignore` names holds build
+// output, runtime output or private notes, whose contents differ between clones, so it cannot
+// change a verdict, and a generated artifact's `tests/behavioral.json` stays prose. The cost is
+// that a citation whose whole root is gone reads as prose and goes unchecked.
 //
 // `(absent)` excuses the one citation it follows and nothing else on the line, the way
 // `public/css/a11y.css` (absent) is excused: deleted, and pinned deleted by a test that names it.
@@ -78,8 +78,9 @@ const IGNORED_ROOTS = ignoredRoots();
 /**
  * Whether a path is spelled as a repo citation at all. An unanchored one — `tests/behavioral.json`,
  * written by a build into a directory the repo has none of — is prose, not a claim about a file.
- * A gitignored root is unanchored too: `dist/` and `.types/` are there after a build and not
- * before one, and a verdict that turned on them would differ between two clones of one commit.
+ * A gitignored root is unanchored too: `dist/` and `.types/` exist only after a build, private
+ * notes only on their owner's disk, and a verdict that turned on them would differ between two
+ * clones of one commit.
  */
 function anchored(cited: string): boolean {
   const segments = cited.replace(/^\//, "").split("/");

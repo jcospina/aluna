@@ -70,7 +70,7 @@
 }
 
 /* In flight. HTMX marks the submitting form `htmx-request` for exactly as long as the
-   deletion is running, so the danger control names the act ("Erasing…") and **Keep it**
+   deletion is running, so the danger control names the act ("Deleting…") and **Keep it**
    stops being a live choice — the decision is already past. Pure CSS: no state to get
    out of step with the request. */
 .capability-deletion__label[data-deletion-busy-label],

@@ -337,7 +337,7 @@ describe("generation-metrics store — reads, listing, and invariants", () => {
     expect(() => writeGenerationMetrics(buildMetrics(), conns.readwrite)).toThrow();
   });
 
-  test("the metrics row covers exactly the PLAN step-8 columns", () => {
+  test("the generation-metrics row has exactly these columns", () => {
     const columns = conns.readonly
       .query(`SELECT name FROM pragma_table_info('${GENERATION_METRICS_TABLE}') ORDER BY cid`)
       .all() as { name: string }[];

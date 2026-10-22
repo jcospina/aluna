@@ -255,7 +255,7 @@ describe("GET / (shell) — the window layer", () => {
   });
 });
 
-describe("GET /stream (the Module 1 greeting liveness route, removed in 4.8/06)", () => {
+describe("GET /stream (the removed greeting liveness route)", () => {
   test("is not registered — the provider round-trip is proved by the prompt bar", async () => {
     expect((await createTestApp().request("/stream")).status).toBe(404);
   });
@@ -364,7 +364,7 @@ describe("the retired /demo surfaces are gone", () => {
     else process.env.NODE_ENV = previous;
   });
 
-  test("module 5's inspection surfaces are unregistered in every environment", async () => {
+  test("the three inspection surfaces are unregistered in every environment", async () => {
     // All three came down, none taking evidence with it: gate-design-lint-high-meadow.test.ts,
     // router.read-gates.test.ts, fragments.test.ts and swap-target.test.ts now hold it.
     for (const nodeEnv of ["production", "development"]) {
@@ -387,7 +387,7 @@ describe("the retired /demo surfaces are gone", () => {
     }
   });
 
-  test("epic 4.9's previews are unregistered in every environment", async () => {
+  test("the read-gate previews are unregistered in every environment", async () => {
     // Both came down. The read gates' atomic token sets and drain/reopen are covered by
     // router.read-gates.test.ts, and the cleanup seam by the deletion fault battery.
     for (const nodeEnv of ["production", "development"]) {
@@ -411,7 +411,7 @@ describe("the retired /demo surfaces are gone", () => {
     }
   });
 
-  test("module 6's one-question exercise is unregistered in every environment", async () => {
+  test("the one-question exercise is unregistered in every environment", async () => {
     // It ran the whole query loop against the real database while questions had no window of their
     // own, so it was open outside production and spent provider tokens. Once the real path was
     // visible it came down; every claim it carried about the loop is proved elsewhere now.

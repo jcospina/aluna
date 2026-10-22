@@ -95,7 +95,7 @@ export class FrozenIntentMutatedError extends Error {
 
   constructor() {
     super(
-      "Frozen behavioral intent changed during the Gate. Repair rewrites Handlers, never tests (PLAN decision 23).",
+      "Frozen behavioral intent changed during the Gate. Repair rewrites Handlers, never tests.",
     );
   }
 }

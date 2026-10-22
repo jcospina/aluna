@@ -67,7 +67,7 @@ describe("a required field is refused in the browser", () => {
 
   test("anything other than a missing value keeps the browser's own words", async () => {
     // The platform has authored one sentence, for one failure. Saying it about another failure,
-    // or inventing a second, is the second copy source this feature exists to avoid.
+    // or inventing a second, would make the platform a second copy source beside the browser's.
     const one = await scene(capabilityOf([probeField("number")]));
     const control = one.doc.querySelector('[name="value"]') as El;
     (control as unknown as { validity: { valueMissing: boolean } }).validity = {

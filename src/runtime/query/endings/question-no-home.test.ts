@@ -266,7 +266,7 @@ describe("a subject naming something they already have", () => {
     }
   });
 
-  test("and by a column of one, which is where a value lives (decision 30)", () => {
+  test("and by a column of one, which is where a value lives", () => {
     const catalog = catalogued();
     for (const named of ["amount", "Amount", "what"]) {
       expect({ named, held: questionNamesSomethingOnThisDesk(catalog, named) }).toEqual({

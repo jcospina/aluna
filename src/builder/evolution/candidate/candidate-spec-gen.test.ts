@@ -71,7 +71,7 @@ function promptInput(
   };
 }
 
-describe("the generation context (decision 1, pinned)", () => {
+describe("the generation context (pinned)", () => {
   test("the prompt carries the committed spec with its own inactive fields present", () => {
     const input = promptInput();
     const prompt = buildCandidateSpecPrompt(input);

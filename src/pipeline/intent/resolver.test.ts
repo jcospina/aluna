@@ -192,7 +192,7 @@ function insertRows(database: Database, rows: readonly CapabilityRow[]): void {
 }
 
 describe("intent resolver classification — schema", () => {
-  test("the schema speaks the full intent enum plus the reject bucket and keeps confirmations off in M2", () => {
+  test("the schema speaks the full intent enum plus the reject bucket and keeps confirmations off", () => {
     for (const type of INTENT_TYPES) {
       const answer = {
         type,

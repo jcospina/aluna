@@ -203,7 +203,7 @@ same hand across a view swap and across a resize. The generation pipeline never
 learns the ink system exists. Resize is observed once per list container rather
 than once per card, because the children of a list resize together.
 
-## Shadow, and the two blurs
+## Shadow, and the one blur
 
 Only what stands on the desk casts: the window, the prompt rail, the logo tile.
 Nothing inside a window casts, so depth inside one comes from ordered bands and
@@ -218,14 +218,14 @@ prompt rail is raised and framed on `--surface`: it stands on the desk beside th
 windows, takes the full hand, and casts. It is not a borderless field lying on the
 ground.
 
-Blur appears in exactly two treatments. One is the desk label's text-shadow,
-three graded passes straight down, shared by a capability name and the prompt
-notice because both are read directly from the wallpaper. `design/logo.html`
-defends it as the only blurred type treatment in Aluna: the hard-shadow rule
-governs what an *object* casts onto the desk, where a soft edge would fake a depth
-the flat-band model does not have, and a glyph casts nothing. The other is the
-companion's light. Glow, bloom, particles and rays belong to the spark, and the
-drawn-line rules govern surfaces rather than light.
+Blur appears in exactly one treatment: the desk label's halo, three graded passes
+straight down, worn by a capability name and the prompt notice because both are
+read directly from the wallpaper. The name wears it as a filter so its two-line
+clip cannot cut it, and the notice adds two symmetric passes of its own as a
+`text-shadow`. `design/logo.html` defends it as the
+only blurred type treatment in Aluna: the hard-shadow rule governs what an
+*object* casts onto the desk, where a soft edge would fake a depth the flat-band
+model does not have, and a glyph casts nothing.
 
 ## The window and the collection
 
@@ -476,8 +476,9 @@ are not release gates.
 Motion is on by default and is part of the product's personality. When the OS
 Reduce Motion setting is on, Aluna stops positional travel — windows flying open,
 content sliding, press-jumps — because travel is what triggers nausea. In-place
-character continues: the companion keeps breathing, blinking and reacting. Travel
-is switched off centrally on that one axis, rather than through a blanket reset or
+character continues: a mark still grows into its box and a chevron still turns
+over. Travel is switched off centrally on that one axis, rather than through a
+blanket reset or
 a hand-maintained selector list.
 
 The axis is `--travel`, in `styles/tokens.css`: a scale of one that Reduce Motion

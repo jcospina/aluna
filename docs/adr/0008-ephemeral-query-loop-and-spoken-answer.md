@@ -248,20 +248,9 @@ sentence clears when the words change.
 **A query does not lock the prompt bar**; asking something else is always possible and
 cancels the running question.
 
-**Nothing here depends on the pet.** An earlier draft of this contract anchored the
-answer to the prompt bar so the pet could later inhabit it; the window removes that
-dependency entirely. The pet is a delight feature that may never be built, and no plan
-should be written that waits on it. `design/research/the-spark.md` was deleted as
-abandoned rather than folded into a page, and `docs/pet.md` is guidance of its vintage
-rather than a contract — two of its statements are stale, "renders into the content area"
-against a desk that ships no content area, and "supports walking" as a claim about a
-design not yet made. Module 10 should settle its proposal surface the same way, on
-machinery that exists, rather than inheriting this deferral.
-
 **Build narration is untouched.** It stays in the window, where M5 put it, because a
 build narration is a long streaming log ending in a thing appearing in that window, and
-because during a build the window is where the user is already looking. The pet
-travelling into the window is deferred, not rejected.
+because during a build the window is where the user is already looking.
 
 **The open capability is context, never a filter.** It resolves vague references exactly
 as it does for evolution, and never fences the search: a question about expenses asked
@@ -339,8 +328,6 @@ solve a problem that this product's scale does not have.
   tight.
 - The desk gains a third window and no window manager. Anything later wanting a fourth
   should expect to justify it against this contract's reasoning, not merely cite it.
-- The pet is removed from every module's critical path. Module 10's proposal surface is now
-  the only thing still deferred to it, and need not be.
 - `data_query` remains outside the mutation coordinator, creates no lifecycle state, and
   declares no read dependency, exactly as ARCH §7 and §8 already require.
 

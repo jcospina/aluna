@@ -42,7 +42,7 @@ async function devSeeds(html: string) {
 
 // The registry's read-side payoff: on load the logo layer rehydrates from the registry. These run
 // against a scratch db shared with the router, so a committed capability stands on the desk.
-describe("GET / (logo rehydration, Epic 2.1)", () => {
+describe("GET / (logo rehydration)", () => {
   let dir: string;
   let conns: PlatformDatabase;
   let artifactsRoot: string;
@@ -148,7 +148,7 @@ describe("GET / (logo rehydration, Epic 2.1)", () => {
     expect(body).not.toContain('class="capability-records capability-records--feed"');
   });
 
-  test("the M2 closing beat: build, refresh rehydrates the desk, and the note is still there", async () => {
+  test("build, refresh rehydrates the desk, and the note is still there", async () => {
     const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC);
     const { recordMetrics } = makeMetricsRecorder();
     const app = createTestApp({

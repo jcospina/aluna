@@ -278,8 +278,8 @@
 
 /*
  * Reduce Motion, entire. It quiets travel and leaves life alone, and it is one
- * declaration rather than a blanket reset because a reset takes the breathing
- * with the flying — and because the next component gets this for free instead of
+ * declaration rather than a blanket reset because a reset takes the life with
+ * the travel — and because the next component gets this for free instead of
  * being added to a list somebody has to remember.
  */
 @media (prefers-reduced-motion: reduce) {

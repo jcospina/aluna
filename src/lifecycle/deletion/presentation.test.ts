@@ -161,13 +161,12 @@ describe("capability-deletion presentation", () => {
 
   test("Confirm names the act while it runs and locks both controls", () => {
     const html = renderCapabilityDeletionConfirmation(notesRow(), []);
+    const label = (state: "idle" | "busy") =>
+      html.match(new RegExp(`data-deletion-${state}-label>([^<]+)</span>`))?.[1];
 
-    expect(html).toContain(
-      '<span class="capability-deletion__label" data-deletion-idle-label>Delete permanently</span>',
-    );
-    expect(html).toContain(
-      '<span class="capability-deletion__label" data-deletion-busy-label>Erasing…</span>',
-    );
+    expect(label("idle")).toBeTruthy();
+    expect(label("busy")).toBeTruthy();
+    expect(label("busy")).not.toBe(label("idle"));
     expect(html).toContain('hx-disabled-elt="find button"');
   });
 

@@ -214,7 +214,7 @@ describe("the decision a turn is generated against", () => {
 });
 
 describe("the label a call carries", () => {
-  test("is a closed set covering decision 14's kinds of step, plus one fallback", () => {
+  test("is a closed set covering every kind of step, plus one fallback", () => {
     expect([...QUESTION_STEP_LABELS]).toEqual([
       "naming",
       "counting",

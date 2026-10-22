@@ -1,9 +1,8 @@
 // The intent classification shape.
 //
-// The resolver speaks the full future-facing language from
-// day one, even while only `new_capability` is acted on. The reject bucket is part
-// of that contract so unsupported or unclear prompts still become measurable
-// classifications rather than ad hoc errors.
+// The resolver speaks the full intent language, one shape for every prompt. The
+// reject bucket is part of that contract so unsupported or unclear prompts still
+// become measurable classifications rather than ad hoc errors.
 
 import { type RefinementCtx, z } from "zod";
 
@@ -54,9 +53,10 @@ const intentClassificationObject = z.strictObject({
     .array(z.string().nullable())
     .nullable()
     .transform((ids) => (ids ?? []).filter((id): id is string => id !== null)),
-  // Confirmations are reserved for capability delete and implicit-loop proposals.
-  // Data questions named the first of those proposals — the gap answer — and deliberately shipped
-  // it with no control, so the implicit loop inherits a customer rather than a shape guessed at.
+  // The resolver never asks for a confirmation: a capability is deleted from its logo, which
+  // confirms on its own route, and a proposal belongs to the implicit loop. Data questions named
+  // the first proposal — the gap answer — and deliberately shipped it with no control, so the
+  // implicit loop inherits a customer rather than a shape guessed at.
   requires_confirmation: z.literal(false),
 });
 type ParsedIntentClassification = z.infer<typeof intentClassificationObject>;

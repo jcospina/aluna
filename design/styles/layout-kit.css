@@ -14,9 +14,9 @@
  * in `design/design-system.md` (the escape hatch).
  *
  * The single source of truth for the allow-list is `design/design-system.md`; the
- * allow-list itself is `src/presentation/vocabulary.ts`, which the runtime enforcer and
- * the design-lint gate rung both key on, and `vocabulary.policy.ts` pins the two
- * together. Imported after the components in `index.css` so a utility wins its tie with
+ * allow-list itself is `src/presentation/safety/enforcer/vocabulary.ts`, which the runtime
+ * enforcer and the design-lint gate rung both key on, and `vocabulary.policy.ts` pins the
+ * two together. Imported after the components in `index.css` so a utility wins its tie with
  * one, and above `ink.css`, which stays last. That ordering settles the manifest only —
  * the temporary shell under `public/css/` is linked after the whole of it, so no rule
  * there may take a name from this file. `layout-kit.policy.ts` holds that line.

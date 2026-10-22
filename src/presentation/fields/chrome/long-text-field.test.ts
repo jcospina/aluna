@@ -150,8 +150,8 @@ describe("the box grows to fit what is typed, and then scrolls", () => {
     expect(one.area.style.overflowY).toBe("hidden");
   });
 
-  // One observer per `textarea[data-grow]`, minted again on every record view and every
-  // collection swap, and nothing ever disconnected them — a plain violation of the release rule.
+  // One observer per `textarea[data-grow]`, minted again on every record view and every collection
+  // swap, and nothing ever disconnected them — a leak the content region exists to release.
   test("the box watch is released with the control that started it", async () => {
     const { releaseRegionContent } = await import("#shell/core/region-scope.js");
     const one = await scene(longTextForm());

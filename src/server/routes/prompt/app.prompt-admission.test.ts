@@ -286,8 +286,8 @@ describe("blank-prompt refusal", () => {
       // A refusal, so it carries the marker the prompt bar flashes on.
       expect(body).toBe(renderPromptNotice(BLANK_PROMPT_NOTICE, "refusal"));
       expect(body).toContain("<span data-prompt-refusal>");
-      // The signed-off line itself, pinned as a literal: comparing the body to the renderer would
-      // compare the implementation to itself and let a silent copy edit ship green.
+      // The owner-approved line itself, pinned as a literal: comparing the body to the renderer
+      // would compare the implementation to itself and let a silent copy edit ship green.
       expect(body).toContain("What would you like me to make?");
       // No subscriber fragment means no SSE stream opens, so `promptBusy` never flips
       // and the prompt bar stays live for the next attempt.

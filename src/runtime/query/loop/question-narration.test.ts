@@ -156,7 +156,7 @@ afterEach(() => {
 });
 
 describe("the closed set and its one sentence each", () => {
-  test("covers decision 14's kinds of step, and the fallback is a member of it", () => {
+  test("covers every kind of step, and the fallback is a member of it", () => {
     expect([...QUESTION_STEP_LABELS]).toEqual([
       "naming",
       "counting",
