@@ -1,6 +1,6 @@
 // The logo's colour vocabulary: the eight hue families a spec's two colours may name, the shade
 // ladder each family opens onto, and the durable lifecycle the registry keeps for the artwork
-// (ADR-0007 L2/L3/L9/L11).
+// (ADR-0007).
 //
 // The model names a hue and the platform names the shade. A spec authors `ground` and `companion`
 // as families, which must differ, and which of a family's four rungs a capability wears is
@@ -9,7 +9,7 @@
 // That seed is the only entropy in the path: a spec-authoring model collapses to a mode — each
 // build is a stateless call that has never seen another capability — so four consecutive live
 // capabilities came out the same colour. Validation stays a word-list check over lists chosen
-// saturated and light enough for the tile, and L9 still permits two capabilities to look alike.
+// saturated and light enough for the tile, and two capabilities may still look alike.
 
 import { z } from "zod";
 
@@ -70,7 +70,7 @@ export function logoShadeFamily(shade: LogoShade): LogoHueFamily {
 
 /**
  * The two draws are decorrelated: one remainder for both would lock every capability to the same
- * rung of each family. Pure and stable, so a retried attempt draws the same picture (L7).
+ * rung of each family. Pure and stable, so a retried attempt draws the same picture (ADR-0007).
  */
 export function resolveLogoShades(
   ground: LogoHueFamily,
@@ -113,7 +113,8 @@ export type CapabilityLogoState = z.infer<typeof capabilityLogoStateSchema>;
 
 /**
  * The provider's `random_seed` domain and the platform's one source of colour entropy. Stored per
- * incarnation: a name can be renamed and a position moves, re-describing artwork L7 forbids.
+ * incarnation: a name can be renamed and a position moves, and either would re-describe artwork
+ * that is never redrawn (ADR-0007).
  */
 export const MAX_LOGO_SEED = 2_147_483_647;
 export const logoSeedSchema = z.number().int().min(1).max(MAX_LOGO_SEED);

@@ -19,7 +19,7 @@ import { readBox } from "../../../design/scripts/desk/desk-geometry.js";
 
 /**
  * The one presentation record this module keeps, and the only key it writes. The developer
- * panel's is the other, and those two are the whole of what the browser remembers (D9; ARCH §6.1).
+ * panel's is the other, and those two are the whole of what the browser remembers (ARCH §6.1).
  */
 export const WINDOW_STORAGE_KEY = "aluna.desk.window.v1";
 
@@ -128,7 +128,7 @@ export function savePresentation(entry, isPhone, store, key = WINDOW_STORAGE_KEY
 
 /**
  * Drop the record, so the next window opens the way a first one does: a box outliving the
- * capability it was authored for reads as the desk failing to centre a window (design D9).
+ * capability it was authored for reads as the desk failing to centre a window.
  *
  * @param {Store | null} store
  * @param {string} [key]

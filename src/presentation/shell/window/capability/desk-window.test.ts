@@ -10,7 +10,7 @@ import {
   windowLayer,
 } from "#shell/desk/window/desk-window.js";
 
-// The window, which the client creates and destroys (design D1, D3, D12).
+// The window, which the client creates and destroys.
 // What the shell, the module and the sheets must say about it is `desk-window.policy.ts`.
 
 describe("the shell ships a window layer and no content area", () => {

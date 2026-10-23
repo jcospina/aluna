@@ -262,7 +262,7 @@ describe("the invalid-candidate matrix row", () => {
   });
 
   test("a changed logo birth fact is rejected by name — subject, ground and companion", () => {
-    // The artwork was drawn from these three and never redrawn (ADR-0007 L7), so a moved fact
+    // The artwork was drawn from these three and never redrawn (ADR-0007), so a moved fact
     // would describe a picture that does not exist. The rejection says which fact moved.
     const changedSubject = candidateFrom(journalCapabilityRow());
     changedSubject.subject = "a brass telescope";

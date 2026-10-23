@@ -1,6 +1,6 @@
 // The developer panel: the second window.
 //
-// D13 is a named exception to D1, not the first step towards a window manager. What is
+// An exception to the one-window rule, not the first step towards a window manager. What is
 // pinned here is everything that would quietly turn it into one — a z-index that climbs,
 // an address of its own, a panel that opens a window of its own — plus the two halves of
 // "it is read-only": the panel carries no controls at all, nothing in it mutates canonical

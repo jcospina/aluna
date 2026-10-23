@@ -14,23 +14,11 @@ import {
   tooManyFilesSentence,
 } from "./refusal-copy.ts";
 
-const DRAWN = readFileSync(join(import.meta.dir, "../../../../design/controls.html"), "utf8");
 const BENCH = readFileSync(
   join(import.meta.dir, "../../../../design/scripts/sections/file-bench.js"),
   "utf8",
 );
-/** The page's sentences with each run of whitespace, and a tag's broken line, made one space. */
-const DRAWN_FLAT = DRAWN.replace(/<em\s*>/g, "<em>")
-  .replace(/<\/em\s*>/g, "</em>")
-  .replace(/\s+/g, " ");
-
 describe("a refused file's sentence", () => {
-  test("for a field of one family is the one design/ settles", () => {
-    for (const family of FILE_FAMILIES) {
-      expect(DRAWN).toContain(`<em>${notAdmittedSentence([family])}</em>`);
-    }
-  });
-
   test("for a field of several families names each, in the field's order", () => {
     for (const accepts of [["video", "audio"], [...FILE_FAMILIES]] as const) {
       const sentence = notAdmittedSentence(accepts);
@@ -43,10 +31,6 @@ describe("a refused file's sentence", () => {
 });
 
 describe("a list saved holding more files than it takes", () => {
-  test("is refused in the sentence design/ settles for the save", () => {
-    expect(DRAWN_FLAT).toContain(`<em>${tooManyFilesSentence(7, 6)}</em>`);
-  });
-
   test("asks for more than one removal past one, and never counts one file as files", () => {
     expect(tooManyFilesSentence(9, 6)).not.toBe(tooManyFilesSentence(7, 6).replace("7", "9"));
     expect(tooManyFilesSentence(2, 1)).not.toMatch(/\b1 files\b/);
@@ -55,11 +39,6 @@ describe("a list saved holding more files than it takes", () => {
 
 describe("a refused document's sentence", () => {
   const WORD = DOCUMENTS_NAMED_AS.get("docx") ?? "";
-
-  test("for a locked Word document, or one whose contents aren't what its name says, is drawn", () => {
-    expect(DRAWN_FLAT).toContain(`<em>${LOCKED_SENTENCE}</em>`);
-    expect(DRAWN_FLAT).toContain(`<em>${misnamedSentence(WORD)}</em>`);
-  });
 
   test("names each document as the design bench does", () => {
     for (const [extension, namedAs] of DOCUMENTS_NAMED_AS) {

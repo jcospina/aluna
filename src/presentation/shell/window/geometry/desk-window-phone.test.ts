@@ -16,7 +16,7 @@ import { desk, fakeEl, type Stored } from "../desk-window.test-support.ts";
 import { dragBy, type El } from "../standing-desk.test-support.ts";
 import { designDesk, type ViewportDesk, viewportDesk } from "../viewport-desk.test-support.ts";
 
-// Below the breakpoint the window is the screen, and the script is told so (design D9). What the
+// Below the breakpoint the window is the screen, and the script is told so. What the
 // script does when told; the two widths sheets may break on are policy.
 
 /** A window, as much of one as `syncForm` touches — lamp, bar, and the gestures. */

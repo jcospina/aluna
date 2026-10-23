@@ -6,18 +6,18 @@
  * logo on the ground, a window when opened, a life cycle you can see. There is
  * no taskbar.
  *
- * One window (D1). The desk shows a single capability window, and that window
- * is the content area (D2): opening a second capability swaps what is inside
+ * One window. The desk shows a single capability window, and that window
+ * is the content area: opening a second capability swaps what is inside
  * the frame rather than adding another frame beside it. A record, a build and a
  * confirmation all land in the same place for the same reason. The developer
- * panel (D13) is the one exception, and it is furniture rather than a
+ * panel is the one exception, and it is furniture rather than a
  * capability.
  *
- * This is a working implementation of the locked decisions, not a mock-up of
+ * This is a working implementation of the desk, not a mock-up of
  * one. What it stands in for:
  *
- *   - `localStorage` holds the two remembered boxes (D9). Nothing is kept per
- *     capability, because which capability is open is the address's job (D14) —
+ *   - `localStorage` holds the two remembered boxes. Nothing is kept per
+ *     capability, because which capability is open is the address's job (ADR-0010) —
  *     and the readout under the desk stands in for an address bar this page
  *     does not own.
  *   - the capabilities are fixtures rather than generated units, and a build is
@@ -50,7 +50,7 @@ import { wallpaperUrl } from "./wallpaper.js";
  * origin (`/design/*`), so an unqualified `aluna.desk.*` here would sit beside the
  * product's records looking exactly like a third one — and the count is a promise:
  * the browser holds the capability window's and the developer panel's, and nothing
- * else (D9).
+ * else.
  */
 const STORAGE_KEY = "aluna.design.desk.layout.v2";
 
@@ -59,7 +59,7 @@ const DEFAULT_WINDOW = { x: 236, y: 40, w: 470, h: 330 };
 const DEFAULT_DEV = { x: 300, y: 150, w: 430, h: 260 };
 
 /**
- * One window's record: the normal box beside the flag, and never a maximised size (D9).
+ * One window's record: the normal box beside the flag, and never a maximised size.
  *
  * While a window is maximised the box it stands in is the desk's, and the box it will
  * be given back rides along as `restore`. Writing the pair down would put a second
@@ -85,13 +85,13 @@ function record(box) {
  */
 
 /**
- * Everything the browser remembers (D9). Two boxes and the flags that say how
+ * Everything the browser remembers. Two boxes and the flags that say how
  * they are shown — no rows, no z-order, and nothing belonging to a
  * capability's own schema. All of it is how things look to the user, which is
  * the shell's to keep.
  * The capability window's box is `null` until one is authored: a window nobody has
  * moved has no preference to keep, and the box it opens on is decided against the
- * desk it opens on rather than written down once (D9).
+ * desk it opens on rather than written down once.
  * @typedef {{ window: StoredBox | null, dev: StoredBox & { open: boolean } }} Layout
  */
 
@@ -148,7 +148,7 @@ export class Desk {
   /* ── the two remembered boxes ─────────────────────────────────────────── */
 
   /**
-   * What was remembered, believing as little of it as possible (D9).
+   * What was remembered, believing as little of it as possible.
    *
    * Spreading a stored object over a default is not fail-soft: `{"x": "nope"}` becomes
    * the box, `placeWindow` writes `NaNpx`, and the window lands nowhere. Geometry is
@@ -274,7 +274,7 @@ export class Desk {
   /**
    * The box a window with no preference opens on: the default size, centred in the
    * room a window may actually stand in — the desk less the strip the prompt bar
-   * holds — so the gaps above, below and to both sides are equal (D9).
+   * holds — so the gaps above, below and to both sides are equal.
    *
    * Measured when it is asked for rather than written down once, because a desk that
    * is hidden or still unstyled has no room to halve — which is why the record holds
@@ -305,8 +305,9 @@ export class Desk {
   /* ── the address ──────────────────────────────────────────────────────── */
 
   /**
-   * What the address bar would read (D14). One window is what makes a single
-   * path enough to describe the whole desk: a capability, or nothing.
+   * What the address bar would read. One window is what makes a single path
+   * enough to describe the whole desk: a capability, one of its records, or
+   * nothing (ADR-0010). This page writes only a capability or nothing.
    */
   #announce() {
     this.onAddress(this.openId ? `/capability/${this.openId}` : "/");
@@ -364,7 +365,7 @@ export class Desk {
   /**
    * Open a capability. If the window is already up it keeps its box and its
    * hand, and only its contents and its title change — the frame does not move
-   * and does not re-roll (D2, D10).
+   * and does not re-roll.
    *
    * @param {string} id
    * @returns {DeskWindow | null}
@@ -374,7 +375,7 @@ export class Desk {
     if (!capability) return null;
     /*
      * Only a capability still being built has nothing to show. One whose logo
-     * has not arrived yet is finished and usable — it just has no face (L11).
+     * has not arrived yet is finished and usable — it just has no face (ADR-0007).
      */
     if (this.build?.id === id) return this.win;
 
@@ -405,7 +406,7 @@ export class Desk {
 
   /**
    * The user closing their window: it goes away, and the box it stood in goes with
-   * it, so the next window opens on the default (D9). A record is kept so a window
+   * it, so the next window opens on the default. A record is kept so a window
    * survives the browser being closed on it, not so one window's box is inherited by
    * every window after it.
    */
@@ -485,7 +486,7 @@ export class Desk {
 
   /**
    * Every window on the desk is built here, capability or panel. The hand is
-   * rolled when the window opens and is not stored (D10): swapping contents
+   * rolled when the window opens and is not stored: swapping contents
    * cannot re-roll it, because nothing opens.
    *
    * @param {"capability" | "dev"} kind
@@ -602,7 +603,7 @@ export class Desk {
   /**
    * Where a box becomes a preference. The desk hands a first window a box it chose,
    * and a box the desk chose is not one the user asked for — so the record stays
-   * empty until a finished gesture or the leaf lamp says otherwise (D9).
+   * empty until a finished gesture or the leaf lamp says otherwise.
    *
    * The developer panel's box is the layout's own object, mounted by reference and
    * moved in place, so it needs no promoting. So does the capability window's, once
@@ -651,7 +652,7 @@ export class Desk {
   }
 
   /**
-   * Maximised is a flag, never a size (D9). What is remembered is that the
+   * Maximised is a flag, never a size. What is remembered is that the
    * window was maximised and what box to give back when it is not, so a desk
    * that comes back on a different screen fills that screen instead of the one
    * it left.
@@ -669,7 +670,7 @@ export class Desk {
   /* ── growing a capability ─────────────────────────────────────────────── */
 
   /**
-   * What the user watches when they ask Aluna to build something (D6).
+   * What the user watches when they ask Aluna to build something.
    *
    * Two things happen at once and neither is decoration. A placeholder tile
    * lands in the logo grid and stays until the build is done, which is the
@@ -755,7 +756,7 @@ export class Desk {
   /**
    * Eight stages on a timer. In the product these arrive over SSE and the logo
    * request is made after the gate clears — money is never spent on a build
-   * that can still fail (L10).
+   * that can still fail (ADR-0007).
    *
    * @param {Capability} capability
    */
@@ -791,7 +792,7 @@ export class Desk {
   /**
    * The build cleared. The artwork is requested now — last, once nothing can
    * still refuse the capability — so the tile is a placeholder for a moment
-   * longer and then becomes the logo it keeps for life (L7, L10).
+   * longer and then becomes the logo it keeps for life (ADR-0007).
    *
    * @param {Capability} capability
    */
@@ -836,9 +837,9 @@ export class Desk {
    * In the product this half of the logo is generated once, for that capability
    * alone, and never comes from a pool — there is no Aluna on this page to have
    * one drawn, so a new capability borrows the artwork of one already on the
-   * desk. The contract's rule that two capabilities should not arrive on the
-   * same ground cannot be kept by borrowing; avoiding the one created before it
-   * is as far as a page with no generation can go.
+   * desk. It skips the one created before it so neighbours do not arrive
+   * identical, a courtesy of this page: in the product two capabilities may
+   * look alike (ADR-0007).
    *
    * @param {Capability} grown
    * @returns {string}

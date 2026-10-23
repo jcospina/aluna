@@ -7,7 +7,7 @@ import {
 } from "../../../safety/source.test-support.ts";
 
 // The address, and the whole of what it may say: `/capability/:id` and, below it, a record id and
-// nothing else. A search term and a draft die with the tab (design D14; ADR-0010).
+// nothing else. A search term and a draft die with the tab (ADR-0010).
 
 const MODULE = code("public/desk/window/desk-window.js");
 /** The address and the history it is written into, lifted out of the module above. */
@@ -55,7 +55,7 @@ describe("who moves the address", () => {
   test("below capability identity, a record id and nothing else: no search term, no draft", () => {
     // The two storage keys and the Builder's restoration descriptor are, beside the address, the
     // places something could survive the tab, and none may carry a search term or a draft.
-    // Two records, one per allowed window, and no third (design D9). Read off every key the whole
+    // Two records, one per allowed window, and no third. Read off every key the whole
     // shell names, so a third key added anywhere in `public/` is what fails this.
     const shellKeys = new Set(
       under("public", "**/*.js")

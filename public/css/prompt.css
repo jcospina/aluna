@@ -1,9 +1,9 @@
 /* =============================================================================
    Prompt bar — floating over the desk ground.
 
-   D5: it floats clear of all four edges with ground visible beneath and beside
+   It floats clear of all four edges with ground visible beneath and beside
    it, and it is never full width. A bar welded to the bottom edge is a taskbar,
-   and D4 removed the taskbar.
+   and Aluna has none.
 
    The composer is the rail: raised and framed on --surface, standing on the
    wallpaper rather than lying on it, taking the full hand and casting

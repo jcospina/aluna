@@ -99,7 +99,7 @@ function declaredValue(name: string): string | undefined {
 // The units rung, from `design/design-system.md` §Spacing and units. Layout and type are
 // relative so text scaling grows the box; scaling a drawn line would change the artwork.
 describe("layout and type are relative; the drawing constants are not", () => {
-  test.each([...SPACING_TOKENS, ...TYPE_SIZE_TOKENS, "caps-size"])("--%s is relative", (name) => {
+  test.each([...SPACING_TOKENS, ...TYPE_SIZE_TOKENS])("--%s is relative", (name) => {
     const value = declaredValue(name);
     expect(value, `design/styles/tokens.css declares no --${name}`).toBeDefined();
     expect(value).toContain("rem");

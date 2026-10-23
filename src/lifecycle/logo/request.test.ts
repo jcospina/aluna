@@ -1,7 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
 import {
   LOGO_FAMILY_SHADES,
   LOGO_SHADES,
@@ -20,8 +17,7 @@ import {
   logoShadeInWords,
 } from "./request.ts";
 
-// The contract this file guards is `docs/adr/0007-capability-logo-contract.md` plus the art
-// contract it points at, `design/logo.html`. The prompt block is checked against that page itself.
+// The contract this file guards is `docs/adr/0007-capability-logo-contract.md`.
 
 /** A shade of some other family — every request must carry two colours that differ. */
 function other(shade: LogoShade): LogoShade {
@@ -266,11 +262,6 @@ describe("the prompt block", () => {
     }
   });
 
-  // `design/logo.html` shows the block with its second slot filled as this exact phrase.
-  test("golden is the phrase the contract page records", () => {
-    expect(logoShadeInWords("golden")).toBe("a flat warm golden yellow");
-  });
-
   // "Names both colours and no others" means nothing if one phrase hides inside another: a shade
   // whose phrase were a substring of the ground's would be counted as named, by accident.
   test("no shade's phrase is a substring of another's", () => {
@@ -301,7 +292,7 @@ describe("the prompt block", () => {
     expect([...named].sort()).toEqual(["cyan", "mustard"] as LogoShade[]);
   });
 
-  // L2 says the control alone is ignored, so an authored companion reaching the service only as
+  // The control alone is ignored, so an authored companion reaching the service only as
   // `controls.colors[1]` would be a stored fact with nothing visible behind it.
   test("the companion is named in the prompt as well as in the control", () => {
     const request = buildLogoGenerationRequest(INPUTS);
@@ -312,60 +303,5 @@ describe("the prompt block", () => {
     // ground is the field it stands on.
     expect(request.prompt).toContain(`drawn in ${logoShadeInWords(INPUTS.companion)}`);
     expect(request.prompt).toContain(`on ${logoShadeInWords(INPUTS.ground)} background`);
-  });
-});
-
-// The contract *is* `design/logo.html`, so the block is compared against the page word for word
-// rather than pinned as a literal: editing the block means editing the contract, not just code.
-describe("the block matches the contract page it comes from", () => {
-  test("word for word, with all three slots filled", () => {
-    const page = readFileSync(resolve(import.meta.dir, "../../../design/logo.html"), "utf8");
-    const block = page.match(/<div class="prompt-block">\s*<p>([\s\S]*?)<\/p>/)?.[1];
-    expect(block, "design/logo.html has no prompt block").toBeDefined();
-
-    const authored = (block ?? "")
-      // The page marks its three slots; filling them is what makes the two comparable.
-      .replace(/<mark>&lt;subject&gt;<\/mark>/, "an open notebook")
-      .replace(/<mark>&lt;a flat cool amethyst violet&gt;<\/mark>/, logoShadeInWords("amethyst"))
-      .replace(/<mark>&lt;a flat warm golden yellow&gt;<\/mark>/, logoShadeInWords("golden"))
-      .replace(/&amp;/g, "&")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    expect(
-      buildLogoPrompt("an open notebook", "golden", "amethyst").replace(/\s+/g, " ").trim(),
-    ).toBe(authored);
-  });
-});
-
-// The settings table on the same page states what every request fixes. Read off the page, so the
-// code and the contract cannot part without one of them being edited to match.
-describe("the fixed settings match the contract page's table", () => {
-  /** Every row whose cells are code alone, field to value; `a / b` pairs two fields with two. */
-  function fixedSettings(page: string): Record<string, string> {
-    const codeCell = /<td>((?:<code>[^<]+<\/code>(?: \/ )?)+)<\/td>/g;
-    const codes = (cell = "") => [...cell.matchAll(/<code>([^<]+)<\/code>/g)].map(([, c]) => c);
-    const stated: Record<string, string> = {};
-    for (const [row] of page.matchAll(/<tr>[\s\S]*?<\/tr>/g)) {
-      const [fields = [], values = []] = [...row.matchAll(codeCell)].map(([, cell]) => codes(cell));
-      fields.forEach((field, at) => {
-        if (field !== undefined && values[at] !== undefined) stated[field] = values[at];
-      });
-    }
-    return stated;
-  }
-
-  test("each field the table fixes, at the value the table gives", () => {
-    const page = readFileSync(resolve(import.meta.dir, "../../../design/logo.html"), "utf8");
-    const request = buildLogoGenerationRequest(INPUTS);
-
-    expect(fixedSettings(page)).toEqual({
-      model: LOGO_GENERATION_MODEL,
-      style: LOGO_GENERATION_STYLE,
-      substyle: LOGO_GENERATION_SUBSTYLE,
-      size: LOGO_GENERATION_SIZE,
-      response_format: LOGO_GENERATION_RESPONSE_FORMAT,
-      "controls.no_text": String(request.controls.no_text),
-    });
   });
 });

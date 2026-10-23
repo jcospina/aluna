@@ -18,7 +18,7 @@
 /* ── The glyph buttons ────────────────────────────────────────────────────── */
 
 /* Connect, Unlink and the open icon: a glyph in the field's own line, never a second boundary.
-   The icon is an anchor, so no underline tells it apart: no words stand around it (D14). */
+   The icon is an anchor, so no underline tells it apart: no words stand around it. */
 .link-control__button,
 .linked-field__unlink,
 .linked-field__open {

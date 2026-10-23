@@ -13,13 +13,14 @@ import { renderCollection, renderRecordForm, renderRecordView } from "../desk/pa
 import { startInk } from "../ink/ink.js";
 import { mountLineBench } from "../sections/line-bench.js";
 import { mountPalette } from "../sections/palette.js";
+import { mountScales } from "../sections/scales.js";
 import { wireSectionWindows } from "../sections/section-window.js";
+import { swapStates } from "../sections/state-picker.js";
 import { mountWindowBench } from "../sections/window-bench.js";
 import { mountWindows } from "../window/window.js";
 
 /** @typedef {import("../window/window.js").AlunaWindow} AlunaWindow */
 /** @typedef {import("../data/capabilities.js").Capability} Capability */
-/** @typedef {import("../data/capabilities.js").LinkingSection} LinkingSection */
 
 /**
  * Every section that needs JavaScript, and the one hook it hangs from.
@@ -43,28 +44,38 @@ const SECTIONS = [
 const fixture = (index) => CAPABILITIES[index] ?? null;
 
 /**
- * One record form with the records linking to it, as a pattern record.
+ * The records linking to one record, in each of the shapes a section takes.
  *
- * @param {string} name the host's `data-pattern-linking-*` suffix
- * @param {{ capability: Capability, linking: LinkingSection[] }} shown
- * @param {boolean} [expanded]
+ * @type {Record<string, () => HTMLElement>}
  */
-const linkingPattern = (name, { capability, linking }, expanded = false) => ({
-  selector: `[data-pattern-linking-${name}]`,
-  render: () => renderRecordForm(capability, { linking, expanded }),
-});
+const LINKING = Object.fromEntries(
+  Object.entries({
+    three: LINKED_RECORDS.clarke,
+    seven: LINKED_RECORDS.leGuin,
+    two: LINKED_RECORDS.leftHand,
+  }).map(([state, { capability, linking }]) => [
+    state,
+    () => renderRecordForm(capability, { linking }),
+  ]),
+);
 
 /**
  * One record under its bar, its back control naming the place it was opened from.
  *
- * @param {string} name the host's `data-pattern-back-*` suffix
- * @param {{ capability: Capability, linking: LinkingSection[] }} shown
- * @param {string} to the list or record Back returns to
+ * @type {Record<string, () => HTMLElement>}
  */
-const backPattern = (name, { capability, linking }, to) => ({
-  selector: `[data-pattern-back-${name}]`,
-  render: () => renderRecordView(capability, undefined, { to, linking }),
-});
+const BACK = {
+  record: () =>
+    renderRecordView(LINKED_RECORDS.leGuin.capability, undefined, {
+      to: LINKED_RECORDS.leftHand.capability.fields[0]?.value ?? "",
+      linking: LINKED_RECORDS.leGuin.linking,
+    }),
+  list: () =>
+    renderRecordView(LINKED_RECORDS.clarke.capability, undefined, {
+      to: LINKED_RECORDS.clarke.capability.label,
+      linking: LINKED_RECORDS.clarke.linking,
+    }),
+};
 
 /**
  * The patterns, rendered by the same code the desk uses — deliberately, so a
@@ -85,16 +96,6 @@ const PATTERNS = [
       return capability && renderRecordForm(capability);
     },
   },
-  linkingPattern("three", LINKED_RECORDS.clarke),
-  linkingPattern("seven", LINKED_RECORDS.leGuin),
-  linkingPattern("expanded", LINKED_RECORDS.leGuin, true),
-  linkingPattern("two", LINKED_RECORDS.leftHand),
-  backPattern(
-    "record",
-    LINKED_RECORDS.leGuin,
-    LINKED_RECORDS.leftHand.capability.fields[0]?.value ?? "",
-  ),
-  backPattern("list", LINKED_RECORDS.clarke, LINKED_RECORDS.clarke.capability.label),
   {
     selector: "[data-pattern-grid]",
     render: () => {
@@ -109,17 +110,15 @@ function bootDesk() {
   if (!(host instanceof HTMLElement)) return;
 
   /*
-   * The address readout is this page's furniture, not the product's. D14 gives
-   * the window a path, and a desk embedded in a section of a document cannot
-   * own the real address bar — so it says what the address would read instead.
+   * The address readout is this page's furniture. A desk embedded in a section
+   * cannot own the real address bar, so it says what the address would read.
    */
   const address = document.querySelector("[data-desk-address]");
-  const desk = new Desk(host, CAPABILITIES, {
+  new Desk(host, CAPABILITIES, {
     onAddress: (path) => {
       if (address instanceof HTMLElement) address.textContent = path;
     },
   });
-  document.querySelector("[data-desk-reset]")?.addEventListener("click", () => desk.resetLayout());
 }
 
 function boot() {
@@ -131,6 +130,17 @@ function boot() {
     const node = render();
     if (node) document.querySelector(selector)?.append(node);
   }
+  swapStates(
+    document.querySelector("[data-linking-states]"),
+    document.querySelector("[data-pattern-linking]"),
+    LINKING,
+  );
+  swapStates(
+    document.querySelector("[data-back-states]"),
+    document.querySelector("[data-pattern-back]"),
+    BACK,
+  );
+  mountScales(document);
 
   for (const { selector, mount } of SECTIONS) {
     const host = document.querySelector(selector);

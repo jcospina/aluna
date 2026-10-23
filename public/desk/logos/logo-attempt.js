@@ -38,7 +38,7 @@ export function disarmLogoAttempt(node) {
 
 /**
  * Back once restored an htmx DOM snapshot and re-fired every `hx-trigger="load"` inside it,
- * so a few taps spent all three generations; `hx-push-url` has since been dropped (design D14).
+ * so a few taps spent all three generations; `hx-push-url` has since been dropped.
  *
  * @param {{ addEventListener(type: string, listener: (event: { target?: unknown }) => void): void }} root
  */

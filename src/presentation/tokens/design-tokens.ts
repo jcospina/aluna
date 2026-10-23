@@ -38,8 +38,8 @@ export const PALETTE_COLOR_TOKENS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * The High Meadow size set: `--type-xs` to `--type-xl` is the everyday ladder, `--type-title`
- * and `--type-display` platform roles. All eight are on-token; reaching for a role is off-key.
+ * The High Meadow size set: `--type-xs` to `--type-xl` is the everyday ladder, `--type-title-sm`
+ * to `--type-display` the title ladder. All ten are on-token.
  */
 export const TYPE_SIZE_TOKENS: ReadonlySet<string> = new Set([
   "type-xs",
@@ -48,7 +48,9 @@ export const TYPE_SIZE_TOKENS: ReadonlySet<string> = new Set([
   "type-md",
   "type-lg",
   "type-xl",
+  "type-title-sm",
   "type-title",
+  "type-title-lg",
   "type-display",
 ]);
 

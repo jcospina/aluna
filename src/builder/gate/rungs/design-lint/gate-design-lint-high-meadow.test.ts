@@ -14,6 +14,7 @@ import {
   enforceItemMarkup,
   PALETTE_COLOR_TOKENS,
   renderCollection,
+  TYPE_SIZE_TOKENS,
 } from "../../../../presentation/index.ts";
 import {
   buildItemRendererDesignInjection,
@@ -80,14 +81,11 @@ describe("design-lint — the three closed axes, re-derived", () => {
       );
       expect(findDesignViolation(spec, clean), `var(--${colour}) must be on-token`).toBeUndefined();
     }
-    for (const size of ["xs", "sm", "base", "md", "lg", "xl", "title", "display"]) {
+    for (const size of TYPE_SIZE_TOKENS) {
       const clean = renderer(
-        `\`<div class="stack" style="font-size: var(--type-${size});">\${text}</div>\``,
+        `\`<div class="stack" style="font-size: var(--${size});">\${text}</div>\``,
       );
-      expect(
-        findDesignViolation(spec, clean),
-        `var(--type-${size}) must be on-token`,
-      ).toBeUndefined();
+      expect(findDesignViolation(spec, clean), `var(--${size}) must be on-token`).toBeUndefined();
     }
     for (let step = 1; step <= 8; step += 1) {
       const clean = renderer(

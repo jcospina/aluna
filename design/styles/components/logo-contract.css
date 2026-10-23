@@ -142,35 +142,3 @@
   align-items: flex-start;
   padding: var(--space-5) var(--space-4);
 }
-
-.specimens--labels {
-  align-items: center;
-  min-height: 6rem;
-}
-
-/* ── The prompt, quoted ───────────────────────────────────────────────── */
-/*
- * The prompt is the contract's other half, so it is set as a quoted block
- * rather than as prose: it is a thing that is sent verbatim, and it should look
- * like one. Drawn, like every other bounded thing on the surface.
- */
-
-.prompt-block {
-  border: var(--line) solid var(--ink);
-  background: var(--surface-2);
-  padding: var(--space-4) var(--space-5);
-}
-
-.prompt-block p {
-  margin: 0;
-  font-size: 0.84375rem;
-  line-height: 1.65;
-}
-
-/* The two slots, so what varies is visible at a glance. */
-.prompt-block mark {
-  background: var(--sun);
-  color: var(--ink);
-  padding: 0.0625rem 0.3125rem;
-  font-weight: 600;
-}

@@ -1,7 +1,7 @@
 // Who may open the capability window, run on a started desk: a logo, a doorway on the ground, the
 // prompt bar's own submission and an address — and nothing else. Beside them, the two ways a window
 // opened for a request that never came back is taken down, and what a window keeps across being
-// opened again: its frame, and the way back to whatever opened it last (design D1, D2, D10).
+// opened again: its frame, and the way back to whatever opened it last.
 
 import { afterEach, describe, expect, test } from "bun:test";
 

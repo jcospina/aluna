@@ -144,32 +144,25 @@ strong {
   color: var(--ink-2);
 }
 
-/* Small caps: labels, counts, kickers. A role, not a size. */
+/*
+ * Caps is a modifier, not a size. On its own it sets the smallest step, for labels
+ * and counts; a rule after it that names a bigger step keeps the caps and the size.
+ */
 .caps {
-  font-size: var(--caps-size);
+  font-family: var(--font-body);
+  font-size: var(--type-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: var(--caps-tracking);
   color: var(--ink-2);
 }
 
+/* The title of a section inside a window, worn as `kicker caps`. */
 .kicker {
   font-family: var(--font-body);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: var(--shade);
+  font-size: var(--type-md);
+  color: var(--ink);
   margin: 0 0 var(--space-3);
-}
-
-.eyebrow {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.21em;
-  color: var(--shade);
-  margin-bottom: var(--space-3);
 }
 
 /* `code` deliberately stays in Outfit — no monospace face appears anywhere in the

@@ -7,13 +7,13 @@
 // signature rather than a rule someone has to remember.
 //
 // The ground is named twice — once in `controls.background_color` and once in words inside the
-// prompt — because L2 records that naming it in one place alone does not work: the control is
+// prompt — because naming it in one place alone does not work (ADR-0007): the control is
 // ignored.
 
 import type { LogoShade } from "../../registry/logo.ts";
 
 /** Recraft's vector model. The v4 vector models accept no style, substyle or controls
- * at all, so none of the rest of this contract would apply to them (ADR-0007 L1). */
+ * at all, so none of the rest of this contract would apply to them (ADR-0007). */
 export const LOGO_GENERATION_MODEL = "recraftv3_vector";
 
 /** Enforces the flatness in the request rather than asking for it in words. Without
@@ -37,7 +37,7 @@ export const LOGO_GENERATION_PATH = "/images/generations";
 
 /**
  * The thirty-two shades as bytes, the only place shade names become numbers. Not design tokens:
- * they reach the request alone (L8); `request.test.ts` measures daylight chroma, not tokens.css.
+ * they reach the request alone; `request.test.ts` measures daylight chroma, not tokens.css.
  */
 const LOGO_SHADE_RGB = {
   grass: [0x3f, 0xa6, 0x5b],
@@ -75,8 +75,9 @@ const LOGO_SHADE_RGB = {
 } as const satisfies Record<LogoShade, readonly [number, number, number]>;
 
 /**
- * The same shades as English, the other half of L2, with both ban lists in `request.test.ts`: no
- * wording against the daylight close, and no scene word — *stacked* returned a stack of books.
+ * The same shades as English: the words half of naming the ground twice (ADR-0007), used for
+ * the companion too. Both ban lists are in `request.test.ts`: no wording against the daylight
+ * close, and no scene word — *stacked* returned a stack of books.
  */
 const LOGO_SHADE_IN_WORDS = {
   grass: "a flat vivid grass green",
@@ -143,7 +144,8 @@ export interface LogoGenerationInputs {
 
 /**
  * The subject is wrapped, not concatenated: that is the whole defence against lettering, since
- * `controls.no_text` is not enough. Never move the slot to an edge. Both colours are named (L2).
+ * `controls.no_text` is not enough. Never move the slot to an edge. Both colours are named in
+ * words, as the ground must be (ADR-0007).
  */
 export function buildLogoPrompt(subject: string, ground: LogoShade, companion: LogoShade): string {
   return [
@@ -168,8 +170,8 @@ export function logoShadeColorControl(shade: LogoShade): LogoColorControl {
 }
 
 /**
- * The English the prompt names a shade with — exported for the contract's tests. `golden` is fixed
- * by `design/logo.html`; the other thirty-one follow its shape, a qualifier then a hue.
+ * The English the prompt names a shade with — exported for the contract's tests. Each of the
+ * thirty-two follows one shape, a qualifier then a hue.
  */
 export function logoShadeInWords(shade: LogoShade): string {
   return LOGO_SHADE_IN_WORDS[shade];

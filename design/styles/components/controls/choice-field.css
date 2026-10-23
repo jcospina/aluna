@@ -219,7 +219,8 @@
     scale var(--dur-fast) var(--ease-rise);
 }
 
-/* Ink on leaf, like every label on it: a light mark was 3.01, C12's pairing again. */
+/* Ink on leaf, like every label on it: a light mark was 3.01, the pairing the green swap
+   removed. */
 .choice__input:checked + .choice__mark {
   background: var(--leaf);
   color: var(--ink);

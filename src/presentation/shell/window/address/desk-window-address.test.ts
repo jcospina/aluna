@@ -43,7 +43,7 @@ import type { El } from "../standing-desk.test-support.ts";
 import { deskNodes } from "../viewport-desk.test-support.ts";
 
 // The address, and the whole of what it may say: `/capability/:id` and one record below it,
-// `/capability/:id/:record`. A search term and a draft die with the tab (design D14; ADR-0010).
+// `/capability/:id/:record`. A search term and a draft die with the tab (ADR-0010).
 
 /** A record id as `randomUUID()` writes one. */
 const RECORD = "0b0e3d6c-4c1f-4b8e-9a52-7d1f0c2a9e41";
@@ -305,7 +305,7 @@ describe("a record address names one record and nothing below it", () => {
       record: RECORD,
     });
     expect(recordFromAddress(`/capability/notes/${RECORD.toUpperCase()}`)?.record).toBe(RECORD);
-    // A trailing slash is the same place, as it is for a collection (design D14).
+    // A trailing slash is the same place, as it is for a collection.
     expect(recordFromAddress(`/capability/notes/${RECORD}/`)?.record).toBe(RECORD);
     // The escape is read before the shape, as the server's route reads it.
     expect(recordFromAddress(`/capability/notes/%30${RECORD.slice(1)}`)?.record).toBe(
@@ -517,7 +517,7 @@ describe("Back and Forward are the desk's to answer", () => {
 });
 
 // Where the two verbs are reached from. One gesture, one entry; everything else corrects
-// in place or writes nothing at all (design D14; ARCH §6.1).
+// in place or writes nothing at all (ADR-0010; ARCH §6.1).
 describe("who moves the address", () => {
   test("a press on the capability already in the window opens nothing at all", () => {
     // Re-fetching would swap the collection out and straight back in, and the window

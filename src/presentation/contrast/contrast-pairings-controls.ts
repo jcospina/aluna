@@ -24,8 +24,8 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     threshold: "non-text",
     note:
       "A glyph owes only §1.4.11's 3:1, and a light mark here made exactly that at " +
-      "3.01 — C12's pairing, surviving where the threshold was low enough to let it. " +
-      "Ink is what every label on leaf takes, and it is 4.54.",
+      "3.01 — the pairing the green swap removed, surviving where the threshold was " +
+      "low enough to let it. Ink is what every label on leaf takes, and it is 4.54.",
     sites: [
       "design/styles/components/controls/choice-field.css § .choice__input:checked + .choice__mark [color]",
     ],

@@ -179,7 +179,7 @@ describe("an interrupted claim", () => {
     expect(stagingEntries()).toEqual(["build-01J8"]);
   });
 
-  // The one thing recovery must never do. An accepted drawing is never remade (L7), so a
+  // The one thing recovery must never do. An accepted drawing is never remade (ADR-0007), so a
   // pass that removed one would take the capability's face away for good.
   test("never touches the accepted final file while it clears the temp", async () => {
     claimedAndAbandonedByACrash();
@@ -249,7 +249,7 @@ describe("a present row whose artwork has gone", () => {
     const recovered = await recover();
 
     expect(recovered[0]?.action).toBe("lost");
-    // L7's once-accepted rule still applies after loss: `abandoned`, not back to `absent`,
+    // ADR-0007's once-accepted rule still applies after loss: `abandoned`, not back to `absent`,
     // so no later load spends a call trying to draw a replacement.
     expect(logoState()).toEqual({ status: "abandoned", attempts: 1 });
     expect(claimLogoGeneration("notes", NOTES_INCARNATION_ID, conns.readwrite)).toBeNull();
@@ -307,7 +307,7 @@ describe("what recovery refuses to decide from", () => {
       const recovered = await recover();
 
       // The drawing is there, readable, paid for. A `catch` reading every errno as "the file is
-      // gone" would reconcile it to the permanent placeholder, which L7 forbids redrawing.
+      // gone" would reconcile it to the permanent placeholder, which is never redrawn.
       expect(recovered).toEqual([]);
       expect(logoState()).toEqual({ status: "present", attempts: 1 });
     } finally {

@@ -17,7 +17,7 @@ import { code } from "../../safety/source.test-support.ts";
 import { viewportDesk } from "../window/viewport-desk.test-support.ts";
 import { document as desk, Node } from "./region-scope.test-support.ts";
 
-// Opening a second capability (ARCH §6.1 and §8; design D2). A swap may not
+// Opening a second capability (ARCH §6.1 and §8). A swap may not
 // touch the frame, must release the departing content, and gets no staleness machinery at all.
 
 const SAMPLE: RenderableCapability = {
@@ -105,7 +105,7 @@ describe("opening a second capability swaps the contents, not the frame", () => 
 
   test("the desk opens the next capability into the window already standing", async () => {
     // The frame is built once, so its box and its drawn hand — the seed is rolled where the
-    // frame is built — cannot be touched by an opening (design D10).
+    // frame is built — cannot be touched by an opening.
     const screen = await viewportDesk();
     try {
       screen.module.openWindow("Tasks", screen.desk.doc as never);

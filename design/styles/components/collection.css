@@ -4,7 +4,7 @@
  *
  * The order is fixed by the shell and is the same for every capability. So is
  * the swap: opening a record replaces the collection inside the window rather
- * than opening anything over it (D2). There is no modal on this surface.
+ * than opening anything over it. There is no modal on this surface.
  */
 
 /* The window's content, holding whichever of the two views is current.
@@ -55,6 +55,10 @@
   .collection__head .btn {
     flex-basis: 100%;
   }
+
+  .collection__head .btn {
+    white-space: normal;
+  }
 }
 
 /* Row 2 — what the collection holds. A fact about the collection rather than an
@@ -86,7 +90,7 @@
 }
 
 .records--grid {
-  grid-template-columns: repeat(auto-fill, minmax(11.25rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 11.25rem), 1fr));
 }
 
 .records__empty {

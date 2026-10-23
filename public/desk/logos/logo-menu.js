@@ -15,7 +15,7 @@ import { isCapabilityNameLabel, isMarkupShapedName } from "./capability-name.js"
 
 /**
  * The slot one capability occupies on the desk: the logo, its menu and its editor. The doorway is
- * on the logo rather than the window chrome, which is why no lamp goes signal red and D3 stands.
+ * on the logo rather than the window chrome, so no lamp goes signal red and closing only puts away.
  */
 const SLOT_SELECTOR = "[data-logo-slot]";
 const LOGO_SELECTOR = "[data-capability-logo]";

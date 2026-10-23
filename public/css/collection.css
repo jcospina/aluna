@@ -17,7 +17,7 @@
 /* ── List scaffolding ─────────────────────────────────────────────────────────
    A calm vertical stack: the New X header, the disclosed create form, the records
    region, and the empty state — separated by the standard section rhythm. */
-/* Two views of one surface (design D2): the collection, and the form that replaces
+/* Two views of one surface: the collection, and the form that replaces
    it. Both fill the window rather than stacking inside it, which is what lets the
    form's action row sit on the window's own bottom edge. */
 .capability-collection {
@@ -206,8 +206,8 @@
 }
 
 /* ── How many records ─────────────────────────────────────────────────────────
-   Small caps is the role the design system already gives labels, counts and kickers, so
-   the label carries `.caps` and this owns only its box. `margin: 0` undoes the paragraph
+   Caps is the modifier the design system already gives labels and counts, so the label
+   carries `.caps` and this owns only its box. `margin: 0` undoes the paragraph
    margin design/styles/base.css puts on every `<p>`: the list is a flex column whose gap
    owns the rhythm, and a bottom margin here would make the gap below the count larger
    than the one above it. Empty is how the count says nothing — a bare collection is
@@ -258,7 +258,7 @@
 }
 .capability-records--grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
   gap: var(--space-3);
 }
 
@@ -313,6 +313,9 @@
   .capability-search,
   .capability-collection__new {
     flex-basis: 100%;
+  }
+  .capability-collection__new {
+    white-space: normal;
   }
 }
 

@@ -6,7 +6,7 @@
    view, so this is the only surface one record has, and the create view arrives under the
    same bar because it is the same surface reached the other way.
 
-   Two views of one window, not a panel over a list (design D2): this takes the
+   Two views of one window, not a panel over a list: this takes the
    collection's place and is laid out the same way — a column that fills the window,
    so the form's action row sits on the window's own bottom edge rather than
    somewhere down the page. The design's own `.detail` scrolls as a whole; here the

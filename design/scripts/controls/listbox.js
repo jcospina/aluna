@@ -143,6 +143,9 @@ function carrierFor(root) {
  * event on the root. A caller should not have to know that the panel exists.
  */
 export class Listbox {
+  /** Aborted by `destroy`, which takes the document listener with it. */
+  #mounted = new AbortController();
+
   /**
    * @param {HTMLElement} root the `[data-listbox]` element
    */
@@ -570,13 +573,23 @@ export class Listbox {
        button can share the root, and pressing one leaves the list. A field that searches is
        its whole shell, chevron and all. */
     const control = this.input?.closest(".field__control") ?? this.button;
-    document.addEventListener("pointerdown", (event) => {
-      const { target } = event;
-      if (!this.open || !(target instanceof Node)) return;
-      if (control.contains(target) || this.panel.contains(target)) return;
-      if (this.input) this.#leave();
-      else this.hide(false);
-    });
+    document.addEventListener(
+      "pointerdown",
+      (event) => {
+        const { target } = event;
+        if (!this.open || !(target instanceof Node)) return;
+        if (control.contains(target) || this.panel.contains(target)) return;
+        if (this.input) this.#leave();
+        else this.hide(false);
+      },
+      { signal: this.#mounted.signal },
+    );
+  }
+
+  /** Stop listening to the document, for a listbox whose markup is about to be thrown away. */
+  destroy() {
+    this.hide(false);
+    this.#mounted.abort();
   }
 }
 

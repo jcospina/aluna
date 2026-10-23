@@ -193,7 +193,7 @@ export function addWindowGrip(host) {
 /**
  * Maximise a window, or give it back the box it had.
  *
- * Maximised is a state, never a size (D9): what is kept is that the window was
+ * Maximised is a state, never a size: what is kept is that the window was
  * maximised and what box to return to, so a window that comes back on a different
  * screen fills that screen instead of the one it left. Fitting the result to the desk
  * stays with the caller — only the caller knows whether this desk is a phone, where

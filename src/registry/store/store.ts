@@ -527,7 +527,7 @@ interface StoredLogoState {
 
 /**
  * Win the right to spend one logo generation attempt: one conditional UPDATE, carrying the cap
- * ({@link LOGO_MAX_CLAIMED_ATTEMPTS}) so a process that dies has paid for what it ordered (L11).
+ * ({@link LOGO_MAX_CLAIMED_ATTEMPTS}) so a process that dies has paid for what it ordered.
  */
 export function claimLogoGeneration(
   capabilityId: string,
@@ -576,7 +576,7 @@ export function claimLogoGeneration(
 
 /**
  * Hand a won claim back without settling it: `generating` returns to `absent` and the attempt it
- * spent stays spent. The cap is not decided here — {@link claimLogoGeneration}'s `WHERE` is (L11).
+ * spent stays spent. The cap is not decided here — {@link claimLogoGeneration}'s `WHERE` is.
  */
 export function releaseLogoClaim(
   capabilityId: string,
@@ -621,7 +621,7 @@ export function settleLogoGeneration(
 
 /**
  * Reconcile a `present` row whose artwork has gone: it wears the placeholder and is never redrawn
- * (ADR-0007 L7). Bound to `present` alone, and reached only from desk-load recovery.
+ * (ADR-0007). Bound to `present` alone, and reached only from desk-load recovery.
  */
 export function abandonMissingCapabilityLogo(
   capabilityId: string,

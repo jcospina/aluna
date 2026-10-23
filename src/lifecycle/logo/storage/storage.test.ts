@@ -83,7 +83,7 @@ describe("installation", () => {
 
     expect(() => install(second, 2)).toThrow(LogoInstallError);
 
-    // L7: a logo is made once and never remade. The loser fails loudly rather than
+    // A logo is made once and never remade (ADR-0007). The loser fails loudly rather than
     // quietly replacing a drawing the desk is already showing.
     expect(readFileSync(capabilityLogoPath(root, CAPABILITY, INCARNATION)).equals(ARTWORK)).toBe(
       true,

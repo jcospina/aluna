@@ -1,5 +1,5 @@
 // The two places a capability is addressed: its collection, `/capability/:id`, and one of its
-// records, `/capability/:id/:record` (design D14; ADR-0010). Both are platform routes
+// records, `/capability/:id/:record` (ADR-0010). Both are platform routes
 // registered ahead of the Action route, not Actions. The record's segment is matched by shape,
 // so the five Action names keep their route. The platform reads a record and draws its form;
 // no generated Handler runs, only the card renderers of the capabilities linking to it, for
@@ -58,7 +58,7 @@ const LISTED_REST_ROUTE = `${RECORD_ROUTE}${LISTED_REST_PATH}`;
 
 /**
  * Every capability address a direct navigation draws the whole desk for. Each with a trailing
- * slash is the same place (design D14): without it, it fell to Hono's bare-text 404 and no shell.
+ * slash is the same place: without it, it fell to Hono's bare-text 404 and no shell.
  */
 export const CAPABILITY_PAGE_ROUTES = [
   COLLECTION_ROUTE,

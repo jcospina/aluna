@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Aluna Desktop · the capability surface</title>
+    <title>Aluna design system</title>
     <meta name="description" content="Design system for Aluna">
     <link rel="stylesheet" href="./styles/index.css">
     <script type="module" src="./scripts/pages/main.js"></script>
@@ -17,9 +17,9 @@
         <a href="#line">The line</a>
         <a href="#palette">Palette</a>
         <a href="#type">Type</a>
+        <a href="#space">Space</a>
+        <a href="#focus">Focus and motion</a>
         <a href="#patterns">Patterns</a>
-        <a href="#decisions">Decisions</a>
-        <a href="#open">Still open</a>
         <a href="./logo.html">The logo →</a>
         <a href="./controls.html">Controls →</a>
       </nav>
@@ -27,144 +27,121 @@
 
     <main class="page">
       <!-- ══ Hero ══════════════════════════════════════════════════════ -->
-      <section class="window--section" id="intro" data-window data-title="Aluna Desktop">
-        <p class="eyebrow">Working design page</p>
-        <h1>
-          The design system for Aluna as a web desktop: the window, the line, the palette and the
-          type.
-        </h1>
+      <section class="window--section" id="intro" data-window data-title="Aluna design system">
+        <p class="kicker caps">Design system</p>
+        <h1>The desk, the window, the line, the palette and the type.</h1>
         <p class="lede">
-          A capability in Aluna is an app on a desk. It has a logo on the ground and a window when
-          you open it — one window, which is also the whole content area: a collection, a record, a
-          confirmation and the narration of a build all land in the same frame.
+          A capability in Aluna is an app on a desk: a logo on the ground, and one window that holds
+          everything it shows. Every boundary is drawn by hand in one ink, every corner you can
+          press is mitred, and every fill comes from one closed palette.
         </p>
-        <p class="lede">
-          The line those windows are drawn with belongs to the whole surface, not to windows alone.
-          Buttons, inputs, cards, tables and status chips all carry a drawn boundary, and every
-          corner you can press is mitred. No CSS border on this page is visible.
+        <p class="sm">
+          Everything here is live and runs on the shipped stylesheets in
+          <code>design/styles/</code>. Form controls are on the
+          <a href="./controls.html">controls</a>
+          page and the capability logo on the <a href="./logo.html">logo</a> page.
         </p>
-        <div class="note note--sky">
-          <p>
-            <strong>How to read it.</strong>
-            The desk below is a working implementation of the decisions on this page, not a mock-up
-            of one. Where something is a placeholder, such as the capability fixtures and the timer
-            standing in for a build, the page says so.
-          </p>
-        </div>
       </section>
 
       <!-- ══ The desk ══════════════════════════════════════════════════ -->
       <section class="window--section" id="desk" data-window data-title="The desk">
         <p class="sm">
-          <strong>One window.</strong>
-          The desk holds a single capability window and never a second one. There is no taskbar, so
-          the logos on the ground are the only standing list of what exists. Clicking a logo opens
-          its capability; clicking another swaps what is inside the frame, which does not move and
-          does not redraw. You drag the window by its title bar and resize it from the bottom-right
-          corner. The two lamps maximise it and put it away. There is no third: minimise is not
-          offered, because with no taskbar a minimised window would be hidden exactly as thoroughly
-          as a closed one, and both come back by the same click on the same logo.
-        </p>
-        <p class="sm">
-          That window is the content area. Opening a record replaces the collection inside it and a
-          back control returns you; a build takes it over and streams its narration there; a
-          confirmation lands in it too. Nothing on this surface opens over anything else, which is
-          the whole reason there is no modal in Aluna. The one thing read over a window is the
-          question asked before leaving a running build or a form with unsaved changes, and it dims
-          only that window's body. A popup that makes the rest of the desk inert to look at one book
-          is exactly what a desktop is supposed to prevent.
-        </p>
-        <p class="sm">
-          Two windows are allowed to stand beside that one, and neither is a capability. The
-          developer panel is furniture: read-only, opened from its own tile on the ground, and
-          allowed to sit beside the capability you are watching. The answer window opens when a
-          sentence is classified as a question, so the capability you are asking about stays open
-          while you ask about it. Between them the browser still remembers exactly two presentation
-          records — one desktop box and its flags per window — because the answer window remembers
-          nothing at all. Which capability is open is the address's job.
-        </p>
-
-        <p class="sm">
-          <strong>The desk has edges, and one of them is not an edge.</strong>
-          Logos fill down a column and wrap to the next, taking as many columns as the desk is tall
-          and wide, the way every OS desktop behaves — a product whose premise is
-          <em>make as many tools as you want</em>
-          cannot stop at eleven. The prompt bar floats over the bottom of the surface, and the strip
-          it occupies is a floor: no window can be dragged or resized into it, so the tail of a
-          records list is never hidden under the bar and never unclickable. Below 720px the window
-          stops floating and is the screen — no drag, no resize, no maximise — and the logos stay on
-          the ground behind it.
+          Press a logo to open its capability and another to swap what the window holds. Drag the
+          window by its title bar and resize it from the bottom-right corner. Type into the prompt
+          bar and press <strong>Make it</strong> to grow one. The capabilities are fixtures, and a
+          build runs on a timer.
         </p>
 
         <div class="stage stage--flush">
           <div data-desk></div>
         </div>
 
-        <p class="xs">
-          Address <code data-desk-address>/</code> — what the browser's address bar would read
-          (D14). This page cannot own the real one, so it says it here instead.
-        </p>
+        <p class="xs">Address <code data-desk-address>/</code></p>
 
-        <div class="cols">
-          <div class="note">
-            <h4>Why closing is not deleting</h4>
-            <p class="sm">
-              Close means put away. The window disappears, the logo stays and the address falls back
-              to the bare desk, because nothing that is true has changed — the window's own box is
-              all that ends with it (D9). Deleting a capability is a separate action, explicit and
-              confirmation-gated, and it is deliberately not reachable from the window chrome. That
-              is why no lamp is signal red. The confirmation it does use fills the window, like
-              everything else.
-            </p>
-            <p class="sm">
-              Where it is reachable from is the logo. A short context menu opens on it carrying
-              <strong>Rename</strong>
-              and
-              <strong>Delete</strong>, by right-click, by press-and-hold, or by the keyboard menu
-              key, since the logo is already a real button. On commit the window puts itself away
-              and the tile vanishes, and an address naming a capability that is gone loads the bare
-              desk with a brief notice.
-            </p>
+        <div class="spec">
+          <div class="spec__scroll">
+            <table>
+              <caption class="caps">
+                How the desk behaves
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Part</th>
+                  <th scope="col">Behaviour</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Window</td>
+                  <td>
+                    One capability window, and it is the content area: the collection, a record, a
+                    confirmation and a build's narration all land in it. Opening another capability
+                    swaps the contents and the frame stays where it is
+                  </td>
+                </tr>
+                <tr>
+                  <td>Lamps</td>
+                  <td>
+                    Leaf maximises and clay puts the window away. There is no minimise. Putting away
+                    deletes nothing: the logo stays and the address returns to <code>/</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Logos</td>
+                  <td>
+                    Fill down a column and wrap to the next. A logo's menu, by right-click,
+                    press-and-hold or the menu key, holds <strong>Rename</strong> and
+                    <strong>Delete</strong>
+                  </td>
+                </tr>
+                <tr>
+                  <td>Prompt bar</td>
+                  <td>
+                    Floats over the bottom of the desk. The strip it occupies is a floor: no window
+                    can be dragged or resized into it
+                  </td>
+                </tr>
+                <tr>
+                  <td>Growing</td>
+                  <td>
+                    <strong>Make it</strong>
+                    opens the window on the build's narration and puts a working tile on the ground.
+                    <strong>Cancel</strong>
+                    gives back what the window held
+                  </td>
+                </tr>
+                <tr>
+                  <td>Beside the window</td>
+                  <td>
+                    The developer panel, opened from its own tile, and the answer window, opened by
+                    a question. Neither holds a capability
+                  </td>
+                </tr>
+                <tr>
+                  <td>Over the window</td>
+                  <td>
+                    Only a question: the one asked before leaving a running build or a form with
+                    unsaved changes, and Disconnect's. It dims that window's body and nothing else
+                  </td>
+                </tr>
+                <tr>
+                  <td>Below 720px</td>
+                  <td>
+                    The window is the screen, with no drag, resize or maximise, and only the
+                    frontmost window shows. The logos flow in rows on the ground behind it
+                  </td>
+                </tr>
+                <tr>
+                  <td>Remembered</td>
+                  <td>
+                    In the browser: the window's box and whether it is maximised, and the developer
+                    panel's box and whether it is open. Which capability is open comes from the
+                    address
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-          <div class="note note--sun">
-            <h4>Grow one and watch it being made</h4>
-            <p class="sm">
-              Type into the prompt bar and press <strong>Make it</strong>. Two things happen at
-              once. A placeholder tile lands in the logo grid and works away there until the build
-              is done, which is the ambient half — visible whether or not you are looking at the
-              window. And the window opens on the narration straight away, taking over whatever was
-              in it, because there is one window and a build is what it is doing now.
-            </p>
-            <p class="sm">
-              Press <strong>Cancel</strong> and the window gives back what the build took. The tile
-              has no artwork because there is none yet: the logo is requested last, once the build
-              has cleared its gate, so nothing is paid for a capability that can still be refused.
-              The exact treatment of a working tile is an implementation choice; that it is a
-              placeholder and not a finished logo is not.
-            </p>
-          </div>
-        </div>
-
-        <div class="row">
-          <button class="btn btn--outline" type="button" data-desk-reset>
-            Forget the remembered boxes
-          </button>
-          <span class="xs"
-            >Clears the window's box and the developer panel's, which is everything the browser
-            keeps. The capabilities themselves are untouched, because nothing is stored per
-            capability.</span
-          >
-        </div>
-
-        <div class="note note--clay">
-          <p class="sm">
-            <strong>Placeholders, named.</strong>
-            One is left. The four capabilities on the desk are fixtures, not generated units — their
-            logos are not, though: those are real generations, made to
-            <a href="./logo.html">the logo contract</a>
-            and drawn here under its tile and label rules. The wallpaper was a placeholder too, but
-            the artwork now exists and the desk is standing on it.
-          </p>
         </div>
       </section>
 
@@ -177,9 +154,8 @@
         data-section="window"
       >
         <p class="sm">
-          The window is square, inked twice, and carries one line that does not stop at the frame.
-          Six numbers decide all of it, and all six are constants that never scale with window size.
-          A small window uses the same pen as a large one on a smaller sheet.
+          Square, inked twice, with one line that crosses the frame. The numbers are constants and
+          never scale with the window: a small window uses the same pen on a smaller sheet.
         </p>
 
         <div class="numbers">
@@ -207,157 +183,26 @@
           </div>
         </div>
 
-        <div class="stage" data-bench-stage>
-          <span class="stage__tag" data-bench-tag>Shadow 24%</span>
+        <div class="row">
+          <span class="segmented" role="group" aria-label="Show" data-bench-views>
+            <button type="button" aria-pressed="true" data-state="window">Window</button>
+            <button type="button" aria-pressed="false" data-state="unfocused">Unfocused</button>
+            <button type="button" aria-pressed="false" data-state="anatomy">Anatomy</button>
+          </span>
         </div>
 
-        <div class="row">
-          <button class="btn btn--outline" type="button" data-bench-reseed>Re-ink</button>
-          <button class="btn btn--outline" type="button" data-bench-focus aria-pressed="false">
-            Unfocus
-          </button>
-          <button class="btn btn--outline" type="button" data-bench-ground aria-pressed="false">
-            Over wallpaper
-          </button>
-          <label class="control">
-            <span class="caps">Divider reach · <span data-bench-reach-value>5px</span></span>
+        <div class="stage stage--window" data-bench-stage>
+          <label class="control stage__control" data-ink>
+            <span class="caps">Rule reach · <span data-bench-reach-value>5px</span></span>
             <input type="range" min="0" max="13" step="1" data-bench-reach>
           </label>
         </div>
 
         <p class="xs">
-          Each window carries its own seed, so no two frames on a desk are identical. Re-ink a few
-          times to see the spread that ships. The divider slider is the one number the plate books
-          left open: at 0 the rule is clipped at the frame, 5 is the specification, and past 8 it
-          starts competing with the frame it crosses.
+          Unfocused, the title bar desaturates to 50% and its title drops to 72%; the frame and
+          content stay as they are. Anatomy names each part and what it is made of. Each window
+          carries its own seed, so no two frames on a desk are the same.
         </p>
-
-        <div class="spec">
-          <div class="spec__scroll">
-            <table>
-              <caption class="caps" style="text-align: left; padding: 9px 12px">
-                The specification, as implemented
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Part</th>
-                  <th scope="col">Specification</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>Frame</td>
-                  <td>
-                    2px <code>ink</code>, mitred at 0px radius, <code>surface</code>
-                    fill, no inner stroke
-                  </td>
-                </tr>
-                <tr>
-                  <td>Line</td>
-                  <td>
-                    Every stroke inked twice. Second pass offset
-                    <code>+0.7 / +0.56</code>
-                    at 74% ink each. The second pass carries its own seed, so it is a re-inking and
-                    not the first pass shifted across
-                  </td>
-                </tr>
-                <tr>
-                  <td>Deviation</td>
-                  <td>
-                    0.9px from true on a 58px wavelength, seeded per window. Smooth, low-frequency
-                    and periodic. Constant across window sizes
-                  </td>
-                </tr>
-                <tr>
-                  <td>Weight</td>
-                  <td>Every line 2px. No role changes the weight</td>
-                </tr>
-                <tr>
-                  <td>Title-bar rule</td>
-                  <td>
-                    2px, runs through the frame 5px each side, not clipped.
-                    <code>×1.15</code>
-                    reach on the second pass
-                  </td>
-                </tr>
-                <tr>
-                  <td>Shadow</td>
-                  <td>
-                    <code>5px 6px 0</code>
-                    ink at 24%, or at 40% over a wallpaper. Hard offset, never blurred
-                  </td>
-                </tr>
-                <tr>
-                  <td>Title bar</td>
-                  <td>
-                    <code>surface</code>
-                    from 0–50%, then five panes at 10% each. Hard cuts, vertical edges
-                  </td>
-                </tr>
-                <tr>
-                  <td>Title</td>
-                  <td>
-                    Fraunces 700, 20px, <code>SOFT 80 · WONK 1 · opsz 60</code>, ink. Set bare on
-                    the chrome, with no lozenge, plate or badge behind it, and truncated with an
-                    ellipsis when it runs past the bar — the only behaviour a locked-height title
-                    has
-                  </td>
-                </tr>
-                <tr>
-                  <td>Lamps</td>
-                  <td>
-                    Two 12px circles in 2px ink: leaf for maximise, clay for put away. No minimise.
-                    Both reversible, and neither is signal red
-                  </td>
-                </tr>
-                <tr>
-                  <td>Unfocused</td>
-                  <td>Title bar desaturated to 50%. Frame and content unchanged</td>
-                </tr>
-                <tr>
-                  <td>Body</td>
-                  <td>
-                    <code>surface</code>, flat. No texture. The chrome never reaches into generated
-                    content
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="cols">
-          <div class="note">
-            <h4>Why the rule runs through the frame</h4>
-            <p class="sm">
-              Every other line in the window is structural. It encloses something or divides
-              something, and it stops where the frame stops. The title-bar rule is the only mark
-              that does neither, and its being the only one is why it reads as deliberate. If the
-              corners crossed as well, crossing would become a pattern and stop carrying meaning.
-            </p>
-          </div>
-          <div class="note">
-            <h4>Why the title bar is cut into panes</h4>
-            <p class="sm">
-              Ordered flat fills are the depth model on this surface, so a gradient in the title bar
-              would be the only soft edge in the system. The cuts also leave something open that a
-              gradient would close: five discrete cells can each be lit on their own if the bar ever
-              has to carry live state.
-            </p>
-          </div>
-        </div>
-
-        <div class="note note--sun">
-          <h4>Four rules the implementation has to keep</h4>
-          <p class="sm">
-            The noise has to be <strong>smooth and periodic</strong>, or the frame reads as
-            corroded. The seed has to <strong>live on the window</strong> and never be derived from
-            its position or size, or a re-render during a drag re-rolls the hand. The path is
-            <strong>regenerated on resize only</strong>, since dragging is a transform. And the
-            <strong>corners have to be pinned</strong>, because a spline that runs through a corner
-            rounds it, and mitred quietly becomes a 3px radius.
-          </p>
-        </div>
       </section>
 
       <!-- ══ The line ══════════════════════════════════════════════════ -->
@@ -369,30 +214,34 @@
         data-section="line"
       >
         <p class="sm">
-          D10 settled that the line is drawn rather than ruled, and it settled that for the window.
-          D11 extends it to the whole surface. Every visible boundary on this page uses the same
-          line as the window frame: the buttons in this section, the search rail, the record cards,
-          the status chips on them, the specification tables and the stages. Each one deviates from
-          true, is inked twice, is mitred wherever it has a corner, and carries its own seed. No CSS
-          border on this page is visible.
+          Every visible boundary is drawn with the window's line: it deviates from true, is inked
+          twice, mitres at every corner and carries its own seed. Three hands set how far it
+          deviates. The weight is 2px in all three.
         </p>
 
         <div class="numbers">
           <div>
             <em>Corner</em><b>Mitred</b
-            ><small>Everywhere you can press. The status chip is a stadium, and reports.</small>
+            ><small
+              >Everywhere you can press. The status chip, which reports and is never pressed, is a
+              stadium.</small
+            >
           </div>
           <div>
-            <em>Full hand</em><b>0.9 px</b
-            ><small>Windows and the prompt rail, the things that hold others.</small>
+            <em>Frame hand</em><b>0.9 px</b
+            ><small
+              >What holds or opens over others: windows, the prompt bar, open panels and menus.</small
+            >
           </div>
           <div>
             <em>Fine hand</em><b>0.45 px</b
-            ><small>Everything drawn inside a window. A bow every 42px, at any length.</small>
+            ><small>Every other component. A bow every 42px, at any length.</small>
           </div>
           <div>
             <em>Close hand</em><b>0.28 px</b
-            ><small>Small parts, on a 20px wavelength. Checkboxes, radios, the bench tag.</small>
+            ><small
+              >Small parts, on a 20px wavelength: checkboxes, radios, the player's seek thumb.</small
+            >
           </div>
           <div>
             <em>Weight</em><b>2 px</b
@@ -400,78 +249,70 @@
           </div>
           <div>
             <em>Shadow</em><b>Outer only</b
-            ><small>Cast onto the desk. Nothing inside a window has one.</small>
+            ><small>Cast onto the desk, and by the question panel over a window.</small>
           </div>
-        </div>
-
-        <div class="note note--sky">
-          <p>
-            <strong>Why there are three hands.</strong>
-            When a button's edge wanders as far off true as the window frame around it, the surface
-            reads as noisy, and the window stops sitting
-            <em>in front of</em>
-            its own contents. The fine hand fixes that without introducing a weight ladder: every
-            line on this page is still 2px, and only the amplitude steps down. The wavelength steps
-            down with it, because a long wave on a short edge reads as a bowed rectangle instead of
-            a lighter hand.
-          </p>
-          <p>
-            The close hand answers the same objection one scale further down. A 22px checkbox under
-            the fine hand runs 2% of its own width off true, against 0.15% for a window, so the fine
-            hand there does not read as lighter. It reads as a dented square. Only the amplitude
-            moves again, because at 42px the wavelength is already short enough to complete cycles
-            on a part that small.
-          </p>
         </div>
 
         <div class="row">
           <button class="btn btn--outline" type="button" data-line-reink>Re-ink everything</button>
+          <span class="xs">Redraws every boundary on the page with a fresh hand.</span>
         </div>
 
+        <div class="stage stage--flush stage--paper" style="padding: 22px">
+          <div class="rack" style="align-items: flex-end">
+            <label class="field" style="flex: 1; min-width: 12rem">
+              <span class="field__label caps">Origin</span>
+              <span class="field__control"
+                ><input class="field__input" type="text" value="Huila, Colombia"></span
+              >
+            </label>
+            <button class="btn btn--primary" type="button">Save</button>
+            <button class="btn btn--outline" type="button">Cancel</button>
+          </div>
+          <div class="rack" style="margin-top: 18px">
+            <button class="record" type="button" style="flex: 1; min-width: 14rem">
+              <span class="record__text"
+                ><b class="record__title">Finca El Paraíso</b
+                ><span class="record__detail">Washed · 88 points</span></span
+              ><span class="pill pill--ok">Keeper</span>
+            </button>
+            <label class="choice">
+              <input class="choice__input" type="checkbox" checked>
+              <span class="choice__mark"
+                ><span class="choice__glyph"
+                  ><svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="3.4"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12.5l4.6 4.5L19 7"></path>
+                  </svg></span
+                ></span
+              >
+              <span class="choice__body"><span class="choice__title">Decaf</span></span>
+            </label>
+            <span class="segmented" role="group" aria-label="Layout">
+              <button type="button" aria-pressed="true">Feed</button>
+              <button type="button" aria-pressed="false">Grid</button>
+            </span>
+          </div>
+        </div>
         <p class="xs">
-          <strong>Re-ink</strong>
-          redraws every boundary on the page at once with a fresh hand. The treatment does not
-          change when you press it, since the three hands, the 2px weight and the amplitudes are all
-          fixed, and yet no two results are the same. There is no switch back to ruled borders and
-          no slider on the deviation: drawn is settled, and both hands were transcribed from the
-          plate books instead of being chosen on this page.
+          The field, the buttons, the card and the segmented control are in the fine hand; the
+          checkbox is in the close hand.
         </p>
-
-        <div class="stage stage--flush stage--paper" style="padding: 18px">
-          <div data-line-stage></div>
-        </div>
-
-        <div class="cols">
-          <div class="note">
-            <h4>Why a CSS border cannot do this</h4>
-            <p class="sm">
-              A border cannot deviate 0.9px from true, it cannot be inked twice, and its shadow
-              cannot follow a deviation it does not have. The shadow decides it. An edge reads as
-              <em>drawn</em>
-              when the ink and everything touching it deviate together, and it reads as a crooked
-              photocopy when they do not. So a bounded element here is drawn instead of styled, from
-              two SVG layers sandwiching the real content, with ground behind and ink in front.
-            </p>
-          </div>
-          <div class="note">
-            <h4>What CSS keeps</h4>
-            <p class="sm">
-              The background, and every colour in it. A 2px stroke centred on the path covers ±1px,
-              and the largest deviation on the surface is 0.9px, so a true rectangle of background
-              can never escape from under the drawn line. That is why the desk above can carry a
-              wallpaper under a drawn window, and why a new button variant needs to know nothing
-              about any of this. A shadow gets no such cover, because it lands outside the ink where
-              a straight edge next to a drawn one shows. So a shadow is a path too: the silhouette
-              displaced, then cut back to the crescent that falls clear of the element.
-            </p>
-          </div>
-        </div>
 
         <div class="spec spec--even">
           <div class="spec__scroll">
             <table>
-              <caption class="caps" style="text-align: left; padding: 9px 12px">
-                Where the line lives
+              <caption class="caps">
+                Drawn and ruled
               </caption>
               <thead>
                 <tr>
@@ -482,48 +323,31 @@
               <tbody>
                 <tr>
                   <td>
-                    The outer boundary of every component: buttons, the search rail, field controls,
-                    record cards, status chips, notes, specification tables, swatches, stages,
-                    segmented controls and the prompt rail
+                    The outer boundary of every component: buttons, field controls, the search rail,
+                    record cards, status chips, notes, tables, swatches, stages, segmented controls
+                    and the prompt bar
                   </td>
                   <td>
-                    Internal dividers: table row rules, the form's action-row hairline, the grid
-                    lines in this section's numbers, and the seams between segmented buttons. A line
-                    that encloses is drawn, and a line that divides stays true
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    Both window hands: the section windows on this page and the live windows on the
-                    desk, in the full hand
-                  </td>
-                  <td>
-                    What is left of the small parts: the lamps, the picker swatches and the resize
-                    grip. None of the three has perimeter enough to complete a cycle, so each stays
-                    ruled. The
-                    <a href="./controls.html#choice">choice controls</a>
-                    sit just the other side of that line and are drawn, in the close hand
+                    Internal dividers: table rules, the form's action-row rule and the seams between
+                    segmented buttons
                   </td>
                 </tr>
                 <tr>
+                  <td>Windows, open panels and menus, in the frame hand</td>
                   <td>
-                    Anything added later, automatically. The system watches the document, so a
-                    repainted collection, a window opening and a capability being grown all arrive
-                    drawn without their own code knowing it exists
-                  </td>
-                  <td>
-                    Page chrome: the menu bar and inline <code>code</code>. Furniture belonging to
-                    this document, not to the product surface
+                    Parts too small to complete a cycle of the hand: the lamps, picker swatches and
+                    the resize grip
                   </td>
                 </tr>
                 <tr>
+                  <td>Anything added to the page later, automatically</td>
+                  <td>Page chrome: the menu bar and inline <code>code</code></td>
+                </tr>
+                <tr>
+                  <td>The title-bar rule, the one dividing line that crosses the frame</td>
                   <td>
-                    The one crossing: the window's title-bar rule, which divides, is drawn, and runs
-                    through the frame. It is the only exception in this table
-                  </td>
-                  <td>
-                    Circles, meaning the lamps and the flying seed. Roundness there is the shape of
-                    the object, not the treatment of its edge
+                    Lines that neither enclose nor divide: an upload's progress line and the
+                    player's seek line
                   </td>
                 </tr>
               </tbody>
@@ -531,41 +355,12 @@
           </div>
         </div>
 
-        <div class="note note--sun">
-          <h4>What decides whether a part is drawn</h4>
-          <p class="sm">
-            The test is the <strong>perimeter</strong>, not the edge. A drawn boundary runs as a
-            closed ring, so what has to be long enough to complete a cycle of the deviation is the
-            whole way round rather than any one side. A 22px checkbox has 88px of perimeter and a
-            20px status chip has 238px, and both are drawn, where a 20px straight edge on its own
-            reads as bent rather than as drawn. Moving a part between drawn and ruled is one line in
-            <code>ink.js</code>, and this is the question that line answers.
-          </p>
-        </div>
-
-        <div class="note note--clay">
-          <h4>A shadow is cast onto the desk</h4>
-          <p class="sm">
-            Only the things that sit on the desk have one: the window, the prompt rail and the logo
-            tile. <strong>Nothing inside a window casts a shadow</strong>, including buttons, cards,
-            notes, tables and this note. A shadow on a component claims it floats above the paper it
-            is printed on, and on a flat surface with no gradients and no blur that claim reads as
-            grime. Depth here comes from ordered flat bands first and from the hands second.
-          </p>
-        </div>
-
-        <div class="note note--sun">
-          <h4>What squaring the corners cost</h4>
-          <p class="sm">
-            One locked line. The collection header's
-            <strong>full-width pill input</strong>
-            is now square and drawn. The pill was protecting the idea that a soft corner marks the
-            things you type into, and one edge treatment across the whole surface turned out to be
-            worth more than that. The larger cost was the predicted one: the change reached into the
-            shared button, field and card primitives instead of stopping at window chrome. That work
-            is done.
-          </p>
-        </div>
+        <p class="xs">
+          A line that encloses is drawn and a line that divides stays true. A part is drawn when its
+          whole perimeter completes a cycle of its hand: a 22px checkbox, 88px around, is drawn.
+          Only what stands on the desk casts a shadow: the window, the prompt bar and the logo tile,
+          and the question panel laid over a window's body.
+        </p>
       </section>
 
       <!-- ══ Palette ═══════════════════════════════════════════════════ -->
@@ -578,106 +373,62 @@
       >
         <p class="sm">
           Flat fills at high chroma, with no shading. Depth comes from ordered bands, light in front
-          and dark behind, and never from a gradient or a blur. How muted a colour is depends on how
-          much area it covers: a colour spread across a large area is held back, and the same colour
-          in a small area runs at full strength.
+          and dark behind, never from a gradient or a blur. A colour that covers a large area is
+          held back, and the same colour in a small area runs at full strength. The palette is
+          closed: a screen uses no colour that is not a token. A logo's artwork is the one
+          exception, with shades of its own on the <a href="./logo.html#colour">logo</a> page.
         </p>
 
         <div>
-          <h3 class="kicker">Structure: the five fills that build every surface</h3>
+          <h3 class="kicker caps">Structure: four fills and the ink</h3>
           <div class="swatches" data-palette-structure></div>
+          <p class="xs" style="margin-top: 12px">
+            Ink draws every line and sets type, and is never a solid fill. Labels on the two dark
+            fills and the names on the desk are set in <strong>surface</strong>.
+          </p>
         </div>
 
         <div>
-          <h3 class="kicker">Ink at reading strengths</h3>
+          <h3 class="kicker caps">Ink at reading strengths</h3>
           <div class="swatches" data-palette-strengths></div>
           <p class="xs" style="margin-top: 12px">
-            Both are set by the contrast audit rather than by eye, and what each may sit on is
-            closed: <strong>ink-2</strong> clears AA on every fill including the darkest note pane,
+            <strong>ink-2</strong>
+            reads on the light fills: surface, surface-2 and the title-bar panes.
             <strong>ink-3</strong>
-            on the two window fills and nowhere else. The audit fails if either appears on a fill it
-            has not been measured against.
+            reads on the two window fills only.
           </p>
         </div>
 
         <div>
-          <h3 class="kicker">Tint anchors: the defaults Aluna reaches for first</h3>
+          <h3 class="kicker caps">Tint anchors</h3>
           <div class="swatches" data-palette-anchors></div>
           <p class="xs" style="margin-top: 12px">
-            Eight named colours, and the list is <strong>closed</strong>. A capability's ground
-            colour is one of these eight, named by the model that writes the spec: telescope on sky,
-            recipes on ochre. Signal is not offered. Nothing measures chroma or lightness
-            afterwards, because all eight were chosen saturated and light enough for daylight and
-            there is nowhere else to go — checking the name against the list is the whole of the
-            validation.
+            Eight named colours, and a generated screen may wear any of them. <strong>Shade</strong>
+            carries <strong>surface</strong> type and the others carry ink, except
+            <strong>teal</strong>
+            and <strong>violet</strong>, which carry no readable label and so are never buttons.
+            Violet is the focus ring.
           </p>
         </div>
 
         <div>
-          <h3 class="kicker">Reserved</h3>
+          <h3 class="kicker caps">Reserved</h3>
           <div class="swatches" data-palette-reserved></div>
         </div>
 
-        <div class="note note--sky">
-          <h4>Which colours can carry a label</h4>
-          <p class="sm">
-            The fill names the role, and the label on it is ink unless the fill is too dark to carry
-            ink. Only <strong>shade</strong> and <strong>signal</strong> are, so only those two take
-            a light label. Ink clears 4.5:1 on every other anchor except <strong>teal</strong> at
-            4.34 and <strong>violet</strong> at 3.80, and that is why neither of those two is a
-            button: they stay colours a capability wears. Every pairing on a button passes. The one
-            that did not was a light label on
-            <strong>leaf</strong>
-            at 3.01, and it is gone: the two greens changed places, so
-            <strong>shade</strong>
-            is the primary at 5.18 and leaf is the secondary at 4.54, taking ink like every other
-            light anchor. See
-            <a href="./controls.html#decisions">C12</a>.
-          </p>
-          <p class="sm">
-            <strong>Violet</strong>
-            is the focus ring, and it can be precisely because it is the anchor with no other job.
-            Carrying no readable text at either end, it was never going to be a button or a fill
-            behind a label, which is what leaves it free to mean one thing — and what lets it be set
-            by what the ring needs. A ring is a control mark rather than type, so its threshold is
-            3:1 against what it is drawn on, and the tightest of those is the desk itself: violet
-            was #9A86C4 at 2.64 there and is #8F7BB9 at 3.05 now. The one other job it had, the
-            developer well&rsquo;s atoms, went to <strong>ochre</strong> at 5.01.
-          </p>
-        </div>
-
-        <div class="note">
-          <p class="sm">
-            <strong>One ink, used for lines and type only.</strong>
-            <code>#20301C</code>
-            at 2px around shapes. It is never a background, never a card and never a fill, and any
-            large dark shape uses a saturated hue instead. There is also
-            <strong>no dark theme</strong>. This palette is daylight and does not invert, so the
-            viewer's OS preference is ignored in both directions. That was decided against, not
-            deferred.
-          </p>
-        </div>
+        <p class="xs">
+          There is no dark theme. The palette is daylight and ignores the viewer's colour-scheme
+          preference.
+        </p>
       </section>
 
       <!-- ══ Type ══════════════════════════════════════════════════════ -->
       <section class="window--section" id="type" data-window data-title="Type">
         <p class="sm">
-          Two variable faces, both OFL, each self-hosted as a single
-          <code>woff2</code>
-          with no CDN and no build step.
-          <strong>No monospace face appears anywhere in the product surface.</strong>
-          That holds on this page too: every value set as <code>code</code> is Outfit with tabular
-          figures.
-        </p>
-        <p class="sm">
-          <strong>Layout and type are relative.</strong>
-          Body size, the window title, the small-caps size, the label measure, the grid track, the
-          window minimum, gaps and paddings are all set in rem, so browser text scaling grows the
-          box along with the text it holds — the most-used accessibility setting there is. The pixel
-          sizes named on these pages are what those come to at the browser's default. Drawing
-          constants stay in pixels: the ink line's weight and its deviation, the logo tile's box and
-          its contour, the 10% corner clip. Those describe a picture rather than a layout, and
-          scaling them changes the artwork's character instead of the layout's fit.
+          Two variable faces, both OFL and self-hosted: Fraunces for display and window titles,
+          Outfit for everything a capability generates. No monospace face appears in the product
+          outside the developer panel. Sizes are in rem, so the reader's text size grows the layout
+          with the text; the pixel sizes on these pages are what they come to at the default.
         </p>
 
         <div class="cols">
@@ -685,7 +436,7 @@
             <p
               style="
                 font-family: var(--font-display);
-                font-size: 2.4rem;
+                font-size: var(--type-display);
                 font-weight: 700;
                 font-variation-settings: 'SOFT' 90, 'WONK' 1, 'opsz' 120;
                 line-height: 1.05;
@@ -710,9 +461,7 @@
             >
               Customers
             </p>
-            <p class="specimen__meta">
-              Fraunces · window title · 20px · SOFT 80 · WONK 1 · opsz 60
-            </p>
+            <p class="specimen__meta">Fraunces · window title · SOFT 80 · WONK 1 · opsz 60</p>
           </div>
         </div>
 
@@ -720,13 +469,106 @@
           <div class="specimen">
             <p style="margin: 0">
               Everything a capability generates is set in Outfit: field labels, record content, form
-              text and buttons. It carries the working load and stays out of the way.
+              text and buttons.
             </p>
             <p class="specimen__meta">Outfit · body · 400</p>
           </div>
           <div class="specimen">
+            <p class="kicker caps">Tint anchors</p>
             <p class="caps" style="margin: 0">18 records · account owner · issued</p>
-            <p class="specimen__meta">Outfit · small caps · 700 · 0.14em tracking</p>
+            <p class="specimen__meta">Outfit · caps on any size · 700 · 0.14em tracking</p>
+          </div>
+        </div>
+
+        <div class="spec">
+          <div class="spec__scroll">
+            <table>
+              <caption class="caps">
+                The scale
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Token</th>
+                  <th scope="col">Size</th>
+                  <th scope="col">Sample</th>
+                </tr>
+              </thead>
+              <tbody data-type-scale></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ Space ═════════════════════════════════════════════════════ -->
+      <section class="window--section" id="space" data-window data-title="Space">
+        <p class="sm">
+          Gaps and paddings come from one rung of eight. Drawing constants such as the line's weight
+          and deviation and the logo tile stay in pixels, because they describe a picture.
+        </p>
+
+        <div class="spec">
+          <div class="spec__scroll">
+            <table>
+              <caption class="caps">
+                The rung
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Token</th>
+                  <th scope="col">Size</th>
+                  <th scope="col">Sample</th>
+                </tr>
+              </thead>
+              <tbody data-space-scale></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ══ Focus and motion ══════════════════════════════════════════ -->
+      <section class="window--section" id="focus" data-window data-title="Focus and motion">
+        <p class="sm">
+          The focus ring is violet, painted on the control's enclosing shell. A text field shows it
+          on any focus, a press included, because it marks where typing lands. Every other control
+          shows it on keyboard focus only. Tab through the row below, then click into it.
+        </p>
+
+        <div class="stage stage--flush stage--paper" style="padding: 18px">
+          <div class="rack" style="align-items: flex-end">
+            <label class="field" style="flex: 1">
+              <span class="field__label caps">Title</span>
+              <span class="field__control"
+                ><input class="field__input" type="text" value="Quarterly review"></span
+              >
+            </label>
+            <button class="btn btn--primary" type="button">Save</button>
+            <button class="btn btn--outline" type="button">Cancel</button>
+          </div>
+        </div>
+
+        <div class="numbers">
+          <div>
+            <em>Focus ring</em><b>3 px</b
+            ><small
+              >Violet, 2px off the shell; flush on the lamps. The inner control has none.</small
+            >
+          </div>
+          <div>
+            <em>Travel</em><b>×1</b
+            ><small>Every travelling distance and duration is a multiple of it.</small>
+          </div>
+          <div>
+            <em>Reduce Motion</em><b>×0</b
+            ><small>Travel stops. A mark scaling in or a chevron turning carries on.</small>
+          </div>
+          <div>
+            <em>Fast</em><b>140 ms</b><small>Every in-place transition.</small>
+          </div>
+          <div>
+            <em>Press</em><b>2 px</b><small>A pressed button moves 2px across and down.</small>
+          </div>
+          <div>
+            <em>Ease</em><b>Rise</b><small>cubic-bezier(0.2, 0.85, 0.25, 1).</small>
           </div>
         </div>
       </section>
@@ -734,632 +576,94 @@
       <!-- ══ Patterns ══════════════════════════════════════════════════ -->
       <section class="window--section" id="patterns" data-window data-title="Capability patterns">
         <p class="sm">
-          The shell applies these patterns to every capability, so generation never decides them.
-          The components below are the ones the desk above renders, running the same code on a stage
-          instead of in a window.
-        </p>
-        <p class="sm">
-          They are two views of one surface rather than a page and a popup over it (D2). Click any
-          record in the collection below and the record form takes its place, with a back control
-          above it that names the collection; <strong>New record</strong> opens the same view empty.
-          In a window that replaces the whole window, and it is the only record surface there is.
+          The shell draws these for every capability, so generation never decides them. They run the
+          same code as the desk. A record opens in place of the collection, under a back control,
+          and the create action opens the same form empty.
         </p>
 
-        <!-- One column, not two: each stage has to be wider than the 620px the rail
-             wraps at, or this page would only ever show the wrapped state it is
-             describing the alternative to. -->
+        <!-- One column: each stage has to be wider than the 620px the rail wraps at. -->
         <div class="cols" style="grid-template-columns: 1fr">
           <div>
-            <h3 class="kicker">The collection header · feed</h3>
+            <h3 class="kicker caps">The collection · feed</h3>
             <div class="stage stage--flush stage--paper" style="padding: 18px">
               <div data-pattern-collection></div>
             </div>
             <p class="xs" style="margin-top: 12px">
-              Search and the create action share row one: they are the two things you can do to a
-              collection, so they sit together, and the search takes whatever room the action does
-              not need. Below 620px of <em>window</em> — not viewport, because a window dragged
-              narrow on a wide screen needs it as much as a phone does — each takes a full row. Row
-              two is the count: a fact about the collection rather than an action on it, so it gets
-              its own line, under the rail and directly above the first record. Type in the search
-              box and the count updates <strong>live</strong>. A filtered count states both numbers
-              — how many matched and how many there are — so a filtered number is never read as the
-              whole truth. Nothing matched says so beside a total that is not zero, rather than
-              reading as an empty collection: those are two different facts and the collection never
-              shows both at once. The filtering itself is a fixture shortcut, because this page has
-              no server: in the product the search is server-side and debounced, and the count
-              arrives with the records.
+              Search and the create action share the first row, and under 620px of window each takes
+              a row of its own. The count sits below them, directly above the first record. Type in
+              the search: a filtered count states how many matched and how many there are, and a
+              search that matches nothing says so beside the total.
             </p>
           </div>
           <div>
-            <h3 class="kicker">The same header · grid</h3>
+            <h3 class="kicker caps">The collection · grid</h3>
             <div class="stage stage--flush stage--paper" style="padding: 18px">
               <div data-pattern-grid></div>
             </div>
             <p class="xs" style="margin-top: 12px">
-              The rail and the count are unchanged. Only row 3 differs, following the capability's
-              declared layout, and feed and grid are the closed set of layouts.
+              Only the records change. Feed and grid are the two layouts.
             </p>
           </div>
         </div>
 
-        <div>
-          <h3 class="kicker">The record form</h3>
-          <div class="stage stage--flush stage--paper" style="padding: 18px; max-width: 560px">
+        <div style="max-width: 560px; margin-inline: auto">
+          <h3 class="kicker caps">The record form</h3>
+          <div class="stage stage--flush stage--paper" style="padding: 18px">
             <div data-pattern-form></div>
           </div>
           <p class="xs" style="margin-top: 12px">
-            The field label sits in small caps above its control, the guidance below it in subtle
-            ink, and related short fields are paired two-up. A rule separates the actions row, which
-            carries save and cancel on the left and keeps the
-            <strong>destructive action on the right, away from them</strong>. That separation
-            carries "close means put away" down to the record level: a destructive action is never
-            next to a routine one. A record being created has no Delete at all, because there is
-            nothing yet to destroy.
-          </p>
-          <p class="xs">
-            The form is shown here on its own so the field treatment can be read at rest. In a
-            window it always arrives under a back control, reached either from a record or from
-            <strong>New record</strong>.
+            Label in small caps above the control, guidance below, short fields paired two-up. A
+            rule separates the actions: Save and Cancel on the left, Delete on the right. A new
+            record has no Delete.
           </p>
         </div>
 
-        <div>
-          <h3 class="kicker">The records linking here</h3>
-          <div class="cols">
-            <div>
-              <div class="stage stage--flush stage--paper" style="padding: 18px">
-                <div data-pattern-linking-three></div>
-              </div>
-              <p class="xs" style="margin-top: 12px">
-                Three books link to Susanna Clarke, so her record lists all three.
-              </p>
-            </div>
-            <div>
-              <div class="stage stage--flush stage--paper" style="padding: 18px">
-                <div data-pattern-linking-seven></div>
-              </div>
-              <p class="xs" style="margin-top: 12px">
-                Seven link to Ursula K. Le Guin. The first five show, in the order Books lists them,
-                and <strong>Show all</strong> adds the other two to the same list.
-              </p>
-            </div>
-            <div>
-              <div class="stage stage--flush stage--paper" style="padding: 18px">
-                <div data-pattern-linking-expanded></div>
-              </div>
-              <p class="xs" style="margin-top: 12px">
-                The same record after <strong>Show all</strong>: one list of seven, and the button
-                is gone. A section is always open and never collapses.
-              </p>
-            </div>
-            <div>
-              <div class="stage stage--flush stage--paper" style="padding: 18px">
-                <div data-pattern-linking-two></div>
-              </div>
-              <p class="xs" style="margin-top: 12px">
-                Reading log and Quotes both link to this book, so it has two sections. A capability
-                linking here through two of its fields gets two sections as well, headed alike.
-              </p>
-            </div>
+        <div style="max-width: 560px; margin-inline: auto">
+          <h3 class="kicker caps">The records linking here</h3>
+          <div class="row" style="margin-bottom: 14px">
+            <span
+              class="segmented"
+              role="group"
+              aria-label="Records linking here"
+              data-linking-states
+            >
+              <button type="button" aria-pressed="true" data-state="three">Three</button>
+              <button type="button" aria-pressed="false" data-state="seven">Seven</button>
+              <button type="button" aria-pressed="false" data-state="two">Two relations</button>
+            </span>
+          </div>
+          <div class="stage stage--flush stage--paper" style="padding: 18px">
+            <div data-pattern-linking></div>
           </div>
           <p class="xs" style="margin-top: 12px">
-            Each relation pointing at a record gets a section between the fields and the actions,
-            headed with the linking capability's label and how many of its records link here. The
-            cards are the linking capability's own, and a press opens that record in its own
-            capability, asking first when the form has unsaved changes. The cards are not fields:
-            Save never posts them and nothing in a section is an unsaved change. The actions stay
-            <strong>the last row</strong>, and nothing is drawn below them. A relation with no
-            record linking here has no section, and a record being created has none.
+            Each relation with records pointing at this one gets a section between the fields and
+            the actions, headed with the linking capability's label and a count. The cards are that
+            capability's own, in its order, and a press opens the record there, asking first when
+            the form has unsaved changes. Five show, and <strong>Show all</strong> adds the rest. A
+            section never collapses, Save never posts it, and the actions stay the last row. A new
+            record has none.
           </p>
         </div>
 
-        <div>
-          <h3 class="kicker">The record's bar</h3>
-          <div class="cols">
-            <div>
-              <div class="stage stage--flush stage--paper" style="padding: 18px">
-                <div data-pattern-back-record></div>
-              </div>
-              <p class="xs" style="margin-top: 12px">
-                Ursula K. Le Guin, opened from The Left Hand of Darkness by the open icon in its
-                Author field. Back names the book and returns to it.
-              </p>
-            </div>
-            <div>
-              <div class="stage stage--flush stage--paper" style="padding: 18px">
-                <div data-pattern-back-list></div>
-              </div>
-              <p class="xs" style="margin-top: 12px">
-                Susanna Clarke, opened from the Authors list. Back names the list.
-              </p>
-            </div>
+        <div style="max-width: 560px; margin-inline: auto">
+          <h3 class="kicker caps">The record's bar</h3>
+          <div class="row" style="margin-bottom: 14px">
+            <span class="segmented" role="group" aria-label="Opened from" data-back-states>
+              <button type="button" aria-pressed="true" data-state="record">From a record</button>
+              <button type="button" aria-pressed="false" data-state="list">From the list</button>
+            </span>
+          </div>
+          <div class="stage stage--flush stage--paper" style="padding: 18px">
+            <div data-pattern-back></div>
           </div>
           <p class="xs" style="margin-top: 12px">
-            The bar holds only the back control. The form's values say which record is open, so the
-            bar carries no title. Back names the place the record was opened from, a record by its
-            title and a list by its capability's label, and returns there. An answer window writes
-            no history, so a record opened from a name in an answer returns to whatever the window
-            held under the answer. A record opened from a pasted address, after a reload or from the
-            bare desk has no place before it, so Back names its own list and opens that. Save,
-            Cancel and Delete leave the way Back does.
+            The bar holds only Back, with no title. Back names where the record was opened from, a
+            record by its title and a list by its label, and returns there. A record opened from a
+            pasted address, after a reload or from the bare desk names its own list. Save, Cancel
+            and Delete leave the same way.
           </p>
         </div>
       </section>
-
-      <!-- ══ Decisions ═════════════════════════════════════════════════ -->
-      <section class="window--section" id="decisions" data-window data-title="Locked decisions">
-        <p class="sm">
-          These are settled, and everything above is built to them. They are constraints on
-          implementation, not options.
-        </p>
-
-        <div class="spec">
-          <div class="spec__scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">#</th>
-                  <th scope="col">Decision</th>
-                  <th scope="col">Where you can see it</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>D1</td>
-                  <td>
-                    <strong>One window.</strong>
-                    The desk holds a single capability window. It floats, drags and resizes; it
-                    never overlaps a second one, because there is never a second one. Below 720px it
-                    stops floating and is the screen, with no drag, no resize and no maximise, and
-                    the logos stay on the ground behind it, which reads as a phone home screen.
-                    <em>Supersedes free-floating multi-window</em>
-                  </td>
-                  <td class="sm">
-                    Open one capability, then another; narrow the browser for the phone form
-                  </td>
-                </tr>
-                <tr>
-                  <td>D2</td>
-                  <td>
-                    <strong>The window is the content area.</strong>
-                    Everything a capability shows happens inside it: the collection, a record, a
-                    confirmation, the narration of a build. Opening another capability swaps the
-                    contents; the frame does not move. There is no modal and no second surface
-                    anywhere in Aluna. <em>Supersedes one window per capability</em>
-                  </td>
-                  <td class="sm">Click a record, then Back; then open another capability</td>
-                </tr>
-                <tr>
-                  <td>D3</td>
-                  <td>
-                    <strong>Close means put away.</strong>
-                    The window disappears and the address returns to the bare desk; nothing that is
-                    true changes. No capability and no record of one is touched — what ends is the
-                    window, and its presentation record ends with it (D9). It is not silent when
-                    there is something to lose: closing on a running build or evolution warns first,
-                    because closing kills the run, and only proceeds on confirmation. A record form
-                    with unsaved changes asks the same way before any exit takes it
-                  </td>
-                  <td class="sm">The clay lamp; the logo stays and the address reads /</td>
-                </tr>
-                <tr>
-                  <td>D4</td>
-                  <td>
-                    <strong>Desktop logos only.</strong>
-                    No taskbar. Capabilities live on the ground as logos
-                  </td>
-                  <td class="sm">There is nothing along the bottom edge</td>
-                </tr>
-                <tr>
-                  <td>D5</td>
-                  <td><strong>Prompt bar always visible</strong>, floating above the desk</td>
-                  <td class="sm">Clear of all four edges, never full width</td>
-                </tr>
-                <tr>
-                  <td>D6</td>
-                  <td>
-                    <strong>A build opens the window and marks the ground.</strong>
-                    Narration streams into the window from the moment you press Make it, taking over
-                    whatever was open; a placeholder tile lands in the logo grid and works until the
-                    build finishes. There is no seed flight and no bloom.
-                    <em>Supersedes seed-to-logo</em>
-                  </td>
-                  <td class="sm">Grow one from the prompt bar, then cancel it</td>
-                </tr>
-                <tr>
-                  <td>D7</td>
-                  <td><strong>Fast and interactive, and no framework</strong></td>
-                  <td class="sm">
-                    CSS transforms and three named stacking slots — the one that may not be covered,
-                    the focused one, and everything else — so stacking is a fixed set rather than a
-                    counter however many windows stand
-                  </td>
-                </tr>
-                <tr>
-                  <td>D8</td>
-                  <td>
-                    <strong>Contrast is a commitment; the rest is best-effort.</strong>
-                    WCAG AA for text and controls holds, and a closed palette makes that one check
-                    per colour pair rather than a standing cost. Keyboard navigation, semantic
-                    landmarks and reduced motion are honoured but are not release gates
-                  </td>
-                  <td class="sm">
-                    Every pairing's measured ratio is stated under its swatch in
-                    <a href="#palette">High Meadow</a>, computed from the token rather than typed;
-                    the button spectrum states its own on the
-                    <a href="./controls.html#buttons">controls page</a>
-                  </td>
-                </tr>
-                <tr>
-                  <td>D9</td>
-                  <td>
-                    <strong>The browser remembers two presentation records.</strong>
-                    The window's position and size, and the developer panel's plus whether it was
-                    open. Maximised rides with them as a <em>flag</em> and never as a size, so a
-                    desk that comes back on a different screen fills that screen; the box from
-                    before is kept beside it to un-maximise to, and any box that no longer fits is
-                    pulled inside on load and on resize. The capability window's record lasts as
-                    long as that window does: close the browser on an open window and it comes back
-                    where it was left, dismiss it — the clay lamp, or a Back onto the bare desk —
-                    and the record goes with it, so the next window opens centred. A window going
-                    away for any other reason keeps it, and the developer panel keeps its box either
-                    way, because its record carries an <em>open</em> flag its clay lamp has to write
-                    <em>false</em>
-                    to. All of it is how things look to the user, which is the shell's to keep —
-                    what is true stays the server's. That is the whole of it, in
-                    <code>localStorage</code>. Nothing is stored per capability, so there is no row
-                    to strand, reconcile or purge — which capability is open comes from the address
-                    instead.
-                    <em>Supersedes the server-side layout table</em>
-                  </td>
-                  <td class="sm">Reload the page; forget them from the desk section</td>
-                </tr>
-                <tr>
-                  <td>D10</td>
-                  <td>
-                    <strong>The line is drawn, not ruled.</strong>
-                    Every window edge is mitred, deviates 0.9px from true, and is inked twice. The
-                    hand is rolled when a window opens and is not stored: swapping contents cannot
-                    re-roll it, because nothing opened
-                  </td>
-                  <td class="sm">Every window on this page; put one away and open it again</td>
-                </tr>
-                <tr>
-                  <td>D11</td>
-                  <td>
-                    <strong>The line belongs to the surface, not to the window.</strong>
-                    Every boundary is drawn and every corner is mitred, including buttons, inputs,
-                    cards and tables. Components use a subtler <em>fine</em> hand than the window
-                    that holds them, and small parts a <em>close</em> one: the same 2px weight
-                    throughout, at falling deviation. A part is drawn when its perimeter is long
-                    enough to complete a cycle of that deviation. The logo tile is the one
-                    exception, and it is a picture rather than a boundary — see
-                    <a href="./logo.html#decisions">L4</a>. This settles what was Open Question 1
-                  </td>
-                  <td class="sm">
-                    Everything you can see an edge on. Re-ink the page from the
-                    <a href="#line">line bench</a>
-                  </td>
-                </tr>
-                <tr>
-                  <td>D12</td>
-                  <td>
-                    <strong>Two lamps: maximise and put away. There is no minimise.</strong>
-                    D4 leaves nowhere to park a minimised window where you could still see it
-                    waiting, so minimising and closing look identical on the desk and both undo with
-                    the same click on the same logo. A capability is cheap to open and cheap to
-                    close, and that is the whole life cycle window chrome offers
-                  </td>
-                  <td class="sm">Every title bar on this page carries two lamps</td>
-                </tr>
-                <tr>
-                  <td>D13</td>
-                  <td>
-                    <strong>The developer panel is a second window.</strong>
-                    Read-only, opened from its own tile on the ground, and the first surface exempt
-                    from D1: it may sit beside the capability you are watching, because reading what
-                    a build did while it does it is one activity. It carries the same eight stages
-                    it carries today, set as a terminal — and it is the only place in Aluna a
-                    monospace face appears, because it shows raw payloads and stands outside the
-                    product voice. The experiment harness lands in this window too, since metrics,
-                    latency and gate tuning are the same kind of thing, so this exception buys
-                    nothing further.
-                    <br><br>
-                    <strong>The answer window is the second exemption.</strong>
-                    ADR-0008 gave the row below its answer on the same reasoning this one stands on:
-                    reading an answer about a capability while looking at that capability is one
-                    activity, exactly as watching a build beside it is. It opens when a sentence is
-                    classified as a question and it displaces nothing. It is the one window that
-                    remembers nothing — no stored box, no logo, no tile, no address — so its clay
-                    lamp <em>dismisses</em> rather than puts away. That is the one place D3 bends:
-                    closing an answer destroys the answer. It destroys nothing else, which is why D3
-                    stands. A third exemption has to argue against this reasoning; citing it will
-                    not do.
-                  </td>
-                  <td class="sm">The terminal tile in the logo grid</td>
-                </tr>
-                <tr>
-                  <td>D14</td>
-                  <td>
-                    <strong>The address bar addresses the window.</strong>
-                    <code>/capability/:id</code>
-                    opens the desk with that capability in the window, and
-                    <code>/capability/:id/:record</code>
-                    opens it with that record in its record view; putting the window away returns to
-                    <code>/</code>. One window is exactly what makes a single path enough to
-                    describe the whole desk, and it is why reload, a pasted address, history and
-                    sharing all keep working unchanged. Opening a record moves the address. The
-                    record's back control names wherever the record was opened from, a collection or
-                    another record, and steps back onto that entry. Save, Cancel and Delete leave
-                    the same way. A record opened from a pasted address, after a reload or from the
-                    bare desk returns to its own collection, and the address is replaced with the
-                    collection's.
-                    <br><br>
-                    <strong>A record that is gone leaves its capability open.</strong>
-                    When a record address names a record that was deleted, never existed or belongs
-                    to another capability, the desk opens the addressed capability's collection, the
-                    address becomes
-                    <code>/capability/:id</code>, and the prompt bar says the notice it already has
-                    for something missing: <q>Hmm — I can’t find that one.</q> A capability that is
-                    gone still leaves the bare desk.
-                    <br><br>
-                    <strong>A record an answer names is an answer link.</strong>
-                    The answer window stays prose, and a record named in it is an answer link to
-                    that record's address, built by the platform and never by the model. A press
-                    opens the record in the capability window and the answer stays where it is. An
-                    answer link is ink and an underline like every anchor in running text and takes
-                    the one focus ring, so it needs no states of its own.
-                    <br><br>
-                    <strong
-                      >The open icon in a linked field is an anchor drawn as a bare glyph.</strong
-                    >
-                    A square with an arrow leaving it stands inside the field, after Unlink's broken
-                    chain. Its address is the record address of the record a save would post. A
-                    press on it opens that record as a press on an answer link does. A desk cannot
-                    open the record in place when its capability was built in another tab after the
-                    desk was drawn. The bar then says to open it in a new tab. It is the one anchor
-                    drawn as a glyph with no boundary and no underline. A file's Open and Download
-                    are anchors that wear a button. An underline tells a link from the words around
-                    it, and the icon has no words around it
-                  </td>
-                  <td class="sm">
-                    The address readout under the desk, for the bare desk and a capability. The
-                    desk's fixture records have no ids, so the record address is stated here and not
-                    drawn. The record's bar, with Back naming a record and a list, is in Capability
-                    patterns
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="note note--sky">
-          <h4>What D8 commits to, and what it only honours</h4>
-          <p class="sm">
-            <strong>Contrast is the commitment.</strong>
-            The palette is closed, so every colour pair is measured once and stays measured, and
-            every pair a button uses passes — see
-            <a href="#palette">High Meadow</a>
-            and <a href="./controls.html#decisions">C12</a>. Measured once means enumerated once:
-            every foreground the stylesheets declare, every ring, and every
-            <code>opacity</code>
-            that dims one is listed with the fill it is read against, and a declaration nothing has
-            classified fails the audit rather than passing unnoticed. Three tokens are set by that
-            audit rather than by eye. Everything else under D8 is honoured without being a release
-            gate.
-          </p>
-          <p class="sm">
-            <strong>Motion is on by default</strong>
-            and is part of the product's personality. When the OS Reduce Motion setting is on, Aluna
-            stops <em>positional travel</em> — windows flying open, content sliding, press-jumps —
-            because travel is what triggers nausea. In-place character carries on: a mark still
-            grows into its box and a chevron still turns over. Travel is switched off centrally on
-            that one axis, rather than by a blanket reset or a list of components maintained by
-            hand. The axis is the token
-            <code>--travel</code>
-            — a scale of one that Reduce Motion takes to zero, and every travelling distance and
-            duration is a multiple of it. Which half a rule is on is the property it uses:
-            <code>translate</code>
-            travels, while
-            <code>scale</code>
-            and
-            <code>rotate</code>
-            do not.
-          </p>
-          <p class="sm">
-            <strong>The focus ring is one colour and two rules.</strong>
-            It is violet, painted on the enclosing shell with the inner control's own ring
-            suppressed. A text input shows it on any focus, mouse click included, because the ring
-            tells you where typing will land and that is real information; every other control shows
-            it on keyboard focus only.
-          </p>
-        </div>
-
-        <div class="note">
-          <h4>Consequences that bind implementation</h4>
-          <p class="sm">
-            D4 makes the logo load-bearing, since with no taskbar it is both the capability's
-            permanent identity
-            <strong>and</strong>
-            the only way back to a window you closed. D12 falls out of the same place: a third lamp
-            would need somewhere to put a window that is neither on the desk nor gone, and there is
-            no such place. D3 means every title-bar control has to be reversible, so no destructive
-            affordance can appear in window chrome.
-          </p>
-          <p class="sm">
-            D1 and D2 together are what let almost everything else stay small. One window means one
-            swap target, so nothing has to be re-addressed per window; one focused thing, so the
-            prompt is never ambiguous about what it is talking to; one reader per capability, so a
-            deletion drain has one surface to wait on rather than several. D14 falls out of the same
-            fact: a single path can describe the whole desk only because there is only ever one
-            thing in it.
-          </p>
-          <p class="sm">
-            What D2 costs is restoration. A build takes the window over, so the window has to be
-            able to give back what the build displaced when it is cancelled, fails, goes stale or
-            comes back a no-op. That path is alive rather than vestigial, and it is the price of the
-            window being the content area.
-          </p>
-          <p class="sm">
-            D9 keeps nothing per capability, so nothing has to be purged when one is deleted or
-            reconciled against the registry at load — the two cases a layout table would have owed
-            an answer for. D10's hand is rolled at open and never stored, so there is nothing left
-            for a seed to be derived from position or size and re-roll on. D11 extends that to
-            everything else: every drawn boundary carries its own seed, and no seed may come from
-            where the element happens to sit. A record card seeds from the
-            <strong>record's own id</strong>, so one record keeps its hand across a view swap and
-            across a resize, and the generation pipeline never learns the ink system exists. Resize
-            is watched once per list rather than once per card, because the children of a list
-            resize together.
-          </p>
-        </div>
-      </section>
-
-      <!-- ══ Still open ════════════════════════════════════════════════ -->
-      <section class="window--section" id="open" data-window data-title="Still open">
-        <div class="note note--sky">
-          <p class="sm">
-            <strong>Question 1 is closed.</strong>
-            It asked whether components should follow the frame. The answer was yes, and it went
-            further than the question did: they follow the line as well as the corner. It is
-            <a href="#decisions">D11</a>
-            now, it lives in <a href="#line">The line</a>, and both locked lines it contradicted
-            have been paid.
-          </p>
-        </div>
-
-        <div class="spec">
-          <div class="spec__scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Open</th>
-                  <th scope="col">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><s>Where a disposable query answer appears</s> (closed)</td>
-                  <td>
-                    It appears in a window of its own. ADR-0008 settled it: a third window, opened
-                    when a sentence is classified as a question, standing beside the capability it
-                    is about rather than taking it over — which is the whole reason it is a window
-                    and not something anchored to the prompt bar. It keeps no logo, no tile, no
-                    address and no stored box, so there is no route to an answer that is not on
-                    screen, and a reload starts with none. It is
-                    <a href="#decisions">D13</a>
-                    now
-                  </td>
-                </tr>
-                <tr>
-                  <td>Where a behavioural proposal appears</td>
-                  <td>
-                    The implicit loop watches how you work and offers to build something. Where that
-                    offer appears is not designed yet
-                  </td>
-                </tr>
-                <tr>
-                  <td><s>Button variants against green</s> (closed)</td>
-                  <td>
-                    The re-check pass happened with Question 1. It moved the corner and the line and
-                    <strong>left the fills alone</strong>, which is the answer: a button sits on the
-                    near-white window surface and not on the green ground, so the ground was never
-                    what it had to survive. What did change is the set.
-                    <code>neutral</code>
-                    is dropped and <code>ghost</code> is renamed
-                    <code>outline</code>, the only unfilled one. Seven survive — primary, secondary,
-                    info, feature, warm, danger and outline — and there is no eighth: the base fills
-                    with nothing, which is what <code>outline</code> names. They are on the
-                    <a href="./controls.html#buttons">controls page</a>
-                  </td>
-                </tr>
-                <tr>
-                  <td><s>The wallpaper artwork</s> (closed)</td>
-                  <td>
-                    The image has been made and the desk above is standing on it. It answers what
-                    the direction left open: the horizon sits <strong>low</strong>, which leaves the
-                    upper half quiet enough for logos, and the image is
-                    <strong>fixed</strong>, so it neither pans nor shifts with the time of day
-                  </td>
-                </tr>
-                <tr>
-                  <td><s>Module placement</s> (closed)</td>
-                  <td>
-                    The slot is chosen. <strong>The desk is Module 5</strong>, and everything ahead
-                    of it shifts up one: Reads Set Free is 6, Files 7, the implicit loop 8 and the
-                    experiment harness 9 (since renumbered: composition took 8 and file content
-                    understanding 9, so the implicit loop is 10 and the experiment harness 11). The
-                    desk changes the shape of all four, because each of them needs a surface only
-                    the desk defines, so building them against the shell being deleted would be work
-                    done twice
-                  </td>
-                </tr>
-                <tr>
-                  <td>What a working tile looks like</td>
-                  <td>
-                    D6 settles that a capability being built shows a placeholder on the ground until
-                    its logo exists, and that the placeholder is not a finished logo. The treatment
-                    itself — the direction of the reference is the tile an app installing on iOS
-                    shows — is an implementation choice and is deliberately not drawn here
-                  </td>
-                </tr>
-                <tr>
-                  <td><s>A build that does not succeed</s> (closed)</td>
-                  <td>
-                    It speaks where you are already looking, and the desk gains no notice component.
-                    A build that fails, is refused as stale or comes back a measured no-op
-                    <strong>adds a final line to the narration</strong>
-                    in the same voice and stops instead of committing; the log is already the live
-                    region. Anything rejected before a build starts speaks on the prompt bar
-                    instead, where the 400ms refusal flash stays as the attention cue and stops
-                    being the whole message. Restoration then waits until you dismiss it — cancel is
-                    the one that gives the window back at once, because you already know why
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="note note--sun">
-          <h4>What dropping the weight ladder cost, and what paid for it</h4>
-          <p class="sm">
-            With every line at 2px, the window frame and a button edge were the same line, and a
-            window never quite sat <em>in front of</em> its contents. The fix on the table was a
-            weight ladder after all, at 3px for the frame and 2px for everything else. D11 paid for
-            it another way: the frame and the button are both still 2px, and the frame deviates
-            0.9px where the button deviates 0.45px, so the hierarchy lives in the
-            <a href="#line">hand</a>.
-          </p>
-          <p class="sm">
-            A hand turned out to be more than an amplitude. The model was tuned on windows and
-            cards, which are large in both directions, and it spread its waves evenly around the
-            perimeter. On a <em>control</em> that is 220px one way and 36px the other, the two short
-            edges share 14% of that perimeter between them, so each saw less than one wave. They did
-            not bend; they slid, perfectly straight and slightly offset, which reads as a printing
-            error. Each edge now gets its own budget, floored so a short edge still bows once.
-          </p>
-          <p class="sm">
-            The budget was <em>capped</em> too, and the cap made the same mistake at the other end
-            of the scale. A cap stretches a long edge instead of calming it: six waves across this
-            note is one bow every 130px where the wavelength asks for 42, and at 0.45px the result
-            is a straight line missing true by a third of its own stroke width. The window holding
-            this note is <strong>wider than the note</strong> and has always read as drawn, because
-            it inks its edges at
-            <code>length / wavelength</code>
-            with no cap, giving a bow every 58px at any size. The cap is gone, no amplitude moved,
-            and the note you are reading is drawn at the rate it was always specified at.
-          </p>
-        </div>
-      </section>
-
-      <p class="page__foot">
-        This page is the specification for <em>Aluna Desktop, the capability surface</em>, settled
-        across the design artifacts it was transcribed from.<br>
-        Every window on this page is drawn by the same code the desk uses. Fonts are Fraunces and
-        Outfit, both OFL, both vendored.
-      </p>
     </main>
   </body>
 </html>

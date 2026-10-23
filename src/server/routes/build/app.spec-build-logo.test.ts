@@ -171,7 +171,7 @@ describe("a build and the logo it does not pay for", () => {
 describe("a build that never activates", () => {
   test("orders nothing, and stands no armed tile on the desk", async () => {
     // A structurally broken Handler fails the Gate, so publication and activation never happen.
-    // Nothing may be spent for a capability that can still be refused (L10).
+    // Nothing may be spent for a capability that can still be refused (ADR-0007).
     const logoProvider = countingProvider(ARTWORK);
     const { provider } = makePromptBuildProvider(NEW_CAPABILITY_INTENT, NOTES_SPEC, undefined, {
       create: "export const create = (",

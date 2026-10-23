@@ -1,12 +1,7 @@
 // @ts-check
 /**
- * The window bench.
- *
- * A real window on a stage, with the four things that are worth being able to
- * move: the seed, the divider reach, focus, and the ground it sits on.
- *
- * The point of the bench is that no two frames on a desk are identical. Press
- * re-ink a few times — the spread you see is the spread that ships.
+ * The window bench: a real window standing on the wallpaper, the divider reach to move, and a
+ * picker that shows it focused, unfocused, or with its anatomy marked up over it.
  */
 
 import { CAPABILITIES } from "../data/capabilities.js";
@@ -14,6 +9,11 @@ import { renderCollection } from "../desk/patterns.js";
 import { wallpaperUrl } from "../desk/wallpaper.js";
 import { SPEC } from "../ink/spec.js";
 import { AlunaWindow } from "../window/window.js";
+import { wireStates } from "./state-picker.js";
+import { wireAnatomy } from "./window-anatomy.js";
+
+/** Over a wallpaper a hard shadow needs more weight to read than on flat colour. */
+const SHADOW_OVER_WALLPAPER = 0.4;
 
 /**
  * @param {HTMLElement} root
@@ -21,11 +21,6 @@ import { AlunaWindow } from "../window/window.js";
  */
 export function mountWindowBench(root) {
   const stage = root.querySelector("[data-bench-stage]");
-  const reseed = root.querySelector("[data-bench-reseed]");
-  const focusToggle = root.querySelector("[data-bench-focus]");
-  const groundToggle = root.querySelector("[data-bench-ground]");
-  const reach = root.querySelector("[data-bench-reach]");
-  const reachValue = root.querySelector("[data-bench-reach-value]");
   if (!(stage instanceof HTMLElement)) return null;
 
   /* The bench stands on the first fixture; with none there is nothing to show. */
@@ -37,81 +32,51 @@ export function mountWindowBench(root) {
   const content = document.createElement("div");
   content.append(renderCollection(capability));
   el.append(content);
-  stage.append(el);
+  stage.prepend(el);
+  stage.style.backgroundImage = wallpaperUrl();
 
   const win = new AlunaWindow(el, {
     title: capability.label,
     seed: 31,
-    shadowAlpha: 0.24,
+    shadowAlpha: SHADOW_OVER_WALLPAPER,
   });
 
-  reseed?.addEventListener("click", () => {
-    win.setSeed(Math.floor(Math.random() * 9000) + 10);
+  /* The specimen's lamps are part of the picture: pressed, they would fold or widen the section
+   * holding it. */
+  win.lampsEl.inert = true;
+
+  const anatomy = wireAnatomy(stage, win);
+  wireReach(
+    win,
+    root.querySelector("[data-bench-reach]"),
+    root.querySelector("[data-bench-reach-value]"),
+    anatomy.redraw,
+  );
+  wireStates(root.querySelector("[data-bench-views]"), (view) => {
+    win.setFocused(view !== "unfocused");
+    anatomy.show(view === "anatomy");
   });
-
-  focusToggle?.addEventListener("click", () => {
-    const next = !win.focused;
-    win.setFocused(next);
-    focusToggle.setAttribute("aria-pressed", String(!next));
-    focusToggle.textContent = next ? "Unfocus" : "Focus";
-  });
-
-  wireGround(win, stage, groundToggle);
-  wireReach(win, reach, reachValue);
-
   return win;
 }
 
 /**
- * Flat ground or wallpaper. The only thing that changes with it is the shadow:
- * 24% on flat colour, 40% over a wallpaper, because a hard shadow needs more
- * weight to read against a busy ground.
- *
- * @param {AlunaWindow} win
- * @param {HTMLElement} stage
- * @param {Element | null} button
- */
-function wireGround(win, stage, button) {
-  if (!button) return;
-  const tag = stage.querySelector("[data-bench-tag]");
-
-  const GROUNDS = {
-    flat: { image: () => "", shadow: 0.24, next: "Over wallpaper", tag: "Shadow 24%" },
-    wallpaper: { image: wallpaperUrl, shadow: 0.4, next: "Flat ground", tag: "Shadow 40%" },
-  };
-
-  button.addEventListener("click", () => {
-    const onWallpaper = stage.classList.toggle("is-wallpaper");
-    const ground = onWallpaper ? GROUNDS.wallpaper : GROUNDS.flat;
-
-    stage.style.backgroundImage = ground.image();
-    win.setShadowAlpha(ground.shadow);
-    button.setAttribute("aria-pressed", String(onWallpaper));
-    button.textContent = ground.next;
-    if (tag) tag.textContent = ground.tag;
-  });
-}
-
-/**
- * The divider reach — the one number the plate books left open.
- *
  * @param {AlunaWindow} win
  * @param {Element | null} input the range control; anything else is no control
  * @param {Element | null} readout
+ * @param {() => void} moved
  */
-function wireReach(win, input, readout) {
+function wireReach(win, input, readout, moved) {
   if (!(input instanceof HTMLInputElement)) return;
   /** @param {number} px */
   const show = (px) => {
     if (readout) readout.textContent = `${px}px`;
   };
-
   input.value = String(SPEC.dividerReach);
   show(SPEC.dividerReach);
-
   input.addEventListener("input", () => {
     const px = Number(input.value);
     win.setDividerReach(px);
     show(px);
+    moved();
   });
 }

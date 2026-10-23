@@ -240,7 +240,7 @@ describe("what a desk load reconciles before it draws", () => {
 
     const desk = await (await app.request("/")).text();
 
-    // L7's once-accepted rule still applies after loss: reconciled, not redrawn.
+    // ADR-0007's once-accepted rule still applies after loss: reconciled, not redrawn.
     expect(provider.calls).toBe(0);
     expect(logoState()).toEqual({ status: "abandoned", attempts: 1 });
     expect(desk).toContain("logo-tile--pending");

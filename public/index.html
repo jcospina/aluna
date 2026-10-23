@@ -11,11 +11,11 @@
     <!--
       The fixed shell — Aluna's one fixed UI surface (ARCH §4, §6.1). The page is
       the desk ground: a wallpaper filling the viewport, every capability standing
-      on it as a logo, and the prompt bar floating over both clear of every edge
-      (design D4, D5). It is not inert after first load:
+      on it as a logo, and the prompt bar floating over both clear of every edge.
+      It is not inert after first load:
       the window over that ground is created and destroyed by the client, and
       everything a capability shows happens inside it. Two more windows may stand
-      beside it: the developer panel (design D13), read-only furniture opened from
+      beside it: the developer panel, read-only furniture opened from
       its own tile, and the answer window (ADR-0008), which opens for a question so
       the capability being asked about stays open while it is asked about.
       High Meadow is the shipped product surface; see design/design-system.md.
@@ -223,7 +223,7 @@
     <script type="module" src="/static/desk/leaving-a-form.js"></script>
 
     <!--
-      The second window (design D13). It shares the frame, the two lamps and the
+      The second window. It shares the frame, the two lamps and the
       three gestures with the one above — a window is a window — and differs in the
       three ways the exception is allowed to: it is never addressed, it may stand
       beside the capability window rather than replacing it, and what is inside it is
@@ -258,7 +258,7 @@
     into `sessionStorage` before it touches history — and it touches history on every
     `HX-Replace-Url` a deletion route answers with — which would put the search term, a
     record's fields and a half-typed edit somewhere they outlive the tab. Nothing but the
-    address may leave the DOM (design D14; ADR-0010), and the snapshot is
+    address may leave the DOM (ADR-0010), and the snapshot is
     never read back either: the desk answers Back by re-rendering the address
     (`public/desk/window/desk-window.js`), not by restoring a copy of the page.
   -->
@@ -283,7 +283,7 @@
       <div class="content-column">
         <!-- The logo layer. Every capability the user has, standing on the ground:
              with no taskbar these are the only standing list of what exists, and the
-             only way back to a window that was put away (design D4).
+             only way back to a window that was put away.
              They fill down a column and wrap to the next, taking as many columns as
              the desk's own height and width allow, so there is no ceiling on how many
              a user may make. The server rehydrates them from the
@@ -292,7 +292,7 @@
         <div class="desk__logos" id="capability-logos" tabindex="-1">
           <!-- Capability logos render here. -->
 
-          <!-- The developer tile (design D13). It stands with the apps because it
+          <!-- The developer tile. It stands with the apps because it
                is one, last in the flow and after every capability, and it is drawn
                rather than generated so nothing mistakes it for a capability: no
                artwork, and the surface's own line around it.
@@ -335,7 +335,7 @@
              (/static/desk/window/desk-window.js), which is why page assembly has no anchor here
              and the shell no longer ships a content area at all. Whatever a
              capability shows — its collection, and the narration of a build — happens
-             inside that window (design D1, D2). -->
+             inside that window. -->
         <div class="desk__windows"></div>
 
         <!-- The menu layer. A logo's context menu opens at the tip of the cursor and
@@ -359,7 +359,7 @@
         <div id="dev-stage-seed" data-dev-stage-seed="metrics" hidden></div>
 
         <!-- Prompt bar — the one thing on the page that belongs to Aluna rather
-             than to a capability (design D5). It floats over the ground clear of
+             than to a capability. It floats over the ground clear of
              all four edges and is never full width; the strip it floats in is
              --prompt-clearance, and no window may be dragged, resized or
              maximised into it (design/scripts/desk/desk-geometry.js), so a records list

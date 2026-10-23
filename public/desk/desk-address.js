@@ -14,7 +14,7 @@ import {
 } from "../core/routes.js";
 import { PLACES_ITS_OWN_FOCUS } from "../core/shell-dom.js";
 
-/** `/capability/:id`, a capability's collection (design D14). */
+/** `/capability/:id`, a capability's collection (ADR-0010). */
 const CAPABILITY_ADDRESS = /^\/capability\/([^/]+)\/?$/;
 
 /** `/capability/:id/:record`, one record open in its record view (ADR-0010). */
@@ -76,7 +76,7 @@ function placeOf(pathname) {
   return id === null ? null : JSON.stringify([id]);
 }
 
-/** The bare desk. Putting the window away comes back here (design D14). */
+/** The bare desk. Putting the window away comes back here (ADR-0010; ARCH §6.1). */
 export const DESK_ADDRESS = "/";
 
 /**
@@ -417,7 +417,7 @@ function holdBack(next, navigated) {
 /**
  * Point the bar at what the window now shows. Taking the window is a navigation and is owed an
  * entry, except where it takes it back for the capability whose record the bar names: that, and
- * anything else, is the address catching up and is owed none (design D14).
+ * anything else, is the address catching up and is owed none.
  *
  * @param {string} next the address of what the window shows
  * @param {boolean} navigated
@@ -704,7 +704,7 @@ function openTheRecordFrom(event) {
 
 /**
  * Back and Forward are the desk's to answer: htmx would answer an `{ htmx: true }` entry by
- * restoring a whole-body snapshot (design D14), so the `onpopstate` property is taken, not added.
+ * restoring a whole-body snapshot, so the `onpopstate` property is taken, not added.
  *
  * @param {DeskAnswers} desk
  */

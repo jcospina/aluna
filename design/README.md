@@ -1,43 +1,28 @@
-# Aluna Desktop design pages
+# Aluna design system
 
-Three HTML pages showing the design for Aluna Desktop. Open them in a browser and
-click around. This is the reference for how the surface looks and behaves, and it
-is the product requirement for Module 5, the desk — the decisions live here rather
-than in a prose spec somewhere else.
+Three live HTML pages: the design system for Aluna. Open them in a browser and click
+around. Each component is shown working, with pickers that walk it to the states you
+can't reach by hand.
 
 These are not production pages and nothing here talks to the app server. There's
 no build step and no dependencies: plain ES modules and plain CSS, loaded
-directly by the browser.
+directly by the browser. The stylesheets in `styles/` are the ones the app ships.
 
 ## The pages
 
-**`index.html`, the desk.** A working window manager on the wallpaper: click a
-logo to open a capability, click another to swap what's inside the same window,
-click a record to open it, drag the window, resize it, maximise it, put it away.
-There is one window and it is the content area; the developer panel is the one
-exception and opens from its own tile. Growing a capability from the prompt bar
-streams narration into the window and puts a working tile on the ground — cancel
-and it gives back what it took. The window's box and the panel's survive a
-reload. Below the desk are sections covering the window chrome, the line
-treatment, the palette, the type, the capability patterns, the locked decisions
-D1–D14, and what's still open. Each of those sections is itself drawn as a
-window, using the same code as the desk.
+**`index.html`, the desk and its foundations.** A working window manager on the
+wallpaper: open a capability, swap it, open a record, drag, resize, maximise, put
+it away, grow one from the prompt bar. Below it: the window, the drawn line, the
+palette, type, spacing, focus and motion, and the capability patterns. The
+capabilities on the desk are fixtures, and a build is a timer.
 
 **`controls.html`, the controls.** Every form control a generated capability can
-use, in each of its states: buttons, text fields, dates, numbers, search,
-checkboxes, radios, segmented buttons, a textarea that grows as you type, a
-custom listbox for enums, a file field that uploads and previews what it holds,
-and the control that links a text field to another capability's records.
+use: buttons, text fields, long text, lists, enums, choices, files and the voice
+recorder, linked fields, and a record assembled from them.
 
-**`logo.html`, the logo contract.** How a capability's logo is made: the request
-sent once, as the last step of a build that has already cleared its gate, the
-prompt with its two slots, the tile the shell applies, and how the name is
-written under it. If something about a logo is settled, it is settled here. The
-four specimens on the page are real generations made to it.
-
-All three pages are live. Type in the fields, open the listboxes, drag the
-window. The capabilities on the desk are fixtures, not real generated units, and
-a build is a timer rather than a model.
+**`logo.html`, the logo.** A capability's logo: the tile and its numbers, the hue
+families and their shades, the label over each of the wallpaper's grounds, and the
+placeholder that stands in until the artwork lands.
 
 ## Running it
 
@@ -64,9 +49,9 @@ strictness.
 
 ```
 design/
-  index.html              the desk page
-  controls.html           the controls page
-  logo.html               the logo contract
+  index.html              the desk and its foundations
+  controls.html           the controls
+  logo.html               the logo
   design-system.md        the names and rules, read before building any UI
   assets/fonts/           Fraunces and Outfit, variable woff2, both OFL
   assets/logos/           the four specimens logo.html stands on
@@ -97,7 +82,7 @@ design/
         file-recorder.css   the voice recorder a sound field's row becomes
   scripts/
     pages/                one bootstrap per page: main.js, controls-main.js, logo-main.js
-    ink/                  the drawn line: spec.js (the settled numbers, and the three
+    ink/                  the drawn line: spec.js (the line's numbers, and the three
                           hands), drawn-line.js (a hand-drawn path for any box) and
                           ink.js (finds elements needing a drawn border, mounts them)
     window/               window.js, the window component; window-frame.js, its path;
@@ -107,42 +92,14 @@ design/
                           devpanel.js, patterns.js, prompt-bar.js and wallpaper.js
     controls/             listbox.js, the custom dropdown replacing <select>;
                           listbox-search.js, the search typed into a picker or a linked
-                          field, which the desk's picker shares; and list-rows.js, the
-                          repeatable rows a string[] field is typed into
+                          field, which the desk's picker shares; list-rows.js, the
+                          repeatable rows a string[] field is typed into; and
+                          open-record.js, the open icon inside a linked field
     files/                the file field, its list, its player and the voice recorder
-    sections/             the interactive demos embedded in the pages, and the benches
-                          that stand in for the upload route and the microphone
+    sections/             the interactive specimens embedded in the pages, the state
+                          picker that switches them, and the benches that stand in
+                          for the upload route and the microphone
     lib/                  seeded random numbers, path geometry, WebM finishing
-    data/capabilities.js  fake capabilities for the desk
+    data/                 capabilities.js, fake capabilities for the desk; logo-shades.js,
+                          the logo hue families the logo page shows
 ```
-
-## How capability logos get made
-
-**`logo.html` is the contract.** Read it there, not here: the request, the
-prompt, the tile and the label are all on that page, and this file is not a
-second copy of them.
-
-The short version: a hosted service (Recraft, `recraftv3_vector`) is called once
-per capability, as the last step of a build that has already cleared its gate, so
-no failed build ever pays for artwork. Aluna supplies a subject and two
-colours and nothing else; the shell applies the corner, the shadow, the size and
-the name. Until the artwork lands the tile is a placeholder, which is also what
-marks the ground while the build runs. Local models are a prompt-refinement rig
-only. They are far too slow to sit in the capability-creation path, and Aluna
-never calls one.
-
-How that was arrived at is on the same page, under **how it was settled**: the
-two reference generations, the eight that chose the style, the label comparison
-over the wallpaper's three grounds, and every defect that came back against the
-prompt. The generations themselves are gone; the four that shipped are in
-`assets/logos/`.
-
-## Where the design came from
-
-Two artifacts, kept because they live outside the repo. Everything they settled
-is already in the pages, so there's no need to read them.
-
-- Design: <https://claude.ai/code/artifact/986df2a4-436a-4606-b131-c83e7645c3f1>
-- Plates I and II, and the settled specification:
-  <https://claude.ai/code/artifact/d27f5e90-4bc2-42f9-b8fa-1046d7840fd7>
-  (earlier versions are in its version history)

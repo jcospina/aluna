@@ -3,7 +3,7 @@
 //
 // Opening a record is an ordinary view swap. The record view takes the collection's place inside
 // the window, under a back control that returns to the place the record was opened from, so
-// nothing opens over anything else and Aluna has no modal (design D2). What opens is the form, in
+// nothing opens over anything else and Aluna has no modal. What opens is the form, in
 // edit mode: there is no read view of a record, so no field is ever printed rather than filled.
 //
 // Markup is here; mechanics are in `public/records/record-view.js`. The record address's route

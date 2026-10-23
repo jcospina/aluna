@@ -4,7 +4,7 @@
  * Opening a record and leaving it. A card press asks the desk to open the card's own record at its
  * record address, whose route draws the form with the records linking to it, as a pasted address
  * and an answer link do (ADR-0010). There is no modal, no focus trap and no page-wide inertness —
- * an ordinary view swap (design D2).
+ * an ordinary view swap.
  */
 
 import { registerRegionRelease, releaseRegionContent } from "../core/region-scope.js";
@@ -255,7 +255,7 @@ function recordOf(view, capabilityId) {
 
 /**
  * What the way out reads, in turn, while what it reads has gone: the place it names, then that
- * record's list, stepping back onto the record's entry as a Back onto it does (design D14), then
+ * record's list, stepping back onto the record's entry as a Back onto it does, then
  * the record's own list.
  *
  * @param {import("../desk/desk-address.js").WayBack} way @param {string} own

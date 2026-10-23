@@ -47,7 +47,7 @@ function renderDeletionPanel(
 
 /**
  * **Keep it** goes back to the carried restoration, never a guessed target, and carries no
- * `hx-push-url`: the restoration route's `HX-Replace-Url` wins over the attribute (design D14).
+ * `hx-push-url`: the restoration route's `HX-Replace-Url` wins over the attribute.
  */
 function renderBackAction(restoration: CapabilityDeletionRestorationEvidence): string {
   const url = capabilityDeletionRestorationUrl(restoration);

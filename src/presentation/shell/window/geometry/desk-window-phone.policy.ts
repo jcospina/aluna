@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { PHONE } from "#design/desk/desk-geometry.js";
 import { readSource as read, rules, under } from "../../../safety/source.test-support.ts";
 
-// Below the breakpoint the window is the screen (design D9), held where
+// Below the breakpoint the window is the screen, held where
 // it is declared: the query the script reads, the rules it leans on, and the two widths sheets
 // may break on. `desk-window-phone.test.ts` runs what the script does when told.
 

@@ -1,8 +1,7 @@
 /*
  * High Meadow — the token layer.
  *
- * Nothing here is invented: every value is a locked decision, transcribed from
- * the plate books the design was settled in. This file is where they live —
+ * Nothing here is invented, and this file is where every value lives —
  * `index.html` renders its swatches by reading these properties back, so a
  * value cannot be stated twice and cannot drift.
  *
@@ -155,7 +154,7 @@
   /*
    * Fraunces for display and window titles; Outfit for everything a capability
    * generates. Monospace appears in exactly one place and it is not the
-   * product: the developer panel (D13) shows raw payloads, stands outside the
+   * product: the developer panel shows raw payloads, stands outside the
    * product voice, and is read by people for whom a proportional face makes
    * the payload worse. Nothing a capability generates may reach for it.
    */
@@ -169,11 +168,14 @@
   --type-md: 1.06rem;
   --type-lg: 1.2rem;
   --type-xl: 1.5rem;
-  --type-title: 1.25rem; /* window title — locked */
-  --type-display: clamp(2rem, 0.9rem + 3.9vw, 3.4rem);
 
-  /* Small caps is a role, not a size: labels, counts, kickers. */
-  --caps-size: 0.65625rem;
+  /* The title ladder, set in Fraunces. `--type-title` is the window title. */
+  --type-title-sm: 1.25rem;
+  --type-title: 1.625rem;
+  --type-title-lg: 2.125rem;
+  --type-display: clamp(2.5rem, 0.9rem + 3.9vw, 3.4rem);
+
+  /* Caps has no size of its own: `.caps` sets any step of the scale in uppercase. */
   --caps-tracking: 0.14em;
 
   /* ── Spacing ────────────────────────────────────────────────────────── */
@@ -289,7 +291,7 @@
 }
 
 /*
- * D-locked: the viewer's OS preference is deliberately ignored, in both
+ * The viewer's OS preference is deliberately ignored, in both
  * directions. A dark theme was decided against, not deferred.
  */
 :root[data-theme="dark"],

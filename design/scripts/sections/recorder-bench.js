@@ -9,10 +9,11 @@
  * The one field the bench leaves alone records from your own microphone.
  */
 
-import { mountFileFields, pickInto } from "../files/file-field.js";
+import { mountFileFields, pickInto, settleFileFields } from "../files/file-field.js";
 import { esc } from "../files/file-parts.js";
 import { UNBLOCK } from "../files/recorder-parts.js";
 import { timedTransfer } from "./file-bench.js";
+import { onEveryPick } from "./state-picker.js";
 
 /**
  * @typedef {import("../files/recorder-env.js").RecorderEnv} RecorderEnv
@@ -222,8 +223,9 @@ const dwell = () => new Promise((settle) => setTimeout(settle, DWELL_MS));
  */
 async function press(host, step) {
   const selector = step === "record" ? "[data-file-record]" : `[data-recorder-do="${step}"]`;
-  await until(() => host.querySelector(selector) !== null);
+  await until(() => !host.isConnected || host.querySelector(selector) !== null);
   if (step !== "record") await dwell();
+  if (!host.isConnected) return;
   const button = host.querySelector(selector);
   if (button instanceof HTMLElement) button.click();
   await until(() => host.querySelector(selector) === null);
@@ -237,6 +239,7 @@ async function press(host, step) {
 async function walkTo(host, walk, track) {
   for (const step of walk.steps) await press(host, step);
   if (walk.lose === "late" || walk.drop) await dwell();
+  if (!host.isConnected) return;
   if (walk.lose) track.dispatchEvent(new Event("ended"));
   if (walk.drop) pickInto(host, { name: "Birdsong.mp3", type: "audio/mpeg", size: 48_000 });
 }
@@ -271,4 +274,41 @@ export function mountRecorderBench(root) {
     mountFileFields(host.parentElement, transfer, { recorder: benchEnv(walk, track) });
     void walkTo(host, walk, track);
   }
+}
+
+/** The sound a field already holds in the states that start from one. */
+const HELD = {
+  holdsName: "Voice note 2026-09-29 14.05.23.webm",
+  holdsSize: "96411",
+  holdsSrc: "./assets/media/voice-note.webm",
+};
+
+/**
+ * One recorder, walked to whichever state the picker names, labelled with the picker's words. The
+ * field it replaces is settled first: its recording is thrown away and its upload stopped, so
+ * nothing keeps running on a field that is gone.
+ *
+ * @param {ParentNode} root
+ */
+export function mountRecorderStates(root) {
+  const stage = root.querySelector("[data-recorder-stage]");
+  const picker = root.querySelector("[data-recorder-states]");
+  if (!(stage instanceof HTMLElement) || !picker) return;
+  const show = (/** @type {string} */ state, /** @type {string} */ label) => {
+    if (!WALKS[state]) return;
+    settleFileFields(stage, "revert");
+    const host = document.createElement("div");
+    host.className = "field file";
+    host.id = "rec-stage";
+    Object.assign(host.dataset, { fileField: "", kind: "audio", recorderBench: state });
+    if (state.endsWith("-held")) Object.assign(host.dataset, HELD);
+    if (state === "capped") host.dataset.fileCap = "110000";
+    if (state === "narrow") host.style.maxWidth = "20rem";
+    host.innerHTML = `<span class="field__label caps" id="rec-stage-label">${esc(label)}</span><div data-file-body></div><span class="field__guidance" id="rec-stage-guidance"></span>`;
+    stage.replaceChildren(host);
+    mountRecorderBench(stage);
+  };
+  onEveryPick(picker, show);
+  const first = picker.querySelector('[role="option"][aria-selected="true"]');
+  if (first instanceof HTMLElement) show(first.dataset.value ?? "", first.textContent.trim());
 }

@@ -11,20 +11,6 @@
   padding: var(--space-4) var(--space-4);
 }
 
-/* The title bar's palest pane, borrowed: it is the only pale sky in the
- * palette, and the `--sky` anchor itself is far stronger. */
-.note--sky {
-  background: var(--pane-5);
-}
-
-.note--sun {
-  background: var(--pane-1);
-}
-
-.note--clay {
-  background: var(--pane-2);
-}
-
 /* ── Specification tables ─────────────────────────────────────────────── */
 
 /*
@@ -59,7 +45,7 @@
 }
 
 .spec th {
-  font-size: 0.625rem;
+  font-size: var(--type-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: var(--caps-tracking);
@@ -91,6 +77,47 @@
 .spec--even td:first-child {
   font-weight: inherit;
   white-space: normal;
+}
+
+.spec caption {
+  text-align: left;
+  padding: 0.5625rem var(--space-3);
+}
+
+/* A table that fits a phone's column rather than scrolling sideways: its first column
+ * breaks between words, and never inside one. */
+.spec--fit table {
+  min-width: 0;
+}
+
+.spec--fit td:first-child {
+  white-space: normal;
+}
+
+.spec--fit td:first-child span {
+  white-space: nowrap;
+}
+
+@media (max-width: 22.5rem) {
+  .spec--fit th,
+  .spec--fit td {
+    padding-inline: var(--space-2);
+  }
+}
+
+/* Read by assistive technology and never painted. A scroller inside would still take a
+ * tab stop of its own, so nothing inside one scrolls. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.visually-hidden .spec__scroll {
+  overflow: visible;
 }
 
 /* ── The numbers, stated once ─────────────────────────────────────────── */
@@ -126,10 +153,10 @@
 .numbers em {
   display: block;
   font-style: normal;
-  font-size: 0.625rem;
+  font-size: var(--type-xs);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: var(--caps-tracking);
   color: var(--shade);
   margin-bottom: var(--space-1);
 }
@@ -285,10 +312,10 @@
   top: 0.625rem;
   left: 0.75rem;
   z-index: 40;
-  font-size: 0.59375rem;
+  font-size: var(--type-xs);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: var(--caps-tracking);
   background: var(--surface);
   border: var(--line) solid var(--ink);
   padding: 0.0625rem 0.5625rem;
@@ -299,6 +326,83 @@
 .stage .window--specimen {
   width: 100%;
   max-width: 26.25rem;
+}
+
+/* The window bench, with room under the specimen for the control standing on it. */
+.stage--window {
+  padding-bottom: 6rem;
+  container-type: inline-size;
+}
+
+.stage__control {
+  position: absolute;
+  bottom: 0.875rem;
+  inset-inline: 0;
+  z-index: 46;
+  width: max-content;
+  margin-inline: auto;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+}
+
+/*
+ * Narrower than any window the desk allows (`--window-min-w`, which a container query
+ * cannot read), a size only a bench on a phone reaches: the body hands its padding to
+ * the content so a collection still fits.
+ */
+@container (max-width: 17.25rem) {
+  .stage .window--specimen .window__body {
+    padding-inline: var(--space-2);
+  }
+}
+
+/*
+ * A specimen marked up in pencil, over the window and multiplied into it, so a
+ * highlighter tints the words under it instead of veiling them.
+ */
+.stage__marks {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+.stage__marks svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* A note jotted beside the specimen, in Fraunces at its softest. */
+.stage__note {
+  position: absolute;
+  width: max-content;
+  max-width: 9rem;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: var(--type-sm);
+  line-height: 1.25;
+  font-variation-settings:
+    "SOFT" 100,
+    "WONK" 1,
+    "opsz" 14;
+}
+
+.stage__note b {
+  display: block;
+  font-size: var(--type-base);
+  font-weight: 600;
+}
+
+.stage__note[data-side="left"] {
+  text-align: right;
+}
+
+.stage__note[data-side="top"] {
+  text-align: center;
 }
 
 /* ── Control galleries — furniture for `controls.html` ────────────────── */
@@ -335,7 +439,7 @@
 }
 
 .gallery__name {
-  font-size: 0.59375rem;
+  font-size: var(--type-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: var(--caps-tracking);
@@ -357,7 +461,7 @@
 
 .forms {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
   gap: var(--space-5);
   align-items: start;
 }
@@ -365,7 +469,7 @@
 @media (max-width: 620px) {
   .gallery,
   .gallery--wide {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
   }
 }
 
@@ -379,7 +483,7 @@
 
 .specimen__meta {
   margin-top: var(--space-2);
-  font-size: 0.625rem;
+  font-size: var(--type-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: var(--caps-tracking);

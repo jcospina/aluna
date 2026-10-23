@@ -77,7 +77,7 @@ prompt bar and the developer panel's tile, with nothing withheld until a first
 capability arrives. The address `/` is the bare desk,
 `/capability/:id` is the desk with that capability in the window, and its
 **record address** is the desk with one record open in that window
-([design/index.html](design/index.html) D4, D14; M5 plan 3, 4, 6; ADR-0010).
+([design/index.html](design/index.html); M5 plan 3, 4, 6; ADR-0010).
 _Avoid_: capability toolbar, sidebar, header row (all three superseded), nav,
 menu, drawer, taskbar, dock
 
@@ -93,7 +93,7 @@ capability content. A question asked about what a window holds is read over that
 window's own body: the one a navigation asks before it takes a running build or a
 form's unsaved changes (see **Put away**), and Unlink's. Below the 720px breakpoint the
 window is the screen, and it neither drags, resizes nor maximises; desktop geometry is ignored rather than overwritten, and
-only the frontmost of the open windows is shown (design D1, D2, D12; M5 plan 47, 48).
+only the frontmost of the open windows is shown (M5 plan 47, 48).
 _Avoid_: content area and detail modal (both superseded), modal, dialog, popup,
 main panel, canvas, workspace, body
 
@@ -117,8 +117,8 @@ unsaved changes cover a record address like any other traversal. During a build 
 address keeps naming what the build displaced; a successful v1 activation pushes the new
 capability only when its canonical collection takes the window, and evolution and every
 non-activating terminal add no entry. A build that displaced a record gives back the
-collection, and the address is replaced with `/capability/:id` when it does (design D14;
-M5 plan 6; ARCH §6.1; ADR-0010).
+collection, and the address is replaced with `/capability/:id` when it does (M5 plan 6;
+ARCH §6.1; ADR-0010).
 _Avoid_: url, route, path, location, deep link, query string
 
 **Record address**:
@@ -203,8 +203,8 @@ brings the window back the way a first window opens, centred. Putting the window
 evolution is running warns first, because it kills the run, and proceeds only on
 confirmation through a question read over the window that leaves the run mounted. Deleting a
 capability is a different action and is deliberately
-unreachable from window chrome, which is why no lamp is signal red (design D3;
-M5 plan 17, 19).
+unreachable from window chrome, which is why no lamp is signal red
+(M5 plan 17, 19).
 The same leave-run warning guards switching to another capability logo and
 Back/Forward while a build or evolution is mounted; confirmation uses the one
 cancel teardown and then completes the requested navigation. It also
@@ -305,8 +305,8 @@ The always-visible, free-form text input floating above the desk, clear of all
 four edges and never full width. Context-aware: it scopes to the capability in
 the window. The user types intent here and watches the app build in the window.
 No window drags or resizes into the strip it occupies. Anything Aluna refuses
-before a build starts is explained here rather than in the window (design D5;
-M5 plan 5, 24) — except a refused sentence typed while an answer window stands,
+before a build starts is explained here rather than in the window
+(M5 plan 5, 24) — except a refused sentence typed while an answer window stands,
 which is said in that window instead (ADR-0008, amended 2026-09-14).
 _Avoid_: search box, command bar, chat input, composer (acceptable when describing
 the field itself, but the region is the "prompt bar")
@@ -325,8 +325,8 @@ and besides those round shapes the logo tile's 10% corner is the surface's one r
 corner. Because the
 ink system owns every boundary, generated markup never declares `border`,
 `border-radius`, `box-shadow` or a font family, and takes colour, type size and
-spacing only from the sets in `design/styles/` (design D10, D11;
-M5 plan 9, 10).
+spacing only from the sets in `design/styles/`
+(M5 plan 9, 10).
 _Avoid_: CSS border, rule, stroke, outline, sketchy, hand-drawn effect
 
 **Travel**:
@@ -338,7 +338,7 @@ distance and duration is a multiple of. The other half is in-place life — a ma
 growing into its box, a chevron turning over — which runs for everyone, always.
 Which half a rule is on is the property it uses: `translate`
 travels, `scale` and `rotate` do not, and `transform` only says where a thing sits
-(design D8; M5 plan 44).
+(M5 plan 44).
 _Avoid_: animation (too broad — it covers both halves), transition, movement
 
 **Developer panel**:
@@ -351,7 +351,7 @@ tests, migration, units, gate and commit — each one's JSON shown as it streams
 one place in Aluna a monospace face appears, because it shows raw payloads and stands
 outside the product voice. It is a curiosity surface for people who want to see how Aluna
 works, never a place to steer code, schema, framework, or styling decisions.
-Module 11's experimenter surface, not yet built, is to live in it too (design D13; M5 plan).
+Module 11's experimenter surface, not yet built, is to live in it too (M5 plan).
 _Avoid_: console, debug drawer, inspector, right sidebar
 
 **Step label**:
@@ -384,8 +384,8 @@ _Avoid_: results panel, query window, output pane, the auto-table (deleted)
 A pressable name in Aluna's spoken answer that opens the record it names at its record
 address. The platform builds each one from a record the steps returned, and the model
 never writes one (ADR-0010). It is drawn in ink and underline like every anchor in
-running text (D14). The open icon in a linked field is the one anchor drawn as a bare
-glyph, with no boundary and no underline (D14). A press on it opens its record the way a
+running text. The open icon in a linked field is the one anchor drawn as a bare
+glyph, with no boundary and no underline. A press on it opens its record the way a
 press on an answer link does, on any desk drawn after that record's capability. An answer
 link is called that so that **link** keeps one meaning (ADR-0011).
 _Avoid_: link (alone), record link, deep link

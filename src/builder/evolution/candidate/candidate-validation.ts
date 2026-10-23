@@ -106,7 +106,7 @@ export function validateCandidateSpec(input: ValidateCandidateSpecInput): Capabi
       message: `capability id is immutable; expected "${committed.id}", got "${candidate.id}"`,
     });
   }
-  // A logo is made once and never remade (ADR-0007 L7), so a moved birth fact would describe
+  // A logo is made once and never remade (ADR-0007), so a moved birth fact would describe
   // artwork nothing may redraw. Named here, not left to the residual check, so it says which.
   for (const fact of LOGO_BIRTH_FACTS) {
     if (candidate[fact] !== committed[fact]) {

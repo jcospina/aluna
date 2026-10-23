@@ -187,7 +187,7 @@ export const RUN_LEAVING_BACK_ATTRIBUTE = "data-run-leaving-back";
 export const RUN_LEAVING_GO_ATTRIBUTE = "data-run-leaving-go";
 
 /**
- * What the run asks before the person leaves it (design D3, ARCH §9.7). Focus lands on the
+ * What the run asks before the person leaves it (ARCH §9.7). Focus lands on the
  * back-out, so it names what is kept: "Keep going" alone reads as the destructive answer.
  */
 export const LEAVING_A_RUN_QUESTION =
@@ -205,7 +205,7 @@ function buildStreamLeavingElementId(buildId: string): string {
 
 /**
  * The question a navigation asks before it takes the live run away. It ships
- * hidden, because fetching it would be the teardown it asks about. Not a modal (design D2).
+ * hidden, because fetching it would be the teardown it asks about. Not a modal: Aluna has none.
  */
 function renderLeavingWarning(jobId: string): string {
   const questionId = escapeHtml(buildStreamLeavingElementId(jobId));
@@ -392,7 +392,7 @@ export function renderCapabilityLogo(
   const id = escapeHtml(row.id);
   const label = canonicalCapabilityLabel(row);
   // No `hx-push-url`: the desk pushes this address itself (`public/desk/window/desk-window.js`), because only
-  // it knows whether it already names this capability (design D14).
+  // it knows whether it already names this capability.
   const url = escapeHtml(capabilityUrl(row.id));
   return [
     // The slot, not the button, is what the id names: deletion and evolution address the
@@ -547,7 +547,8 @@ function logoAttemptUrlForRow(row: Pick<CapabilityRow, "id" | "incarnation_id">)
 
 /**
  * The tile: artwork for a `present` row, else the placeholder, working only while an attempt is
- * armed; with none left it stays faceless (L11). The POST rides the `<span>`: htmx allows one verb.
+ * armed; with none left it stays faceless (ADR-0007). The POST rides the `<span>`: htmx allows
+ * one verb.
  */
 function renderCapabilityLogoTile(row: RenderableCapabilityLogo, arm: boolean): string {
   if (row.logo.status === "present") {

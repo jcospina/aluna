@@ -19,8 +19,8 @@ export const EXEMPLAR_PAIRINGS: readonly Pairing[] = [
       "The exemplars are fed verbatim into the item-renderer prompt as approved " +
       "examples — so a failure here is one the platform teaches. Clay is the tightest " +
       "of the three tints these chips use. `--shade` was a fourth and carried `--ink` " +
-      "at 2.644, under even the non-text floor; it takes `--surface` now, the way C12's " +
-      "own swap does.",
+      "at 2.644, under even the non-text floor; it takes `--surface` now, as the " +
+      "primary button's shade does.",
     alsoCovers: [{ token: "sun" }, { token: "sky" }],
     sites: [
       "src/builder/units/generation/few-shot/few-shot-gallery.ts § span.text-bold.truncate[style] [color]",
@@ -46,7 +46,7 @@ export const EXEMPLAR_PAIRINGS: readonly Pairing[] = [
     foreground: { token: "surface" },
     background: { token: "shade" },
     threshold: "text",
-    note: "The C12 swap, in the exemplars: a light label is what shade can carry.",
+    note: "The green swap, in the exemplars: a light label is what shade can carry.",
     sites: [
       "src/builder/units/generation/few-shot/few-shot-gallery.ts § span.text-sm.text-bold[style] [color]",
     ],

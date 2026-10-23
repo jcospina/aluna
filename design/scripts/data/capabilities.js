@@ -8,10 +8,10 @@
  *
  * `logo` is the one part of a capability the shell does not draw. Aluna emits a
  * subject and two colours, a hosted service returns the square, and it is
- * stored and never regenerated — `logo.html` is the contract, and this file
- * carries the four real generations that page stands on. The desk and the
- * contract therefore cannot disagree about what a logo looks like: they are the
- * same four files, under the same tile and label rules.
+ * stored and never regenerated (ADR-0007). This file carries the four real
+ * generations `logo.html` stands on, so the desk and that page cannot disagree
+ * about what a logo looks like: they are the same four files, under the same
+ * tile and label rules.
  */
 
 /**

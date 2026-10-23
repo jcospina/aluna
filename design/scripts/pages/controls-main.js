@@ -8,22 +8,21 @@
  * nobody trusts. What the two share — the section lamps, the ink system, the
  * window itself — they share by importing it.
  *
- * Everything on this page is real. The fields take text, the listboxes open and
- * search, the textarea grows, the toggles change what is actually drawn. A
- * control that only *looked* right in a screenshot is exactly the failure this
- * page exists to catch. Links holds the one exception: a few of its drawings are
- * held still to show a single moment, such as an open list, the fade while Aluna
- * connects a field and the question the broken chain asks.
+ * Every control on this page is the real one: the fields take text, the listboxes
+ * open and search, the textarea grows. Uploads and the microphone run on stand-ins,
+ * and a state picker walks a specimen to a state that cannot be reached by hand.
  */
 
 import { mountListRows, wireListRows } from "../controls/list-rows.js";
 import { mountListboxes } from "../controls/listbox.js";
 import { OPEN_ICON, openRecordName } from "../controls/open-record.js";
 import { dressGrounds } from "../desk/wallpaper.js";
-import { mountAllInk, reseedInk, startInk } from "../ink/ink.js";
+import { mountAllInk, startInk } from "../ink/ink.js";
 import { mountFileBench } from "../sections/file-bench.js";
-import { mountRecorderBench } from "../sections/recorder-bench.js";
+import { mountLinkBench } from "../sections/link-bench.js";
+import { mountRecorderBench, mountRecorderStates } from "../sections/recorder-bench.js";
 import { wireSectionWindows } from "../sections/section-window.js";
+import { swapStates, wireStates } from "../sections/state-picker.js";
 import { mountWindows } from "../window/window.js";
 
 /* ── The textarea, growing ──────────────────────────────────────────────────
@@ -106,9 +105,8 @@ function mountCounters(root) {
 
 /* ── The benches ────────────────────────────────────────────────────────────
  *
- * Each one is a decision this page has not made yet, wired so it can be looked
- * at rather than argued about. They set an attribute and ask the ink to redraw;
- * nothing here knows what the stylesheet does with it.
+ * Each sets an attribute and asks the ink to redraw; nothing here knows what the
+ * stylesheet does with it.
  */
 
 /**
@@ -142,8 +140,6 @@ function mountBenches(root) {
     }
     states.classList.toggle("is-disabled", off);
   });
-
-  root.querySelector("[data-reink]")?.addEventListener("click", () => reseedInk());
 }
 
 /* ── The chosen value, echoed ───────────────────────────────────────────────
@@ -155,35 +151,11 @@ function mountBenches(root) {
 /** @param {HTMLElement} root */
 function mountEcho(root) {
   root.addEventListener("listbox:change", (event) => {
-    const { detail } = /** @type {CustomEvent<{ value: string, label: string }>} */ (event);
+    const { detail, target } = /** @type {CustomEvent<{ value: string | null }>} */ (event);
     const echo = root.querySelector("[data-listbox-echo]");
-    if (echo instanceof HTMLElement) echo.textContent = detail.value;
+    if (!(echo instanceof HTMLElement) || !(target instanceof Element)) return;
+    if (target.contains(echo)) echo.textContent = detail.value ?? "nothing";
   });
-}
-
-/* ── The search, typed in ────────────────────────────────────────────────────
- *
- * Two linked fields open already searched each time they come into view, so the
- * page shows a list narrowed and a list emptied without anyone typing. They stay
- * live: what is typed next searches again, and a press outside closes them until
- * they are scrolled back to.
- */
-
-/** @param {ParentNode} root */
-function typeSearches(root) {
-  const seen = new IntersectionObserver((entries) => {
-    for (const entry of entries) if (entry.isIntersecting) typeInto(entry.target);
-  });
-  for (const field of root.querySelectorAll("[data-listbox-typed]")) seen.observe(field);
-}
-
-/** Type a specimen's search into it, unless someone is already in it. @param {Element} field */
-function typeInto(field) {
-  const input = field.querySelector('input[role="combobox"]');
-  if (!(field instanceof HTMLElement) || !(input instanceof HTMLInputElement)) return;
-  if (field.contains(document.activeElement)) return;
-  input.value = field.dataset.listboxTyped ?? "";
-  input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 /**
@@ -239,15 +211,102 @@ function mountOpeners(root) {
       opener.removeAttribute("aria-label");
       return;
     }
-    opener.setAttribute("href", "#link-opens");
+    opener.setAttribute("href", "#link");
     opener.setAttribute("aria-label", openRecordName(label));
   });
+}
+
+/**
+ * One kind of file at a time: the picker shows its group and hides the others.
+ *
+ * @param {ParentNode} root
+ */
+function mountFileKinds(root) {
+  const groups = [...root.querySelectorAll("[data-file-group]")];
+  wireStates(root.querySelector("[data-file-kinds]"), (kind) => {
+    for (const group of groups) {
+      if (group instanceof HTMLElement) group.hidden = group.dataset.fileGroup !== kind;
+    }
+  });
+}
+
+/* ── The question before leaving ───────────────────────────────────────────── */
+
+/**
+ * @param {string} body what the window holds
+ * @param {string} said the question
+ * @param {[string, string]} answers the one that changes nothing, then the one that leaves
+ */
+function asking(body, said, [stay, leave]) {
+  const shown = document.createElement("div");
+  shown.innerHTML = `${body}<div class="window__leaving"><div class="window__leaving-panel"><p id="leaving-said">${said}</p><div class="window__leaving-actions"><button class="btn btn--warm" type="button" aria-describedby="leaving-said">${stay}</button><button class="btn btn--outline" type="button" aria-describedby="leaving-said">${leave}</button></div></div></div>`;
+  shown.addEventListener("click", (event) => {
+    if (event.target instanceof Element && event.target.closest(".window__leaving-actions .btn")) {
+      shown.querySelector(".window__leaving")?.remove();
+    }
+  });
+  return shown;
+}
+
+const LEAVING = {
+  form: {
+    title: "Expenses",
+    body: '<div class="form" style="min-height: 15rem"><label class="field"><span class="field__label caps">Merchant</span><span class="field__control"><input class="field__input" type="text" value="Corner Café"></span></label><p class="field__label caps">Receipt</p><p class="sm">receipt-march.jpg · 2.4 MB</p></div>',
+    said: "You have unsaved changes, are you sure you want to leave?",
+    answers: /** @type {[string, string]} */ (["Keep editing", "Leave without saving"]),
+  },
+  run: {
+    title: "Building…",
+    body: '<div style="min-height: 15rem"><p class="sm">Setting up a place for your expenses.</p><p class="sm">Adding a field for the receipt.</p></div>',
+    said: "If you leave now, I’ll stop making this. Nothing you already have will change.",
+    answers: /** @type {[string, string]} */ (["Keep making it", "Stop and leave"]),
+  },
+};
+
+/**
+ * One window and the question each kind of leaving asks over it. Picking a state asks it and puts
+ * focus on the answer that changes nothing, as the desk does; answering takes the question away
+ * and hands focus back to the picker. Picking the state again asks again.
+ *
+ * @param {ParentNode} root
+ */
+function mountLeaving(root) {
+  const host = root.querySelector("[data-leaving]");
+  const picker = root.querySelector("[data-leaving-states]");
+  const win = /** @type {{ alunaWindow?: { setTitle(title: string): void } } | null} */ (
+    host?.closest("[data-window]") ?? null
+  );
+  host?.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element) || !event.target.closest(".window__leaving-actions"))
+      return;
+    const pressed = picker?.querySelector('[aria-pressed="true"]');
+    if (pressed instanceof HTMLElement) pressed.focus();
+  });
+  picker?.addEventListener("click", () => {
+    const stay = host?.querySelector(".window__leaving-actions .btn");
+    if (stay instanceof HTMLElement) stay.focus();
+  });
+  swapStates(
+    picker,
+    host,
+    Object.fromEntries(
+      Object.entries(LEAVING).map(([state, { title, body, said, answers }]) => [
+        state,
+        () => {
+          win?.alunaWindow?.setTitle(title);
+          return asking(body, said, answers);
+        },
+      ]),
+    ),
+  );
 }
 
 function boot() {
   wireSectionWindows(mountWindows(document));
   dressGrounds();
 
+  /* Before the page's own listboxes, so the Links bench mounts and keeps its state picker. */
+  mountLinkBench(document);
   mountListboxes(document);
   /* The rows the repeatable list is typed into. Delegated, because a row added by a
      press has to behave the same as one that shipped in the markup. */
@@ -260,7 +319,10 @@ function boot() {
   mountUnmatched(document.body);
   mountOpeners(document.body);
   mountRecorderBench(document.body);
+  mountRecorderStates(document.body);
   mountFileBench(document.body);
+  mountFileKinds(document);
+  mountLeaving(document);
 
   /*
    * Last, once the document has stopped being rearranged — mounting a window
@@ -268,7 +330,6 @@ function boot() {
    * document, so anything added later arrives drawn without being told.
    */
   startInk();
-  typeSearches(document);
 
   /*
    * The listbox panels are `hidden` at boot, so they measure 0×0 and are not

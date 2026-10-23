@@ -17,7 +17,7 @@ import { buildFrame } from "./window-frame.js";
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 /*
- * Two lamps, and no minimise. With no taskbar (D4) there is nowhere for a
+ * Two lamps, and no minimise. With no taskbar there is nowhere for a
  * minimised window to be seen waiting, so it would be indistinguishable from a
  * closed one — and reopening either is the same click on the same logo. Both
  * lamps perform reversible actions and neither is signal red.

@@ -7,9 +7,9 @@
 // inert, so a swap cannot recursively spend the remaining attempts.
 //
 // `GET …/logo.svg` serves the accepted bytes as they arrived, immutable, at an address binding the
-// semantic id and the incarnation: L7 never remakes those bytes, and a deleted id may be rebuilt
+// semantic id and the incarnation: those bytes are never remade, and a deleted id may be rebuilt
 // with different artwork. Every other state, a mismatched incarnation and a missing file fail
-// closed with `no-store`, so an early 404 cannot outlive artwork that arrives later (L8).
+// closed with `no-store`, so an early 404 cannot outlive artwork that arrives later (ADR-0007).
 
 import type { Context, Hono } from "hono";
 import { errorDetail } from "../../platform/errors.ts";
@@ -55,7 +55,7 @@ export interface CapabilityLogoRouteDeps {
 const LOGO_CLAIM_OBSERVATION_MS = DEFAULT_LOGO_GENERATION_TIMEOUT_MS + 5_000;
 
 /**
- * The stored bytes go out untouched (L8), so the response makes the address inert when it is opened
+ * The stored bytes go out untouched, so the response makes the address inert when it is opened
  * as a document: `sandbox` removes scripting, and `nosniff` stops a browser guessing the type.
  */
 const PICTURE_ONLY_HEADERS = {

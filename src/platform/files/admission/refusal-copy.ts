@@ -1,6 +1,5 @@
-// What a person reads when a file is refused: the upload's sentences in the words
-// `design/controls.html` settles, and the save's as the router says it. A leaf at runtime: the one
-// import is a type.
+// What a person reads when a file is refused: the upload's sentences as `design/controls.html`
+// shows them, and the save's as the router says it. A leaf at runtime: the one import is a type.
 
 import type { FileFamily } from "../../../registry/fields/file.ts";
 
@@ -10,7 +9,7 @@ export const ADD_FILE_AGAIN_SENTENCE =
 
 /**
  * A save whose list holds more files than its field takes, in the words `design/controls.html`
- * settles for the save. One over asks for one removal, more ask for a few.
+ * shows for the save. One over asks for one removal, more ask for a few.
  */
 export function tooManyFilesSentence(count: number, cap: number): string {
   const ask = count - cap === 1 ? "one" : "a few";
@@ -36,7 +35,7 @@ export const FAMILY_NOUNS = {
 
 /**
  * What a field says of a file admission refused. A field that takes several families names them
- * all, and keeps rather than shows or plays, as `design/controls.html` settles.
+ * all, and keeps rather than shows or plays, as `design/controls.html` shows.
  */
 export function notAdmittedSentence(accepts: readonly [FileFamily, ...FileFamily[]]): string {
   if (accepts.length === 1) return NOT_ADMITTED_SENTENCES[accepts[0]];

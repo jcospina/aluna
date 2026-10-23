@@ -38,7 +38,7 @@ export function renderCapabilityRenameRefusal(
 
 /**
  * The logo re-rendered with its new label, and inert: a rename never enters the logo path, and a
- * faceless capability would collect a free attempt per rename. L7 forbids redrawing the artwork.
+ * faceless capability would collect a free attempt per rename. The artwork is never redrawn.
  */
 export function renderRenamedCapabilityLogo(
   row: Parameters<typeof renderCapabilityLogo>[0],

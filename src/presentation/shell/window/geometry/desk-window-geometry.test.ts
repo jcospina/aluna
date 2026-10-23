@@ -27,7 +27,7 @@ import { desk, fakeEl, type Stored } from "../desk-window.test-support.ts";
 import type { El } from "../standing-desk.test-support.ts";
 import { viewportDesk } from "../viewport-desk.test-support.ts";
 
-// Where the window sits, how big it is, and what survives a reload (design D9). The sheet and the
+// Where the window sits, how big it is, and what survives a reload. The sheet and the
 // lengths the module never states are held by the policy beside it.
 
 /** A `localStorage` stand-in, and the two ways a real one fails. */

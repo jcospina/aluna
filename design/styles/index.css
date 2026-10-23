@@ -1,5 +1,5 @@
 /*
- * Aluna Desktop — the capability surface.
+ * Aluna design system.
  * Stylesheet manifest. Order matters: tokens, then base, then layout, then
  * components, then the layout kit — whose utilities sit at one class of specificity
  * like the components do, so they have to load after one to win the tie. Nothing

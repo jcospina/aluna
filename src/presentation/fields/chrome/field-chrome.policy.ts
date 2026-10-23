@@ -22,16 +22,16 @@ describe("the counter's words", () => {
   });
 });
 
-// Small caps is a role the design system owns, and the sheet used to copy all five of its
+// Caps is a modifier the design system owns, and the sheet used to copy all five of its
 // declarations out under `.field__label` — the restate-instead-of-reuse since removed.
-describe("a field label takes the shared caps role rather than restating it", () => {
-  test("the sheet states only what the role does not", () => {
+describe("a field label takes the shared caps modifier rather than restating it", () => {
+  test("the sheet states only what the modifier does not", () => {
     const rule =
       /\.field__label \{([\s\S]*?)\}/.exec(readSource("public/css/fields.css"))?.[1] ?? "";
 
-    expect(rule).toContain("font-family");
     expect(rule).toContain("line-height");
     for (const restated of [
+      "font-family",
       "font-size",
       "font-weight",
       "text-transform",

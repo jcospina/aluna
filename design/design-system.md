@@ -14,14 +14,16 @@ closed contract below constrains and what the gate checks, and
 names this file as the source of truth for that class vocabulary. Both kinds obey
 the same palette and the same line.
 
-The system is settled on two pages you can open in a browser: `design/index.html`
-for the desk and decisions D1–D14, `design/controls.html` for the control set and
-C1–C22. Language and product voice live in [CONTEXT.md](../CONTEXT.md).
+The system is shown live on three pages you can open in a browser:
+`design/index.html` for the desk and its foundations, `design/controls.html` for the
+controls, and `design/logo.html` for the capability logo. Language and product voice
+live in [CONTEXT.md](../CONTEXT.md).
 
 ## Colour
 
-The palette is High Meadow, and it is closed: a colour that is not a token does
-not exist.
+The palette is High Meadow, and it is closed: a screen uses no colour that is not
+a token. A logo's artwork is the one exception, with shades of its own
+(`design/logo.html`).
 
 Five fills build every surface — `--ground` for the desk, `--ground-deep` for
 bands and wells, `--surface` for windows and cards, `--surface-2` for inputs and
@@ -51,19 +53,23 @@ Two faces. `--font-display` is Fraunces, for headings and window titles;
 belongs to the developer panel alone, which shows raw payloads and stands outside
 the product voice, and nothing a capability generates may reach for it.
 
-Sizes run `--type-xs` through `--type-xl`, with `--type-title` for a window title
-and `--type-display` for the one clamped display size. Small caps is a role rather
-than a size: `--caps-size` and `--caps-tracking` set it and `.caps` applies both,
-for labels, counts and kickers.
+Sizes run `--type-xs` through `--type-xl` for running text and labels. Titles
+have a ladder of their own, set in Fraunces: `--type-title-sm`, `--type-title` for
+a window title, `--type-title-lg`, and `--type-display`, the one clamped size.
+
+Caps has no size of its own. `.caps` sets text in uppercase at `--caps-tracking`,
+on `--type-xs` unless a later rule names a bigger step. A field label or a count is
+`.caps` alone; the title of a section inside a window is `kicker caps`, which is
+`--type-md` in ink.
 
 ## Spacing and units
 
 `--space-1` through `--space-8`, and nothing between them.
 
-Layout and type are relative. Body size, the window title, the small-caps size,
-the label measure, the grid track, the window minimum, gaps and paddings are all
-in rem, so browser text scaling grows the box along with the text it holds. Text
-scaling is the most-used accessibility setting there is.
+Layout and type are relative. Body size, the title ladder, the label measure, the
+grid track, the window minimum, gaps and paddings are all in rem, so browser text
+scaling grows the box along with the text it holds. Text scaling is the most-used
+accessibility setting there is.
 
 Drawing constants stay in pixels: the ink line's weight and its deviation, the
 logo tile's box and its contour, the corner clip. These describe a picture rather
@@ -222,10 +228,9 @@ Blur appears in exactly one treatment: the desk label's halo, three graded passe
 straight down, worn by a capability name and the prompt notice because both are
 read directly from the wallpaper. The name wears it as a filter so its two-line
 clip cannot cut it, and the notice adds two symmetric passes of its own as a
-`text-shadow`. `design/logo.html` defends it as the
-only blurred type treatment in Aluna: the hard-shadow rule governs what an
-*object* casts onto the desk, where a soft edge would fake a depth the flat-band
-model does not have, and a glyph casts nothing.
+`text-shadow`. It is the only blurred type treatment in Aluna: the hard-shadow rule
+governs what an *object* casts onto the desk, where a soft edge would fake a depth
+the flat-band model does not have, and a glyph casts nothing.
 
 ## The window and the collection
 
@@ -237,7 +242,7 @@ opening a record replaces the collection inside the window, and Back returns to 
 place the record was opened from.
 
 Two further windows may stand beside it and neither holds a capability: the
-developer panel (D13) and the answer window, which opens for a question and is
+developer panel and the answer window, which opens for a question and is
 dismissed rather than put away, because closing it destroys the answer.
 
 One confirmation is read *over* the window rather than inside it: the question a
@@ -246,11 +251,11 @@ own body and centres the question on it. It is still not a modal, and the
 distinction is the whole of what makes it allowed — nothing is fetched or swapped
 in to show it, it reaches no further than that window's body, nothing outside the
 window is covered or made inert, focus is not trapped, and the frame's two lamps
-stay pressable (module 5, PLAN decision 17, amended 2026-09-02). A record form
-with unsaved changes asks the same question in its own words before any exit takes
-it, and is drawn beside the run's in `controls.html`, "A record, assembled" (module 7,
-PLAN decision 32). A run's copy ships hidden in its own surface; a form has no such
-surface, so the shell builds the form's in the window's body when it asks.
+stay pressable. A record form with unsaved changes asks the same question in its
+own words before any exit takes it, and is drawn with the run's in
+`controls.html`, "A record, assembled". A run's copy ships hidden in its own
+surface; a form has no such surface, so the shell builds the form's in the window's
+body when it asks. Disconnecting a linked field asks over the window the same way.
 Nothing else on this surface may be read over anything.
 
 A record is a `<button>`. Opening one is the only thing you can do with it, and a

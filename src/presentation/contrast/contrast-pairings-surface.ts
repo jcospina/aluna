@@ -29,6 +29,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     threshold: "text",
     note: "The default reading pair, and the strongest one on the surface.",
     sites: [
+      "design/styles/base.css § .kicker [color]",
       "design/styles/components/collection.css § .detail__back:hover [color]",
       "design/styles/components/controls/controls.css § .btn [color]",
       "design/styles/components/desk.css § .build__line:last-child [color]",
@@ -46,6 +47,16 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "public/css/prompt.css § .prompt__field [color]",
       "public/css/record-view.css § .capability-record-view__back:hover [color]",
     ],
+  },
+  {
+    what: "a note jotted on the tracing paper over a bench's wallpaper",
+    foreground: ink,
+    background: { token: "surface", alpha: 0.74, over: ink },
+    threshold: "text",
+    note:
+      "The wash is 74% surface whatever lies under it, so the worst wallpaper it can cover " +
+      "is one as dark as the ink itself.",
+    sites: ["design/styles/doc.css § .stage__note [color]"],
   },
   {
     what: "ink in an input, an item or a spec table",
@@ -139,7 +150,6 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "design/styles/components/controls/form-controls.css § .btn--warm [color]",
       "design/styles/components/controls/linked-field.css § .link-mark [color]",
       'design/styles/components/controls/choice-field.css § .listbox__option[aria-selected="true"] .listbox__note [color]',
-      "design/styles/components/logo-contract.css § .prompt-block mark [color]",
       "public/css/components.css § .btn--warm [color]",
     ],
   },
@@ -160,8 +170,8 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     background: { token: "leaf" },
     threshold: "text",
     note:
-      "C12's pairing, and the tightest on any button. The OK pill wore a light label " +
-      "here at 3.01 until this audit — the same failure the green swap removed.",
+      "The green swap's secondary, and the tightest on any button. The OK pill wore a " +
+      "light label here at 3.01 until this audit — the same failure the green swap removed.",
     sites: [
       "design/styles/components/controls/controls.css § .pill--ok [color]",
       "design/styles/components/controls/form-controls.css § .btn--secondary [color]",
@@ -194,7 +204,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     foreground: surface,
     background: { token: "shade" },
     threshold: "text",
-    note: "C12: shade is the primary because it is dark enough to need a light label.",
+    note: "Shade is the primary because it is dark enough to need a light label.",
     sites: [
       "design/styles/components/controls/form-controls.css § .btn--primary [color]",
       "public/css/components.css § .btn--primary [color]",
@@ -216,7 +226,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     foreground: surface,
     background: ink,
     threshold: "text",
-    note: "The one dark ground in Aluna, and the only place ink is a fill (D13).",
+    note: "The developer panel: the one dark ground in Aluna, and the only place ink is a fill.",
     sites: ["design/styles/components/desk.css § .devpanel__pre [color]"],
   },
   {
@@ -313,14 +323,6 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     note: "",
   },
   {
-    what: "secondary type on the desk",
-    foreground: ink2,
-    background: ground,
-    threshold: "text",
-    note: "",
-    sites: ["design/styles/layout.css § .page__foot [color]"],
-  },
-  {
     what: "a file's name, size and progress, over the upload's fill",
     foreground: ink2,
     background: { token: "ground-deep" },
@@ -401,7 +403,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     ],
   },
   {
-    what: "a kicker, an eyebrow and a measured caption",
+    what: "a caption on a design page",
     foreground: { token: "shade" },
     background: surface,
     threshold: "text",
@@ -409,8 +411,6 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "These were `--teal` at 3.15. Teal carries no readable text on this palette — " +
       "the same finding that keeps it off the buttons — so the shade beside it does the job.",
     sites: [
-      "design/styles/base.css § .eyebrow [color]",
-      "design/styles/base.css § .kicker [color]",
       "design/styles/doc.css § .gallery__name [color]",
       "design/styles/doc.css § .numbers em [color]",
       "design/styles/doc.css § .specimen__meta [color]",

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { codeOf as code, rules } from "../../../safety/source.test-support.ts";
 
-// Where the window sits and how big it is (design D9), held where the geometry is declared: the
+// Where the window sits and how big it is, held where the geometry is declared: the
 // sheet it is positioned by, and the lengths the module never states.
 
 const MODULE = code("public/desk/window/desk-window.js");

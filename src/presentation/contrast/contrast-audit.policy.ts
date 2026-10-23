@@ -181,7 +181,7 @@ describe("the contrast audit", () => {
     }
   });
 
-  test("C12 still holds, and it is measured rather than remembered", () => {
+  test("the green swap still holds, and it is measured rather than remembered", () => {
     // The one failure the design found before this audit existed. Both halves of the
     // swap are read out of the token layer, so a change to either green re-measures.
     const primary = PAIRINGS.find((p) => named(p.background) === "shade");
@@ -190,7 +190,7 @@ describe("the contrast audit", () => {
     expect(secondary).toBeDefined();
     expect(ratioOf(primary as Pairing)).toBeCloseTo(5.18, 1);
     expect(ratioOf(secondary as Pairing)).toBeCloseTo(4.54, 1);
-    // And the light-label-on-leaf pairing C12 removed is nowhere on the surface.
+    // And the light-label-on-leaf pairing the swap removed is nowhere on the surface.
     for (const pairing of PAIRINGS) {
       const light = named(pairing.foreground) === "surface" && named(pairing.background) === "leaf";
       expect(

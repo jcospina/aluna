@@ -1,6 +1,5 @@
 // The capability window run on a started desk rather than read: what the client builds when it
-// opens one, what its lamps say and do, and what putting it away leaves behind
-// (design D1, D3, D12).
+// opens one, what its lamps say and do, and what putting it away leaves behind.
 
 import { afterEach, describe, expect, test } from "bun:test";
 
@@ -120,7 +119,7 @@ describe("two lamps, and there is no minimise", () => {
 
   test("a window put away without being dismissed leaves the record exactly as it was", async () => {
     // The two ways a window goes away without the user asking are not decisions about where
-    // windows go (design D3), so neither writes nor forgets.
+    // windows go, so neither writes nor forgets.
     const window = await opened();
     dragBy(window.el.querySelector("header") as El, 40, 30);
     const kept = window.desk.desk.store.contents();

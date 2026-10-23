@@ -2,7 +2,7 @@
 
 /**
  * The prompt bar's one live slot: the one thing on the page that belongs to Aluna, not to a
- * capability (design D5). Callers say what happened; this module places it (ARCH §6.1).
+ * capability. Callers say what happened; this module places it (ARCH §6.1).
  */
 
 import { PROMPT_FIELD_ID, PROMPT_FORM_ID, PROMPT_NOTICE_ID } from "../core/shell-dom.js";

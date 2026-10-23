@@ -237,7 +237,7 @@ function capabilityDeletionRefusalResponse(
 
 /**
  * An ending holds the window until dismissed, so nothing moves yet: no restored surface, and the
- * address stays put. The dismissal's restoration route sends the one `HX-Replace-Url` (D14).
+ * address stays put. The dismissal's restoration route sends the one `HX-Replace-Url`.
  */
 function heldCapabilityDeletionEnding(c: Context, ending: string): Response {
   return c.html(ending, 200, { "cache-control": "no-store" });

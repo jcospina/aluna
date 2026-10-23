@@ -178,7 +178,7 @@ function htmx() {
  * @property {string | null} [displacedTitle] the name a run took over, owed back
  */
 
-/** The one window (design D1); the developer panel is the second. */
+/** The one window; the developer panel is the second. */
 /** @type {DeskWindow | null} */
 let mounted = null;
 
@@ -357,7 +357,7 @@ function mount(root, title) {
   const win = new AlunaWindow(el, {
     title,
     /* The hand is rolled when the window opens and never re-rolled by a content
-     * swap — the frame does not change because what it frames did (design D10). */
+     * swap — the frame does not change because what it frames did. */
     seed: Math.floor(Math.random() * 9000) + 10,
     shadowAlpha: WALL_SHADOW,
   });
@@ -412,7 +412,7 @@ function bindGestures(entry) {
 
 /**
  * The window an opening lands in. One window: a standing one is retitled and handed back, so a
- * second capability swaps what is inside the frame rather than standing another beside it (D1, D2).
+ * second capability swaps what is inside the frame rather than standing another beside it.
  *
  * @template {{ win: { setTitle(title: string): void }, openedBy: unknown, displacedTitle?: string | null }} T
  * @param {T | null} standing
@@ -454,7 +454,7 @@ export function openWindow(title, root = document, openedBy = null) {
 
 /**
  * Put the window away, saying nothing about the record: the two ways a window goes away without
- * the user asking are not decisions about where windows go (design D3).
+ * the user asking are not decisions about where windows go.
  *
  * @returns {boolean} whether there was a window to put away
  */
@@ -539,14 +539,14 @@ function addLamps(entry) {
   entry.el.addEventListener("window:lamp", (event) => {
     const { action } = /** @type {CustomEvent<{ action?: string }>} */ (event).detail;
     if (action === "maximise") toggleMaximise(entry);
-    /* The clay lamp is a navigation, so the bare desk is the entry Back steps off (design D14).
+    /* The clay lamp is a navigation, so the bare desk is the entry Back steps off.
      * A window emptied by a deletion is the address being wrong, and is corrected in place. */
     if (action === "putaway") {
       const away = () => {
         dismissWindow();
         pushAddress(DESK_ADDRESS, deskHistory());
       };
-      /* Not silent when there is something to lose (design D3, as amended): the
+      /* Not silent when there is something to lose: the
        * lamp still means put away, and simply asks first when it would take a run or unsaved
        * changes with it. */
       if (!askBeforeLeaving(entry.el, away)) away();
@@ -578,7 +578,7 @@ function gestureHost(entry) {
 
 /**
  * Maximise, or give the window back the box it had. What is remembered is the flag and that box,
- * never the maximised size, so the same window on another screen fills that screen (design D9).
+ * never the maximised size, so the same window on another screen fills that screen.
  *
  * @param {DeskWindow} entry
  */
@@ -820,7 +820,7 @@ function whenDeskIsLaidOut(root, open) {
 
 /**
  * Show what an address names, and write nothing back to history: an answer that pushed would put
- * the entry it was answering back on top of the stack, which is the loop design D14 rules out.
+ * the entry it was answering back on top of the stack, which is a loop.
  *
  * @param {ParentNode} root
  * @param {string} pathname

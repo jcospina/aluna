@@ -69,6 +69,13 @@
   margin: 0;
 }
 
+/* A phone's bar is too short for a section's name at full size, so the title steps down. */
+@media (max-width: 620px) {
+  .window__title {
+    font-size: var(--type-title-sm);
+  }
+}
+
 /* ── Lamps ────────────────────────────────────────────────────────────── */
 /*
  * Maximise and put away, and there is no third: with no taskbar, minimise has

@@ -83,19 +83,16 @@ const SAID = {
  * them all, and keeps rather than shows or plays.
  *
  * @param {Kind[]} kinds
- * @param {string} subject "That", or the file's name in a list
  */
-function notThisKind(kinds, subject) {
+function notThisKind(kinds) {
   const nouns = kinds.map((k) => SAID[k].noun);
   const last = nouns.pop() ?? "";
   const named = nouns.length > 0 ? `${nouns.join(", ")} or ${last}` : last;
   const verb = kinds.length === 1 ? SAID[kinds[0] ?? "document"].verb : "keep";
-  return `${subject} isn’t ${named} I can ${verb} here. Mind picking a different one?`;
+  return `That isn’t ${named} I can ${verb} here. Mind picking a different one?`;
 }
 
-/** @param {string} subject */
-const tooLarge = (subject) =>
-  `${subject === "That" ? "That’s" : `${subject} is`} over ${CAP_MB} MB, more than I can keep in one file. Mind picking a smaller one?`;
+const TOO_LARGE = `That’s over ${CAP_MB} MB, more than I can keep in one file. Mind picking a smaller one?`;
 
 /**
  * @param {string} extension
@@ -145,16 +142,15 @@ const INSIDE = { "cuentas.docx": "renamed", "acta de la junta.docx": "locked" };
 
 /**
  * @param {Picked} picked
- * @param {string} subject
  * @returns {string | null}
  */
-function foundInside(picked, subject) {
+function foundInside(picked) {
   const found = INSIDE[picked.name];
   const extension = (picked.name.split(".").pop() ?? "").toLowerCase();
   if (found === "locked")
-    return `${subject === "That" ? "That Word document" : subject} has a password on it, so I can’t keep it. Mind saving a copy without one?`;
+    return "That Word document has a password on it, so I can’t keep it. Mind saving a copy without one?";
   if (found === "renamed")
-    return `${subject} isn’t the ${NAMED_AS[extension] ?? "file"} its name says it is. Mind picking a different one?`;
+    return `That isn’t the ${NAMED_AS[extension] ?? "file"} its name says it is. Mind picking a different one?`;
   return null;
 }
 
@@ -313,9 +309,8 @@ export function timedTransfer(picked, kind, onProgress, host) {
     ?.split(/\s+/)
     .filter((k) => k in SAID);
   const kinds = /** @type {Kind[]} */ (named?.length ? named : [kind]);
-  const subject = host.hasAttribute(FILE_FIELD_HOOKS.list) ? picked.name : "That";
   if (picked.size > CAP_MB * MB) {
-    return { done: Promise.reject(new FileRefusal("too-large", tooLarge(subject))), abort() {} };
+    return { done: Promise.reject(new FileRefusal("too-large", TOO_LARGE)), abort() {} };
   }
   /** @type {Stream | undefined} */
   let stream;
@@ -326,7 +321,7 @@ export function timedTransfer(picked, kind, onProgress, host) {
       picked,
       size: Math.max(1, picked.size),
       family,
-      refusal: family ? foundInside(picked, subject) : notThisKind(kinds, subject),
+      refusal: family ? foundInside(picked) : notThisKind(kinds),
       started: performance.now(),
       loaded: 0,
       timer: 0,

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { codeOf as code, readSource as read } from "../../../safety/source.test-support.ts";
 
-// The window's gestures are written once and shared by the product and the design's own desk
-// (design D1, D3, D12), and the architecture says what the shell is now.
+// The window's gestures are written once and shared by the product and the design's own
+// desk, and the architecture says what the shell is now.
 
 describe("dragging and resizing", () => {
   test("the three gestures are written once and used by both desks", () => {

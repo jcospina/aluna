@@ -96,7 +96,7 @@ describe("GET / (logo rehydration)", () => {
     expect(countMatches(html, "data-capability-logo")).toBe(2);
     expect(html).toContain('hx-get="/capability/notes"');
     expect(html).toContain('hx-get="/capability/recipes"');
-    // The desk pushes the address on a press, not the logo (design D14).
+    // The desk pushes the address on a press, not the logo.
     expect(html).not.toContain('hx-push-url="');
     // Ordered by id (the registry's stable order): notes before recipes.
     expect(html.indexOf("/capability/notes")).toBeLessThan(html.indexOf("/capability/recipes"));

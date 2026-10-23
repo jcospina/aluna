@@ -27,9 +27,9 @@ const statusId = (id) => `logo-status-${id}`;
  *
  * A capability has no artwork until its build has cleared the gate, because that
  * is when the request is made and nothing pays for a build that can still fail
- * (L10). Until then the tile is a placeholder, and it works for the whole of that
+ * (ADR-0007). Until then the tile is a placeholder, and it works for the whole of that
  * wait — the build first, which is the ambient signal that something is being
- * made (D6), and then the logo request itself, back to back, so the ground never
+ * made, and then the logo request itself, back to back, so the ground never
  * goes still while a picture is on its way.
  *
  * It is also nameless for the first part of it. Admission has no name to write —
@@ -39,7 +39,7 @@ const statusId = (id) => `logo-status-${id}`;
  * the moment there is one, without the label ever having to be a word nobody
  * chose.
  *
- * D4 makes the logo load-bearing: with no taskbar it is the capability's
+ * The logo is load-bearing: with no taskbar it is the capability's
  * permanent identity and the only way back to a window you closed.
  *
  * @param {Capability} capability
@@ -138,7 +138,7 @@ function terminalIcon() {
 }
 
 /**
- * The developer panel's tile (D13). It stands with the apps because it is one,
+ * The developer panel's tile. It stands with the apps because it is one,
  * and it is drawn rather than generated so nothing mistakes it for a capability.
  *
  * @param {() => void} onOpen

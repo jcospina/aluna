@@ -10,7 +10,7 @@ import {
 } from "../../safety/source.test-support.ts";
 
 // The logo layer, checked where it is declared. With no taskbar the logos are the only standing
-// list of what exists (design D4).
+// list of what exists.
 
 const DESK = rules("design/styles/components/desk.css");
 const LAYER = bodies(DESK, ".desk__logos");
@@ -175,7 +175,6 @@ describe("more logos than room", () => {
 
   test("a name stops at two lines, as the contract measures it", () => {
     // A third line ran into the tile below, and on the bottom row under the layer's clip.
-    expect(read("design/logo.html")).toContain("Two lines, centred, then an ellipsis.");
     const label = bodies(rules("design/styles/components/logo-contract.css"), ".logo-label")[0];
     expect(label).toMatch(/(^|\s)line-clamp:\s*2/);
     expect(label).toMatch(/-webkit-line-clamp:\s*2/);

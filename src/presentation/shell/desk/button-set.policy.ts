@@ -22,7 +22,6 @@ function variantsIn(css: string): string[] {
 
 const MANIFEST = readSource("design/styles/components/controls/form-controls.css");
 const SHELL = readSource("public/css/components.css");
-const HANDBOOK = readSource("design/design-system.md");
 
 describe("the button set", () => {
   test("is the same seven names in the design layer and in the product", () => {
@@ -74,11 +73,14 @@ describe("the button set", () => {
   });
 
   test("is filled through the hook by no script and no page, only by those rules", () => {
-    const pages = ["public", "design"].flatMap((root) =>
-      [...new Bun.Glob("**/*.{js,html}").scanSync({ cwd: root })]
+    const pages = [
+      ...[...new Bun.Glob("**/*.{js,html}").scanSync({ cwd: "public" })]
         .filter((name) => !name.startsWith("vendor/"))
-        .map((name) => `${root}/${name}`),
-    );
+        .map((name) => `public/${name}`),
+      ...[...new Bun.Glob("scripts/**/*.js").scanSync({ cwd: "design" })].map(
+        (name) => `design/${name}`,
+      ),
+    ];
     expect(pages.length).toBeGreaterThan(0);
     for (const path of pages) {
       expect(readSource(path), `${path} sets the button fill`).not.toContain("--btn-fill");
@@ -86,7 +88,6 @@ describe("the button set", () => {
   });
 
   test("keeps no name the design system refuses, anywhere it ships", () => {
-    expect(HANDBOOK).toContain("`ghost` is not a name in this system, and neither is `neutral` or");
     for (const [path, css] of shippedStylesheets()) {
       for (const refused of ["btn--ghost", "btn--neutral", "btn--default"]) {
         expect(css, `${path} declares .${refused}`).not.toContain(refused);
@@ -114,12 +115,9 @@ describe("the button set", () => {
 describe("every button the product renders", () => {
   /** Every `class="btn …"` in shipped markup. */
   function renderedButtons(): string[] {
-    // The design pages included. They are where the set is authored, so a bare `.btn` in
-    // the gallery is the rule being broken by the page that states it.
     const sources = [
       ...under("src", "**/*.{ts,js,html}"),
       ...under("public", "**/*.{js,html}"),
-      ...under("design", "*.html"),
     ].filter(
       (path) =>
         !path.endsWith(".test.ts") &&

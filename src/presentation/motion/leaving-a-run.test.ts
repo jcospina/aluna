@@ -21,7 +21,7 @@ import { CAPABILITY, RECORD, recordDesk } from "../records/record-view/record-vi
 import { renderRecordView } from "../records/record-view/record-view.ts";
 import { node, windowWithRun } from "./leaving-a-run.test-support.ts";
 
-// Leaving a live build or evolution warns first, and confirming ends it once (amending design D3).
+// Leaving a live build or evolution warns first, and confirming ends it once.
 // Written against plain objects, so the order an ending owes is proved.
 
 /** A desk with nothing running: the window holds no subscriber at all. */

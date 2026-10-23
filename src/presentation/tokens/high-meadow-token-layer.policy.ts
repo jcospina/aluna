@@ -98,7 +98,7 @@ describe("High Meadow token-layer cutover", () => {
     );
   });
 
-  test("pins the C12 green swap and both AA label pairs", () => {
+  test("pins the green swap and both AA label pairs", () => {
     const controls = read("design/styles/components/controls/form-controls.css");
     const shellControls = read("public/css/components.css");
     expect(controls).toMatch(
@@ -162,10 +162,10 @@ describe("the button set on the window surface", () => {
   });
 
   // The shell bridge loads after the manifest, so a size it states for `.btn` silently wins:
-  // the app shipped `--type-base` where controls.css specifies `--caps-size`, three steps down.
+  // the app shipped `--type-base` where controls.css specifies `--type-xs`, two steps down.
   test("the shell bridge does not restate the button's type size", () => {
     const design = read("design/styles/components/controls/controls.css");
-    expect(design).toMatch(/\.btn\s*\{[^}]*font-size:\s*var\(--caps-size\)/);
+    expect(design).toMatch(/\.btn\s*\{[^}]*font-size:\s*var\(--type-xs\)/);
 
     const base = /(^|\n)\.btn\s*\{[^}]*\}/.exec(read("public/css/components.css"));
     expect(base, "public/css/components.css declares no bare `.btn` rule").not.toBeNull();

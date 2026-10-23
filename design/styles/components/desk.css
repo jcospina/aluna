@@ -104,8 +104,8 @@
 /* ── The menu on a logo ───────────────────────────────────────────────── */
 /*
  * Two items and no more: what you can do *to* a capability rather than with it. It is
- * reached from the logo and never from the window chrome, which is what leaves D3
- * standing and keeps every lamp the colour it was.
+ * reached from the logo and never from the window chrome, which is what lets closing
+ * only put away and keeps every lamp the colour it was.
  *
  * Framed on `--surface` and raised, like the prompt rail — but it does not cast. What
  * casts onto the desk is a closed list (the window, the prompt rail, the logo tile) and
@@ -257,14 +257,14 @@
 
 /* ── The tile of something being built ────────────────────────────────── */
 /*
- * D6: pressing Make it puts a tile on the ground straight away and it stays
+ * Pressing Make it puts a tile on the ground straight away and it stays
  * until the capability has a face. It is the ambient half of the signal — the
  * window carries the narration, and this carries the fact, visible from
  * anywhere on the desk.
  *
  * There is no artwork yet and there deliberately is not: the logo is requested
  * last, once the build has cleared its gate, so nothing is paid for a
- * capability that can still be refused (L10).
+ * capability that can still be refused (ADR-0007).
  */
 
 /*
@@ -304,7 +304,7 @@
  * animation on rather than resting for the seconds the artwork takes to arrive.
  *
  * A capability that has spent its attempts is finished and usable with no face
- * (L11), and a tile still working would promise an arrival that is not on its
+ * (ADR-0007), and a tile still working would promise an arrival that is not on its
  * way. That tile rests.
  *
  * The duration is the *speed*, and has to be read as one, because the seam fixes
@@ -348,7 +348,7 @@
 
 /* ── The developer tile ───────────────────────────────────────────────── */
 /*
- * D13. It stands with the apps because it is one. Drawn rather than generated,
+ * It stands with the apps because it is one. Drawn rather than generated,
  * so nothing mistakes it for a capability: no artwork, no ground colour, and
  * the surface's own line around it.
  */
@@ -586,7 +586,7 @@
 
 /* ── The developer panel ──────────────────────────────────────────────── */
 /*
- * D13: a second window, and the one exempt from D1 — it may sit beside a
+ * A second window, and exempt from the one-window rule — it may sit beside a
  * capability, because watching a build and reading what the build actually did
  * is one activity. Read-only, and outside the product voice: this is the only
  * surface in Aluna set in a monospace face, because it shows raw payloads and a
@@ -641,7 +641,7 @@
 }
 
 .devpanel__stage {
-  font-size: var(--caps-size);
+  font-size: var(--type-xs);
   letter-spacing: var(--caps-tracking);
   text-transform: uppercase;
   color: var(--ink-2);
@@ -649,7 +649,7 @@
 
 .devpanel__size {
   font-family: var(--font-mono);
-  font-size: var(--caps-size);
+  font-size: var(--type-xs);
   font-variant-numeric: tabular-nums;
   color: var(--ink-3);
 }
@@ -660,8 +660,8 @@
  * Every ground on this palette is tinted green, because the desk is a meadow. That
  * is right for a surface you look past and wrong for the one surface you read a
  * hundred lines of JSON on: a saturated ground fights every tint in front of it,
- * and washing it out only trades the tint for no contrast at all. D13 already puts
- * this panel outside the product voice and gives it the only monospace face in the
+ * and washing it out only trades the tint for no contrast at all. The panel already
+ * stands outside the product voice and has the only monospace face in the
  * product for exactly this reason — it shows raw payloads. The well is the same
  * exemption, and it stops at this element: `--ink` is lines and type everywhere
  * else, and nothing a capability generates may fill with it.
@@ -739,7 +739,7 @@
 
 /* ── A build, in the window ───────────────────────────────────────────── */
 /*
- * D6: the window opens at submit, not at commit, because a window that does not
+ * The window opens at submit, not at commit, because a window that does not
  * exist yet cannot hold the story of its own construction. It takes over
  * whatever was open, which is what puts Cancel here — the build has to be able
  * to give the window back.
@@ -788,7 +788,7 @@
 
 /* ── Phone ────────────────────────────────────────────────────────────── */
 /*
- * D1 is one window everywhere; the phone only changes how that window is
+ * One window everywhere; the phone only changes how that window is
  * placed. It stops floating and takes the surface, and the desk behind it reads
  * as a phone home screen.
  */
@@ -822,7 +822,7 @@
   }
 
   /*
-   * Two windows may stand at once (D13), and on a phone the window is the screen —
+   * Two windows may stand at once, and on a phone the window is the screen —
    * so the one behind is not behind anything, it is underneath the whole surface.
    * Exposing only the frontmost is what keeps a hidden window from taking touches
    * and from being read out by a screen reader off the bottom of a stack. Neither

@@ -50,10 +50,10 @@
   color: var(--ink);
   text-decoration: none;
   white-space: nowrap;
-  font-size: 0.71875rem;
+  font-size: var(--type-xs);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.15em;
+  letter-spacing: var(--caps-tracking);
   /* 0.66 put ink on the bar at 3.67 when it was sky. Kept at the tenth that cleared
      it there; on surface the same dimming reads at 6.83. */
   opacity: 0.78;
@@ -119,11 +119,4 @@
   .cols--thirds {
     grid-template-columns: 1fr;
   }
-}
-
-.page__foot {
-  margin-top: var(--space-7);
-  text-align: center;
-  font-size: var(--type-sm);
-  color: var(--ink-2);
 }

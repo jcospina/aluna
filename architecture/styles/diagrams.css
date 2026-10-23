@@ -163,7 +163,7 @@ button.node:active {
  * space the caption left rather than at a node.
  */
 .rail--capped {
-  margin-top: 3rem;
+  margin-top: var(--space-8);
 }
 
 .rail--capped > .rail--down {
@@ -308,7 +308,7 @@ button.node:active {
 }
 
 .effect__name {
-  font-size: var(--caps-size);
+  font-size: var(--type-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: var(--caps-tracking);
@@ -531,7 +531,7 @@ button.node:active {
  * something a `dl` may contain, and the ink puts two into everything it draws.
  */
 .fields__title {
-  font-size: var(--caps-size);
+  font-size: var(--type-xs);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: var(--caps-tracking);

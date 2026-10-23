@@ -358,7 +358,7 @@ describe("the coordinator and the read gate", () => {
 describe("bytes that were never acknowledged", () => {
   test("a discard removes only the file this attempt installed", async () => {
     // The safety is the inode, not the path: the retry sweep is exactly the code that could add a
-    // second writer, and removing *accepted* artwork is unrecoverable — L7 forbids redrawing.
+    // second writer, and removing *accepted* artwork is unrecoverable: it is never redrawn.
     const other = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><circle/></svg>');
     const provider: LogoGenerationProvider = {
       async generate() {

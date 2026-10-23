@@ -374,7 +374,7 @@ describe("a list the router refuses, before generated code runs", () => {
     }
   });
 
-  test("more entries than the configured count, in the sentence design/ settles", async () => {
+  test("more entries than the configured count, in the sentence design/ shows", async () => {
     process.env[MAX_LIST_FILES_ENV_VAR] = "2";
     const three = [albums.mint(), albums.mint(), albums.mint()];
     const { response } = await albums.create(three);

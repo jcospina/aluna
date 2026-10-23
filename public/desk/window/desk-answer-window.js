@@ -214,7 +214,7 @@ function openPressedRecord(press) {
 
 /**
  * A name whose capability has left the desk stops being a link, and the bar says what it says of
- * any record that is not there (`NOT_FOUND_NOTICE`, design D14), with focus beside it.
+ * any record that is not there (`NOT_FOUND_NOTICE`), with focus beside it.
  *
  * @param {HTMLElement & { replaceWith?: (words: string) => void }} link @param {string} name
  */

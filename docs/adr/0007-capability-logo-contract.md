@@ -2,14 +2,15 @@
 
 Status: accepted
 
-The art contract itself is [`design/logo.html`](../../design/logo.html): twelve
-locked decisions (L1–L12), the prompt block, the request fields, and the
-measurements each number was settled on. This ADR carries that contract into the
-decision record and closes what the page leaves to the platform — how a logo
-reaches the browser, what keeps it behaving as a picture and nothing else, where
-the bytes live, what happens when the call fails, and what the spec and the
-registry have to carry. All of that was settled in the desktop design session of 2026-08-20 and is
-recorded in `modules/05-the-desk/PLAN.md` (decisions 34–42).
+This ADR holds the art contract — the rules labelled L1 to L11 below and the
+request fields — and `src/lifecycle/logo/request.ts` holds the prompt block.
+[`design/logo.html`](../../design/logo.html) shows what they draw: the tile, the
+shades, the label and the placeholder. The ADR also closes what the art leaves to
+the platform — how a logo reaches the browser, what keeps it behaving as a
+picture and nothing else, where the bytes live, what happens when the call fails,
+and what the spec and the registry have to carry. All of that was settled in the
+desktop design session of 2026-08-20 and is recorded in
+`modules/05-the-desk/PLAN.md` (decisions 34–42).
 
 **Status of the delivery half.** Four real generations exist, and so do the tile
 and label rules in `design/styles/components/logo-contract.css`. Epic 5.5 has
@@ -76,7 +77,7 @@ The artwork arrives as a full-bleed square, so its own colour field is the
 silhouette and the shell adds no edge. The shell clips a 10% corner, casts a hard
 3px/4px shadow in ink at 24%, and draws the tile at 64px (L4). That corner is the
 only rounded one on the surface and the only exception to the desk's drawn-line
-rule (D11): a logo is a picture where everything else is a boundary, and it has
+rule: a logo is a picture where everything else is a boundary, and it has
 to read as pressable at 20px. The clip is a percentage rather than a pixel value,
 so the shape holds at 256px and at 20px alike.
 

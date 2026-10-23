@@ -3,7 +3,7 @@ import { DESK_GROUND_SELECTOR } from "#shell/desk/window/desk-window.js";
 import { RUN_LEAVING_ATTRIBUTE } from "../../server/http/fragments/fragments.ts";
 import { codeOf as code, readSource as read } from "../safety/source.test-support.ts";
 
-// The sheets and modules behind leaving a live build or evolution (amending design D3).
+// The sheets and modules behind leaving a live build or evolution.
 // `leaving-a-run.wiring.test.ts` runs the question; this holds what it is drawn with.
 
 const MODULE = code("public/desk/leaving-a-run.js");

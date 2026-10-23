@@ -2,7 +2,7 @@
 
 /**
  * The developer panel's contents: the build's raw generation internals, each stage
- * as a code block (D13).
+ * as a code block.
  *
  * This is the one surface in Aluna that shows a payload rather than a product
  * sentence, and the one place `--font-mono` appears. What it does not get is an

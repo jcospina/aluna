@@ -1,5 +1,5 @@
 /* =============================================================================
-   Layout — the desk ground (design D4, D5)
+   Layout — the desk ground
    What the page ships is a wallpaper, the logo of every capability the user has,
    and a floating prompt bar. The ground fills the viewport and everything else
    stands on it. The logo layer itself is not styled here: `.desk__logos` and the

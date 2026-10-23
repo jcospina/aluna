@@ -303,7 +303,7 @@ const commonSpecShape = {
   // directory; never user-facing (CONTEXT.md "Engineering language").
   id: sqlNameText,
   // The three logo birth facts, authored once and preserved byte-for-byte by evolution: artwork is
-  // made once and never remade (ADR-0007 L7). No user steers them; the intent resolver refuses.
+  // made once and never remade (ADR-0007). No user steers them; the intent resolver refuses.
   subject: logoSubjectSchema,
   ground: logoHueFamilySchema,
   companion: logoHueFamilySchema,

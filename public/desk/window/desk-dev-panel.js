@@ -1,8 +1,8 @@
 // @ts-check
 
 /**
- * The developer panel — the second window. D13 is a named exception to D1: furniture, never a
- * capability, never addressed, and never in the capability list. The answer window is the
+ * The developer panel — the second window, an exception to the one-window rule: furniture, never
+ * a capability, never addressed, and never in the capability list. The answer window is the
  * other (ADR-0008), and it is a sibling of this one rather than anything this file knows about.
  */
 
@@ -43,7 +43,7 @@ export const DEV_TILE_SELECTOR = "[data-dev-tile]";
 export const DEV_SEED_SELECTOR = "[data-dev-stage-seed]";
 
 /**
- * The second presentation record, and the last (design D9). It carries the capability window's
+ * The second presentation record, and the last. It carries the capability window's
  * box and maximised flag, plus the one thing only this window has: whether it was open. The
  * answer window adds no third: it remembers nothing at all.
  */

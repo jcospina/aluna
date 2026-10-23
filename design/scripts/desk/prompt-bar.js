@@ -5,7 +5,7 @@
  * The only thing on screen that belongs to Aluna rather than to a capability.
  * It floats clear of all four edges with ground visible beneath and beside it,
  * and it is never a full-width bottom bar — a bar welded to the bottom edge
- * *is* a taskbar, which D4 removed.
+ * *is* a taskbar, and Aluna has none.
  *
  * It takes the same line treatment as a window, in the same full hand, and it is
  * square. Nothing here draws it: the rail matches `INK_SELECTOR`, so the ink system

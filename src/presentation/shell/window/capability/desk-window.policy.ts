@@ -9,7 +9,7 @@ import {
 } from "../../../safety/source.test-support.ts";
 
 // The window, checked where it is written down. It is created and destroyed by the client, so
-// this is a statement about files (design D1, D3, D12); `desk-window.test.ts` runs the module.
+// this is a statement about files; `desk-window.test.ts` runs the module.
 
 const SHELL = read("public/index.html");
 const MODULE = read("public/desk/window/desk-window.js");

@@ -267,7 +267,7 @@ describe("commitCapability — the logo's inputs at birth", () => {
     expect(result.row.ground).toBe("grass_green");
     expect(result.row.noun).toBe("note");
     // Nothing has been ordered at commit: the request is the last step, after the
-    // gate, and a build that never reaches it costs nothing (ADR-0007 L10).
+    // gate, and a build that never reaches it costs nothing (ADR-0007).
     expect(result.row.logo).toEqual({ status: "absent", attempts: 0 });
     expect(getCapability("notes", conns.readonly)?.seed).toBe(result.row.seed);
   });

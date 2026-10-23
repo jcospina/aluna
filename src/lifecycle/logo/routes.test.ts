@@ -201,7 +201,7 @@ describe("the logo route", () => {
     expect(Buffer.from(await response.arrayBuffer()).equals(ARTWORK)).toBe(true);
   });
 
-  // The stored bytes are never touched (L8), so three headers are the whole inertness guarantee.
+  // The bytes are never touched (ADR-0007), so three headers are the whole inertness guarantee.
   // Equality, not containment: `createApp`'s blanket CSP must not relax this route's stricter one.
   test("is inert when its address is opened directly as a document", async () => {
     install(conns, notesRow());
@@ -222,8 +222,8 @@ describe("the logo route", () => {
 
     const response = await appWith(drawing).request(LOGO_PATH);
 
-    // Safe only because of L7 and the incarnation in the path: these exact bytes are never remade,
-    // and the one thing that changes a picture mints an address sharing no cache entry.
+    // Safe only because of ADR-0007 and the incarnation in the path: these exact bytes are never
+    // remade, and the one thing that changes a picture mints an address sharing no cache entry.
     expect(response.headers.get("cache-control")).toBe(IMMUTABLE);
   });
 

@@ -7,7 +7,7 @@ import {
   under,
 } from "../../safety/source.test-support.ts";
 
-// The desk ground, checked where it is declared (design D5): the ground
+// The desk ground, checked where it is declared: the ground
 // fills the viewport, the bar floats clear of every edge, and the strip it reserves is one number.
 
 describe("the desk ground", () => {
@@ -46,7 +46,7 @@ describe("the prompt bar floats", () => {
 
   test("it is never full width, at any viewport the desk supports", () => {
     // Both widths are bounded and both leave ground either side. A bar welded to the
-    // bottom edge is a taskbar, and D4 removed the taskbar.
+    // bottom edge is a taskbar, and Aluna has none.
     const widths = [...prompt.matchAll(/\.prompt\s*\{[^}]*?width:\s*([^;]+);/g)].map((m) =>
       (m[1] as string).trim(),
     );

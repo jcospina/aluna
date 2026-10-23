@@ -3,7 +3,7 @@
 import { refusePress } from "../../../design/scripts/window/window-press.js";
 
 /**
- * Three windows exist at most — the capability's, the developer panel's (design D13) and the
+ * Three windows exist at most — the capability's, the developer panel's and the
  * answer window's (ADR-0008) — and each stands in a slot, front to back, by when the pointer
  * last landed on it. There is one slot per window and never a fourth window. A level is which
  * slot a window is in, not a number that climbs, so the desk still has no taskbar and no window

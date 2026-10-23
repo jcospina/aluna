@@ -166,7 +166,7 @@ describe("platform-owned capability deletion routes", () => {
     expect(fromOther).toContain("restore_capability_id=boom");
     expect(fromOther).toContain(`restore_incarnation_id=${other.incarnation_id}`);
     // No `hx-push-url`: the restoration route answers with `HX-Replace-Url` naming where it landed,
-    // and Keep it is not a navigation — it puts back what the confirmation displaced (design D14).
+    // and Keep it is not a navigation — it puts back what the confirmation displaced.
     expect(fromOther).not.toContain('hx-push-url="');
     expect(fromOther).toContain('name="restore_surface" value="capability"');
 

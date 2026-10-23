@@ -2,7 +2,7 @@
 
 /**
  * Leaving a run, and the question that comes first: putting the window away, pressing another
- * logo, and Back or Forward each take a run away (amending design D3). A form
+ * logo, and Back or Forward each take a run away. A form
  * with unsaved changes asks the same way (`leaving-unsaved-changes.js`).
  */
 

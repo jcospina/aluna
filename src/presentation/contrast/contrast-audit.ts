@@ -1,7 +1,7 @@
 /**
  * The contrast audit: every foreground/background pairing the product declares.
  *
- * Aluna commits to WCAG AA for text and controls and narrows the rest of D8 to
+ * Aluna commits to WCAG AA for text and controls and keeps the rest of its accessibility
  * best-effort. Enumerating the pairings is affordable because High Meadow is closed. The audit
  * claims each declared pairing has been measured against the threshold that applies to it, not
  * that every palette colour passes against every other.

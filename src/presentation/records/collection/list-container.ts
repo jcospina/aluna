@@ -165,7 +165,7 @@ const UNREAD_RECORDS = `<span ${RECORDS_UNREAD_ATTR} hidden></span>`;
 
 /**
  * Render a capability's list scaffolding — search, New X, the records region, the empty state —
- * and the create form. Two views of one surface, not a panel over a list (design D2).
+ * and the create form. Two views of one surface, not a panel over a list.
  */
 export function renderCollection(options: CollectionOptions): string {
   const { capability } = options;

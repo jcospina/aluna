@@ -3,8 +3,8 @@
 //
 // Platform-owned collection chrome, like the search rail and the empty state beside it:
 // no generated artifact changes for it, and no spec, registry or `ui_intent` field
-// declares it. The label is `.caps`, the role the design system gives
-// labels, counts and kickers (`design/design-system.md`, "The window and the collection").
+// declares it. The label is `.caps`, the modifier the design system gives
+// labels and counts (`design/design-system.md`, "Type").
 
 import {
   COLLECTION_COUNT_LABEL_ATTR,

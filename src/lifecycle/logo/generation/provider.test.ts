@@ -99,7 +99,7 @@ describe("a successful call", () => {
 
     const bytes = await provider.generate(REQUEST, new AbortController().signal);
 
-    // Byte-for-byte, provenance block and all. L8: everything the shell adds sits outside
+    // Byte-for-byte, provenance block and all. ADR-0007: everything the shell adds sits outside
     // the file, so nothing here strips, reformats or re-serializes it.
     expect(Buffer.from(bytes).equals(SPECIMEN)).toBe(true);
     expect(Buffer.from(bytes).includes("c2pa:manifest")).toBe(true);

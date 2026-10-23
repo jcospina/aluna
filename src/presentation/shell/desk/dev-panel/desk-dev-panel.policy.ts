@@ -40,7 +40,7 @@ describe("read-only means read-only", () => {
   });
 
   test("the panel is never in the address", () => {
-    // `/capability/:id` names a capability and nothing else (design D14). The panel is furniture,
+    // `/capability/:id` names a capability and nothing else (ADR-0010). The panel is furniture,
     // so it has no address to be in and closing it pushes nothing.
     for (const address of ["pushState", "replaceState", "location", "history"]) {
       expect(PANEL, `the panel writes \`${address}\``).not.toContain(address);

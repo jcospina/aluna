@@ -1,7 +1,7 @@
 // @ts-check
 
 /**
- * Filling the window an address opened (design D14, ADR-0010). A record that is not there leaves
+ * Filling the window an address opened (ADR-0010). A record that is not there leaves
  * its capability open: the address becomes the collection's and the collection is asked for, the
  * server's own answer having already said so on the prompt bar. An address answers only for the
  * window as it opened it: once anything else has opened the window or a record in it, what comes

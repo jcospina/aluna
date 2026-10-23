@@ -20,7 +20,7 @@ import { dragBy, type El, pressLamp } from "../standing-desk.test-support.ts";
 import { type ViewportDesk, viewportDesk } from "../viewport-desk.test-support.ts";
 
 // The window's gestures, checked where they are written down: one drag and one grip, shared by
-// the product and the design's own desk (design D1, D3, D12).
+// the product and the design's own desk.
 
 const SHELL = read("public/index.html");
 

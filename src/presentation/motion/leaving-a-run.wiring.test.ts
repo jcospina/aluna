@@ -41,7 +41,7 @@ import { type El as DeskEl, pressLamp } from "../shell/window/standing-desk.test
 import { deskNodes, serverLogo, viewportDesk } from "../shell/window/viewport-desk.test-support.ts";
 import { windowWithRun } from "./leaving-a-run.test-support.ts";
 
-// The wiring behind leaving a live build or evolution (amending design D3):
+// The wiring behind leaving a live build or evolution:
 // the markup the run already carries, the desk's press rules, and the one backstop ending.
 
 /** One run's surface as the server streams it, parsed, with the parts the question is made of. */
@@ -77,7 +77,7 @@ describe("the shell and the server agree on the question", () => {
   });
 
   test("it says the cost and the reassurance, and names both answers from the person's side", () => {
-    // Design D3 still holds: nothing that is true changes. And no internals leak —
+    // Leaving still changes nothing that is true. And no internals leak —
     // no "build", no "job", no "cancel" (ARCH §9.7).
     for (const leak of ["build", "job", "cancel", "stream", "server"]) {
       expect(LEAVING_A_RUN_QUESTION.toLowerCase(), `"${leak}" leaks`).not.toContain(leak);

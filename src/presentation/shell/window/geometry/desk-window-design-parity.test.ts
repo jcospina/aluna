@@ -6,7 +6,7 @@ import { dragBy, type El, pressLamp } from "../standing-desk.test-support.ts";
 import { designDesk } from "../viewport-desk.test-support.ts";
 
 // One record rule, kept by the two surfaces that keep a window: the product's desk and the
-// handbook's demo of it (design D9). The handbook's desk is run here, on the
+// handbook's demo of it. The handbook's desk is run here, on the
 // same double the product's is, and what it writes down is read back off the browser's store.
 
 let design: Awaited<ReturnType<typeof designDesk>> | undefined;

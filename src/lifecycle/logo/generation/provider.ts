@@ -1,14 +1,14 @@
 // The hosted vector service, behind a one-method contract.
 //
 // A logo call costs real money ([ADR-0007](../../../../docs/adr/0007-capability-logo-contract.md)
-// L1: roughly $0.08), so the seam matters more than the client: every test injects a
+// puts it at roughly $0.08), so the seam matters more than the client: every test injects a
 // {@link LogoGenerationProvider} and none reaches the network, as `src/platform/provider/spine.ts`
 // does for the text spine.
 //
 // The client's job ends at *accepted bytes*. It bounds the call, validates the envelope,
 // decodes base64 strictly and checks for an SVG document root — and then hands the bytes
 // on exactly as they arrived. Nothing here strips, rewrites, prettifies or re-serializes
-// them: L8 says everything the shell adds sits outside the file, and the C2PA provenance
+// them: ADR-0007 says everything the shell adds sits outside the file, and the C2PA provenance
 // block is deliberately kept.
 
 import { z } from "zod";
@@ -103,7 +103,7 @@ export function resolveRecraftBaseUrl(env: NodeJS.ProcessEnv = process.env): str
 
 /**
  * Strict, because the default `"loose"` accepts a truncated final chunk: `"PHN2Zz"` decodes to
- * exactly `<svg`, so a cut-short body installs as accepted artwork that L7 forbids replacing.
+ * exactly `<svg`, so a cut-short body installs as accepted artwork nothing may replace.
  */
 export function decodeLogoPayload(payload: string): Uint8Array {
   let bytes: Uint8Array;
@@ -138,7 +138,7 @@ function startsAtSvgRoot(text: string): boolean {
 }
 
 /**
- * Assert the root element is `<svg`, not HTML, JSON or a PNG. Read-only: L8 forbids touching what
+ * Assert the root element is `<svg`, not HTML, JSON or a PNG. Read-only: nothing may touch what
  * arrived, and a long prologue is re-read in full rather than refused — a false rejection costs.
  */
 export function assertSvgDocumentRoot(bytes: Uint8Array): void {

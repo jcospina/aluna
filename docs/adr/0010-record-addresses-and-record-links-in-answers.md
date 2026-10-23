@@ -7,8 +7,8 @@ gives every record an address of its own, and lets an answer link the records it
 It reverses three earlier decisions: Module 5's decision 6, under which the address
 named a capability and nothing below it; ADR-0005's deferral of a route that reads a
 single record; and Module 7's decision 37, which kept the answer window text. It amends
-the address, router, record view and answer window passages of ARCH, and `design/`'s
-D14.
+the address, router, record view and answer window passages of ARCH, and the address
+rule the design pages carried then.
 
 **Amended 2026-10-08 (ADR-0011, pending 8.1/01's sign-off).** Module 8 hands
 generated code no link projection, so the consequence "Module 8 points at the record
@@ -150,7 +150,7 @@ answer.
 ## Consequences
 
 **Module 5's address rule is reversed.** Module 5's plan is closed and stays as it was.
-ARCH, `CONTEXT.md` and `design/`'s D14 carry the third shape, and *record address* is
+ARCH and `CONTEXT.md` carry the third shape, and *record address* is
 the term. "Deep link" stays on the Avoid list.
 
 **ADR-0005's read-single route now exists, as a platform route.** ADR-0005 deferred it

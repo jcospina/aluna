@@ -7,7 +7,7 @@ import {
   shippedStylesheets,
 } from "../../safety/source.test-support.ts";
 
-// Opening a second capability (ARCH §6.1 and §8; design D2) gets no staleness
+// Opening a second capability (ARCH §6.1 and §8) gets no staleness
 // machinery at all. `capability-swap.test.ts` runs the swap; this holds the shell to having none.
 
 describe("the outgoing capability's work is released on the swap", () => {
@@ -70,7 +70,7 @@ describe("no invalidation bus, version stamp or refresh control exists anywhere"
   });
 
   test("the desk chrome offers no refresh lamp", () => {
-    // The window's two lamps are maximise and put away (design D3); nothing in the
+    // The window's two lamps are maximise and put away; nothing in the
     // shipped chrome or in any stylesheet either project ships adds a third that re-reads.
     expect(readSource("public/index.html").toLowerCase()).not.toContain("refresh");
     for (const [path, sheet] of shippedStylesheets()) {

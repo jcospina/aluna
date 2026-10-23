@@ -7,9 +7,9 @@
 // removes the incarnation tree, so there is no second cleanup path.
 //
 // The installer never overwrites: `link` + `unlink` rather than `rename`, which clobbers silently
-// against L7, so a second installer fails loudly and the first drawing survives. The temp is named
-// for the incarnation and attempt and removed in `finally`, so recovery can recognise what a
-// crashed claim left.
+// and would remake a drawing ADR-0007 makes once, so a second installer fails loudly and the first
+// drawing survives. The temp is named for the incarnation and attempt and removed in `finally`, so
+// recovery can recognise what a crashed claim left.
 
 import {
   existsSync,
@@ -56,7 +56,7 @@ export function capabilityLogoPath(
 
 /**
  * Asked before a loss is believed: a `present` row with no file is one drawing gone or a root
- * pointing elsewhere, and the answer to loss is terminal `abandoned`, which L7 forbids redrawing.
+ * pointing elsewhere, and the answer to loss is terminal `abandoned`, which is never redrawn.
  */
 export function capabilityIncarnationTreeExists(
   artifactsRoot: string,

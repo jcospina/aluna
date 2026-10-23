@@ -9,7 +9,7 @@ import { registerRegionRelease } from "../core/region-scope.js";
 
 /**
  * A control on the ground whose answer needs a window to land in. Today only Delete on a
- * capability's context menu, hung off the logo and never the chrome (D3).
+ * capability's context menu, hung off the logo and never the chrome.
  */
 export const WINDOW_DOORWAY_SELECTOR = "[data-window-doorway]";
 

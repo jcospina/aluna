@@ -206,7 +206,7 @@ export function fitToDesk(bounds, box) {
 }
 
 /**
- * The maximised box, computed rather than stored (D9): the desk less its
+ * The maximised box, computed rather than stored: the desk less its
  * inset, and less the prompt bar's strip along the bottom.
  *
  * @param {DOMRect} bounds the desk

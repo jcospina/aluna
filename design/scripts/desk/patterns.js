@@ -5,7 +5,7 @@
  * Shell-level patterns applied to every capability, not decisions generation
  * makes. Two of them exist so far: the collection and the record form — and on
  * this surface they are two views of one window rather than a page and a popup
- * over it (D2). Opening a record replaces the collection inside the window, and
+ * over it. Opening a record replaces the collection inside the window, and
  * a back control names the place the record was opened from and returns to it.
  * There is no modal anywhere in Aluna, because a modal would make the rest of
  * the desk inert to look at one book.
@@ -106,10 +106,10 @@ function renderList(capability, layout, onOpen) {
   glyph.innerHTML = MAGNIFIER;
   const input = el("input", "search__input");
   input.type = "search";
-  input.placeholder = `Search ${capability.label.toLowerCase()}…`;
+  input.placeholder = `Search ${capability.label}`;
   input.setAttribute("aria-label", `Search ${capability.label}`);
   search.append(glyph, input);
-  const create = el("button", "btn btn--primary", "New record");
+  const create = el("button", "btn btn--primary", `New ${capability.label}`);
   create.type = "button";
   create.addEventListener("click", () => onOpen(null));
   head.append(search, create);
@@ -224,7 +224,6 @@ export function renderRecordView(capability, record, { to, onBack, linking }) {
  * @param {CapabilityRecord | null} [opts.record] null when creating
  * @param {() => void} [opts.onDone] where Save and Cancel go
  * @param {LinkingSection[]} [opts.linking] the records linking here, a section each
- * @param {boolean} [opts.expanded] each section drawn as Show all leaves it
  * @returns {HTMLElement}
  */
 export function renderRecordForm(capability, opts = {}) {
@@ -237,7 +236,7 @@ export function renderRecordForm(capability, opts = {}) {
   );
   const linking = creating ? [] : (opts.linking ?? []);
   for (const section of linking.filter(({ records }) => records.length > 0)) {
-    form.append(renderLinkingSection(section, opts.expanded ?? false));
+    form.append(renderLinkingSection(section));
   }
   form.append(renderActions(creating, opts.onDone));
   return form;
@@ -250,15 +249,14 @@ export function renderRecordForm(capability, opts = {}) {
  * not drawn, and a record being created has none.
  *
  * @param {LinkingSection} section
- * @param {boolean} expanded
  * @returns {HTMLElement}
  */
-function renderLinkingSection(section, expanded) {
+function renderLinkingSection(section) {
   const node = el("section", "record-links");
   const count = section.records.length;
   const heading = el("h3", "record-links__heading caps", `${section.label} · ${count}`);
   const list = el("div", "records records--feed");
-  const listed = expanded ? count : Math.min(count, LISTED_AT_FIRST);
+  const listed = Math.min(count, LISTED_AT_FIRST);
   const show = (/** @type {CapabilityRecord[]} */ records) => {
     for (const record of records) list.append(recordCard(record, () => {}));
   };
@@ -270,6 +268,8 @@ function renderLinkingSection(section, expanded) {
     more.addEventListener("click", () => {
       show(section.records.slice(listed));
       more.remove();
+      const first = list.children[listed];
+      if (first instanceof HTMLElement) first.focus();
     });
     node.append(more);
   }
@@ -330,7 +330,7 @@ function placeFields(form, fields, readValue) {
  */
 function renderActions(creating, onDone) {
   const actions = el("div", "form__actions");
-  const save = el("button", "btn btn--primary", creating ? "Add it" : "Save changes");
+  const save = el("button", "btn btn--primary", creating ? "Add" : "Save");
   save.type = "button";
   const cancel = el("button", "btn btn--outline", "Cancel");
   cancel.type = "button";

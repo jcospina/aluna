@@ -96,7 +96,7 @@ export function commitCapability(input: CommitCapabilityInput): CommitCapability
   }
 
   // The seed is minted with the incarnation's first row and carried forward untouched: the logo
-  // is made once (ADR-0007 L7), so a fresh seed would misname what drew the artwork.
+  // is made once (ADR-0007), so a fresh seed would misname what drew the artwork.
   if (expected.state === "active" && !previous) {
     throw new Error(
       `Capability registry commit found no active row to evolve for ${expected.capabilityId}.`,
