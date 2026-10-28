@@ -53,8 +53,8 @@ _Avoid_: duplicate capability, namespaced capability, suffixed capability
 The explicit, user-confirmed permanent removal of one capability, all records it
 owns, its complete version history, and any capability-owned resource or Event Log
 payload. Content-free generation metrics remain as experiment data. The doorway is
-the logo's context menu; the confirmation fills the window in authored product
-voice; on commit the logo vanishes and the window puts itself away unless the
+the logo's context menu; the confirmation is asked over the window, with the
+capability's own collection dimmed under it, in authored product voice; on commit the logo vanishes and the window puts itself away unless the
 confirmation displaced a different open capability, whose canonical collection
 then returns. A deletion turned down before the commit — busy, stale, blocked on
 reverse dependencies, out of drain time, or failed — answers with an **ending** in
@@ -91,7 +91,8 @@ inside it — the collection, one record, a confirmation, the narration of a bui
 swaps the contents without the frame moving. No capability content opens over other
 capability content. A question asked about what a window holds is read over that
 window's own body: the one a navigation asks before it takes a running build or a
-form's unsaved changes (see **Put away**), and Unlink's. Below the 720px breakpoint the
+form's unsaved changes (see **Put away**), Unlink's, and Delete's, which stands over
+the capability's own collection. Below the 720px breakpoint the
 window is the screen, and it neither drags, resizes nor maximises; desktop geometry is ignored rather than overwritten, and
 only the frontmost of the open windows is shown (M5 plan 47, 48).
 _Avoid_: content area and detail modal (both superseded), modal, dialog, popup,

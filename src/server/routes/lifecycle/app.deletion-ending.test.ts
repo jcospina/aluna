@@ -22,7 +22,7 @@ const SENTENCE = "I couldn’t delete Notes. Everything you had there is still s
 /** The ending exactly as the server writes it, parsed into the double the way a swap is parsed. */
 function endingIn(region: El): El {
   const swapped = new Template();
-  swapped.innerHTML = renderCapabilityDeletionPreCommitFailure(notesRow(), { kind: "neutral" });
+  swapped.innerHTML = renderCapabilityDeletionPreCommitFailure(notesRow(), { kind: "neutral" }, "");
   const ending = swapped.content.querySelector(`[${DELETION_ENDING_ATTRIBUTE}]`);
   if (!ending) throw new Error("the server wrote no deletion ending");
   region.append(ending);
@@ -132,7 +132,10 @@ describe("a deletion that did not happen", () => {
   test("backing out and committing hand the keyboard back the same way a dismissal does", () => {
     // The confirmation's two controls carry the same mark the ending's does, so all three
     // ways out of a deletion have one answer rather than three (`DELETION_EXIT_ATTRIBUTE`).
-    const html = renderCapabilityDeletionConfirmation(notesRow(), []);
+    const html = renderCapabilityDeletionConfirmation(notesRow(), [], {
+      collection: "",
+      records: null,
+    });
     expect(html.split(DELETION_EXIT_ATTRIBUTE).length - 1).toBe(2);
 
     for (const control of ["keep", "commit"]) {

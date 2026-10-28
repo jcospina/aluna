@@ -4,6 +4,7 @@
 // deliberately not re-exported: every caller imports it from `./html.ts` directly.)
 
 export {
+  renderCachedCapabilityCollection,
   renderCachedCapabilityCommitSwap,
   renderCachedCapabilitySurface,
   renderCachedCapabilitySurfaceIn,

@@ -33,6 +33,7 @@ export {
   alreadyGoneResponse,
   type CapabilityDeletionHttpDeps,
   type CapabilityDeletionRestoration,
+  capabilityDeletionGround,
   handleCapabilityDeletionConfirmation,
   resolveCapabilityDeletionRestoration,
 } from "./http.ts";
@@ -50,6 +51,7 @@ export {
   type CapabilityDeletionRestorationEvidence,
   DELETION_ENDING_ATTRIBUTE,
   DELETION_EXIT_ATTRIBUTE,
+  DELETION_GROUND_ATTRIBUTE,
   DELETION_RECHECK_PARAM,
   DELETION_SENTENCE_ATTRIBUTE,
   dependentCapabilityNames,

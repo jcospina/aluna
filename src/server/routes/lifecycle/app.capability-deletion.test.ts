@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { ACTIVE_CAPABILITY_ATTRIBUTE, PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
 import { createBuildJobQueue } from "../../../pipeline/jobs/build-jobs.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
+import { capabilityRecordsRegionId } from "../../../presentation/index.ts";
 import { UNKNOWN_INCARNATION_ID } from "../../../registry/incarnations.test-support.ts";
 import type { CapabilityRow } from "../../../registry/index.ts";
 import { createMutationCoordinator } from "../../../runtime/concurrency/mutation-coordinator.ts";
@@ -18,23 +19,7 @@ import {
 } from "../../../runtime/router/dispatch/router.test-support.ts";
 import { NOT_FOUND_NOTICE } from "../../http/index.ts";
 import { createTestApp } from "../../isolated-app.test-support.ts";
-import { confirmationRequest, deletionTarget } from "./deletion.test-support.ts";
-
-function dependentOnNotes(id = "reading_list", label = "Reading list"): CapabilityRow {
-  const notes = notesRow();
-  return {
-    ...boomRow(),
-    id,
-    label,
-    read_dependencies: {
-      create: [],
-      read: [{ capability_id: notes.id, incarnation_id: notes.incarnation_id }],
-      update: [],
-      delete: [],
-      search: [],
-    },
-  };
-}
+import { confirmationRequest, deletionTarget, dependentOnNotes } from "./deletion.test-support.ts";
 
 function confirmationWithRestoration(
   incarnationId: string,
@@ -161,7 +146,7 @@ describe("platform-owned capability deletion routes", () => {
       )
     ).text();
     expect(fromOther).toContain(
-      'class="btn btn--outline capability-deletion__keep" type="button" data-capability-deletion-exit hx-get="/capability-deletion-restoration?',
+      'class="btn btn--warm capability-deletion__keep" type="button" data-capability-deletion-exit hx-get="/capability-deletion-restoration?',
     );
     expect(fromOther).toContain("restore_capability_id=boom");
     expect(fromOther).toContain(`restore_incarnation_id=${other.incarnation_id}`);
@@ -265,6 +250,7 @@ describe("platform-owned capability deletion routes", () => {
     const busyHtml = await response.text();
     expect(busyHtml).toContain("I’m making another change right now");
     expect(busyHtml).toContain("data-capability-deletion-ending");
+    expect(busyHtml).toContain(`id="${capabilityRecordsRegionId(target.id)}"`);
     expect(response.headers.get("HX-Replace-Url")).toBe(null);
     expect(mutationCoordinator.snapshot()).toEqual(before);
     expect(mutationCoordinator.cancelBuild(reservation)).toBe(true);
@@ -288,7 +274,9 @@ describe("platform-owned capability deletion routes", () => {
       "/capability-deletion/notes/confirm",
       confirmationRequest(UNKNOWN_INCARNATION_ID),
     );
-    expect(await stale.text()).toContain("changed after you opened this page");
+    const staleHtml = await stale.text();
+    expect(staleHtml).toContain("changed after you opened this page");
+    expect(staleHtml).toContain(`id="${capabilityRecordsRegionId(target.id)}"`);
 
     const duplicateBody = new URLSearchParams();
     duplicateBody.append("incarnation_id", target.incarnation_id);

@@ -2,12 +2,14 @@ import { describe, expect, test } from "bun:test";
 import { ACTIVE_CAPABILITY_ATTRIBUTE, PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
 import { capabilityDeletionPreflightUrl } from "#shell/desk/logos/capability-deletion.js";
 import { El, parseHtml } from "../../presentation/controls/double/choice-picker.test-support.ts";
+import { collectionCountSentence } from "../../presentation/index.ts";
 import type { CapabilityRow } from "../../registry/index.ts";
 import { boomRow, notesRow } from "../../runtime/router/dispatch/router.test-support.ts";
 import { capabilityLogoElementId } from "../../server/http/index.ts";
 import { createTestApp } from "../../server/isolated-app.test-support.ts";
 import {
   type CapabilityDeletionRestorationEvidence,
+  DELETION_GROUND_ATTRIBUTE,
   dependentCapabilityNames,
   renderCapabilityDeletionAlreadyGone,
   renderCapabilityDeletionCommitted,
@@ -17,6 +19,19 @@ import {
 } from "./presentation.ts";
 
 const NEUTRAL: CapabilityDeletionRestorationEvidence = { kind: "neutral" };
+
+/** Nothing under the veil and no count: the question alone. */
+const BARE = { collection: "", records: null } as const;
+
+/** The panel over the window, without the collection under it. */
+function panelOf(html: string): string {
+  return html.slice(html.indexOf('class="window__leaving-panel'));
+}
+
+/** The one sentence under the question. */
+function detailOf(html: string): string {
+  return /<p class="window__leaving-detail">([^<]*)<\/p>/.exec(html)?.[1] ?? "";
+}
 
 interface TopLevelPart {
   readonly tag: string;
@@ -55,23 +70,16 @@ async function topLevelParts(html: string): Promise<{ stray: string; parts: TopL
 }
 
 describe("capability-deletion presentation", () => {
-  test("names the capability and explains permanent loss in plain product voice", () => {
-    const html = renderCapabilityDeletionConfirmation(notesRow(), []);
+  test("asks over the window, saying what goes and nothing about how it is kept", () => {
+    const html = renderCapabilityDeletionConfirmation(notesRow(), [], BARE);
 
     expect(html).toContain("Delete Notes permanently?");
-    expect(html).toContain(
-      "This deletes all records, every past setup, saved files and anything else it owns, plus its activity history. You can’t undo this.",
-    );
-    expect(html).toContain(
-      "I keep a few measurements about creating or changing Notes, but never your content",
-    );
-    expect(html).toContain('class="capability-deletion__retention"');
-    // `.btn--outline` is the design system's name for the action you take when you are
-    // not taking the action; `neutral` is a name that system explicitly refuses.
-    expect(html).toContain('class="btn btn--outline capability-deletion__keep"');
+    // The question, one sentence about what goes, and the two answers. Nothing about how a
+    // capability is put together, and no line about what is measured.
+    expect(panelOf(html).split("<p ").length - 1).toBe(1);
+    // The answer that keeps everything takes the warm fill the leave questions give theirs.
+    expect(html).toContain('class="btn btn--warm capability-deletion__keep"');
     expect(html).toContain("Delete permanently</span>");
-    expect(html).not.toContain("Permanent deletion");
-    expect(html).not.toContain("content-free");
     expect(html).toContain(`value="${notesRow().incarnation_id}"`);
   });
 
@@ -88,7 +96,7 @@ describe("capability-deletion presentation", () => {
     // Assert the grammar through the *live* refusal, not a parallel renderer: this is
     // the copy Confirm actually answers with once lease-held revalidation refuses.
     const blocked = (dependents: CapabilityRow[]) =>
-      renderCapabilityDeletionRefusal(notesRow(), { kind: "blocked", dependents }, NEUTRAL);
+      renderCapabilityDeletionRefusal(notesRow(), { kind: "blocked", dependents }, NEUTRAL, "");
 
     expect(blocked([alpha])).toContain("I can’t delete Notes while Reading list uses it.");
     expect(blocked([alpha, beta])).toContain(
@@ -98,7 +106,7 @@ describe("capability-deletion presentation", () => {
 
   test("the advisory preflight warns without pretending to be the answer", () => {
     const dependent = { ...boomRow(), id: "alpha", label: "Reading list" };
-    const html = renderCapabilityDeletionConfirmation(notesRow(), [dependent]);
+    const html = renderCapabilityDeletionConfirmation(notesRow(), [dependent], BARE);
 
     expect(html).toContain("Reading list currently uses Notes. I’ll check again before deleting");
     expect(html).not.toContain("Aluna will");
@@ -109,7 +117,7 @@ describe("capability-deletion presentation", () => {
   test("a label that is not a name is not rendered, escaped or otherwise", () => {
     const target = notesRow({ label: '<img src=x onerror="alert(1)">' });
     const dependent = { ...boomRow(), label: "<script>alert(2)</script>" };
-    const html = renderCapabilityDeletionConfirmation(target, [dependent]);
+    const html = renderCapabilityDeletionConfirmation(target, [dependent], BARE);
 
     expect(html).not.toContain("<img");
     expect(html).not.toContain("<script>");
@@ -122,7 +130,7 @@ describe("capability-deletion presentation", () => {
   test("every label it renders goes through the escape on the way out", () => {
     const target = notesRow({ label: "Tom & Jerry" });
     const dependent = { ...boomRow(), label: "Salt & Pepper" };
-    const html = renderCapabilityDeletionConfirmation(target, [dependent]);
+    const html = renderCapabilityDeletionConfirmation(target, [dependent], BARE);
 
     expect(html).toContain("Tom &amp; Jerry");
     expect(html).toContain("Salt &amp; Pepper");
@@ -143,7 +151,7 @@ describe("capability-deletion presentation", () => {
   });
 
   test("Confirm carries the preflight URL the shell re-asks when a response never lands", () => {
-    const html = renderCapabilityDeletionConfirmation(notesRow(), []);
+    const html = renderCapabilityDeletionConfirmation(notesRow(), [], BARE);
 
     expect(html).toContain('data-capability-deletion-confirm="/capability-deletion/notes"');
   });
@@ -160,7 +168,7 @@ describe("capability-deletion presentation", () => {
   });
 
   test("Confirm names the act while it runs and locks both controls", () => {
-    const html = renderCapabilityDeletionConfirmation(notesRow(), []);
+    const html = renderCapabilityDeletionConfirmation(notesRow(), [], BARE);
     const label = (state: "idle" | "busy") =>
       html.match(new RegExp(`data-deletion-${state}-label>([^<]+)</span>`))?.[1];
 
@@ -194,10 +202,51 @@ describe("capability-deletion presentation", () => {
   });
 });
 
+describe("the question over the window", () => {
+  test("counts what goes in the words the collection counts it in", () => {
+    const nouns = { noun: notesRow().noun, plural: notesRow().plural_noun };
+    const said = (records: number | null) =>
+      detailOf(
+        renderCapabilityDeletionConfirmation(notesRow(), [], {
+          collection: "",
+          records,
+        }),
+      );
+    const counted = (n: number) => new RegExp(`\\b${collectionCountSentence(n, nouns)}\\b`);
+
+    expect(said(1)).toMatch(counted(1));
+    expect(said(214)).toMatch(counted(214));
+    expect(said(1200)).toMatch(counted(1200));
+    // The verb agrees with the count: what follows one record is what follows two, inflected.
+    const verbAfter = (n: number) =>
+      said(n).split(collectionCountSentence(n, nouns))[1]?.trim().split(" ")[0] ?? "";
+    expect(verbAfter(1).startsWith(verbAfter(2))).toBe(true);
+    expect(verbAfter(1).length).toBeGreaterThan(verbAfter(2).length);
+    // An empty capability and a count that could not be read state no number, and do not say
+    // the same thing: nothing saved is a fact, an unread count is not zero. Nor is an empty
+    // collection the counted sentence with its number left out.
+    expect(said(0)).not.toMatch(/\d/);
+    expect(said(null)).not.toMatch(/\d/);
+    expect(said(0)).not.toBe(said(null));
+    expect(said(0)).not.toBe(said(2).replace(collectionCountSentence(2, nouns), ""));
+  });
+
+  test("the question stands over the collection it would delete, which nothing can press", () => {
+    const collection = '<section class="capability-collection" aria-label="Notes"></section>';
+    const html = renderCapabilityDeletionConfirmation(notesRow(), [], {
+      collection,
+      records: 0,
+    });
+
+    expect(html).toContain(`${DELETION_GROUND_ATTRIBUTE} inert>${collection}</div>`);
+    expect(panelOf(html)).not.toContain(collection);
+  });
+});
+
 describe("the ending a deletion that did not happen leaves in the window", () => {
-  test("a refusal and a pre-commit failure each fill the window and hold there", () => {
-    const failure = renderCapabilityDeletionPreCommitFailure(notesRow(), NEUTRAL);
-    const refusal = renderCapabilityDeletionRefusal(notesRow(), { kind: "busy" }, NEUTRAL);
+  test("a refusal and a pre-commit failure each stand over the window and hold there", () => {
+    const failure = renderCapabilityDeletionPreCommitFailure(notesRow(), NEUTRAL, "");
+    const refusal = renderCapabilityDeletionRefusal(notesRow(), { kind: "busy" }, NEUTRAL, "");
 
     for (const ending of [failure, refusal]) {
       // The sentence lives in the window now, not on the prompt bar behind it, and the
@@ -208,15 +257,17 @@ describe("the ending a deletion that did not happen leaves in the window", () =>
       expect(ending).toContain(">Continue</button>");
       // One sentence and one control. A heading over it could only say again what the
       // sentence says, so the sentence is the ending's own name and takes the keyboard.
-      expect(ending).not.toContain("<h1");
+      expect(ending).not.toMatch(/<h[1-6]/);
       expect(ending.split("<p ").length - 1).toBe(1);
       expect(ending).toContain(
         '<p class="capability-deletion__ending" id="capability-deletion-ending" tabindex="-1" data-capability-deletion-focus data-capability-deletion-sentence>',
       );
       expect(ending).toContain('aria-labelledby="capability-deletion-ending"');
-      // An ordinary in-window section: no dialog, no inertness, no focus trap.
+      // Read over the window, not a modal: no dialog and no focus trap. Only the collection
+      // under the veil is inert, so the panel is the one thing that can be pressed.
       expect(ending).not.toContain("role=");
-      expect(ending).not.toContain("inert");
+      expect(ending.match(/\binert\b/g)).toHaveLength(1);
+      expect(ending).toContain(`${DELETION_GROUND_ATTRIBUTE} inert>`);
     }
     expect(failure).toContain("I couldn’t delete Notes. Everything you had there is still safe.");
     expect(refusal).toContain("I’m making another change right now");
@@ -224,7 +275,7 @@ describe("the ending a deletion that did not happen leaves in the window", () =>
 
   test("the four refusals keep four sentences, and the drain has its own", () => {
     const say = (refusal: Parameters<typeof renderCapabilityDeletionRefusal>[1]) =>
-      renderCapabilityDeletionRefusal(notesRow(), refusal, NEUTRAL);
+      renderCapabilityDeletionRefusal(notesRow(), refusal, NEUTRAL, "");
 
     expect(say({ kind: "busy" })).toContain(
       "I’m making another change right now, so I didn’t delete Notes. Try again when I’m finished.",
@@ -250,6 +301,7 @@ describe("the ending a deletion that did not happen leaves in the window", () =>
         capabilityId: other.id,
         incarnationId: other.incarnation_id,
       },
+      "",
     );
 
     // The same restoration route **Keep it** takes, re-resolved at the press.
@@ -264,6 +316,7 @@ describe("the ending a deletion that did not happen leaves in the window", () =>
       notesRow({ label: "Tom & Jerry" }),
       { kind: "stale" },
       NEUTRAL,
+      "",
     );
 
     expect(ending).toContain("Tom &amp; Jerry changed after you opened this page");
@@ -275,6 +328,7 @@ describe("the ending a deletion that did not happen leaves in the window", () =>
       notesRow({ label: '<img src=x onerror="alert(1)">' }),
       { kind: "stale" },
       NEUTRAL,
+      "",
     );
 
     expect(ending).not.toContain("<img");
@@ -288,7 +342,7 @@ describe("the ending a deletion that did not happen leaves in the window", () =>
 describe("the recheck a Confirm sends", () => {
   test("the recheck the shell sends off a Confirm is one the server reads as after-confirm", async () => {
     const page = parseHtml(
-      renderCapabilityDeletionConfirmation(notesRow(), [], {
+      renderCapabilityDeletionConfirmation(notesRow(), [], BARE, {
         kind: "capability",
         capabilityId: "ledger",
         incarnationId: "inc-ledger",

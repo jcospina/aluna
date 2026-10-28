@@ -245,18 +245,21 @@ Two further windows may stand beside it and neither holds a capability: the
 developer panel and the answer window, which opens for a question and is
 dismissed rather than put away, because closing it destroys the answer.
 
-One confirmation is read *over* the window rather than inside it: the question a
-navigation asks before it takes a live build or evolution away dims that window's
-own body and centres the question on it. It is still not a modal, and the
-distinction is the whole of what makes it allowed — nothing is fetched or swapped
-in to show it, it reaches no further than that window's body, nothing outside the
-window is covered or made inert, focus is not trapped, and the frame's two lamps
-stay pressable. A record form with unsaved changes asks the same question in its
-own words before any exit takes it, and is drawn with the run's in
+Two kinds of confirmation are read *over* the window rather than inside it. The
+first is the question a navigation asks before it takes a live build or evolution
+away: it dims that window's own body and centres the question on it, and nothing is
+fetched or swapped in to show it. A record form with unsaved changes asks the same
+question in its own words before any exit takes it, and is drawn with the run's in
 `controls.html`, "A record, assembled". A run's copy ships hidden in its own
 surface; a form has no such surface, so the shell builds the form's in the window's
 body when it asks. Disconnecting a linked field asks over the window the same way.
-Nothing else on this surface may be read over anything.
+The second is Delete, from a logo's menu: it arrives in the window like anything
+else the window shows, with the capability's own collection dimmed and inert under
+the veil, so the question is asked over what it would delete. It is drawn with the
+other two in `controls.html`. Neither is a modal:
+each reaches no further than that window's body, nothing outside the window is
+covered or made inert, focus is not trapped, and the frame's two lamps stay
+pressable. Nothing else on this surface may be read over anything.
 
 A record is a `<button>`. Opening one is the only thing you can do with it, and a
 button is what the keyboard already reaches, so a record carries no `role`, no

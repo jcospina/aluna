@@ -236,10 +236,17 @@ function mountFileKinds(root) {
  * @param {string} body what the window holds
  * @param {string} said the question
  * @param {[string, string]} answers the one that changes nothing, then the one that leaves
+ * @param {{ detail?: string, leaveKind?: string }} [destroys] set when leaving destroys something:
+ *   the question leads in the display face, the line under it says what goes, and leaving is red
  */
-function asking(body, said, [stay, leave]) {
+function asking(body, said, [stay, leave], destroys) {
   const shown = document.createElement("div");
-  shown.innerHTML = `${body}<div class="window__leaving"><div class="window__leaving-panel"><p id="leaving-said">${said}</p><div class="window__leaving-actions"><button class="btn btn--warm" type="button" aria-describedby="leaving-said">${stay}</button><button class="btn btn--outline" type="button" aria-describedby="leaving-said">${leave}</button></div></div></div>`;
+  const question = destroys
+    ? `<h3 class="window__leaving-question" id="leaving-said" tabindex="-1">${said}</h3><p class="window__leaving-detail">${destroys.detail ?? ""}</p>`
+    : `<p id="leaving-said">${said}</p>`;
+  const leaveKind = destroys?.leaveKind ?? "btn--outline";
+  const described = destroys ? "" : ' aria-describedby="leaving-said"';
+  shown.innerHTML = `${body}<div class="window__leaving"><div class="window__leaving-panel">${question}<div class="window__leaving-actions"><button class="btn btn--warm" type="button"${described}>${stay}</button><button class="btn ${leaveKind}" type="button"${described}>${leave}</button></div></div></div>`;
   shown.addEventListener("click", (event) => {
     if (event.target instanceof Element && event.target.closest(".window__leaving-actions .btn")) {
       shown.querySelector(".window__leaving")?.remove();
@@ -261,12 +268,22 @@ const LEAVING = {
     said: "If you leave now, I’ll stop making this. Nothing you already have will change.",
     answers: /** @type {[string, string]} */ (["Keep making it", "Stop and leave"]),
   },
+  delete: {
+    title: "Expenses",
+    body: '<div class="collection" style="min-height: 15rem" inert><p class="collection__count caps">3 expenses</p><ul class="records records--feed"><li><button class="record" type="button"><span class="record__text"><span class="record__title">Corner Café</span><p class="record__detail">12 March · 4.80</p></span></button></li><li><button class="record" type="button"><span class="record__text"><span class="record__title">Night bus</span><p class="record__detail">9 March · 2.10</p></span></button></li><li><button class="record" type="button"><span class="record__text"><span class="record__title">Hardware store</span><p class="record__detail">2 March · 31.75</p></span></button></li></ul></div>',
+    said: "Delete Expenses permanently?",
+    answers: /** @type {[string, string]} */ (["Keep it", "Delete permanently"]),
+    destroys: {
+      detail: "Its 3 expenses go with it. You can’t undo this.",
+      leaveKind: "btn--danger",
+    },
+  },
 };
 
 /**
  * One window and the question each kind of leaving asks over it. Picking a state asks it and puts
- * focus on the answer that changes nothing, as the desk does; answering takes the question away
- * and hands focus back to the picker. Picking the state again asks again.
+ * focus where the desk does, on the answer that changes nothing or on Delete's question; answering
+ * takes the question away and hands focus back to the picker. Picking the state again asks again.
  *
  * @param {ParentNode} root
  */
@@ -283,18 +300,25 @@ function mountLeaving(root) {
     if (pressed instanceof HTMLElement) pressed.focus();
   });
   picker?.addEventListener("click", () => {
-    const stay = host?.querySelector(".window__leaving-actions .btn");
-    if (stay instanceof HTMLElement) stay.focus();
+    const first =
+      host?.querySelector(".window__leaving-question") ??
+      host?.querySelector(".window__leaving-actions .btn");
+    if (first instanceof HTMLElement) first.focus();
   });
   swapStates(
     picker,
     host,
     Object.fromEntries(
-      Object.entries(LEAVING).map(([state, { title, body, said, answers }]) => [
+      Object.entries(LEAVING).map(([state, entry]) => [
         state,
         () => {
-          win?.alunaWindow?.setTitle(title);
-          return asking(body, said, answers);
+          win?.alunaWindow?.setTitle(entry.title);
+          return asking(
+            entry.body,
+            entry.said,
+            entry.answers,
+            "destroys" in entry ? entry.destroys : undefined,
+          );
         },
       ]),
     ),

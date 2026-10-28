@@ -105,7 +105,7 @@ describe("the desk breaks at 720px and forms at 620px", () => {
       /@container window \(max-width: 620px\) \{\s*\.capability-collection__header \{/,
     );
     expect(rules("public/css/deletion.css")).toMatch(
-      /@container window \(max-width: 620px\) \{\s*\.capability-deletion \{/,
+      /@container window \(max-width: 620px\) \{\s*\.capability-deletion__actions,/,
     );
   });
 
@@ -129,6 +129,18 @@ describe("the desk breaks at 720px and forms at 620px", () => {
     // one above the bar is overridden, so the strip is reserved again as content.
     expect(rules("public/css/shell.css")).toMatch(
       /@media \(max-width: 720px\) \{\s*\.desk-window__region::after \{[^}]*height: var\(--prompt-clearance\);/,
+    );
+  });
+
+  test("a question over the window keeps its answers clear of the bar too", () => {
+    // The veil stands on the window's body, out of the region's flow, so it reserves the strip
+    // itself, as content, and scrolls an answer the keyboard reaches clear of it.
+    const phone = /@media \(max-width: 720px\) \{[^@]*/.exec(rules("public/css/shell.css"))?.[0];
+    expect(phone).toMatch(
+      /\.window--desk \.window__leaving::after \{[^}]*height: var\(--prompt-clearance\);/,
+    );
+    expect(phone).toMatch(
+      /\.window--desk \.window__leaving \{[^}]*scroll-padding-bottom: calc\(var\(--prompt-clearance\)/,
     );
   });
 });

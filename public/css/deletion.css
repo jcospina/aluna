@@ -1,78 +1,68 @@
 /* =============================================================================
    Permanent capability deletion
 
-   The question fills the window and, when the answer is no, so does the ending that
-   replaces it. No second modal layer: the doorway on the logo starts the action, the
-   window is the one surface it uses, and what it displaced is given back on the press.
+   The question is read over the window, the way leaving a running build asks: the
+   capability's own collection stands dimmed and inert under the veil, and the panel
+   over it asks. A refusal is said in the same panel and holds it until Continue. It
+   is not a modal: the lamps stay pressable and focus is not trapped.
    ========================================================================== */
 
+/* Left unpositioned, so the veil places itself on the window's body and covers all of it,
+   as the running build's does from the same region. */
 .capability-deletion {
   display: flex;
-  width: min(100%, 42rem);
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Laid out as the open collection is, so the window looks the same under the veil. */
+.capability-deletion__ground {
+  display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: var(--space-2);
-  margin-inline: auto;
-  padding-block: var(--space-4);
+  width: min(80rem, 100%);
+  min-height: 0;
+  margin: 0 auto;
+  padding: var(--space-2);
+  overflow: hidden;
 }
-.capability-deletion h1 {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--type-xl);
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--ink);
+
+/* A run started from the prompt bar while the question stands takes the window over it, as it
+   does over an open capability: the question is hidden while the run has the window, and
+   whatever the run ends on takes its place. */
+#spec-build-output:has(> .build-stream > .build-stream__narration:not(:empty))
+  > .capability-deletion,
+#spec-build-output:has(> .build-stream > .build-stream__commit:not(:empty)) > .capability-deletion {
+  display: none;
 }
-.capability-deletion__body {
-  display: flex;
-  max-width: 68ch;
-  flex-direction: column;
-  gap: var(--space-1);
-  color: var(--ink-2);
-}
-.capability-deletion__body p {
-  margin: 0;
-}
-.capability-deletion__retention {
-  font-family: var(--font-body);
-  font-size: var(--type-sm);
-  line-height: 1.4;
-  color: var(--ink-3);
-}
+
 .capability-deletion__notice {
   padding: var(--space-2);
   color: var(--ink);
   background: color-mix(in oklch, var(--sun), var(--surface) 70%);
   border: var(--line) solid color-mix(in oklch, var(--sun), var(--ink) 30%);
 }
-/* The one control row on this surface where the two choices must not sit close enough to
-   be mistaken for each other: one puts the capability back and the other ends it. Side by
-   side they get more air than a control row's default for that reason alone; stacked, the
-   container query below takes it back. */
-.capability-deletion__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-4);
-  padding-top: var(--space-2);
+
+.capability-deletion__panel .capability-deletion__notice {
+  max-width: none;
+  font-size: var(--type-sm);
 }
+
+/* Further apart than a control row's default: one choice puts the capability back and
+   the other ends it, and side by side they must not be mistaken for each other. */
+.capability-deletion__actions {
+  gap: var(--space-4);
+}
+
 .capability-deletion__actions form {
   margin: 0;
 }
 
-/* The ending a refused, timed-out or failed deletion leaves standing. It is one sentence
-   and one way out, and the sentence is the whole of what the window has to say — so it
-   carries the panel's own voice rather than the supporting weight the question's body
-   copy takes under its heading. */
-.capability-deletion__ending {
-  max-width: 68ch;
-  margin: 0;
-  color: var(--ink);
-}
-
 /* In flight. HTMX marks the submitting form `htmx-request` for exactly as long as the
-   deletion is running, so the danger control names the act ("Deleting…") and **Keep it**
-   stops being a live choice — the decision is already past. Pure CSS: no state to get
-   out of step with the request. */
+   deletion runs, so the danger control names the act and **Keep it** stops being a
+   live choice. Pure CSS: no state to get out of step with the request. */
 .capability-deletion__label[data-deletion-busy-label],
 form.htmx-request .capability-deletion__label[data-deletion-idle-label] {
   display: none;
@@ -84,29 +74,21 @@ form.htmx-request .capability-deletion__label[data-deletion-busy-label] {
   pointer-events: none;
   opacity: 0.5;
 }
-/* `disabled` here stops a second press; it does not un-say what the control is. The
-   danger fill stays through the act, softened rather than flattened to the surface
-   default every other disabled button falls back to. */
+/* `disabled` stops a second press; it does not un-say what the control is. The danger
+   fill stays through the act, softened rather than flattened to the disabled default. */
 .capability-deletion__actions form.htmx-request .btn--danger:disabled {
   color: var(--surface);
   background: color-mix(in oklch, var(--signal), var(--surface) 30%);
 }
 
-/* Measured against the window it stands in rather than the screen behind it: this is a
-   confirmation inside the capability window, at whatever width that window has been
-   dragged to. */
+/* Measured against the window it stands in, at whatever width it has been dragged to.
+   Stacked, each choice is a full-width block and one of them is signal red. */
 @container window (max-width: 620px) {
-  .capability-deletion {
-    padding-block: var(--space-2);
-  }
   .capability-deletion__actions,
   .capability-deletion__actions form,
   .capability-deletion__actions .btn {
     width: 100%;
   }
-  /* Stacked, the two are already unmistakable: each is a full-width block and one of them
-     is signal red. The wide gap above is what keeps them apart *side by side*; kept here
-     it would only be a hole down the middle of a narrow window. */
   .capability-deletion__actions {
     gap: var(--space-2);
   }

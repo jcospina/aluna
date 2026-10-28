@@ -156,9 +156,9 @@
 
 /* ── Leaving with something to lose ───────────────────────────────────── */
 /*
- * The one thing read over a window rather than inside it: the question a
- * navigation asks before it takes a running build, or a form with unsaved
- * changes. The veil fills the body, which is already the positioned ground below
+ * What is read over a window rather than inside it: the question a navigation
+ * asks before it takes a running build or a form's unsaved changes, and Delete's.
+ * The veil fills the body, which is already the positioned ground below
  * the title bar, so the lamps stay pressable and nothing past the window is
  * touched. It is not a modal: focus is not trapped, and only what the veil covers
  * inside the window is inert while a form's question stands.
@@ -213,6 +213,24 @@
   margin-top: calc(var(--space-2) * -1);
   font-size: var(--type-base);
   color: var(--ink-2);
+}
+
+/* Delete's question names what it would destroy, so it leads in the display face. */
+.window__leaving-panel:has(> .window__leaving-question) {
+  width: min(32rem, 100%);
+}
+
+.window__leaving-panel .window__leaving-question {
+  max-width: 22ch;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--type-xl);
+  font-weight: 700;
+  font-variation-settings: normal;
+  line-height: 1.2;
+  letter-spacing: normal;
+  text-wrap: balance;
+  color: var(--ink);
 }
 
 .window__leaving-actions {

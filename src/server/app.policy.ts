@@ -71,6 +71,19 @@ test("keeps a pending stream dormant until foreground narration begins", () => {
   expect(css).not.toMatch(/:has\([^)]*:has\(/);
 });
 
+test("a run that takes the window hides the deletion question it stood over", () => {
+  // The question is read over the window, so a run told under it could be neither read nor
+  // dismissed: it is hidden for as long as the run's story or its commit stands.
+  const css = readSource("public/css/deletion.css");
+  for (const part of ["build-stream__narration", "build-stream__commit"]) {
+    expect(css).toMatch(
+      new RegExp(
+        `#${WINDOW_CONTENT_ID}:has\\(> \\.build-stream > \\.${part}:not\\(:empty\\)\\)\\s*> \\.capability-deletion[,\\s][^{]*\\{\\s*display: none;`,
+      ),
+    );
+  }
+});
+
 test("the deletion's retired neutral marker is styled nowhere", () => {
   // Recovering a severed deletion is `public/desk/logos/capability-deletion.js`'s, run in
   // `app.shell-glue.test.ts`; the stylesheet keeps no hook for the marker it replaced.

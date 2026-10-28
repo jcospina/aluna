@@ -32,6 +32,12 @@ the path stays zero-AI. **On commit the tile vanishes.** The window puts itself
 away when the deleted capability was previously open or the desk was bare; if the
 confirmation displaced another open capability, its current canonical collection
 returns. There is no in-window terminal state for the deleted capability.
+
+*Amended 2026-10-28 by the owner — the confirmation is asked over the window.* It
+no longer fills the window: the capability's own collection, as it opens, stands
+dimmed and inert under a veil, and the question is asked in a panel over it, the way leaving a
+running build asks. Its one sentence says how many records go and nothing about how
+the capability is kept. An ending replaces the question in the same panel.
 Where the deletion section below says the capability leaves the toolbar and the
 content becomes neutral, read: the logo leaves the desk and the window closes or
 restores the unrelated displaced capability under the rule above. An

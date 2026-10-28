@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import type { CapabilityRow } from "../../../registry/index.ts";
-import { notesRow } from "../../../runtime/router/dispatch/router.test-support.ts";
+import { boomRow, notesRow } from "../../../runtime/router/dispatch/router.test-support.ts";
 
 // The capability a deletion suite deletes, and the confirmed answer that takes it away. Shared
 // by the two suites that ask what a deletion leaves behind.
@@ -22,5 +22,22 @@ export function confirmationRequest(incarnationId: string): RequestInit {
   return {
     method: "POST",
     body: new URLSearchParams({ incarnation_id: incarnationId, restore_surface: "neutral" }),
+  };
+}
+
+/** A capability one of whose Actions reads the notes fixture, which blocks its deletion. */
+export function dependentOnNotes(id = "reading_list", label = "Reading list"): CapabilityRow {
+  const notes = notesRow();
+  return {
+    ...boomRow(),
+    id,
+    label,
+    read_dependencies: {
+      create: [],
+      read: [{ capability_id: notes.id, incarnation_id: notes.incarnation_id }],
+      update: [],
+      delete: [],
+      search: [],
+    },
   };
 }

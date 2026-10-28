@@ -17,6 +17,7 @@ import { resolveArtifactsRoot } from "../builder/index.ts";
 import {
   alreadyGoneResponse,
   type CapabilityDestructionFaults,
+  capabilityDeletionGround,
   createDeletionCleanupSupervisor,
   createProductionCapabilityDeletionAdapters,
   DELETION_RECHECK_PARAM,
@@ -534,6 +535,7 @@ function registerCapabilityDeletionRoutes(app: Hono, ctx: ResolvedAppDeps): void
       renderCapabilityDeletionConfirmation(
         target,
         dependents,
+        capabilityDeletionGround(target, ctx.registryReadonly),
         restoration.kind === "capability"
           ? {
               kind: "capability",

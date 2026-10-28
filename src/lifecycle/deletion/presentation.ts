@@ -1,5 +1,6 @@
 import { capabilityDeletionUrl } from "#shell/core/routes.js";
 import { WINDOW_CONTENT_ID } from "#shell/core/shell-dom.js";
+import { collectionCountSentence } from "../../presentation/index.ts";
 import type { CapabilityRow } from "../../registry/index.ts";
 import { canonicalCapabilityLabel, SQL_NAME_PATTERN } from "../../registry/index.ts";
 import { escapeHtml } from "../../server/http/html.ts";
@@ -30,19 +31,49 @@ function renderDependencyNotice(targetLabel: string, dependents: readonly Capabi
   return `<p class="capability-deletion__notice" data-deletion-dependency-notice>${escapeHtml(copy)}</p>`;
 }
 
-function renderDeletionPanel(
-  target: Pick<CapabilityRow, "id" | "label" | "display_label_override" | "incarnation_id">,
-  body: string,
-  actions: string,
+/**
+ * What a deletion's question stands over: the target's own collection, dimmed under the veil, and
+ * how many records it holds, or `null` when they could not be counted.
+ */
+export interface CapabilityDeletionGround {
+  readonly collection: string;
+  readonly records: number | null;
+}
+
+/**
+ * The question and every ending are read over the window, as leaving a running build is. The
+ * collection under the veil is inert and carries no active-capability mark: the shell never takes
+ * it for the capability the window has open.
+ */
+function renderOverTheWindow(
+  opening: string,
+  collection: string,
+  panel: readonly string[],
 ): string {
-  const label = canonicalCapabilityLabel(target);
   return [
-    `<section class="capability-deletion" aria-labelledby="capability-deletion-title" data-capability-deletion>`,
-    `  <h1 id="capability-deletion-title" tabindex="-1" data-capability-deletion-focus>Delete ${escapeHtml(label)} permanently?</h1>`,
-    `  <div class="capability-deletion__body">${body}</div>`,
-    `  <div class="capability-deletion__actions">${actions}</div>`,
+    opening,
+    `  <div class="capability-deletion__ground" ${DELETION_GROUND_ATTRIBUTE} inert>${collection}</div>`,
+    `  <div class="window__leaving capability-deletion__veil">`,
+    `    <div class="window__leaving-panel capability-deletion__panel">`,
+    ...panel,
+    `    </div>`,
+    `  </div>`,
     `</section>`,
   ].join("\n");
+}
+
+/** A count that could not be read is not zero records, so it states no number at all. */
+function lossSentence(
+  target: Pick<CapabilityRow, "noun" | "plural_noun">,
+  records: number | null,
+): string {
+  if (records === null) return "Everything saved in it goes with it. You can’t undo this.";
+  if (records <= 0) return "Nothing’s saved in it yet. You can’t undo this.";
+  const counted = collectionCountSentence(records, {
+    noun: target.noun,
+    plural: target.plural_noun,
+  });
+  return `Its ${counted} ${records === 1 ? "goes" : "go"} with it. You can’t undo this.`;
 }
 
 /**
@@ -51,7 +82,7 @@ function renderDeletionPanel(
  */
 function renderBackAction(restoration: CapabilityDeletionRestorationEvidence): string {
   const url = capabilityDeletionRestorationUrl(restoration);
-  return `<button class="btn btn--outline capability-deletion__keep" type="button" ${DELETION_EXIT_ATTRIBUTE} hx-get="${escapeHtml(url)}" hx-target="#${WINDOW_CONTENT_ID}" hx-swap="innerHTML">Keep it</button>`;
+  return `<button class="btn btn--warm capability-deletion__keep" type="button" ${DELETION_EXIT_ATTRIBUTE} hx-get="${escapeHtml(url)}" hx-target="#${WINDOW_CONTENT_ID}" hx-swap="innerHTML">Keep it</button>`;
 }
 
 /**
@@ -66,6 +97,9 @@ export const DELETION_EXIT_ATTRIBUTE = "data-capability-deletion-exit";
  */
 export const DELETION_ENDING_ATTRIBUTE = "data-capability-deletion-ending";
 export const DELETION_SENTENCE_ATTRIBUTE = "data-capability-deletion-sentence";
+
+/** The collection under the veil, which Confirm lets go of before the deletion drains its readers. */
+export const DELETION_GROUND_ATTRIBUTE = "data-capability-deletion-ground";
 
 function capabilityDeletionRestorationUrl(
   restoration: CapabilityDeletionRestorationEvidence,
@@ -89,6 +123,7 @@ export type CapabilityDeletionRestorationEvidence =
 export function renderCapabilityDeletionConfirmation(
   target: CapabilityRow,
   dependents: readonly CapabilityRow[],
+  ground: CapabilityDeletionGround,
   restoration: CapabilityDeletionRestorationEvidence = {
     kind: "capability",
     capabilityId: target.id,
@@ -96,14 +131,6 @@ export function renderCapabilityDeletionConfirmation(
   },
 ): string {
   const label = canonicalCapabilityLabel(target);
-  const lossCopy =
-    "This deletes all records, every past setup, saved files and anything else it owns, plus its activity history. You can’t undo this.";
-  const metricsCopy = `I keep a few measurements about creating or changing ${label}, but never your content.`;
-  const body = [
-    `<p>${escapeHtml(lossCopy)}</p>`,
-    `<p class="capability-deletion__retention">${escapeHtml(metricsCopy)}</p>`,
-    renderDependencyNotice(label, dependents),
-  ].join("");
   const actions = [
     renderBackAction(restoration),
     // The marker lets the shell recognise a confirm whose response never arrived: a severed request
@@ -122,7 +149,16 @@ export function renderCapabilityDeletionConfirmation(
     `  </button>`,
     `</form>`,
   ].join("\n");
-  return renderDeletionPanel(target, body, actions);
+  return renderOverTheWindow(
+    `<section class="capability-deletion" aria-labelledby="capability-deletion-title" data-capability-deletion>`,
+    ground.collection,
+    [
+      `      <h3 class="window__leaving-question" id="capability-deletion-title" tabindex="-1" data-capability-deletion-focus>Delete ${escapeHtml(label)} permanently?</h3>`,
+      `      <p class="window__leaving-detail">${escapeHtml(lossSentence(target, ground.records))}</p>`,
+      renderDependencyNotice(label, dependents),
+      `      <div class="window__leaving-actions capability-deletion__actions">${actions}</div>`,
+    ],
+  );
 }
 
 // The id must be a *capability id* before it becomes a selector: on the already-gone branch no
@@ -157,20 +193,23 @@ export function renderCapabilityDeletionCommitted(
 }
 
 /**
- * A deletion that did not happen, said in the window that asked. No heading
- * over the sentence: it takes the keyboard itself, read out on arrival; Continue names the act.
+ * A deletion that did not happen, said in the panel that asked, over the same collection. No
+ * heading over the sentence: it takes the keyboard itself, read out on arrival; Continue names the act.
  */
 function renderCapabilityDeletionEnding(
   sentence: string,
   restoration: CapabilityDeletionRestorationEvidence,
+  collection: string,
 ): string {
   const url = capabilityDeletionRestorationUrl(restoration);
-  return [
+  return renderOverTheWindow(
     `<section class="capability-deletion capability-deletion--ending" aria-labelledby="${DELETION_ENDING_ELEMENT_ID}" ${DELETION_ENDING_ATTRIBUTE}>`,
-    `  <p class="capability-deletion__ending" id="${DELETION_ENDING_ELEMENT_ID}" tabindex="-1" data-capability-deletion-focus ${DELETION_SENTENCE_ATTRIBUTE}>${escapeHtml(sentence)}</p>`,
-    `  <div class="capability-deletion__actions"><button class="btn btn--outline" type="button" ${DELETION_EXIT_ATTRIBUTE} hx-get="${escapeHtml(url)}" hx-target="#${WINDOW_CONTENT_ID}" hx-swap="innerHTML">Continue</button></div>`,
-    `</section>`,
-  ].join("\n");
+    collection,
+    [
+      `      <p class="capability-deletion__ending" id="${DELETION_ENDING_ELEMENT_ID}" tabindex="-1" data-capability-deletion-focus ${DELETION_SENTENCE_ATTRIBUTE}>${escapeHtml(sentence)}</p>`,
+      `      <div class="window__leaving-actions capability-deletion__actions"><button class="btn btn--outline" type="button" ${DELETION_EXIT_ATTRIBUTE} hx-get="${escapeHtml(url)}" hx-target="#${WINDOW_CONTENT_ID}" hx-swap="innerHTML">Continue</button></div>`,
+    ],
+  );
 }
 
 /** The sentence is the ending's own accessible name, so it is addressable. */
@@ -179,11 +218,13 @@ const DELETION_ENDING_ELEMENT_ID = "capability-deletion-ending";
 export function renderCapabilityDeletionPreCommitFailure(
   target: Pick<CapabilityRow, "id" | "label" | "display_label_override">,
   restoration: CapabilityDeletionRestorationEvidence,
+  collection: string,
 ): string {
   const label = canonicalCapabilityLabel(target);
   return renderCapabilityDeletionEnding(
     `I couldn’t delete ${label}. Everything you had there is still safe.`,
     restoration,
+    collection,
   );
 }
 
@@ -220,10 +261,12 @@ export function renderCapabilityDeletionRefusal(
   target: CapabilityRow,
   refusal: CapabilityDeletionRefusal,
   restoration: CapabilityDeletionRestorationEvidence,
+  collection: string,
 ): string {
   return renderCapabilityDeletionEnding(
     capabilityDeletionRefusalSentence(target, refusal),
     restoration,
+    collection,
   );
 }
 

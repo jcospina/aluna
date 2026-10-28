@@ -254,6 +254,22 @@ function answerIn(html, root) {
  * }} DeletionSwap
  */
 
+/**
+ * The collection under the question, restated from `src/lifecycle/deletion/presentation.ts`. A
+ * read still loading there holds the capability Confirm is about to drain, so Confirm lets it go.
+ */
+const DELETION_GROUND_SELECTOR = "[data-capability-deletion-ground]";
+
+/** @param {{ elt?: unknown }} detail what htmx is about to send, and from where */
+export function releaseDeletionGround(detail) {
+  const confirm = /** @type {DeletionNode | undefined} */ (detail.elt);
+  if (confirm?.matches?.("[data-capability-deletion-confirm]") !== true) return;
+  const ground = confirm
+    .closest?.("[data-capability-deletion]")
+    ?.querySelector?.(DELETION_GROUND_SELECTOR);
+  if (ground) askRegionToRelease(/** @type {Element} */ (/** @type {unknown} */ (ground)));
+}
+
 /** @param {Event} event @param {Document} [root] */
 export function recoverSeveredCapabilityDeletion(event, root = globalThis.document) {
   const form = /** @type {CustomEvent<{ elt?: DeletionNode }>} */ (event).detail?.elt;
@@ -308,6 +324,24 @@ export function rescueCapabilityDeletionEnding(leaving, root) {
 }
 
 /**
+ * An ending the shell takes away itself, past htmx's cleanup — a run landing over it releases what
+ * it displaced and removes it — still carries its sentence to the prompt bar on the way out.
+ *
+ * @param {Event} event
+ * @param {{ dispatchEvent(event: Event): unknown }} root
+ */
+function holdEndingToItsSentence(event, root) {
+  const target = /** @type {CustomEvent<{ target?: DeletionNode }>} */ (event).detail?.target;
+  const ending = target?.querySelector?.(DELETION_ENDING_SELECTOR);
+  if (!ending) return;
+  registerRegionRelease(
+    /** @type {Element} */ (/** @type {unknown} */ (ending)),
+    "deletion ending",
+    () => rescueCapabilityDeletionEnding(ending, root),
+  );
+}
+
+/**
  * Take the mark off, so a sentence already accounted for cannot leave twice. Not on the press: a
  * dismissal that never arrives leaves the ending standing and still unread.
  * @param {DeletionNode | null | undefined} ending
@@ -350,7 +384,17 @@ export function startCapabilityDeletionRecovery(root) {
   /* The third way a reply never arrives, and the one the desk causes itself: a region release
    * aborts the request while the server goes on. An aborted confirm fires nothing else. */
   root.addEventListener("htmx:sendAbort", recover);
+  /* A server failure in reply says nothing of whether the deletion committed, so it asks too. A
+   * 4xx was turned away before anything ran, so the question still standing is still true. */
+  root.addEventListener("htmx:responseError", (event) => {
+    const reply = /** @type {CustomEvent<{ xhr?: { status?: number } }>} */ (event).detail?.xhr;
+    if ((reply?.status ?? 0) >= 500) recover(event);
+  });
+  root.addEventListener("htmx:beforeRequest", (event) =>
+    releaseDeletionGround(/** @type {CustomEvent<{ elt?: unknown }>} */ (event).detail ?? {}),
+  );
   root.addEventListener("htmx:afterSwap", focusCapabilityDeletion);
+  root.addEventListener("htmx:afterSwap", (event) => holdEndingToItsSentence(event, root));
   /* htmx's cleanup is the hook because every disappearance goes through it: an `innerHTML` swap
    * runs `cleanUpElement` over each node it removes, so the panel is always reached. */
   root.addEventListener("htmx:beforeCleanupElement", (event) =>

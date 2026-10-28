@@ -35,6 +35,7 @@ import { renderPromptNotice } from "../../server/http/fragments/fragments.ts";
 import {
   DELETION_ENDING_ATTRIBUTE,
   DELETION_EXIT_ATTRIBUTE,
+  DELETION_GROUND_ATTRIBUTE,
   DELETION_SENTENCE_ATTRIBUTE,
   renderCapabilityDeletionConfirmation,
   renderCapabilityDeletionPreCommitFailure,
@@ -44,11 +45,11 @@ import {
 type Reply = { status?: number; body?: string; replaceUrl?: string } | "severed";
 
 /** A window holding the confirmation, and every effect the recovery can have, written down. */
-function confirmationDesk() {
+function confirmationDesk(collection = "") {
   const doc = new Doc();
   parseHtml(
     `<div id="${WINDOW_CONTENT_ID}" data-content-region="${WINDOW_CONTENT_REGION}">` +
-      `${renderCapabilityDeletionConfirmation(notesRow(), [])}</div>`,
+      `${renderCapabilityDeletionConfirmation(notesRow(), [], { collection, records: null })}</div>`,
     doc,
   );
   const output = doc.getElementById(WINDOW_CONTENT_ID) as El;
@@ -148,7 +149,7 @@ async function recover(
   return { ...asked, claimed: rechecks() - standing };
 }
 
-const failure = () => renderCapabilityDeletionPreCommitFailure(notesRow(), { kind: "neutral" });
+const failure = () => renderCapabilityDeletionPreCommitFailure(notesRow(), { kind: "neutral" }, "");
 /** The sentence that failure says, read off the server's own markup. */
 const ending = (
   parseHtml(failure(), new El("div")).querySelector(`[${DELETION_SENTENCE_ATTRIBUTE}]`) as El
@@ -280,7 +281,15 @@ describe("an answer that arrives after the window moved on", () => {
 describe("the recheck's own address", () => {
   test("carries only the restoration it was given, and marks itself a recheck", () => {
     const doc = new Doc();
-    parseHtml(renderCapabilityDeletionConfirmation(notesRow(), [], { kind: "neutral" }), doc);
+    parseHtml(
+      renderCapabilityDeletionConfirmation(
+        notesRow(),
+        [],
+        { collection: "", records: null },
+        { kind: "neutral" },
+      ),
+      doc,
+    );
     const confirm = doc.querySelector("[data-capability-deletion-confirm]") as El;
     const url = new URL(capabilityDeletionPreflightUrl(confirm as never) as string, "http://desk");
     expect([...url.searchParams.keys()]).toEqual(["restore_surface", "after_confirm"]);
@@ -351,20 +360,20 @@ describe("what a deletion's request says it displaces", () => {
   });
 });
 
-describe("the recovery's listeners, on the document it starts on", () => {
-  /** An ending standing in a started document, and what the prompt bar was told. */
-  function endingDesk() {
-    const doc = new Doc();
-    parseHtml(`<div id="${WINDOW_CONTENT_ID}">${failure()}</div>`, doc);
-    const said: unknown[] = [];
-    doc.addEventListener(PROMPT_BAR_MESSAGE_EVENT, (event) => {
-      said.push((event as unknown as CustomEvent).detail);
-    });
-    const ending = doc.querySelector(`[${DELETION_ENDING_ATTRIBUTE}]`) as El;
-    startCapabilityDeletionRecovery(doc as never);
-    return { doc, said, ending, exit: ending.querySelector("button") as El };
-  }
+/** An ending standing in a started document, and what the prompt bar was told. */
+function endingDesk() {
+  const doc = new Doc();
+  parseHtml(`<div id="${WINDOW_CONTENT_ID}">${failure()}</div>`, doc);
+  const said: unknown[] = [];
+  doc.addEventListener(PROMPT_BAR_MESSAGE_EVENT, (event) => {
+    said.push((event as unknown as CustomEvent).detail);
+  });
+  const ending = doc.querySelector(`[${DELETION_ENDING_ATTRIBUTE}]`) as El;
+  startCapabilityDeletionRecovery(doc as never);
+  return { doc, said, ending, exit: ending.querySelector("button") as El };
+}
 
+describe("the recovery's listeners, on the document it starts on", () => {
   test("a reply that failed to send, timed out or was aborted starts the recovery", async () => {
     for (const type of ["htmx:sendError", "htmx:timeout", "htmx:sendAbort"]) {
       const desk = confirmationDesk();
@@ -446,5 +455,60 @@ describe("the recovery's listeners, on the document it starts on", () => {
     const desk = endingDesk();
     expect(() => desk.doc.fire("click", desk.exit)).not.toThrow();
     expect(() => focusCapabilityDeletion({} as never)).not.toThrow();
+  });
+});
+
+describe("what the recovery adds while the question stands over the window", () => {
+  test("a server failure in reply starts the recovery, and a refusal in reply does not", async () => {
+    const failed = confirmationDesk();
+    await recover(failed, [], {
+      start: () => {
+        startCapabilityDeletionRecovery(failed.doc as never);
+        failed.doc.fire("htmx:responseError", failed.confirm, {
+          detail: { elt: failed.confirm, xhr: { status: 500 } },
+        });
+      },
+    });
+    expect(failed.said[0]).toEqual({ sentence: DELETION_RECHECK_ASKING, refused: false });
+
+    const refused = confirmationDesk();
+    startCapabilityDeletionRecovery(refused.doc as never);
+    refused.doc.fire("htmx:responseError", refused.confirm, {
+      detail: { elt: refused.confirm, xhr: { status: 403 } },
+    });
+    expect(refused.said).toEqual([]);
+  });
+
+  test("Confirm lets go of what the collection under the question is still reading", () => {
+    const desk = confirmationDesk('<div class="htmx-request" data-ground-read></div>');
+    const released: unknown[] = [];
+    desk.doc.addEventListener(RELEASE_REGION_EVENT, (event) => void released.push(event.target));
+    startCapabilityDeletionRecovery(desk.doc as never);
+    const ground = desk.output.querySelector(`[${DELETION_GROUND_ATTRIBUTE}]`);
+    const read = desk.output.querySelector("[data-ground-read]") as El;
+
+    // The collection's own read going out is not Confirm, and lets go of nothing.
+    desk.doc.fire("htmx:beforeRequest", read, { detail: { elt: read } });
+    expect(released).toEqual([]);
+    desk.doc.fire("htmx:beforeRequest", desk.confirm, { detail: { elt: desk.confirm } });
+    expect(released).toEqual([ground]);
+  });
+
+  test("an ending the shell removes past htmx's cleanup still carries its sentence", () => {
+    const desk = endingDesk();
+    const region = desk.doc.getElementById(WINDOW_CONTENT_ID) as El;
+    const sentence = (desk.ending.querySelector("p") as El).textContent.trim();
+    const host = globalThis as Record<string, unknown>;
+    const frame = Reflect.getOwnPropertyDescriptor(host, "requestAnimationFrame");
+    Object.defineProperty(host, "requestAnimationFrame", { value: () => 0, configurable: true });
+    try {
+      desk.doc.fire("htmx:afterSwap", region, { detail: { target: region } });
+    } finally {
+      if (frame) Object.defineProperty(host, "requestAnimationFrame", frame);
+      else Reflect.deleteProperty(host, "requestAnimationFrame");
+    }
+    // What a run landing over the ending does with what it displaced: release it, then remove it.
+    releaseRegionContent(desk.ending as never);
+    expect(desk.said).toEqual([{ sentence, refused: false }]);
   });
 });

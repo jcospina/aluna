@@ -1,10 +1,14 @@
 import type { Database } from "bun:sqlite";
 import type { Context } from "hono";
 import { capabilityUrl } from "#shell/core/routes.js";
-import { type CapabilityRow, getCapability } from "../../registry/index.ts";
+import { type CapabilityRow, capabilitySpecFromRow, getCapability } from "../../registry/index.ts";
 import type { MutationCoordinator } from "../../runtime/concurrency/mutation-coordinator.ts";
 import type { ReadGateCoordinator } from "../../runtime/concurrency/read-gates.ts";
-import { renderCachedCapabilitySurface } from "../../server/http/index.ts";
+import { countCapabilityRecords } from "../../runtime/data/index.ts";
+import {
+  renderCachedCapabilityCollection,
+  renderCachedCapabilitySurface,
+} from "../../server/http/index.ts";
 import { singleFormValue } from "../form-values.ts";
 import type { DeletionCleanupSupervisor } from "./destruction/cleanup-supervisor.ts";
 import {
@@ -16,6 +20,7 @@ import {
 import { admitCapabilityDeletion } from "./front-half.ts";
 import {
   type CapabilityDeletionAbsence,
+  type CapabilityDeletionGround,
   type CapabilityDeletionRefusal,
   type CapabilityDeletionRestorationEvidence,
   renderCapabilityDeletionAlreadyGone,
@@ -174,6 +179,7 @@ function presentCapabilityDeletionExecution(
       renderCapabilityDeletionPreCommitFailure(
         execution.current,
         deletionRestorationEvidence(request.restoration),
+        collectionUnder(execution.current, database),
       ),
     );
   }
@@ -187,22 +193,25 @@ function presentCapabilityDeletionAdmission(
   database: Database,
 ): Response {
   const { outcome } = execution;
-  if (outcome.status === "busy") {
-    return capabilityDeletionRefusalResponse(c, request.visibleTarget, request.restoration, {
-      kind: "busy",
-    });
-  }
+  const refuse = (target: CapabilityRow, refusal: CapabilityDeletionRefusal) =>
+    heldCapabilityDeletionEnding(
+      c,
+      renderCapabilityDeletionRefusal(
+        target,
+        refusal,
+        deletionRestorationEvidence(request.restoration),
+        collectionUnder(target, database),
+      ),
+    );
+  if (outcome.status === "busy") return refuse(request.visibleTarget, { kind: "busy" });
   if (outcome.status === "stale") {
     const current = getCapability(request.capabilityId, database);
     return current
-      ? capabilityDeletionRefusalResponse(c, current, request.restoration, { kind: "stale" })
+      ? refuse(current, { kind: "stale" })
       : alreadyGoneResponse(c, request.capabilityId, request.restoration, database);
   }
   if (outcome.status === "blocked") {
-    return capabilityDeletionRefusalResponse(c, outcome.target, request.restoration, {
-      kind: "blocked",
-      dependents: outcome.dependents,
-    });
+    return refuse(outcome.target, { kind: "blocked", dependents: outcome.dependents });
   }
   if (!execution.destruction) {
     throw new Error("Admitted capability deletion did not run its destruction lifecycle.");
@@ -210,9 +219,7 @@ function presentCapabilityDeletionAdmission(
   // Nothing was destroyed and the gate is open again, so this is a refusal that reads
   // like one — not the generic failure, which cannot say what the user should do next.
   if (execution.destruction.status === "deletion_drain_timeout") {
-    return capabilityDeletionRefusalResponse(c, outcome.target, request.restoration, {
-      kind: "drain_timeout",
-    });
+    return refuse(outcome.target, { kind: "drain_timeout" });
   }
   return committedCapabilityDeletionResponse(
     c,
@@ -223,16 +230,33 @@ function presentCapabilityDeletionAdmission(
   );
 }
 
-function capabilityDeletionRefusalResponse(
-  c: Context,
+/**
+ * What the question stands over: the target's collection, and how many records go with it. A
+ * count that cannot be read, a table dropped by another tab's deletion say, is no number at all.
+ */
+export function capabilityDeletionGround(
   target: CapabilityRow,
-  restoration: CapabilityDeletionRestoration,
-  refusal: CapabilityDeletionRefusal,
-): Response {
-  return heldCapabilityDeletionEnding(
-    c,
-    renderCapabilityDeletionRefusal(target, refusal, deletionRestorationEvidence(restoration)),
-  );
+  database: Database,
+): CapabilityDeletionGround {
+  return { collection: collectionUnder(target, database), records: recordsIn(target, database) };
+}
+
+/** A collection that cannot be drawn leaves the question over an empty window, never no question. */
+function collectionUnder(target: CapabilityRow, database: Database): string {
+  try {
+    return renderCachedCapabilityCollection(target, database);
+  } catch (error) {
+    console.error(`Capability ${target.id} could not be drawn under its deletion question:`, error);
+    return "";
+  }
+}
+
+function recordsIn(target: CapabilityRow, database: Database): number | null {
+  try {
+    return countCapabilityRecords(capabilitySpecFromRow(target), database);
+  } catch {
+    return null;
+  }
 }
 
 /**

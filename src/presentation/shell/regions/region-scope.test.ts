@@ -242,7 +242,10 @@ describe("the shell's own replacements release through the rule", () => {
     const stage = shellDesk();
     stage.subscriber.remove();
     const swapped = new Template();
-    swapped.innerHTML = renderCapabilityDeletionConfirmation(notesRow(), []);
+    swapped.innerHTML = renderCapabilityDeletionConfirmation(notesRow(), [], {
+      collection: "",
+      records: null,
+    });
     const forms = (node: ShellEl): ShellEl[] => [
       ...(node.tag === "form" ? [node] : []),
       ...node.children.flatMap(forms),

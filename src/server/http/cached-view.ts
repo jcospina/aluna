@@ -69,6 +69,14 @@ export function renderCachedCapabilitySurface(row: CapabilityRow, registry: Data
   return renderCachedCapabilitySurfaceIn(row, listCapabilities(registry));
 }
 
+/**
+ * The collection alone, without the surface that marks it as the capability the window has open:
+ * what a deletion's question stands over.
+ */
+export function renderCachedCapabilityCollection(row: CapabilityRow, registry: Database): string {
+  return renderCapabilityCollection(row, listCapabilities(registry));
+}
+
 /** The same, against the active catalog a caller already read beside the row, under its token. */
 export function renderCachedCapabilitySurfaceIn(
   row: CapabilityRow,

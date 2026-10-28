@@ -95,6 +95,19 @@
     display: block;
     height: var(--prompt-clearance);
   }
+
+  /* A question over the window keeps clear of the bar the same way: the strip is content
+     at the foot of the veil, so a panel taller than the room scrolls its answers clear, and
+     an answer the keyboard reaches is scrolled clear of it too. */
+  .window--desk .window__leaving {
+    flex-direction: column;
+    scroll-padding-bottom: calc(var(--prompt-clearance) + var(--space-2));
+  }
+  .window--desk .window__leaving::after {
+    content: "";
+    flex: none;
+    height: var(--prompt-clearance);
+  }
 }
 
 /* ── The answer window's own body — the third window's half of the same seam. ── */

@@ -334,6 +334,14 @@ A window torn down over an unread deletion ending carries its sentence to
 `#prompt-notice` on the way out, for the reason the build ending already does:
 the window is the only place it lives.
 
+## Update (2026-10-28 — the question is asked over the window)
+
+The confirmation no longer fills the window. It stands over it, with the
+capability's own collection dimmed and inert under the veil, and an ending replaces
+the question in a panel over that collection, drawn again from the top. The rule
+above holds unchanged: the answer lands where the question was asked, and holds
+there until it is dismissed.
+
 ## Update (2026-10-27 — `progress`: a build reports facts and the window narrates them)
 
 A build's narration used to be a handful of product-voice sentences, each appended to
