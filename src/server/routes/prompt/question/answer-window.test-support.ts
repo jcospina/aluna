@@ -23,7 +23,11 @@ import {
 } from "../../../app.test-support.ts";
 import type { createApp } from "../../../app.ts";
 import { unescapeHtml } from "../../../http/html.ts";
-import { ANSWER_WINDOW_ATTRIBUTE, ANSWER_WINDOW_SAYING_ATTRIBUTE } from "../../../http/index.ts";
+import {
+  ANSWER_WINDOW_ATTRIBUTE,
+  ANSWER_WINDOW_ENDING_ATTRIBUTE,
+  ANSWER_WINDOW_SAYING_ATTRIBUTE,
+} from "../../../http/index.ts";
 
 export interface AskedQuestion {
   readonly jobId: string;
@@ -67,9 +71,17 @@ export async function askInTheWindow(
 export function saidInTheAnswerWindow(fragments: string): readonly string[] {
   const said = fragments.matchAll(
     new RegExp(
-      `<div (?:${ANSWER_WINDOW_ATTRIBUTE}="[^"]*"|${ANSWER_WINDOW_SAYING_ATTRIBUTE})>(.*?)</div>`,
+      `<div (?:${ANSWER_WINDOW_ATTRIBUTE}="[^"]*"|${ANSWER_WINDOW_SAYING_ATTRIBUTE}(?: ${ANSWER_WINDOW_ENDING_ATTRIBUTE}(?:="[^"]*")?)?)>(.*?)</div>`,
       "gs",
     ),
   );
   return [...said].map((match) => unescapeHtml(match[1] ?? ""));
+}
+
+/** The sayings marked as the one a question ends on, which is what stops the window looking. */
+export function endingsInTheAnswerWindow(fragments: string): readonly string[] {
+  const ending = `<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE} ${ANSWER_WINDOW_ENDING_ATTRIBUTE}(?:="[^"]*")?>(.*?)</div>`;
+  return [...fragments.matchAll(new RegExp(ending, "gs"))].map((match) =>
+    unescapeHtml(match[1] ?? ""),
+  );
 }

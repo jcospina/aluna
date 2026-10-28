@@ -16,6 +16,12 @@ import {
   RUN_ID_ATTRIBUTE,
 } from "#shell/desk/leaving-a-run.js";
 import {
+  BAND_CLASS,
+  DROPPED_CLASS,
+  RULE_CLASS,
+  SPENT_CLASS,
+} from "#shell/desk/window/answer-band.js";
+import {
   ANSWER_BODY_SELECTOR,
   ANSWER_WINDOW_SELECTOR,
 } from "#shell/desk/window/desk-answer-window.js";
@@ -219,8 +225,9 @@ describe("the two ways a person gives up on a question", () => {
   test("asking something else stops it, from the capture phase, before anything is sent", async () => {
     const desk = await questionDesk("question-7");
     // Capture, so the shell's own one-run guard reads the window after this (`public/app.js`).
-    // On the way back up it would already have refused the second question.
-    expect(desk.captured).toEqual(["htmx:beforeRequest"]);
+    // On the way back up it would already have refused the second question. The other capture is
+    // a story's close, read before the glue takes the story off the page.
+    expect(desk.captured).toEqual(["htmx:beforeRequest", "htmx:sseClose"]);
 
     withCancelling((asked) => {
       desk.fire("htmx:beforeRequest", ASKING_AGAIN);
@@ -266,41 +273,41 @@ describe("the two ways a person gives up on a question", () => {
  * here is the other case — the sentence that replaced it was not a question at all, and the words
  * standing in the window are about something the desk stopped doing.
  */
+/** A real desk, with one question standing in its window region. */
+async function askingDesk() {
+  const scene = standingDesk();
+  const region = new El("div");
+  region.id = WINDOW_CONTENT_ID;
+  const run = new El("section");
+  run.setAttribute(RUN_ID_ATTRIBUTE, "question-7");
+  run.setAttribute(QUESTION_RUN_ATTRIBUTE, "true");
+  region.append(run);
+  scene.root.append(region);
+  const answer = await startedOn<AnswerWindowModule>(
+    "desk/window/desk-answer-window.js",
+    scene.doc,
+  );
+  answer.openAnswerWindow(
+    scene.doc as never,
+    "how many notes did I add last week?",
+    ANSWER_WINDOW_OPENING,
+  );
+  return {
+    scene,
+    run,
+    answer,
+    windows: () => scene.windows().filter((w) => w.matches(ANSWER_WINDOW_SELECTOR)),
+  };
+}
+
+/** One stream closing the way the server closes it, from inside the run that was narrating. */
+function closeFrom(scene: ReturnType<typeof standingDesk>, from: El, type = "message") {
+  const closed = new CustomEvent("htmx:sseClose", { detail: { type } });
+  Object.defineProperty(closed, "target", { value: from });
+  scene.doc.dispatchEvent(closed as never);
+}
+
 describe("a question given up on for something that is not a question", () => {
-  /** A real desk, with one question standing in its window region. */
-  async function askingDesk() {
-    const scene = standingDesk();
-    const region = new El("div");
-    region.id = WINDOW_CONTENT_ID;
-    const run = new El("section");
-    run.setAttribute(RUN_ID_ATTRIBUTE, "question-7");
-    run.setAttribute(QUESTION_RUN_ATTRIBUTE, "true");
-    region.append(run);
-    scene.root.append(region);
-    const answer = await startedOn<AnswerWindowModule>(
-      "desk/window/desk-answer-window.js",
-      scene.doc,
-    );
-    answer.openAnswerWindow(
-      scene.doc as never,
-      "how many notes did I add last week?",
-      ANSWER_WINDOW_OPENING,
-    );
-    return {
-      scene,
-      run,
-      answer,
-      windows: () => scene.windows().filter((w) => w.matches(ANSWER_WINDOW_SELECTOR)),
-    };
-  }
-
-  /** One stream closing the way the server closes it, from inside the run that was narrating. */
-  function closeFrom(scene: ReturnType<typeof standingDesk>, from: El) {
-    const closed = new CustomEvent("htmx:sseClose", { detail: { type: "message" } });
-    Object.defineProperty(closed, "target", { value: from });
-    scene.doc.dispatchEvent(closed as never);
-  }
-
   test("takes the window down when the run that replaced it ends", async () => {
     const { scene, run, answer, windows } = await askingDesk();
     try {
@@ -373,6 +380,29 @@ describe("a question given up on for something that is not a question", () => {
     }
   });
 
+  test("and she stops looking where she stood: the band goes, its rule not run out", async () => {
+    // Running the rule out would say she finished, and she did not.
+    const { scene, answer, windows } = await askingDesk();
+    try {
+      answer.sayInAnswerWindow(ANSWER_WINDOW_OPENING);
+      withCancelling(() => {
+        scene.doc.dispatchEvent(new CustomEvent("htmx:beforeRequest", ASKING_AGAIN) as never);
+      });
+      const band = windows()[0]?.querySelector(`.${BAND_CLASS}`);
+      const rule = windows()[0]?.querySelector(`.${RULE_CLASS}`);
+      expect([band, rule].map((part) => part?.classList.contains(SPENT_CLASS))).toEqual([
+        true,
+        true,
+      ]);
+      expect(rule?.props.get("--narration-fill")).not.toBe("100%");
+      // Let go, it fades where it stands rather than vanishing.
+      expect(rule?.classList.contains(DROPPED_CLASS)).toBe(false);
+    } finally {
+      answer.dismissAnswerWindow();
+      scene.restore();
+    }
+  });
+
   test("but a question that answered is the person's to keep", async () => {
     const { scene, answer, windows } = await askingDesk();
     try {
@@ -381,6 +411,80 @@ describe("a question given up on for something that is not a question", () => {
       closeFrom(scene, build);
       // Nothing was given up on, so nothing about this run is the answer window's business.
       expect(windows()).toHaveLength(1);
+    } finally {
+      answer.dismissAnswerWindow();
+      scene.restore();
+    }
+  });
+});
+
+describe("a question's story ending however it ends", () => {
+  test("stops her looking, though no ending reached the window", async () => {
+    // A stream lost mid-question, or a desk restarted under it, closes with no ending sent: the
+    // band must not go on saying she is at it, and nothing claims she finished.
+    const { scene, run, answer, windows } = await askingDesk();
+    try {
+      answer.sayInAnswerWindow(ANSWER_WINDOW_OPENING);
+      // From the story itself, as the browser closes it, with the glue taking the story off the
+      // page as the close passes it on the way up — as `public/app.js` does before the desk hears.
+      run.parent?.addEventListener("htmx:sseClose", () => run.remove());
+      const closed = new CustomEvent("htmx:sseClose", {
+        detail: { type: "message" },
+        bubbles: true,
+      });
+      run.dispatchEvent(closed as never);
+      expect(run.isConnected).toBe(false);
+      const rule = windows()[0]?.querySelector(`.${RULE_CLASS}`);
+      expect(windows()[0]?.querySelector(`.${BAND_CLASS}`)?.classList.contains(SPENT_CLASS)).toBe(
+        true,
+      );
+      expect(rule?.props.get("--narration-fill")).not.toBe("100%");
+    } finally {
+      answer.dismissAnswerWindow();
+      scene.restore();
+    }
+  });
+
+  test("and a build's story ending in the window is not hers", async () => {
+    const { scene, run, answer, windows } = await askingDesk();
+    try {
+      const build = new El("section");
+      build.setAttribute(RUN_ID_ATTRIBUTE, "build-9");
+      scene.doc.getElementById(WINDOW_CONTENT_ID)?.append(build as never);
+      closeFrom(scene, build);
+      const band = windows()[0]?.querySelector(`.${BAND_CLASS}`);
+      expect(band?.classList.contains(SPENT_CLASS)).toBe(false);
+      // And once the window is gone, her story ending finds nothing to stop.
+      answer.dismissAnswerWindow();
+      expect(() => closeFrom(scene, run)).not.toThrow();
+    } finally {
+      answer.dismissAnswerWindow();
+      scene.restore();
+    }
+  });
+
+  test("and a close the server did not send decides nothing", async () => {
+    // A story swapped off the page closes too, and says nothing about how the question went.
+    const { scene, run, answer, windows } = await askingDesk();
+    try {
+      closeFrom(scene, run, "nodeReplaced");
+      const band = windows()[0]?.querySelector(`.${BAND_CLASS}`);
+      expect(band?.classList.contains(SPENT_CLASS)).toBe(false);
+    } finally {
+      answer.dismissAnswerWindow();
+      scene.restore();
+    }
+  });
+
+  test("but a story already taken off the window cannot stop the question after it", async () => {
+    const { scene, answer, windows } = await askingDesk();
+    try {
+      const gone = new El("section");
+      gone.setAttribute(RUN_ID_ATTRIBUTE, "question-6");
+      gone.setAttribute(QUESTION_RUN_ATTRIBUTE, "true");
+      closeFrom(scene, gone);
+      const band = windows()[0]?.querySelector(`.${BAND_CLASS}`);
+      expect(band?.classList.contains(SPENT_CLASS)).toBe(false);
     } finally {
       answer.dismissAnswerWindow();
       scene.restore();

@@ -13,7 +13,10 @@ import { PROMPT_FIELD_ID, PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
 import { PROMPT_FORM_ID } from "#shell/desk/window/desk-window.js";
 import {
   ANSWER_WINDOW_ATTRIBUTE,
+  ANSWER_WINDOW_ENDING_ATTRIBUTE,
   ANSWER_WINDOW_OPENING,
+  ANSWER_WINDOW_SAYING_ATTRIBUTE,
+  renderAnswerWindowEnding,
   renderAnswerWindowOpening,
   renderAnswerWindowSaying,
 } from "../../../server/http/index.ts";
@@ -89,11 +92,20 @@ describe("no scope control is on the answer window", () => {
   });
 
   test("a sentence she says is the sentence and nothing around it", () => {
+    // A step carries its saying mark, and the sentence she ends on carries the ending's beside it.
     const sentence = "You added six notes this month.";
-    const [said, ...more] = parseHtml(renderAnswerWindowSaying(sentence), new El("div")).children;
-    expect(more).toEqual([]);
-    expect(Object.keys(said?.attributes ?? {})).toHaveLength(1);
-    expect(said?.textContent).toBe(sentence);
-    expect(said?.children).toEqual([]);
+    for (const [frame, marks] of [
+      [renderAnswerWindowSaying(sentence), [ANSWER_WINDOW_SAYING_ATTRIBUTE]],
+      [
+        renderAnswerWindowEnding(sentence),
+        [ANSWER_WINDOW_SAYING_ATTRIBUTE, ANSWER_WINDOW_ENDING_ATTRIBUTE],
+      ],
+    ] as const) {
+      const [said, ...more] = parseHtml(frame, new El("div")).children;
+      expect(more).toEqual([]);
+      expect(Object.keys(said?.attributes ?? {})).toEqual([...marks]);
+      expect(said?.textContent).toBe(sentence);
+      expect(said?.children).toEqual([]);
+    }
   });
 });

@@ -34,7 +34,7 @@ import {
   teardownScratchDbEnv,
 } from "../../../app.test-support.ts";
 import { escapeHtml } from "../../../http/html.ts";
-import { ANSWER_WINDOW_ATTRIBUTE, renderAnswerWindowSaying } from "../../../http/index.ts";
+import { ANSWER_WINDOW_ATTRIBUTE, renderAnswerWindowEnding } from "../../../http/index.ts";
 import { askInTheWindow, saidInTheAnswerWindow } from "./answer-window.test-support.ts";
 import { makeQuestionProvider } from "./staged-question.test-support.ts";
 
@@ -97,7 +97,7 @@ describe("a search that matched nothing", () => {
     expect(ending).toEndWith(QUESTION_NOTHING_FOUND);
     expect(ending).toContain(NOTES_CAPABILITY.label);
     expect(ending).not.toContain(EXPENSES_CAPABILITY.label);
-    expect(fragments).toEndWith(renderAnswerWindowSaying(ending));
+    expect(fragments).toEndWith(renderAnswerWindowEnding(ending));
     expect(fragments).not.toContain(escapeHtml(NEVER_ASKED_FOR));
   });
 });
@@ -113,7 +113,7 @@ describe("a question this desk holds nowhere for", () => {
 
     // The whole frame rather than its text: an offer with a yes in it would be something this
     // ending shipped beside the sentence, and searching for the sentence would walk past it.
-    expect(fragments).toEndWith(renderAnswerWindowSaying(questionNoHomeSentence(SCRIPTED_SUBJECT)));
+    expect(fragments).toEndWith(renderAnswerWindowEnding(questionNoHomeSentence(SCRIPTED_SUBJECT)));
     expect(fragments).not.toContain(escapeHtml(NEVER_ASKED_FOR));
     expect(events.at(-1)).toMatchObject({ event: "done", data: "ok" });
   });

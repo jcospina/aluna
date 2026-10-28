@@ -29,6 +29,7 @@ export {
   questionNoHomeSentence,
   questionResultLinks,
   questionResultSentence,
+  questionSawItThrough,
   questionStepNarration,
 } from "./loop/question-narration.ts";
 export {

@@ -138,6 +138,25 @@ export function questionResultSentence(result: QuestionLoopResult): string {
   return result.ending === "budget_spent" ? QUESTION_BUDGET_SPENT_SENTENCE : result.answer;
 }
 
+/**
+ * Whether she saw the question through, which is what lets the answer window run its rule out:
+ * an answer, a search that matched nothing, or a desk with nowhere for it are each a finding. A
+ * spent budget and statements that all failed are her getting nowhere, and say so.
+ */
+export function questionSawItThrough(ending: QuestionEnding): boolean {
+  switch (ending) {
+    case "answered":
+    case "nothing_found":
+    case "no_home":
+      return true;
+    case "nothing_worked":
+    case "budget_spent":
+      return false;
+    default:
+      return assertNever(ending, "question ending");
+  }
+}
+
 /** The links that sentence carries. Only an answered question has any: every other ending is the
  * platform's own sentence, and it names no record (ADR-0010). */
 export function questionResultLinks(result: QuestionLoopResult): readonly AnswerRecordLink[] {

@@ -36,6 +36,7 @@ import {
 } from "../leaving-a-run.js";
 import { PROMPT_BAR_MESSAGE_EVENT } from "../prompt-bar.js";
 import { recordInWindow } from "./addressed-window.js";
+import { doneLooking, freshLooking, lookAgain, lookedAtAStep } from "./answer-band.js";
 import { answerRuns, isAnswerName } from "./answer-runs.js";
 import { joinStack, leaveStack, raise, raiseFromPress, raiseWindow } from "./desk-stack.js";
 import { fitBox, openingGeometry, PROMPT_FORM_ID, windowLayer } from "./desk-window.js";
@@ -62,6 +63,11 @@ export const OPEN_THE_ANSWER_WINDOW_EVENT = "aluna:open-the-answer-window";
  */
 export const SAY_IN_THE_ANSWER_WINDOW_EVENT = "aluna:say-in-the-answer-window";
 
+/** What marks the saying a question ends on. Restated from the server's fragments and pinned. */
+export const ANSWER_ENDING_ATTRIBUTE = "data-answer-ending";
+/** The mark's value on an ending she stopped short of, under which the rule is not run out. */
+export const ANSWER_UNFINISHED = "unfinished";
+
 /**
  * A sentence Aluna will not build from, offered to the window standing here. Offered rather than
  * placed: a desk with no answer window on it takes the refusal on the prompt bar instead, and the
@@ -80,6 +86,41 @@ export const ANSWER_WINDOW_SELECTOR = `.${ANSWER_WINDOW_CLASS}`;
 export const ANSWER_BODY_CLASS = "desk-window__answer";
 export const ANSWER_BODY_SELECTOR = `.${ANSWER_BODY_CLASS}`;
 
+/** What scrolls: the band, the line her words are said on, and the rule under it. */
+export const ANSWER_UTTERANCE_CLASS = "desk-window__utterance";
+export const ANSWER_UTTERANCE_SELECTOR = `.${ANSWER_UTTERANCE_CLASS}`;
+
+/** The line she speaks on, and each sentence said on it. */
+export const ANSWER_LINE_CLASS = "desk-window__line";
+export const ANSWER_LINE_SELECTOR = `.${ANSWER_LINE_CLASS}`;
+export const ANSWER_SAID_CLASS = "narration__said";
+export const ANSWER_SAID_SELECTOR = `.${ANSWER_SAID_CLASS}`;
+
+/** Where the sentence she has moved on from leaves from: inert, so nothing in it is read or pressed. */
+export const ANSWER_LEAVING_CLASS = "desk-window__leaving";
+export const ANSWER_LEAVING_SELECTOR = `.${ANSWER_LEAVING_CLASS}`;
+
+/**
+ * On a sentence, how it comes and goes: the one she ends on fades in where the last one stood,
+ * and the one leaving for it fades out in place rather than lifting away. Set as each starts, so
+ * a sentence already leaving keeps the way it set out.
+ */
+export const ANSWER_ENDING_CLASS = "is-ending";
+
+/**
+ * What a piece of the window wears once its arrival has played: a window hidden and shown again,
+ * as a phone does with every window it is not showing, would otherwise play it again.
+ */
+export const LANDED_CLASS = "is-landed";
+
+/** How long a sentence she has moved on from stays, while it leaves, before it is let go. */
+const LEAVING_MS = 400;
+/** Past this many letters a saying is set smaller, so a long answer reads as prose, not a headline. */
+const LONG_SAYING = 120;
+/** What sets a long saying, and a list smaller again, below the voice's size. */
+export const LONG_SAYING_CLASS = "is-long";
+export const LIST_SAYING_CLASS = "is-list";
+
 /**
  * How much of the desk an answer takes when it first opens: centred, and smaller than a
  * capability window's own first box, because it is about what is standing there. Where either
@@ -97,9 +138,12 @@ const NOTHING_REMEMBERED = Object.freeze({ box: null, max: false });
 /** @typedef {import("./answer-runs.js").ReadNode} ReadNode */
 /** @typedef {import("../../../design/scripts/window/window-gestures.js").StoredBox} StoredBox */
 
+/** @typedef {import("./answer-band.js").Looking} Looking */
+
 /**
- * @typedef {{ win: AlunaWindow, el: HTMLElement, layer: HTMLElement, body: HTMLElement,
- *             box: StoredBox, maximised: boolean, sized: boolean,
+ * @typedef {{ win: AlunaWindow, el: HTMLElement, layer: HTMLElement, utterance: HTMLElement,
+ *             body: HTMLElement, line: HTMLElement, leaving: HTMLElement, spoken: HTMLElement | null,
+ *             looking: Looking, box: StoredBox, maximised: boolean, sized: boolean,
  *             first: (bounds: DOMRect) => Box, gestures: boolean }} AnswerWindow
  */
 
@@ -163,11 +207,37 @@ function wordsOf(run) {
   return typeof name === "string" ? name : "";
 }
 
-/** @param {AnswerWindow} entry @param {string | readonly AnswerRun[]} saying */
-function writeBody(entry, saying) {
+/**
+ * Say one thing in place of the last. The last leaves from the line, out of what is read out and
+ * of the words the window holds, while this one arrives where it stood: rising like the build
+ * narration's line for a step, and fading in where the last one fades out for the sentence she
+ * ends on, so nothing moves. One that had not finished arriving simply goes.
+ *
+ * @param {AnswerWindow} entry @param {string | readonly AnswerRun[]} saying
+ * @param {boolean} [ending] whether this is the sentence she ends on
+ * @returns {boolean} whether the line grew to hold an ending, pushing down what is under it
+ */
+function writeBody(entry, saying, ending = false) {
   written += 1;
   const runs = typeof saying === "string" ? [{ text: saying }] : saying;
-  entry.body.replaceChildren(...runs.map(drawn));
+  const spoken = document.createElement("span");
+  spoken.className = ANSWER_SAID_CLASS;
+  spoken.append(...runs.map(drawn));
+  const words = spoken.textContent ?? "";
+  if (words.includes("\n")) spoken.classList.add(LIST_SAYING_CLASS);
+  else if (words.length > LONG_SAYING) spoken.classList.add(LONG_SAYING_CLASS);
+  spoken.classList.toggle(ANSWER_ENDING_CLASS, ending);
+  const gone = entry.spoken;
+  if (gone?.classList.contains(LANDED_CLASS)) {
+    gone.classList.toggle(ANSWER_ENDING_CLASS, ending);
+    gone.classList.add("is-leaving");
+    entry.leaving.replaceChildren(gone);
+    setTimeout(() => gone.remove(), LEAVING_MS);
+  }
+  const before = ending ? entry.line.offsetHeight : 0;
+  entry.spoken = spoken;
+  entry.body.replaceChildren(spoken);
+  return ending && entry.line.offsetHeight > before;
 }
 
 /**
@@ -263,11 +333,24 @@ function mount(root) {
 
   const content = document.createElement("div");
   content.className = "desk-window__content";
+  const utterance = document.createElement("div");
+  utterance.className = ANSWER_UTTERANCE_CLASS;
+  utterance.addEventListener("animationend", (event) => {
+    /** @type {{ classList?: DOMTokenList } | null} */ (event.target)?.classList?.add(LANDED_CLASS);
+  });
+  const line = document.createElement("div");
+  line.className = ANSWER_LINE_CLASS;
+  const leaving = document.createElement("div");
+  leaving.className = ANSWER_LEAVING_CLASS;
+  leaving.inert = true;
   const body = document.createElement("div");
   body.className = ANSWER_BODY_CLASS;
   body.setAttribute("aria-live", "polite");
   body.addEventListener("click", openPressedRecord);
-  content.append(body);
+  line.append(leaving, body);
+  const looking = freshLooking();
+  utterance.append(looking.band, line, looking.rule);
+  content.append(utterance);
   el.append(content);
   layer.append(el);
 
@@ -283,8 +366,9 @@ function mount(root) {
   win.titleEl.id = `aluna-answer-title-${titleCount}`;
   el.setAttribute("aria-labelledby", win.titleEl.id);
 
+  const parts = { utterance, body, line, leaving, spoken: null, looking };
   /** @type {AnswerWindow} */
-  const entry = { win, el, layer, body, ...geometry, gestures: false };
+  const entry = { win, el, layer, ...parts, ...geometry, gestures: false };
 
   addLamps(entry);
   nameTheClayLamp(entry);
@@ -378,6 +462,10 @@ export function openAnswerWindow(root = document, question = "", saying = "") {
   const fresh = mounted === null;
   mounted ??= mount(root);
   const entry = mounted;
+  if (!fresh) {
+    takeOver(entry);
+    entry.looking = lookAgain(entry.looking);
+  }
   entry.win.setTitle(question);
   /* Raised before it is written into, not after: below the breakpoint a window that is not in
    * front is out of the page, and a live region mutated while it is hidden is a sentence nobody
@@ -405,15 +493,31 @@ export function openAnswerWindow(root = document, question = "", saying = "") {
  * Say something else in the standing answer window. Nothing is opened, so a question whose window
  * the user dismissed mid-flight stays dismissed; and nothing is raised, because the window pulling
  * itself in front of a capability they clicked on would cost the one thing this window buys.
- * Replaced rather than appended — a log is a build narration, and this is one utterance.
+ * Replaced rather than appended — a log is a build narration, and this is one utterance. A step
+ * adds a square to the band; the sentence she ends on puts the band away.
  *
  * @param {string | readonly AnswerRun[]} saying
+ * @param {string | null} [ending] the ending's mark when this is the sentence she ends on: empty
+ *   when she finished, {@link ANSWER_UNFINISHED} when she stopped short
  * @returns {boolean} whether there was a window standing to say it in
  */
-export function sayInAnswerWindow(saying) {
+export function sayInAnswerWindow(saying, ending = null) {
   if (!mounted) return false;
-  writeBody(mounted, saying);
+  const ends = typeof ending === "string";
+  const pushed = writeBody(mounted, saying, ends);
+  if (ends) doneLooking(mounted.looking, ending !== ANSWER_UNFINISHED, pushed);
+  else lookedAtAStep(mounted.looking);
   return true;
+}
+
+/**
+ * What a sentence taking a standing window over starts from: the top. A long answer scrolled
+ * down would otherwise hold the new one out of sight until it had finished leaving.
+ *
+ * @param {AnswerWindow} entry
+ */
+function takeOver(entry) {
+  entry.utterance.scrollTop = 0;
 }
 
 /**
@@ -434,7 +538,8 @@ export function refuseInAnswerWindow(refused, saying) {
   abandoned = false;
   entry.win.setTitle(refused);
   raise(entry);
-  writeBody(entry, saying);
+  takeOver(entry);
+  doneLooking(entry.looking, false, writeBody(entry, saying, true));
   return true;
 }
 
@@ -456,7 +561,10 @@ function abandonTheQuestion(takeTheStoryDown = false) {
   const ended = cancelQuestionIn(region) !== null;
   // What she was saying stopped mid-sentence and nothing of this question will finish it. A
   // question asked next takes the window over; anything else has to take it down.
-  if (ended && mounted !== null) abandoned = true;
+  if (ended && mounted !== null) {
+    abandoned = true;
+    doneLooking(mounted.looking, false);
+  }
   /* Taken down where something is about to replace it, and left standing where nothing is. A
    * story left standing ends through the close the server sends, which is what puts the frame it
    * stood in away; one taken down makes room, and closes a stream that could otherwise land a
@@ -560,7 +668,10 @@ export function startDeskAnswerWindow(root = document) {
     try {
       const nodes = said?.childNodes;
       if (typeof nodes?.[Symbol.iterator] !== "function") return;
-      sayInAnswerWindow(answerRuns({ childNodes: nodes }));
+      sayInAnswerWindow(
+        answerRuns({ childNodes: nodes }),
+        said?.getAttribute?.(ANSWER_ENDING_ATTRIBUTE),
+      );
     } catch {
       return;
     }
@@ -582,6 +693,28 @@ export function startDeskAnswerWindow(root = document) {
     (event) => {
       const asking = /** @type {CustomEvent<{ elt?: { id?: string } }>} */ (event).detail?.elt;
       if (asking?.id === PROMPT_FORM_ID) abandonTheQuestion(true);
+    },
+    true,
+  );
+
+  /* A question whose story ended in the window, however it ended, has stopped looking: a stream
+   * that closed without its ending must not leave the band saying she is still at it. A story
+   * already taken down is no longer in the window, so it cannot stop the question after it. The
+   * capture phase, because the glue takes a finished story off the page as its own close runs. */
+  root.addEventListener(
+    "htmx:sseClose",
+    (event) => {
+      const closed = /** @type {CustomEvent<{ type?: string }>} */ (event);
+      const from = /** @type {{ closest?: (selector: string) => unknown } | null} */ (
+        closed.target
+      );
+      const region = /** @type {{ contains?: (node: unknown) => boolean } | null} */ (
+        windowRegion()
+      );
+      if (closed.detail?.type !== "message" || mounted === null || !region?.contains?.(from))
+        return;
+      if (from?.closest?.(QUESTION_IN_THE_WINDOW_SELECTOR) != null)
+        doneLooking(mounted.looking, false);
     },
     true,
   );

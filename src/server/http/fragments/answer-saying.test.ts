@@ -7,13 +7,17 @@ import { recordAddress } from "#shell/core/routes.js";
 import { escapeHtml } from "../html.ts";
 import {
   ANSWER_RECORD_ATTRIBUTE,
+  ANSWER_WINDOW_ENDING_ATTRIBUTE,
   ANSWER_WINDOW_SAYING_ATTRIBUTE,
+  ANSWER_WINDOW_UNFINISHED,
   type AnswerRecordLink,
+  renderAnswerWindowEnding,
   renderAnswerWindowSaying,
 } from "./fragments.ts";
 
 const RECORD = randomUUID();
 const CAPABILITY = "teas";
+const ENDING = `${ANSWER_WINDOW_SAYING_ATTRIBUTE} ${ANSWER_WINDOW_ENDING_ATTRIBUTE}`;
 
 /** A link over the first occurrence of `words` in `saying`. */
 function over(saying: string, words: string, record = RECORD): AnswerRecordLink {
@@ -27,31 +31,45 @@ const withoutHrefs = (markup: string) => markup.replace(/ href="[^"]*"/g, "");
 describe("the answer's fragment", () => {
   test("a name is wrapped in the platform's anchor, and every other word is text", () => {
     const saying = "Your best is Iron Goddess.\nThe rest are fine.";
-    const markup = renderAnswerWindowSaying(saying, [over(saying, "Iron Goddess")]);
+    const markup = renderAnswerWindowEnding(saying, [over(saying, "Iron Goddess")]);
     const href = escapeHtml(recordAddress(CAPABILITY, RECORD));
 
     expect(markup).toBe(
-      `<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}>Your best is <a ${ANSWER_RECORD_ATTRIBUTE} href="${href}">Iron Goddess</a>.\nThe rest are fine.</div>`,
+      `<div ${ENDING}>Your best is <a ${ANSWER_RECORD_ATTRIBUTE} href="${href}">Iron Goddess</a>.\nThe rest are fine.</div>`,
+    );
+  });
+
+  test("a step is said but never marked as the ending, so the window keeps looking past it", () => {
+    const step = `Still <looking> & counting.`;
+    expect(renderAnswerWindowSaying(step)).toBe(
+      `<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}>${escapeHtml(step)}</div>`,
+    );
+  });
+
+  test("an ending she did not finish says so in its mark, and only there", () => {
+    const saying = "Stopped.";
+    expect(renderAnswerWindowEnding(saying, [], { finished: false })).toBe(
+      `<div ${ENDING}="${ANSWER_WINDOW_UNFINISHED}">${saying}</div>`,
     );
   });
 
   test("with no links it is the sentence alone, as every platform ending is", () => {
-    expect(renderAnswerWindowSaying("Nothing matched.")).toBe(
-      `<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}>Nothing matched.</div>`,
+    expect(renderAnswerWindowEnding("Nothing matched.")).toBe(
+      `<div ${ENDING}>Nothing matched.</div>`,
     );
   });
 
   test("an anchor the model wrote reaches the window as text", () => {
     const hostile = `See <a href="javascript:alert(1)">this</a> & <a ${ANSWER_RECORD_ATTRIBUTE} href="/capability/x/${RECORD}">that</a>.`;
-    const markup = renderAnswerWindowSaying(hostile);
+    const markup = renderAnswerWindowEnding(hostile);
 
-    expect(markup).toBe(`<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}>${escapeHtml(hostile)}</div>`);
+    expect(markup).toBe(`<div ${ENDING}>${escapeHtml(hostile)}</div>`);
     expect(markup).not.toContain("<a");
   });
 
   test("a linked name is escaped inside its anchor too", () => {
     const saying = `Your <b>"best"</b> tea.`;
-    const markup = renderAnswerWindowSaying(saying, [over(saying, `<b>"best"</b>`)]);
+    const markup = renderAnswerWindowEnding(saying, [over(saying, `<b>"best"</b>`)]);
 
     expect(markup).toContain(`>${escapeHtml(`<b>"best"</b>`)}</a>`);
     expect(markup).not.toContain("<b>");
@@ -60,7 +78,7 @@ describe("the answer's fragment", () => {
   test("the id is in the href and nowhere else", () => {
     const other = randomUUID();
     const saying = "Iron Goddess and Dragon Well.";
-    const markup = renderAnswerWindowSaying(saying, [
+    const markup = renderAnswerWindowEnding(saying, [
       over(saying, "Iron Goddess"),
       over(saying, "Dragon Well", other),
     ]);
@@ -79,7 +97,7 @@ describe("the answer's fragment", () => {
       capability: CAPABILITY,
       record: RECORD,
     });
-    const markup = renderAnswerWindowSaying(saying, [
+    const markup = renderAnswerWindowEnding(saying, [
       link(3, 5),
       link(1, 4),
       link(5, 9),
@@ -88,7 +106,7 @@ describe("the answer's fragment", () => {
     const href = escapeHtml(recordAddress(CAPABILITY, RECORD));
 
     expect(markup).toBe(
-      `<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}>abc<a ${ANSWER_RECORD_ATTRIBUTE} href="${href}">de</a>f</div>`,
+      `<div ${ENDING}>abc<a ${ANSWER_RECORD_ATTRIBUTE} href="${href}">de</a>f</div>`,
     );
   });
 
@@ -106,8 +124,8 @@ describe("the answer's fragment", () => {
       [0.5, 2],
       [1, Number.POSITIVE_INFINITY],
     ] as const) {
-      expect(renderAnswerWindowSaying(saying, [link(from, to)])).toBe(
-        renderAnswerWindowSaying(saying),
+      expect(renderAnswerWindowEnding(saying, [link(from, to)])).toBe(
+        renderAnswerWindowEnding(saying),
       );
     }
   });

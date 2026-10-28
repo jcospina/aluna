@@ -22,11 +22,13 @@ import {
   QUESTION_COULD_NOT_FINISH,
   questionResultLinks,
   questionResultSentence,
+  questionSawItThrough,
   questionStepNarration,
   questionStepsTaken,
 } from "../../runtime/query/index.ts";
 import {
   type AnswerRecordLink,
+  renderAnswerWindowEnding,
   renderAnswerWindowOpening,
   renderAnswerWindowSaying,
 } from "../../server/http/index.ts";
@@ -172,10 +174,11 @@ async function openTheAnswerWindow(
   }
 }
 
-/** What a question ends on: the sentence, and the records it links. */
+/** What a question ends on: the sentence, the records it links, and whether she got to the end. */
 interface QuestionEnded {
   readonly saying: string;
   readonly links: readonly AnswerRecordLink[];
+  readonly finished: boolean;
 }
 
 /** The sentence this question ends on, whichever of its three endings it reached. */
@@ -204,7 +207,9 @@ async function runToAnEnding(
       },
     );
     steps.taken = questionStepsTaken(result);
-    return { saying: questionResultSentence(result), links: questionResultLinks(result) };
+    const links = questionResultLinks(result);
+    const finished = questionSawItThrough(result.ending);
+    return { saying: questionResultSentence(result), links, finished };
   } catch (error) {
     // A prompt that is not a question reached the one path that only answers questions: that is a
     // wiring mistake, not an ending, and it goes to the pipeline's own failure handling.
@@ -217,7 +222,7 @@ async function runToAnEnding(
     if (!input.isAborted()) {
       console.error(COULD_NOT_FINISH_LOG, errorDetail(error));
     }
-    return { saying: QUESTION_COULD_NOT_FINISH, links: [] };
+    return { saying: QUESTION_COULD_NOT_FINISH, links: [], finished: false };
   }
 }
 
@@ -278,7 +283,7 @@ async function answerTheQuestion(
   }
   await deliverRestoredPresentation(
     input.send,
-    renderAnswerWindowSaying(ending.saying, ending.links),
+    renderAnswerWindowEnding(ending.saying, ending.links, { finished: ending.finished }),
     "ok",
     input.terminalPresenterTimeoutMs,
   );

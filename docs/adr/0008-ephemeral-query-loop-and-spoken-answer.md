@@ -173,6 +173,17 @@ Three rules make a spoken answer safe to trust:
    uncomputed number, or narrate outside product voice. No SQL, table name, column, or
    error string reaches the surface.
 
+**Amended 2026-10-28 by the owner — the band.** While she looks, the answer window shows
+the build narration's band over her sentence: *Looking* in caps, one square per step, and
+under the sentence a rule that creeps without a percentage. The squares tell the person how
+many steps she has taken, which the window used to keep to itself, and nothing about what
+the steps were. The rule claims no share of a total, because a question does not know its
+own length, and it runs out only when she has seen the question through: an answer, a search
+that matched nothing, or a desk with nowhere for it. A question she got nowhere with, stopped
+short of, gave up on, or whose stream closed without an ending lets it go where it stands. The
+server marks the sentence a question ends on (`data-answer-ending`, valued `unfinished` when
+she did not see it through), so the window knows when to put the band away.
+
 **Meaning is supplied, not stored.** The model is given the vocabulary of the user's
 data: `choice` fields already declare their options in the registry, and small
 categorical string fields are enumerated by an ordinary loop step. The model applies its

@@ -197,8 +197,9 @@ const ANSWER_WINDOW_ATTRIBUTE = "data-answer-window";
 const OPEN_THE_ANSWER_WINDOW_EVENT = "aluna:open-the-answer-window";
 
 /**
- * One more thing said in the answer window that already stands (`renderAnswerWindowSaying`,
- * pinned by a test): each step as Aluna takes it, then the answer in place of the last of them.
+ * One more thing said in the answer window that already stands, pinned by a test: each step as
+ * Aluna takes it (`renderAnswerWindowSaying`), then the sentence she ends on in place of the last
+ * of them (`renderAnswerWindowEnding`, which marks it the ending for the window to read).
  */
 const ANSWER_WINDOW_SAYING_ATTRIBUTE = "data-answer-saying";
 const SAY_IN_THE_ANSWER_WINDOW_EVENT = "aluna:say-in-the-answer-window";

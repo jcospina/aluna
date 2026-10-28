@@ -46,7 +46,11 @@ import {
   ANSWER_WINDOW_SAYING_ATTRIBUTE,
   answerWindowTitle,
 } from "../../../http/index.ts";
-import { askInTheWindow, saidInTheAnswerWindow } from "./answer-window.test-support.ts";
+import {
+  askInTheWindow,
+  endingsInTheAnswerWindow,
+  saidInTheAnswerWindow,
+} from "./answer-window.test-support.ts";
 import { makeQuestionProvider } from "./staged-question.test-support.ts";
 
 let dir: string;
@@ -156,6 +160,8 @@ describe("a question is narrated and answered in the answer window", () => {
       questionLabelNarration("totalling"),
       ANSWER.answer,
     ]);
+    // Only the answer is marked as the ending: the window keeps looking through every step.
+    expect(endingsInTheAnswerWindow(fragments)).toEqual([ANSWER.answer]);
     // It is one window throughout: opened once, then said into. Opening is what names and raises
     // it, and a question that ran for a while must not keep doing either — a second question is
     // the one thing that may.

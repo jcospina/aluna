@@ -19,6 +19,7 @@ import {
   ANSWER_WINDOW_SAYING_ATTRIBUTE,
   type AnswerRecordLink,
   NOT_FOUND_NOTICE,
+  renderAnswerWindowEnding,
   renderAnswerWindowSaying,
   ANSWER_RECORD_ATTRIBUTE as SERVER_ANSWER_RECORD_ATTRIBUTE,
 } from "../../../../server/http/index.ts";
@@ -51,7 +52,7 @@ describe("the glue reads runs, not markup", () => {
   });
 
   test("a vouched name is a name, and every other word is words, line breaks and all", () => {
-    const runs = answerRuns(said(renderAnswerWindowSaying(SAYING, [over(SAYING, NAME)])));
+    const runs = answerRuns(said(renderAnswerWindowEnding(SAYING, [over(SAYING, NAME)])));
     expect(runs).toEqual([
       { text: SAYING.slice(0, SAYING.indexOf(NAME)) },
       { name: NAME, capability: "teas", record: RECORD },
@@ -187,7 +188,14 @@ describe("the window builds anchors itself", () => {
           },
     );
     const window_ = await saying(runs);
-    for (const node of window_.body.descendants()) {
+    // One sentence, carrying its class and nothing else, and inside it only words and links.
+    const [spoken, ...more] = window_.body.children;
+    expect([spoken?.tagName, [...(spoken?.attrs.keys() ?? [])], more]).toEqual([
+      "span",
+      ["class"],
+      [],
+    ]);
+    for (const node of spoken?.descendants() ?? []) {
       if (node.tagName === "#text") continue;
       expect(node.tagName).toBe("a");
       expect([...node.attrs.keys()]).toEqual(["href"]);

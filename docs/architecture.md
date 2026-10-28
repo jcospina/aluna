@@ -673,10 +673,11 @@ and adds a version.
    update, the searchable ones for search, none for read and delete. The whole
    suite runs when `behavior` changes, when the card's fields change, or when the
    item renderer is regenerated along with a Handler.
-6. The Gate, publication and activation run as for a new capability, with two more
-   checks: every committed version is verified before publication, and the
-   capabilities this one reads from are checked again just before COMMIT. The
-   activation transaction adds any new columns and swaps the registry row to `vN+1`.
+6. The Gate, publication and activation run as for a new capability. As in every
+   build, every committed version is verified before publication. One check is the
+   evolution's own: the capabilities this one reads from are checked again just
+   before COMMIT. The activation transaction adds any new columns and swaps the
+   registry row to `vN+1`.
 
 | Change | Units regenerated |
 |---|---|
@@ -821,7 +822,9 @@ The loop allows ten steps. A refused or failed statement counts as a step, and s
 does an unreadable decision. A claim that the desk has nowhere for the subject, made
 before any collection was read, costs a step and is sent back the first time; a
 second one is treated as an answer. The model sees what went wrong each time, and
-every step sends a line of progress to the window. After the tenth step the model
+every step sends a line of progress to the window, which adds a square to the band over
+it. The sentence the question ends on is marked as the ending, and the band goes when it
+lands. After the tenth step the model
 gets one last turn, which runs no statement. An answer, or a nowhere claim made
 after reading, ends the question as usual, and anything else ends it with a fixed
 sentence saying Aluna could not work it out.

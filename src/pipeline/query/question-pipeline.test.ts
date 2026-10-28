@@ -11,7 +11,11 @@ import type { IntentResolutionMetrics } from "../../platform/metrics/index.ts";
 import { NO_TOKEN_USAGE } from "../../platform/provider/usage.ts";
 import { QUESTION_COULD_NOT_FINISH } from "../../runtime/query/index.ts";
 import { unescapeHtml } from "../../server/http/html.ts";
-import { ANSWER_WINDOW_SAYING_ATTRIBUTE } from "../../server/http/index.ts";
+import {
+  ANSWER_WINDOW_ENDING_ATTRIBUTE,
+  ANSWER_WINDOW_SAYING_ATTRIBUTE,
+  renderAnswerWindowEnding,
+} from "../../server/http/index.ts";
 import { intentClassificationSchema } from "../intent/index.ts";
 import { A_DATA_QUERY_CLASSIFICATION } from "../intent/intent.test-support.ts";
 import { carriedResolverMeasurement } from "../metrics-recorder.ts";
@@ -98,7 +102,10 @@ const wire = (sent: [string, string][]) =>
 /** Everything said in the answer window, decoded the way the desk reads it. */
 function saidOnTheWire(sent: [string, string][]): readonly string[] {
   const said = wire(sent).matchAll(
-    new RegExp(`<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}>(.*?)</div>`, "gs"),
+    new RegExp(
+      `<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}(?: ${ANSWER_WINDOW_ENDING_ATTRIBUTE}(?:="[^"]*")?)?>(.*?)</div>`,
+      "gs",
+    ),
   );
   return [...said].map((match) => unescapeHtml(match[1] ?? ""));
 }
@@ -130,6 +137,10 @@ describe("a question that did not reach an answer", () => {
     // Equality rather than containment: a sentence with the thrown reason appended would satisfy
     // a `toContain`, and that reason is machinery, which the desk never shows.
     expect(saidOnTheWire(sent)).toEqual([QUESTION_COULD_NOT_FINISH]);
+    // Marked as an ending she did not finish, so the window does not run its rule out under it.
+    expect(wire(sent)).toContain(
+      renderAnswerWindowEnding(QUESTION_COULD_NOT_FINISH, [], { finished: false }),
+    );
     for (const word of MACHINERY) {
       expect({ leaked: word, present: wire(sent).includes(word) }).toEqual({
         leaked: word,

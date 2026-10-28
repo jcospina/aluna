@@ -30,6 +30,7 @@ import { REJECT_DEFLECTION } from "../../../../pipeline/build/admission/deflecti
 import { questionLabelNarration } from "../../../../runtime/query/index.ts";
 import {
   ANSWER_WINDOW_OPENING,
+  renderAnswerWindowEnding,
   renderAnswerWindowOpening,
   renderAnswerWindowSaying,
 } from "../../../../server/http/index.ts";
@@ -169,10 +170,10 @@ describe("it is the third window, and there is no fourth", () => {
 
 describe("it shows words and nothing else", () => {
   test("markup in what she says arrives as text, so no image, link or address is drawn", () => {
-    // Escaped on the server, and no sink the window reaches parses markup.
-    expect(renderAnswerWindowSaying('<img src="/files/x"><a href="/files/x">x</a>')).not.toMatch(
-      /<(img|a)\b/,
-    );
+    // Escaped on the server, a step and an ending alike, and no sink the window reaches parses it.
+    for (const render of [renderAnswerWindowSaying, renderAnswerWindowEnding]) {
+      expect(render('<img src="/files/x"><a href="/files/x">x</a>')).not.toMatch(/<(img|a)\b/);
+    }
   });
 });
 

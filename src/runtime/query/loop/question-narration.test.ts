@@ -48,6 +48,7 @@ import {
   QUESTION_BUDGET_SPENT_SENTENCE,
   questionEndingNarration,
   questionLabelNarration,
+  questionSawItThrough,
   questionStepNarration,
 } from "./question-narration.ts";
 
@@ -176,6 +177,14 @@ describe("the closed set and its one sentence each", () => {
 
   test("has nothing of its own to say about an ending it did not reach", () => {
     expect(questionEndingNarration("answered")).toBeNull();
+  });
+
+  test("sees a question through only where she found something, even that it is not there", () => {
+    // Getting nowhere is not finishing, and the answer window will not run its rule out over it.
+    const through = (
+      ["answered", "nothing_found", "no_home", "nothing_worked", "budget_spent"] as const
+    ).filter(questionSawItThrough);
+    expect(through).toEqual(["answered", "nothing_found", "no_home"]);
   });
 
   test("refuses to say anything for a label nobody wrote one for", () => {

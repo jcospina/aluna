@@ -360,14 +360,20 @@ what things are called, counting, totalling, listing, checking dates, and a gene
 (PLAN decision 14). The model picks which kind of step it is taking; the platform owns the one
 sentence Aluna says for each, so she cannot narrate in words that are not hers or report a
 number no step computed. The label itself is machinery and never reaches a person: what
-reaches them is the sentence.
+reaches them is the sentence, and one square in the answer window's band for each step,
+which says how many she took and nothing about what they were.
 _Avoid_: step type, action kind, phase, progress message, status
 
 **Answer window**:
 The third window, and the second exception to there being one. It opens when a question
 is classified `data_query` and displaces nothing — a capability stays open while it is
 asked about. It carries the loop's narration and then Aluna's spoken answer, which may
-carry an **answer link** for each record it names. One of them: a
+carry an **answer link** for each record it names. While she looks it borrows the build
+narration's band and voice: *Looking* in caps over her sentence, one small square per
+step with the current one in sun, and under the sentence a rule that creeps and never
+reaches the end until she finishes. Each step's sentence rises in place of the last; the
+one she ends on fades in where the last fades out, and the band and rule fade where they
+stand, so nothing moves. One of them: a
 new question replaces its content in place, never closing and reopening the frame. It
 carries **no logo, tile or address**, so it is *dismissed* rather than *put away* —
 closing it destroys the answer and nothing survives a reload (ADR-0008). The platform

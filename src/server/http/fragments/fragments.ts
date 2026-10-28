@@ -350,12 +350,27 @@ export interface AnswerRecordLink {
 }
 
 /**
- * One thing Aluna says while she reads, and then the answer, into the window she is in. The
- * answer's links come as escaped text runs and anchors around escaped names.
+ * What marks the sentence a question ends on, whichever ending it reached, beside its saying
+ * mark: the window stops looking when it lands, and nothing else tells it a step was the last.
  */
-export function renderAnswerWindowSaying(
+export const ANSWER_WINDOW_ENDING_ATTRIBUTE = "data-answer-ending";
+
+/** The mark's value when she stopped before the end: the window lets the band go, unfinished. */
+export const ANSWER_WINDOW_UNFINISHED = "unfinished";
+
+/** One thing Aluna says while she reads, into the window she is in. A step names no record. */
+export function renderAnswerWindowSaying(saying: string): string {
+  return `<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}>${escapeHtml(saying)}</div>`;
+}
+
+/**
+ * The sentence a question ends on, in place of the last step. The answer's links come as escaped
+ * text runs and anchors around escaped names.
+ */
+export function renderAnswerWindowEnding(
   saying: string,
   links: readonly AnswerRecordLink[] = [],
+  { finished = true }: { readonly finished?: boolean } = {},
 ): string {
   const runs: string[] = [];
   let at = 0;
@@ -372,7 +387,10 @@ export function renderAnswerWindowSaying(
     at = to;
   }
   runs.push(escapeHtml(saying.slice(at)));
-  return `<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE}>${runs.join("")}</div>`;
+  const ending = finished
+    ? ANSWER_WINDOW_ENDING_ATTRIBUTE
+    : `${ANSWER_WINDOW_ENDING_ATTRIBUTE}="${ANSWER_WINDOW_UNFINISHED}"`;
+  return `<div ${ANSWER_WINDOW_SAYING_ATTRIBUTE} ${ending}>${runs.join("")}</div>`;
 }
 
 /**
