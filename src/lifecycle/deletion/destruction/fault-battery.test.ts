@@ -9,8 +9,9 @@
 //   5. same-id recreation with a new incarnation   9. repeated (idempotent) cleanup
 // Case 8 needs no database, so it lives in its own file; everything else shares the runtime below.
 //
-// Generation metrics are asserted in every case here: they are content-free, incarnation-keyed
-// experiment data and are explicitly outside the cleanup seam (ARCH §6.3, §9 principle 3).
+// Generation metrics are asserted in every case here: they are incarnation-keyed experiment data
+// that survive deletion and stay outside the cleanup seam, though a failure's error text can
+// still quote the deleted spec.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";

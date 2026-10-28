@@ -1,4 +1,4 @@
-// The acceptance fake for the Event Log half of the cleanup seam (ADR-0006, ARCH §6.3 Event Log).
+// The acceptance fake for the Event Log half of the cleanup seam (ADR-0006).
 // Two properties have to hold before the implicit loop can extend deletion without guessing from
 // free text, and both are provable now.
 //
@@ -148,7 +148,8 @@ function isPairCurrent(pair: CapabilityIncarnation, deps: EventIngestionDeps): b
 
 /**
  * Append the whole validated batch or nothing; a closing, tombstoned or replaced pair rejects it.
- * Synchronous end to end: an `await` between check and append needs ARCH §6.3's write instead.
+ * Synchronous end to end, so nothing interleaves between check and append; an `await` there
+ * would need a short mutation-coordinator write to hold them together instead.
  */
 export function ingestCapabilityEvents(
   context: AdmittedEventContext,

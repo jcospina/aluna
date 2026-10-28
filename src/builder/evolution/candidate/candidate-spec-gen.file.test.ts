@@ -8,7 +8,6 @@ import { linesNaming } from "../../../platform/provider/prompt-lines.test-suppor
 import { PHOTO_FIELD } from "../../../registry/fields/file.test-support.ts";
 import { fieldTypeSchema } from "../../../registry/index.ts";
 import { FILE_FIELD_CARD_LINE, FILE_FIELD_PROMPT_LINES } from "../../spec/file-field-guidance.ts";
-import { recordingSend } from "../../spec/spec-gen.test-support.ts";
 import {
   type CandidateDraft,
   candidateFrom,
@@ -26,7 +25,6 @@ function stageInput(authored: unknown) {
     committed,
     intent: evolutionIntentFor(committed, "Add a photo to each entry"),
     dependencyCatalog: evolutionDependencyCatalog(),
-    send: recordingSend().send,
   };
 }
 

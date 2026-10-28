@@ -78,7 +78,7 @@ describe("the shell and the server agree on the question", () => {
 
   test("it says the cost and the reassurance, and names both answers from the person's side", () => {
     // Leaving still changes nothing that is true. And no internals leak —
-    // no "build", no "job", no "cancel" (ARCH §9.7).
+    // no "build", no "job", no "cancel".
     for (const leak of ["build", "job", "cancel", "stream", "server"]) {
       expect(LEAVING_A_RUN_QUESTION.toLowerCase(), `"${leak}" leaks`).not.toContain(leak);
     }

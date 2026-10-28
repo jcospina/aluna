@@ -26,14 +26,15 @@ import {
   desk,
   El,
   eventAt,
+  land,
   narrateEnding,
   openStream,
   streamRestoration,
   WINDOW_REGION_ID,
 } from "../../shell-glue/app.shell-double.test-support.ts";
 
-// The desk has two places to speak and each message goes to the one that was asked
-// (ARCH §6.1, §6.2). Run rather than grepped: routing proved by a string match is not.
+// The desk has two places to speak and each message goes to the one that was asked.
+// Run rather than grepped: routing proved by a string match is not.
 
 /** What the bar is saying, read the way a person reads it. */
 function spoken(scene: ReturnType<typeof desk>): string {
@@ -304,6 +305,15 @@ describe("a desk action asking for the window a run is using", () => {
     narrateEnding(scene);
 
     expect(pressDeskAction(scene, deskFurniture())).toBe(false);
+    expect(spoken(scene)).toBe("");
+  });
+
+  test("is admitted while a run that landed holds its last line a moment", () => {
+    const scene = desk();
+    land(scene);
+
+    expect(pressDeskAction(scene, deskFurniture())).toBe(false);
+    expect(submitPrompt(scene)).toBe(false);
     expect(spoken(scene)).toBe("");
   });
 

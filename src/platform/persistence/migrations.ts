@@ -1,6 +1,5 @@
-// The platform-owned migrations runner (ARCH §3, §6.3, §7, §9.3). It applies an ordered list of
-// migrations idempotently through the read-write connection, records each in a tracking table,
-// and runs on boot.
+// The platform-owned migrations runner. It applies an ordered list of migrations idempotently
+// through the read-write connection, records each in a tracking table, and runs on boot.
 //
 // Platform schema only. Capability data tables (`cap_<id>`) never appear here — the builder
 // derives those from specs at runtime.
@@ -91,7 +90,7 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // 0004 records what the system did to build itself (ARCH §6.3, distinct from the event log of
+  // 0004 records what the system did to build itself (distinct from the event log of
   // what the user did). Past model, every column is nullable: absence is NULL, never a fake zero.
   {
     id: "0004_generation_metrics",

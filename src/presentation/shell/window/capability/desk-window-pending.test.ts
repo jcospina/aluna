@@ -28,6 +28,8 @@ async function submitted() {
     message: (from: El) =>
       desk.desk.doc.dispatchEvent({ type: "htmx:sseBeforeMessage", target: from } as never),
     part,
+    // It listens for two events, `narration` and `progress`, so it is found by what it is.
+    narration: () => el.querySelector(".build-stream__narration") as El,
   };
 }
 
@@ -41,7 +43,7 @@ describe("a window stood up before anything is known", () => {
     // opposite of having something to show.
     run.message(run.part("fragment"));
     expect(run.classes()).toEqual(waiting);
-    run.message(run.part("narration"));
+    run.message(run.narration());
     expect(run.classes().length).toBe(waiting.length - 1);
   });
 
@@ -55,7 +57,7 @@ describe("a window stood up before anything is known", () => {
   test("waits under one class of its own, which the reveal takes off", async () => {
     const run = await submitted();
     const waiting = run.classes();
-    run.message(run.part("narration"));
+    run.message(run.narration());
     expect(waiting.filter((name) => !run.classes().includes(name))).toHaveLength(1);
   });
 
@@ -64,7 +66,7 @@ describe("a window stood up before anything is known", () => {
     // layout would be drawn at nothing and stay that way. The class is the one the module writes.
     const run = await submitted();
     const waiting = run.classes();
-    run.message(run.part("narration"));
+    run.message(run.narration());
     const pending = waiting.find((name) => !run.classes().includes(name));
     expect(pending).toBeDefined();
     expect(read("public/css/demo.css")).toMatch(

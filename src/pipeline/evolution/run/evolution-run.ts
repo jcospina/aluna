@@ -1,8 +1,8 @@
-// The evolution engine's one run (ARCH §6.2 steps 2–7; ADR-0006), and the only evolution path in
-// the platform: freeze the dependency-generation catalog, author one candidate spec, validate it
-// totally, diff it into typed change facts and a unioned work plan, then derive additive DDL,
-// regenerate the proven impact set with admissibility-gated prior source, byte-copy the rest, Gate
-// the snapshot, publish without overwrite, and activate.
+// The evolution engine's one run (ADR-0006), and the only evolution path in the platform: freeze
+// the dependency-generation catalog, author one candidate spec, validate it totally, diff it into
+// typed change facts and a unioned work plan, then derive additive DDL, regenerate the proven
+// impact set with admissibility-gated prior source, byte-copy the rest, Gate the snapshot,
+// publish without overwrite, and activate.
 //
 // A zero-fact candidate is the canonical no-op: no DDL, no unit work, no snapshot, no version, no
 // `commit`, just a measured `success/no_change` row.
@@ -30,6 +30,7 @@ import {
   nextCapabilityVersion,
   publishCapabilitySnapshot,
   reconcileCapabilityArtifacts,
+  resolveBehavioralTierEnabled,
   type VerifiedDependencySnapshot,
   type VerifiedPublishedSnapshot,
 } from "../../../builder/index.ts";
@@ -59,6 +60,11 @@ import {
   recordGateMetrics,
   refreshUnitMetrics,
 } from "../../metrics-recorder.ts";
+import {
+  type BuildNarration,
+  narrateBuild,
+  plannedStages,
+} from "../../streaming/build-narration.ts";
 import {
   type AssembledEvolutionCandidate,
   type AssembleEvolutionCandidateInput,
@@ -149,13 +155,16 @@ interface EvolutionRunState {
   stage: EvolutionStage;
   readonly acc: DemoBuildAccumulator;
   readonly builtAt: number;
+  readonly narration: BuildNarration;
 }
 
 /** Open the run's measurement state on the caller's clock, or on this run's own. */
 function openEvolutionRunState(input: RunCapabilityEvolutionInput): EvolutionRunState {
+  const builtAt = input.builtAt ?? performance.now();
   return {
     stage: "spec_gen",
-    builtAt: input.builtAt ?? performance.now(),
+    builtAt,
+    narration: narrateBuild(input.send, builtAt),
     acc: {
       usages: input.resolver ? [input.resolver.usage] : [],
       timings: {},
@@ -185,7 +194,7 @@ export async function runCapabilityEvolution(
 
   const state = openEvolutionRunState(input);
   // The durable lifecycle opens immediately before the first Builder-owned provider
-  // call, exactly as a v1 build's does (ARCH §6.2 step 1).
+  // call, exactly as a v1 build's does.
   recordMetrics.start({
     buildId: input.buildId,
     incarnationId: active.incarnation_id,
@@ -229,6 +238,14 @@ async function runEvolutionStages(
 ): Promise<CapabilityEvolutionOutcome> {
   const { active } = input;
   const isAborted = input.isAborted ?? (() => false);
+  await state.narration.plan(
+    plannedStages({
+      rules: input.behavioralTierEnabled ?? resolveBehavioralTierEnabled(),
+      connect: intent.related_capabilities.length > 0,
+    }),
+  );
+  await state.narration.stage("plan");
+  await state.narration.opening(intent.user_facing_label);
   const generated = await authorCandidate(input, state, dependencyCatalog, intent);
 
   // The Diff Engine: the committed row's authored view against the validated
@@ -302,6 +319,7 @@ async function assembleAndActivate(
     diff,
     dependencies,
     linking,
+    state.narration,
   );
   // The assembler measured initial unit generation before the Gate, so a thrown rung keeps it.
   // Refresh the history without re-adding that usage; `recordGateMetrics` takes repair usage.
@@ -313,6 +331,8 @@ async function assembleAndActivate(
   state.stage = "delivery";
   await sendAssembledPreviews(input, candidate, diff, assembly);
   if (input.isAborted?.()) return cancel(input, state);
+  for (const unit of assembly.units) await state.narration.part(unit, "checked");
+  await state.narration.finish();
 
   const { relations } = await linking.settled();
   const activated = await publishAndActivate(input, state, assembly, relations, dependencies);
@@ -343,7 +363,6 @@ async function authorCandidate(
       committed: input.active,
       intent,
       dependencyCatalog,
-      send: input.send,
     });
     state.acc.timings.specGenMs = generated.durationMs;
     state.acc.usages.push(generated.usage);
@@ -355,7 +374,7 @@ async function authorCandidate(
 }
 
 /**
- * Publishes the Gate-cleared snapshot without overwrite, then activates it (ARCH §6.2 steps 6–7).
+ * Publishes the Gate-cleared snapshot without overwrite, then activates it.
  * One transaction: DDL, registry CAS, success. Its COMMIT is the point of no return.
  */
 async function publishAndActivate(
@@ -488,8 +507,9 @@ async function assembleCandidate(
   diff: CapabilityDiff,
   dependencies: FrozenDependencies,
   linking: LinkStepRun,
+  narration: BuildNarration,
 ): Promise<AssembledEvolutionCandidate> {
-  const stream = streamAssembly(input, candidate, diff, linking);
+  const stream = streamAssembly(input, candidate, diff, linking, narration);
   try {
     const assembly = await assembleEvolutionCandidate({
       committed: input.active,

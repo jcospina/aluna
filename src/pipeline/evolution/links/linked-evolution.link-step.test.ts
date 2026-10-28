@@ -18,6 +18,12 @@ import {
 } from "../../../registry/index.ts";
 import { notesSpec } from "../../../registry/spec/spec.test-support.ts";
 import * as linking from "../../build/linking.ts";
+import { expectThePlanKept } from "../../streaming/build-narration.test-support.ts";
+import {
+  linkedFields,
+  PROGRESS_EVENT,
+  type ProgressFact,
+} from "../../streaming/build-narration.ts";
 import {
   addCommittedDependency,
   DUE_DATE_FIELD,
@@ -137,12 +143,21 @@ async function cancelWhileTheStepRuns(): Promise<linking.LinkStepRun | undefined
 const linkCalls = (result: EvolveResult) =>
   result.prompts.filter((prompt) => prompt.startsWith(LINK_STEP_PROMPT_PREFIX)).length;
 
-/** What the narration says while an evolution of Notes connects its author to Authors. */
-const connectingAuthor = () =>
-  ` ${linking.connectingNarration(withAuthor, { relations: [AUTHOR_RELATION], flagged: [row(desk, AUTHORS.id)] })}`;
+/** What the window is told while an evolution of Notes connects its author to Authors. */
+const connectingAuthor = () => ({
+  kind: "connect" as const,
+  links: linkedFields(withAuthor, {
+    relations: [AUTHOR_RELATION],
+    flagged: [row(desk, AUTHORS.id)],
+  }),
+});
 
-const narration = (result: EvolveResult) =>
-  result.events.filter(({ event }) => event === "narration").map(({ data }) => data);
+const factsOf = (result: EvolveResult) =>
+  result.events
+    .filter(({ event }) => event === PROGRESS_EVENT)
+    .map(({ data }) => JSON.parse(data) as ProgressFact);
+const stagesOf = (result: EvolveResult) =>
+  factsOf(result).flatMap((fact) => (fact.kind === "stage" ? [fact.stage] : []));
 
 beforeAll(async () => {
   const quiet = spyOn(console, "log").mockImplementation(() => {});
@@ -203,14 +218,18 @@ describe("an evolution adding a text field beside a flagged capability", () => {
     expect(prompt).toContain(JSON.stringify(canonicalCapabilityLabel(row(desk, "notes"))));
   });
 
-  test("says what it connects just before the sentence it checks the change under", () => {
-    const plain = narration(noText);
-    expect(plain.at(-1)?.trim()).toBeTruthy();
-    expect(narration(author)).toStrictEqual([
-      ...plain.slice(0, -1),
-      connectingAuthor(),
-      ...plain.slice(-1),
+  test("says what it connects just before it checks the change", () => {
+    const plain = stagesOf(noText);
+    const checking = plain.indexOf("check");
+    expect(checking).toBeGreaterThan(0);
+    expect(stagesOf(author)).toStrictEqual([
+      ...plain.slice(0, checking),
+      "connect",
+      ...plain.slice(checking),
     ]);
+    expect(factsOf(author)).toContainEqual(connectingAuthor());
+    expectThePlanKept(factsOf(author));
+    expectThePlanKept(factsOf(noText));
   });
 
   test("leaves the committed shelf relation and its link rows as they were", async () => {
@@ -230,7 +249,9 @@ describe("a link step that fails", () => {
     expect(await fieldDrawnAs(desk, EDITOR.name)).toBe("chain");
     expect(await pickStatus(desk, EDITOR.name)).toBe(422);
     expect(failedStepLogged).toBeGreaterThan(0);
-    expect(narration(editor)).toStrictEqual(narration(noText));
+    expect(stagesOf(editor)).toStrictEqual(stagesOf(noText));
+    expect(factsOf(editor).some((fact) => fact.kind === "connect")).toBe(false);
+    expectThePlanKept(factsOf(editor));
   });
 });
 

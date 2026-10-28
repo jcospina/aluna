@@ -1,5 +1,4 @@
-// Migration apply stage (ARCH §6.2 "Capability Builder"
-// step 2, §9.3).
+// Migration apply stage.
 //
 // The stage does not author SQL. It receives the validated capability spec and
 // delegates DDL derivation/application to the deterministic mapper.

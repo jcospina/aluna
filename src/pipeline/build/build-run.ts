@@ -4,9 +4,9 @@
 // This is the engine the core Builder drives on the `/prompt` pipeline's one admission
 // path: from a resolved `new_capability` intent it
 // generates the spec, derives + applies the migration, generates the units, runs the
-// fail-closed gate, publishes a verified snapshot, and commits — streaming developer previews and product-voice
-// narration along the way, and filling the metrics accumulator as each stage lands. The link step
-// runs beside the tests and the units, and its relations commit with the capability.
+// fail-closed gate, publishes a verified snapshot, and commits — streaming developer previews and the
+// facts the window narrates along the way, and filling the metrics accumulator as each stage lands. The
+// link step runs beside the tests and the units, and its relations commit with the capability.
 
 import { Database } from "bun:sqlite";
 import type { ZodType } from "zod";
@@ -56,6 +56,12 @@ import {
   refreshUnitMetrics,
 } from "../metrics-recorder.ts";
 import {
+  type BuildNarration,
+  bothUnitObservers,
+  narrateBuild,
+  plannedStages,
+} from "../streaming/build-narration.ts";
+import {
   buildGatePreview,
   buildMigrationPreview,
   buildUnitsPreview,
@@ -66,7 +72,7 @@ import {
   validateBuiltOverlapIdentity,
   validateProposedOverlapIdentity,
 } from "./admission/overlap-identity.ts";
-import { connectingNarration, type LinkStepRun, startLinkStep } from "./linking.ts";
+import { type LinkStepRun, startLinkStep } from "./linking.ts";
 
 /**
  * An aborted stream mid-build, thrown before activation. The caller finalizes the lifecycle as
@@ -147,7 +153,6 @@ async function authorInitialSpec(input: {
       provider: observed,
       prompt: input.prompt,
       intent: input.intent,
-      send: input.send,
       incarnationId: input.incarnationId,
       relatedCapabilities: readRelatedCapabilities(
         input.intent.related_capabilities,
@@ -201,8 +206,17 @@ export async function runSpecBuildStages(
   onCapabilityIdentified: (capabilityId: string) => void,
   onActivated: () => void,
   targetExpectation: CapabilityRegistryExpectation = { state: "absent" },
+  narration: BuildNarration = narrateBuild(send, performance.now()),
 ): Promise<CommitCapabilityResult | undefined> {
   const stage = { send, provider, prompt, intent, incarnationId, acc, database: buildDatabases };
+  await narration.plan(
+    plannedStages({
+      rules: resolveBehavioralTierEnabled(),
+      connect: intent.related_capabilities.length > 0,
+    }),
+  );
+  await narration.stage("plan");
+  await narration.opening(intent.user_facing_label);
   // Spec generation runs before the transaction opens, so a spec failure has nothing to roll back.
   const { spec, durationMs, usage } = await authorInitialSpec(stage);
   acc.capabilityId = spec.id;
@@ -211,6 +225,8 @@ export async function runSpecBuildStages(
   // validated authored spec supplies the semantic id, enrich the same durable row.
   onCapabilityIdentified(spec.id);
   if (isAborted()) return;
+  await narration.shape(spec);
+  await narration.stage("room");
   const linking = startLinkStep({ ...stage, spec });
   try {
     return await buildFromSpec({
@@ -226,6 +242,7 @@ export async function runSpecBuildStages(
       onActivated,
       targetExpectation,
       linking,
+      narration,
       specGen: { durationMs, usage },
     });
   } finally {
@@ -247,9 +264,10 @@ async function buildFromSpec(input: {
   readonly onActivated: () => void;
   readonly targetExpectation: CapabilityRegistryExpectation;
   readonly linking: LinkStepRun;
+  readonly narration: BuildNarration;
   readonly specGen: { readonly durationMs: number; readonly usage: TokenUsage };
 }): Promise<CommitCapabilityResult> {
-  const { send, isAborted, provider, spec, incarnationId, acc } = input;
+  const { send, isAborted, provider, spec, incarnationId, acc, narration } = input;
   // The first point at which a name exists for the blank tile on the desk. Sent as `fragment` to
   // ride the tile's own guarded listener, and it addresses the label span: the tile is mid-crawl.
   await send("fragment", renderProvisionalLogoName(input.buildId, spec.label));
@@ -258,16 +276,18 @@ async function buildFromSpec(input: {
 
   // Behavioral intent freezes before the first Handler byte (ADR-0006): tests
   // authored after code only describe it, authored before they are the contract the Gate enforces.
-  const frozenTests = resolveBehavioralTierEnabled()
-    ? await freezeBehavioralTests({ provider, spec })
+  const tierEnabled = resolveBehavioralTierEnabled();
+  if (tierEnabled) await narration.stage("rules");
+  const frozenTests = tierEnabled
+    ? await freezeBehavioralTests({ provider, spec, onProgress: narration.rules })
     : undefined;
   // Measured where it happened, so a build that freezes five suites and then fails the Gate
   // still reports the generation it paid for.
   if (frozenTests) recordBehavioralFreezeMetrics(acc, frozenTests);
   throwIfAborted(isAborted);
 
-  await send("narration", " I’m shaping it into something you can use.");
-  const unitResult = await generateUnitsWithPreview(send, isAborted, provider, spec);
+  await narration.stage("make");
+  const unitResult = await generateUnitsWithPreview(send, isAborted, provider, spec, narration);
   throwIfAborted(isAborted);
   recordUnitMetrics(acc, unitResult.units);
   const finalUnits = unitResult.units.map(finalUnitPreview);
@@ -275,9 +295,8 @@ async function buildFromSpec(input: {
 
   const linked = await input.linking.settled();
   throwIfAborted(isAborted);
-  const connecting = connectingNarration(spec, linked);
-  if (connecting) await send("narration", ` ${connecting}`);
-  await send("narration", " I’m checking the first version now.");
+  await narration.connect(spec, linked);
+  await narration.stage("check");
   let gateResult: CapabilityGateResult;
   const database = input.buildDatabases.readwrite;
   try {
@@ -289,12 +308,14 @@ async function buildFromSpec(input: {
       provider,
       realDatabase: database,
       behavioralTier: behavioralTierInput(frozenTests, firstBuildImpact(spec)),
+      observer: narration.gate,
     });
   } catch (error) {
     if (error instanceof CapabilityGateError) recordGateFailureMetrics(acc, error);
     throw error;
   }
   throwIfAborted(isAborted);
+  for (const unit of unitResult.units) await narration.part(unit, "checked");
   const commitUnits = applyGateFixes(unitResult.units, gateResult);
   refreshUnitMetrics(acc, commitUnits);
   recordGateMetrics(acc, gateResult);
@@ -321,6 +342,7 @@ async function buildFromSpec(input: {
   const { durationMs, usage } = input.specGen;
   logBuildVerification(spec, durationMs, usage, commitUnits, gateResult);
 
+  await narration.finish();
   // Publish first, then one short transaction: DDL, registry CAS, lifecycle success. Its COMMIT is
   // the sole point of no return; until it the old registry stays live and the candidate inert.
   acc.publicationAttempted = true;
@@ -440,17 +462,22 @@ function logBuildVerification(
 }
 
 /**
- * Runs unit generation with the live preview observer: a `units-preview` snapshot as each unit
- * starts, streams, is fixed and lands. The evolution assembler drives the same stream.
+ * Runs unit generation with the live preview observer — a `units-preview` snapshot as each unit
+ * starts, streams, is fixed and lands — and the narration of each part being made.
  */
 function generateUnitsWithPreview(
   send: Send,
   isAborted: () => boolean,
   provider: Provider,
   spec: CapabilitySpec,
+  narration: BuildNarration,
 ): Promise<Awaited<ReturnType<typeof generateCapabilityUnits>>> {
   const { observer } = createUnitPreviewStream(send, isAborted);
-  return generateCapabilityUnits({ provider, spec, observer });
+  return generateCapabilityUnits({
+    provider,
+    spec,
+    observer: bothUnitObservers(observer, narration.units),
+  });
 }
 
 /**

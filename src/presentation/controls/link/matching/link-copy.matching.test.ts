@@ -6,7 +6,6 @@ import { describe, expect, test } from "bun:test";
 import { collectionCountSentence } from "../../../records/region/collection-count.ts";
 import {
   alreadyConnected,
-  buildConnecting,
   connectingNote,
   everyRecordsField,
   matchingReport,
@@ -98,14 +97,6 @@ describe("what a linking-only request says it connected", () => {
     expect(said.match(/\./g)?.length).toBe(1);
   });
 
-  test("the build says the same fields while it connects them, and nothing when it connects none", () => {
-    expect(buildConnecting(BOOKS.noun, [])).toBe("");
-    expect(buildConnecting(BOOKS.noun, [author])).toContain(`${clause(author)}.`);
-    expect(buildConnecting(BOOKS.noun, [author, series])).toContain(
-      `${clause(author)} and ${clause(series)}.`,
-    );
-  });
-
   test("finding nothing to connect is said, in the product's word for linking", () => {
     for (const sentence of [NOTHING_TO_CONNECT, NOTHING_ELSE_TO_CONNECT]) {
       expect(sentence).not.toBe("");
@@ -141,7 +132,6 @@ describe("what a linking-only request says it connected", () => {
     expect(alreadyConnected(BOOKS.noun, [])).toBe("");
     const said = alreadyConnected(BOOKS.noun, [author, series]);
     expect(said).toContain(`${clause(author)} and ${clause(series)}.`);
-    expect(said).not.toBe(buildConnecting(BOOKS.noun, [author, series]));
   });
 
   test("the note names every capability it connects to, once each", () => {

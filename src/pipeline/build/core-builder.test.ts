@@ -1,5 +1,5 @@
-// The core Builder / presenter split and lease-head stale revalidation (ADR-0006; ARCH §6.2
-// step 1). Two things are proven here, and neither involves SSE.
+// The core Builder / presenter split and lease-head stale revalidation (ADR-0006). Two things
+// are proven here, and neither involves SSE.
 //
 // First the seam: the Builder runs a complete evolution — Diff, Gate, publication, activation,
 // durable metrics — driven by a recording fake presenter that knows nothing about transports,
@@ -37,6 +37,7 @@ import {
 } from "../evolution/run/evolution-run.test-support.ts";
 import type { BuildPipelineCompletion, SendBuildEvent } from "../jobs/build-jobs.ts";
 import { createMetricsRecorder } from "../metrics-recorder.ts";
+import { toldFacts, toldWait } from "../streaming/build-narration.test-support.ts";
 import {
   resolvedExistingCapabilityRequest,
   resolvedNewCapabilityRequest,
@@ -250,9 +251,10 @@ test("the core Builder builds and activates a brand-new capability through the s
   });
   const { provider, prompts } = engineProvider(authored);
 
-  const { completion, terminals, rows } = await run({
+  const { completion, terminals, rows, events } = await run({
     provider,
     buildId: "seam-new-build",
+    builtAt: performance.now() - 5_000,
     request: resolvedNewCapabilityRequest({
       prompt: "let me keep track of recipes",
       intent: newCapabilityIntent(null),
@@ -267,11 +269,8 @@ test("the core Builder builds and activates a brand-new capability through the s
   expect(prompts.length).toBeGreaterThan(0);
   // A live v1 pointer beside the capability that was already committed.
   expect(getCapability("recipes", env.conns.readonly)?.version).toBe(1);
-  expect(
-    listCapabilities(env.conns.readonly)
-      .map((row) => row.id)
-      .sort(),
-  ).toEqual(["notes", "recipes"]);
+  const ids = listCapabilities(env.conns.readonly).map(({ id }) => id);
+  expect(ids.toSorted()).toEqual(["notes", "recipes"]);
   // The durable row was opened under the incarnation admission assigned, then enriched
   // with the semantic id the authored spec supplied, and finalized `success/activated`.
   const built = rows.find((row) => row.buildId === "seam-new-build");
@@ -282,6 +281,8 @@ test("the core Builder builds and activates a brand-new capability through the s
     incarnationId: terminal.incarnationId,
   });
   expect(built?.incarnationId).not.toBe(INCARNATION_ID);
+  // The wait the window reports starts on the caller's clock, as the evolution's does.
+  expect(toldWait(toldFacts(events))).toBeGreaterThanOrEqual(5_000);
 });
 
 test("a semantically identical candidate resolves to success/no_change through the seam", async () => {
@@ -333,7 +334,7 @@ test("an evolution measures on its caller's clock, not on the moment the engine 
   const active = getCapability("notes", env.conns.readonly);
   if (!active) throw new Error("committed capability did not activate");
 
-  const { rows } = await run({
+  const { rows, events } = await run({
     provider,
     buildId: "queued-evolution",
     builtAt: performance.now() - 5_000,
@@ -353,6 +354,7 @@ test("an evolution measures on its caller's clock, not on the moment the engine 
   const evolved = rows.find((row) => row.buildId === "queued-evolution");
   expect(evolved?.outcome).toBe("activated");
   expect(evolved?.measurement?.timings?.totalMs).toBeGreaterThanOrEqual(5_000);
+  expect(toldWait(toldFacts(events))).toBeGreaterThanOrEqual(5_000);
 });
 
 test("a superseded expected version is refused stale and never reaches the no-op comparison", async () => {

@@ -37,6 +37,12 @@ import {
   createCapabilityQueryPort,
   materializeCapabilityActionRecord,
 } from "../../../runtime/data/index.ts";
+import {
+  expectRulesWrittenBeforeMaking,
+  expectThePlanKept,
+  toldFacts,
+} from "../../streaming/build-narration.test-support.ts";
+import { plannedStages } from "../../streaming/build-narration.ts";
 import { MaxLengthScanError } from "../assembly/length-scan.ts";
 import {
   activated,
@@ -46,6 +52,7 @@ import {
   committedSpec,
   dueDateCandidate,
   type EngineEnv,
+  type EvolveResult,
   evolve,
   expectEveryFrozenSuiteSkipped,
   factKinds,
@@ -73,6 +80,26 @@ afterEach(() => {
   tearDownCommitted(env);
 });
 
+/**
+ * The window is told each stage it was promised, the rules only when the tier writes them, and
+ * every part is checked before the build finishes.
+ */
+function expectEveryStageTold(result: EvolveResult, tierOn: boolean): void {
+  const told = toldFacts(result.events);
+  expectThePlanKept(told);
+  expect(told.find((fact) => fact.kind === "plan")).toStrictEqual({
+    kind: "plan",
+    stages: plannedStages({ rules: tierOn, connect: false }),
+  });
+  const shape = told.find((fact) => fact.kind === "shape");
+  const finishing = told.findIndex((fact) => fact.kind === "stage" && fact.stage === "finish");
+  const checked = told
+    .slice(0, finishing)
+    .flatMap((fact) => (fact.kind === "part" && fact.state === "checked" ? [fact.part] : []));
+  expect(checked.toSorted()).toStrictEqual(shape?.kind === "shape" ? shape.parts.toSorted() : []);
+  if (tierOn) expectRulesWrittenBeforeMaking(told);
+}
+
 describe("the due-date tracer", () => {
   for (const tierOn of [false, true]) {
     test(`runs end to end with the behavioral tier ${tierOn ? "on" : "off"}`, async () => {
@@ -84,6 +111,7 @@ describe("the due-date tracer", () => {
         { behavioralTierEnabled: tierOn, buildId: `due-date-${tierOn ? "on" : "off"}` },
       );
       const outcome = activated(result);
+      expectEveryStageTold(result, tierOn);
 
       // The facts the flow produces: the nullable field (with its requiredness), the
       // item's dependency + direction and the behavior change.
@@ -152,7 +180,7 @@ describe("the due-date tracer", () => {
     });
   }
 
-  test("streams the plan, the units, and the Gate without leaking internals", async () => {
+  test("streams the plan, the units, the Gate and the narration's facts without leaking internals", async () => {
     const result = await evolve(env, dueDateCandidate(), "add a due date and make it stand out", {
       buildId: "due-date-stream",
     });
@@ -164,12 +192,19 @@ describe("the due-date tracer", () => {
     // The Gate verdict lands before the terminal candidate preview replaces the running
     // plan, so the last candidate-preview is the complete one.
     expect(names.lastIndexOf("gate-preview")).toBeLessThan(names.lastIndexOf("candidate-preview"));
-    const narration = result.events
-      .filter((event) => event.event === "narration")
-      .map((event) => event.data)
-      .join(" ");
-    expect(narration.length).toBeGreaterThan(0);
-    expect(narration).not.toMatch(/handler|migration|schema|gate|snapshot|spec\b/i);
+    // The window narrates from facts, in its own words: the stages arrive in order, and the one
+    // sentence the run supplies — the model's opening — names nothing of the machinery.
+    const facts = result.events
+      .filter((event) => event.event === "progress")
+      .map((event) => JSON.parse(event.data) as { kind: string; stage?: string; text?: string });
+    const stages = facts.flatMap((fact) => (fact.kind === "stage" ? [fact.stage] : []));
+    expect(stages[0]).toBe("plan");
+    expect(stages).toContain("make");
+    expect(stages.indexOf("check")).toBeGreaterThan(stages.indexOf("make"));
+    expect(stages.at(-1)).toBe("finish");
+    const opening = facts.find((fact) => fact.kind === "opening")?.text ?? "";
+    expect(opening.length).toBeGreaterThan(0);
+    expect(opening).not.toMatch(/handler|migration|schema|gate|snapshot|spec\b/i);
   });
 });
 

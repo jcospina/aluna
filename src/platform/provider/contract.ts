@@ -1,4 +1,4 @@
-// The pluggable AI provider contract (ARCH §4, ADR-0003).
+// The pluggable AI provider contract (ADR-0003).
 //
 // The single seam the orchestrator depends on, and it depends on no specific SDK: the spine that
 // realizes this contract is the Vercel AI SDK behind a baseURL-keyed registry, but that lives
@@ -23,7 +23,7 @@ export type DeepPartial<T> =
       : T;
 
 /**
- * Token counts for a single `generate` call, the measurement the metrics row records (ARCH §6.2).
+ * Token counts for a single `generate` call, the measurement the metrics row records.
  * A count is `number | undefined`: not every provider reports every figure, and absence is honest.
  */
 export interface TokenUsage {
@@ -50,7 +50,7 @@ export interface GenerateResult<T> {
 
 /**
  * One method: stream a structured object conforming to `schema`. There is no model parameter — the
- * model is configured globally in exactly one place (./config.ts, ARCH §4).
+ * model is configured globally in exactly one place (./config.ts).
  */
 export interface Provider {
   generate<T>(prompt: string, schema: ZodType<T>): GenerateResult<T>;

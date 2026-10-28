@@ -3,9 +3,8 @@
 // As the build pipeline moves through its stages it streams these structured
 // snapshots so a developer watches the spec, migration, units, gate, and commit
 // assemble live. A liveness check exists to surface internals, so it does, and it is
-// strictly separate from the product-voice narration and
-// confirmation the user sees; ARCH §9.7 keeps internals out of the *product* copy,
-// not the dev previews.
+// strictly separate from the product-voice narration and confirmation the user sees: the
+// rule that keeps internals out of the *product* copy does not reach the dev previews.
 
 import type { Database } from "bun:sqlite";
 import type {

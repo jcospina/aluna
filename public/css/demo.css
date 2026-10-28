@@ -24,8 +24,8 @@
 }
 /* Two views of one window, laid out the way the collection and the record form are: a
    column that fills the window, so the run's control row sits on the window's own
-   bottom edge rather than directly under however much story there happens to be. The
-   story is what scrolls, the way a record's fields do. */
+   bottom edge. The narration (design/styles/components/narration.css) takes the room
+   above it, its drawing on top and its line under it. */
 .build-stream:has(> .build-stream__narration:not(:empty)),
 .build-stream:has(> .build-stream__commit:not(:empty)) {
   display: flex;
@@ -34,15 +34,41 @@
   min-height: 0;
 }
 .build-stream > .build-stream__narration {
-  flex: 0 1 auto;
-  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  /* Never shorter than the story's band; a window too short for even that scrolls the region. */
+  min-height: min-content;
   /* The step between the story and the control, held here rather than on the control:
      the control's own `margin-top: auto` cannot also state a minimum, and a padding on
      the control would be room inside its drawn line rather than above it. */
   margin-bottom: var(--space-2);
+  /* Clipped, never scrolled, while the story is told: a line rising into place would
+     otherwise call up a scrollbar for a moment and narrow the drawing under it. An ending
+     may take more room than the line's box once the story is over, and can be scrolled. */
+  overflow: clip;
+}
+@supports not (overflow: clip) {
+  .build-stream > .build-stream__narration {
+    overflow: hidden;
+  }
+}
+/* An ending with no story told under it, or one the story stopped for, can be scrolled to. */
+.build-stream > .build-stream__narration:not(:has(> .narration:not(.is-concluded))) {
   overflow-y: auto;
 }
-.build-stream > .build-stream__commit {
+/* A run that ends on a line of its own leaves its story in the window: laid out as it stood, the
+   control's room kept under it so the drawing does not grow into the space. */
+#spec-build-output > .build-stream__narration {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: min-content;
+  margin-bottom: calc(var(--space-2) * 2 + var(--control-h));
+  overflow-y: auto;
+}
+/* Empty, it takes none of the room: it would take half of it and hand it back on landing. */
+.build-stream > .build-stream__commit:not(:empty) {
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -79,10 +105,9 @@
   margin-left: auto;
 }
 
-/* The last thing the narration says. It stands on its own line rather than running on
-   from the working prose, because it is the ending and not another step. */
-.build-stream__ending {
-  margin-top: var(--space-2);
+/* The last thing the narration says takes the place of its line (`Narrator#conclude`). */
+.narration__line > .build-stream__ending {
+  margin: 0;
 }
 
 /* The question a navigation asks before it takes the live run is the
@@ -91,6 +116,12 @@
    attribute: without this `.btn`'s own `inline-flex` would keep the control on beside it. */
 .build-stream > .build-stream__cancel[hidden] {
   display: none;
+}
+/* While the story is told the control keeps its room under the veil, so the drawing stays put. */
+.build-stream:has(> .build-stream__narration > .narration:not(.is-concluded))
+> .build-stream__cancel[hidden] {
+  display: flex;
+  visibility: hidden;
 }
 /* A run still working out its sentence has drawn nothing and is not shown, but a question it asks
    must be: its box steps aside so the veil, placed against the window's body, still is. */
@@ -102,12 +133,21 @@
 
 /* Commit swap: once the capability surface lands, the build narration is no
    longer the visible state; the window should read as the active capability — and
-   there is no run left to cancel, so the control goes with the story. */
-.build-stream:has(.build-stream__commit:not(:empty)) .build-stream__narration,
+   there is no run left to cancel, so the control goes with the story. A landed run
+   first holds on its finished drawing and last line for a moment
+   (`/static/desk/build-narration.js`), the surface waiting under it. */
+.build-stream.is-bookending > .build-stream__commit {
+  display: none;
+}
+.build-stream:has(.build-stream__commit:not(:empty)):not(.is-bookending) .build-stream__narration,
 .build-stream:has(.build-stream__commit:not(:empty)) .build-stream__fragment,
 .build-stream:has(.build-stream__commit:not(:empty)) .window__leaving,
-.build-stream:has(.build-stream__commit:not(:empty)) .build-stream__cancel {
+.build-stream:has(.build-stream__commit:not(:empty)):not(.is-bookending) .build-stream__cancel {
   display: none;
+}
+/* The landed run's last line holds with the control's room kept, so nothing grows into it. */
+.build-stream.is-bookending > .build-stream__cancel {
+  visibility: hidden;
 }
 
 /* The centered column a committed capability's View lands in. It now holds

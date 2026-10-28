@@ -22,21 +22,14 @@ import {
   makeCandidateProvider,
 } from "../evolution/candidate/candidate.test-support.ts";
 import { buildCandidateSpecPrompt } from "../evolution/candidate/candidate-spec-gen.ts";
-import {
-  makeSpecProvider,
-  notesIntent,
-  notesSpec,
-  recordingSend,
-} from "./spec-gen.test-support.ts";
+import { makeSpecProvider, notesIntent, notesSpec } from "./spec-gen.test-support.ts";
 import { buildSpecPrompt } from "./spec-gen.ts";
 
 function birthPrompt(): string {
-  const { send } = recordingSend();
   return buildSpecPrompt({
     provider: makeSpecProvider(notesSpec()),
     prompt: "track my notes",
     intent: notesIntent(),
-    send,
     incarnationId: "inc_spec_test",
   });
 }
@@ -48,7 +41,6 @@ function evolutionPrompt(): string {
     committed,
     intent: evolutionIntentFor(committed, "Give the journal room for longer entries"),
     dependencyCatalog: evolutionDependencyCatalog(),
-    send: recordingSend().send,
   });
 }
 

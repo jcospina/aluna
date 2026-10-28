@@ -504,11 +504,29 @@ presenter, while Module 10's implicit loop will hand over an already-confirmed
 proposal in the same shape — never reclassified — and choose a presenter of its
 own. Mutation, staging, Gate, activation, and metrics are identical either way
 (PLAN decision 31, ADR-0006, ARCH §6.2). Today the seam is terminal-only: the
-in-flight liveness sink still carries ADR-0002 SSE event names, a dead sink is
-read as cancellation, and the product-voice narration is authored inside the
-stages. Module 10 can swap the terminal presenter but not yet the in-flight story;
-widening it waits for a second real presenter to shape it against.
+in-flight liveness sink still carries ADR-0002 SSE event names and a dead sink is
+read as cancellation. In flight the stages report facts — a stage starting, a part
+being made or checked, a Gate check under way — as `progress` events, and say
+nothing in words, so a second presenter could tell the same run its own way.
 _Avoid_: build pipeline, the builder service, prompt pipeline
+
+**Build narration**:
+What the window shows while a build or an evolution runs: a drawing of the window
+being made, there from the first moment as a faint ghost, each part's ghost growing
+surer while its house rules are written, each part drawn in pencil over it stroke by
+stroke as it is generated and inked as it passes the Gate, and a band under it with
+the stage's word, a small square per stage, a rule that fills toward the end, and the
+line Aluna is saying. It is drawn from the facts the stages report, so nothing on it
+moves without something real behind it; the rule and the pencil creep between facts at
+the pace a stage usually takes, and the rule holds still while a part is mended, the
+part rubbed out and drawn again in clay. A build that lands holds its last line for a
+moment before the window turns into what it made; one that ends without landing ends
+the band too — no stage word, the rule run out, only the squares of the stages it
+reached — and, when it failed, every piece it had not inked comes loose. Its words are the one deliberate exception to the product
+voice's "not cutesy": one odd little verb per stage — Scheming, Shelving, Rule-writing,
+Tinkering, Matchmaking, Prodding, Mending, Polishing — with a plain line under it, and
+Ta-da only once the window has landed (`design/scripts/narration/voice.js`; ADR-0002).
+_Avoid_: log, loader, spinner, progress bar, status
 
 **Resolved build request**:
 What prompt resolution hands to the Core Builder. It binds one **target
@@ -522,24 +540,25 @@ _Avoid_: build job, build intent, classification
 
 **Build presenter**:
 The adapter that turns the Core Builder's terminal lifecycle event into what a
-person sees. The explicit-loop presenter takes the window, carries the narration the
-stages write, and emits one View `commit` — only for a real pointer activation. Every non-activating terminal instead gives back what the
+person sees. The explicit-loop presenter takes the window, which draws the **build
+narration** from the facts the stages report, and emits one View `commit` — only for a
+real pointer activation. Every non-activating terminal instead gives back what the
 build displaced, streaming the canonical committed View through `fragment` with
 no sidecar for the desk. Cancellation gives it back at once; a failure, a stale
 refusal and a measured no-op end the narration with their own authored line and
 the window **holds** there until the person dismisses the ending, which is when
 the collection is placed (PLAN decisions 23, 25). Presentation is not a Builder
 invariant: Module 10 may choose another presenter, which takes over everything at the
-terminal but not yet the narration the stages send (see **Core Builder**; PLAN decisions
-29, 31; ADR-0002).
+terminal (see **Core Builder**; PLAN decisions 29, 31; ADR-0002).
 _Avoid_: renderer, view layer, the SSE handler
 
 **Ending**:
 What a thing that took the window leaves on screen when it did not do what it set
 out to do. A build has one — the last line of its narration, with its own authored
-sentence for a failure, a stale refusal and a measured no-op; the log is already
-the live region and is already where the person is looking, so the desk has no
-notice surface of its own for them (PLAN decision 23). A deletion has one too, and
+sentence for a failure, a stale refusal and a measured no-op, said in the line's own
+place under the drawing; the narration is already the live region and is already where
+the person is looking, so the desk has no notice surface of its own for them (PLAN
+decision 23). A deletion has one too, and
 it is a panel rather than a line, because the question it answers was a panel: one
 authored sentence in place of the question, for every way a deletion is turned
 down before the commit. An ending holds the window — whatever it displaced stays
@@ -1009,6 +1028,13 @@ The voice is warm, encouraging, gently curious. It speaks in first person and
 addresses the user directly ("you"), plainspoken and concise, with a quiet thread
 of wonder — friendly and clear, not cutesy, not cryptic.
 
+One surface is a deliberate exception: a **build narration** speaks in odd little
+verbs — Scheming, Tinkering, Prodding — each with a plain line under it, so a
+two-minute wait is memorable without being unclear. The exception covers what the
+narration says while a build runs and the line a build that lands ends on. Every
+other sentence, including a build's endings when it does not land, keeps the voice
+above.
+
 The hard rule (ARCH §9.7): never expose internals. No "handler", "spec",
 "migration", "compile", "build artifact", "schema", "endpoint", "CRUD". Ever.
 Narration, proposals, confirmations, and errors all speak in product voice.
@@ -1024,7 +1050,8 @@ Narration, proposals, confirmations, and errors all speak in product voice.
 Authored copy is written where the surface that speaks it is rendered:
 
 - the prompt bar's placeholder: `public/index.html`
-- a build's narration: the stages that run it
+- a build's narration: `design/scripts/narration/voice.js`, beside the drawing that
+  speaks it; the stages report facts and say nothing in words
 - a build's endings: `src/pipeline/streaming/terminal-presentation.ts`
 - the question asked before leaving a run: `src/server/http/fragments/fragments.ts`
 - a record's sentences and refusals: `src/presentation/records/record-view/record-view.ts`

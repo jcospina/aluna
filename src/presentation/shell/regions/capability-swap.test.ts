@@ -17,8 +17,8 @@ import { code } from "../../safety/source.test-support.ts";
 import { viewportDesk } from "../window/viewport-desk.test-support.ts";
 import { document as desk, Node } from "./region-scope.test-support.ts";
 
-// Opening a second capability (ARCH §6.1 and §8). A swap may not
-// touch the frame, must release the departing content, and gets no staleness machinery at all.
+// Opening a second capability. A swap may not touch the frame, must release the departing
+// content, and gets no staleness machinery at all.
 
 const SAMPLE: RenderableCapability = {
   id: "tasks",

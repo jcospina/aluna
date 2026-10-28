@@ -1,7 +1,7 @@
 // Who moves the address, settled by running the desk: `public/desk/window/desk-window.js` started the way the
 // page starts it, on logos the server renders, with the browser's bar and htmx recording what they
 // are asked. One gesture, one entry; everything else corrects in place or writes nothing at all
-// (ADR-0010; ARCH §6.1).
+// (ADR-0010).
 
 import { afterEach, describe, expect, test } from "bun:test";
 import { CONTENT_REGION_SELECTOR } from "#shell/core/region-scope.js";

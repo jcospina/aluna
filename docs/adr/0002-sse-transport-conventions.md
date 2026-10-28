@@ -334,6 +334,37 @@ A window torn down over an unread deletion ending carries its sentence to
 `#prompt-notice` on the way out, for the reason the build ending already does:
 the window is the only place it lives.
 
+## Update (2026-10-27 — `progress`: a build reports facts and the window narrates them)
+
+A build's narration used to be a handful of product-voice sentences, each appended to
+one paragraph over `narration`. It is now drawn: a sketch of the window being made,
+parts pencilled in as they are generated and inked as they pass the Gate, and a band
+under it with the stage's word, a small square per stage, a rule that fills toward
+the end, and the line Aluna is saying. That needs facts, not sentences, so one event
+joins the vocabulary.
+
+| Event | Role | Client wire |
+|---|---|---|
+| `progress` | One fact about the run as JSON: the planned stages, a stage starting, the model's opening sentence, the shape the plan settled on (name, record nouns, field labels, parts), a part being made, remade, kept, made or checked, the fields being connected, a Gate check starting, and how long the wait was. No copy. | `sse-swap="narration,progress"` on the narration region; `/static/desk/build-narration.js` cancels the swap in `htmx:sseBeforeMessage` and hands the fact to the design system's narrator (`design/scripts/narration/`). |
+
+- **The words live with the drawing.** The stages say what happened; the narrator
+  owns every line said about it (`design/scripts/narration/voice.js`), the way a
+  question's step label lets the platform own the sentence. The model's opening
+  sentence is the one piece of text a fact carries, and the window sets it as text.
+- **`narration` keeps one job: the ending.** A failed, stale or no-change run still
+  sends its authored line over `narration`, with the out-of-band Continue, before
+  `fragment` and `done`. The narrator moves that line into the band's place and stops
+  where it stood. A successful run sends no `narration` at all.
+- **The window still reveals on the run's first message.** A `progress` fact lands on
+  the narration region, so the existing reveal on that region needs no change.
+- **A landed run holds on its last line.** On `commit` the window keeps the finished
+  drawing and its last line for about a second and a half, the committed View
+  waiting under it, before `app.js` places the View. Activation is unchanged: the
+  hold is presentation after the point of no return.
+- **Nothing in the Gate decides by a fact.** The Gate's observer reports a rung or a
+  repair as it starts. A failed write of a fact is dropped, never raised, so a reader
+  who left cannot fail the Gate it was watching.
+
 ## Historical update (Epic 1.5 — predates Module 2 finalization)
 
 This paragraph records the state at the end of Module 1. Its open-question

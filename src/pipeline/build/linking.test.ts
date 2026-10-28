@@ -15,22 +15,17 @@ import {
   type Provider,
   type TokenUsage,
 } from "../../platform/provider/index.ts";
-import { buildConnecting } from "../../presentation/controls/link/link-copy.ts";
 import { validSpec } from "../../registry/spec/spec.test-support.ts";
 import * as store from "../../registry/store/store.ts";
 import { install } from "../../runtime/router/dispatch/router.test-support.ts";
 import { NEW_CAPABILITY_INTENT, NOTES_INCARNATION_ID } from "../../server/app.test-support.ts";
-import { escapeHtml } from "../../server/http/html.ts";
 import {
-  AUTHORS,
-  AUTHORS_INCARNATION,
   BOOKS,
   BOOKS_INCARNATION,
   deskRow,
-  textField,
 } from "../../server/routes/lifecycle/link.test-support.ts";
 import type { DemoBuildAccumulator } from "../metrics-recorder.ts";
-import { connectingNarration, startLinkStep } from "./linking.ts";
+import { startLinkStep } from "./linking.ts";
 
 let env: ScratchDbEnv;
 let calls: number;
@@ -146,41 +141,5 @@ describe("a build's link step", () => {
     } finally {
       unreadable.mockRestore();
     }
-  });
-
-  test("the sentence names each connected field once, in the spec's order, as text", () => {
-    const spec = validSpec({
-      noun: "adaptation",
-      schema: {
-        fields: [
-          textField("film", "Film <title>"),
-          textField("notes", "Notes"),
-          textField("book", "Book & edition"),
-        ],
-      },
-    });
-    const books = deskRow(BOOKS);
-    const authors = deskRow(AUTHORS);
-    const relations = [
-      {
-        field: "book",
-        to: { capability: BOOKS.id, incarnation: BOOKS_INCARNATION, field: "title" },
-      },
-      {
-        field: "film",
-        to: { capability: AUTHORS.id, incarnation: AUTHORS_INCARNATION, field: "name" },
-      },
-    ];
-    const [film, , book] = spec.schema.fields;
-
-    expect(connectingNarration(spec, { relations, flagged: [books, authors] })).toBe(
-      escapeHtml(
-        buildConnecting(spec.noun, [
-          { field: film ?? { label: "" }, targetPlural: authors.plural_noun },
-          { field: book ?? { label: "" }, targetPlural: books.plural_noun },
-        ]),
-      ),
-    );
-    expect(connectingNarration(spec, { relations: [], flagged: [books] })).toBe("");
   });
 });

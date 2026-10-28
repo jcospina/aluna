@@ -6,7 +6,6 @@
 
 import { describe, expect, test } from "bun:test";
 
-import type { SendBuildEvent } from "../../../pipeline/jobs/build-jobs.ts";
 import { addedLines, linesNaming } from "../../../platform/provider/prompt-lines.test-support.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
@@ -40,16 +39,6 @@ import {
 } from "./candidate-spec-gen.ts";
 import { CandidateValidationError, committedSpecView } from "./candidate-validation.ts";
 
-function collectingSend(): { send: SendBuildEvent; events: Array<[string, string]> } {
-  const events: Array<[string, string]> = [];
-  return {
-    events,
-    send: async (event, data) => {
-      events.push([event, data]);
-    },
-  };
-}
-
 /** The prompt with its two JSON payloads taken out: only what the builder itself says. */
 function instructionsOf(input: GenerateCandidateSpecInput): string {
   return buildCandidateSpecPrompt(input)
@@ -66,7 +55,6 @@ function promptInput(
     committed,
     intent: evolutionIntentFor(committed, "Add a mood field to my journal"),
     dependencyCatalog: evolutionDependencyCatalog(),
-    send: collectingSend().send,
     ...overrides,
   };
 }
@@ -198,17 +186,14 @@ describe("the generation stage", () => {
       lifecycle: "active",
     });
     const { provider, prompts, schemas } = makeCandidateProvider(authored);
-    const { send, events } = collectingSend();
 
     const result = await generateCandidateSpec({
       provider,
       committed,
       intent: evolutionIntentFor(committed, "Add a mood field"),
       dependencyCatalog: evolutionDependencyCatalog(),
-      send,
     });
 
-    expect(events[0]).toEqual(["narration", "Let me think through that change."]);
     expect(prompts).toHaveLength(1);
     // The provider is steered by the same schema that gates the output.
     expect(schemas[0]).toBe(promptCapabilitySpecSchema);
@@ -231,7 +216,6 @@ describe("the generation stage", () => {
         committed,
         intent: evolutionIntentFor(committed, "Drop the archive note"),
         dependencyCatalog: evolutionDependencyCatalog(),
-        send: collectingSend().send,
       }),
     ).rejects.toThrow(CandidateValidationError);
   });

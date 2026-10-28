@@ -174,7 +174,7 @@ describe("capability spec shape — rejected types & relations", () => {
     ]);
   });
 
-  test("rejects the `auto` concept — the recorded deviation from ARCH §6.3's example", () => {
+  test("rejects an `auto` key, since the platform stamps `created_at` itself", () => {
     const loggedAt = { ...pantryField("datetime", false), name: "logged_at" };
     expect(fieldIssuePaths(loggedAt)).toEqual([]);
     expect(fieldIssuePaths({ ...loggedAt, auto: true })).toEqual(["schema.fields.0"]);

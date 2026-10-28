@@ -9,10 +9,9 @@
     <link rel="icon" href="data:,">
 
     <!--
-      The fixed shell — Aluna's one fixed UI surface (ARCH §4, §6.1). The page is
-      the desk ground: a wallpaper filling the viewport, every capability standing
-      on it as a logo, and the prompt bar floating over both clear of every edge.
-      It is not inert after first load:
+      The fixed shell — Aluna's one fixed UI surface. The page is the desk ground: a
+      wallpaper filling the viewport, every capability standing on it as a logo, and the
+      prompt bar floating over both clear of every edge. It is not inert after first load:
       the window over that ground is created and destroyed by the client, and
       everything a capability shows happens inside it. Two more windows may stand
       beside it: the developer panel, read-only furniture opened from
@@ -21,8 +20,8 @@
       High Meadow is the shipped product surface; see design/design-system.md.
     -->
 
-    <!-- Aluna is the user-facing brand (ARCH §9.7); the repository's engineering
-         name never appears in the UI (not even in this page's source). -->
+    <!-- Aluna is the user-facing brand; the repository's engineering name never appears
+         in the UI (not even in this page's source). -->
     <title>Aluna</title>
 
     <!-- High Meadow ships from its source directory; app.css only bridges the
@@ -68,7 +67,7 @@
 
     <!--
       What a capability shows, inside the one window. Four dumb presentation-glue files
-      (ARCH §6.1: the shell places what the server sends, never infers intent):
+      (the shell places what the server sends, never infers intent):
         - record-view.js — pressing a record opens its form at its record address, under a
           back control that returns to where the record was opened from.
         - record-mutations.js — request feedback for the create and update forms, and
@@ -221,6 +220,14 @@
       window itself, so it stands before every other listener on the page.
     -->
     <script type="module" src="/static/desk/leaving-a-form.js"></script>
+
+    <!--
+      A build's narration in its window: the drawing of what is being made and the line
+      Aluna says about it, drawn from the facts the build sends as it runs. The design
+      system's narrator draws it; this half places it in the run and holds a finished
+      run on its last line for a moment before the window turns into what it made.
+    -->
+    <script type="module" src="/static/desk/build-narration.js"></script>
 
     <!--
       The second window. It shares the frame, the two lamps and the

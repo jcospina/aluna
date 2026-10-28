@@ -98,8 +98,35 @@ export class LaidOut {
     rotate: "none",
   };
 
-  /** The height the element has been given, if any; the double's element reads its own style. */
+  protected readonly ownStyle: Record<string, string> = {};
+
+  get style(): Record<string, string> {
+    return new Proxy(this.ownStyle, {
+      // `setProperty` is how a custom property is written; it lands where a plain one does.
+      get: (target, key: string) =>
+        key === "setProperty"
+          ? (name: string, value: string) => Reflect.set(this.style, name, value)
+          : target[key],
+      set: (target, key: string, value: string) => {
+        target[key] = value;
+        this.styleWritten(
+          Object.entries(target)
+            .filter(([, one]) => one !== "")
+            .map(([name, one]) => `${kebab(name)}: ${one};`)
+            .join(" "),
+        );
+        return true;
+      },
+    });
+  }
+
+  /** What the element does with its style once written, as one declaration list. */
+  protected styleWritten(_written: string): void {}
+
+  /** The height the element has been given, which is the floor under what it reports. */
   protected givenHeight(): number {
-    return Number.NaN;
+    return Number.parseFloat(this.ownStyle.height ?? "");
   }
 }
+
+export const kebab = (key: string) => key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);

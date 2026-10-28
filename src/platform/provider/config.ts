@@ -1,4 +1,4 @@
-// Provider configuration (ARCH §4 "Model strategy", ADR-0003).
+// Provider configuration (ADR-0003).
 //
 // The resolved trio the spine swaps providers by: the BYO API key, the
 // single globally configured model, and the endpoint (baseURL). All three come

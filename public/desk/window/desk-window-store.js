@@ -19,7 +19,7 @@ import { readBox } from "../../../design/scripts/desk/desk-geometry.js";
 
 /**
  * The one presentation record this module keeps, and the only key it writes. The developer
- * panel's is the other, and those two are the whole of what the browser remembers (ARCH §6.1).
+ * panel's is the other, and those two are the whole of what the browser remembers.
  */
 export const WINDOW_STORAGE_KEY = "aluna.desk.window.v1";
 

@@ -19,7 +19,7 @@ import {
 } from "../../shell-glue/app.shell-double.test-support.ts";
 
 // A run that ends with something to tell you holds the window there, and the press is
-// what gives back what it displaced (ARCH §6.2).
+// what gives back what it displaced.
 
 // htmx executes a `<script>` it finds in a swapped fragment and evaluates `js:`/`hx-on`, both on
 // by default. Nothing this desk serves needs either, and a Handler's fragment is not ours.

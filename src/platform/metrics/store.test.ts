@@ -4,7 +4,7 @@
 // (a deflection writes intent + tokens with no build timings; a failed build writes
 // everything up to the failing rung, recording which rung failed); absent token
 // counts are stored as NULL, not a fabricated zero; an invalid row writes nothing;
-// and the table stays exactly the columns ARCH §6.3 calls for.
+// and the table stays exactly the columns its column test lists by hand.
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {

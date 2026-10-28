@@ -1,0 +1,220 @@
+/*
+ * Words on the wallpaper stand on a plate: the surface, drawn, casting like anything else on the
+ * desk. The cover's plate sits in the sky. Every other slide's plate stands beside the logo
+ * column, says what the build is doing, and its notes send pencil arrows to what they explain.
+ */
+
+.plate {
+  --ink-hand: frame;
+  --ink-shadow: var(--shadow-window-wall);
+  position: absolute;
+  left: clamp(var(--space-5), 7vw, 8rem);
+  top: 12%;
+  max-width: min(42rem, 52%);
+  padding: var(--space-6) var(--space-7) var(--space-7);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
+  pointer-events: auto;
+}
+
+.plate p {
+  margin: 0;
+}
+
+.plate .caps {
+  margin: 0 0 var(--space-3);
+  font-size: var(--type-sm);
+}
+
+.cover__title {
+  font-family: var(--font-display);
+  font-size: calc(var(--type-display) * 2.4);
+  font-weight: 800;
+  font-variation-settings:
+    "SOFT" 100,
+    "WONK" 1,
+    "opsz" 144;
+  line-height: 0.9;
+  letter-spacing: -0.035em;
+}
+
+.plate .plate__line {
+  max-width: 28ch;
+  margin-top: var(--space-4);
+  font-size: var(--type-xl);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink-2);
+}
+
+.plate__title {
+  max-width: 16ch;
+  font-family: var(--font-display);
+  font-size: calc(var(--type-display) * 1.2);
+  font-weight: 750;
+  font-variation-settings:
+    "SOFT" 100,
+    "WONK" 1,
+    "opsz" 144;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+/* ── Beside the build ───────────────────────────────────────────────── */
+
+/* A plate stops short of the prompt bar. A body too long for it scrolls inside the drawn frame,
+   with room at its edges for the focus rings and shadows of what it holds. */
+.plate--side,
+.plate--wide {
+  top: var(--stage-top);
+  max-width: none;
+  max-height: calc(100% - var(--stage-top) - var(--stage-foot));
+  display: flex;
+  flex-direction: column;
+}
+
+.plate__body {
+  min-height: 0;
+  margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-2)) calc(-1 * var(--space-2))
+    calc(-1 * var(--space-1));
+  padding: var(--space-1) var(--space-2) var(--space-2) var(--space-1);
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+}
+
+.plate--side {
+  left: var(--plate-left);
+  width: var(--plate-w);
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  font-size: var(--type-lg);
+  line-height: 1.45;
+}
+
+.plate--side .plate__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.plate--side .caps {
+  margin-bottom: 0;
+}
+
+.plate--dense {
+  font-size: var(--type-md);
+}
+
+.plate--dense .plate__body {
+  gap: var(--space-2);
+}
+
+.plate__heading {
+  margin: 0 0 var(--space-1);
+  font-family: var(--font-display);
+  font-size: var(--type-title-lg);
+  font-weight: 700;
+  font-variation-settings:
+    "SOFT" 90,
+    "WONK" 1,
+    "opsz" 72;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+.plate__step {
+  padding-left: var(--space-3);
+  border-left: var(--line) solid var(--clay);
+}
+
+.plate--title {
+  top: 18%;
+}
+
+.plate--title .plate__body {
+  gap: 0;
+}
+
+.plate--title .caps {
+  margin-bottom: var(--space-3);
+}
+
+/* A link to more, set as a quiet line under the words rather than another button. */
+.plate__more {
+  align-self: flex-start;
+  margin-top: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--type-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--clay);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.35em;
+  cursor: pointer;
+}
+
+.plate__more::after {
+  content: " →";
+}
+
+.plate__more:hover {
+  text-decoration-color: var(--ink);
+}
+
+/* ── The closing plate ──────────────────────────────────────────────── */
+
+.plate--wide {
+  left: 50%;
+  translate: -50% 0;
+  width: min(64rem, calc(100% - var(--space-6) * 2));
+}
+
+.plate__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+/* A short screen, a projector's 720 lines among them, sets the plate a size smaller. */
+@media (max-height: 820px) {
+  .plate--side {
+    padding: var(--space-4) var(--space-5) var(--space-5);
+    font-size: var(--type-md);
+  }
+
+  .plate--side .plate__body {
+    gap: var(--space-2);
+  }
+
+  .plate__heading {
+    font-size: var(--type-title);
+  }
+
+  .plate--wide {
+    padding: var(--space-5) var(--space-6) var(--space-6);
+  }
+
+  .plate--wide .plate__title {
+    font-size: var(--type-display);
+  }
+}
+
+/* A narrow desk stacks the plate over the window, in the half above it. */
+@media (max-width: 900px) {
+  .plate--side {
+    max-height: calc(46% - var(--stage-top) - var(--space-3));
+    font-size: var(--type-md);
+  }
+
+  .plate--title {
+    top: var(--stage-top);
+  }
+}

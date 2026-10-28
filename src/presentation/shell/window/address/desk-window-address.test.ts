@@ -517,7 +517,7 @@ describe("Back and Forward are the desk's to answer", () => {
 });
 
 // Where the two verbs are reached from. One gesture, one entry; everything else corrects
-// in place or writes nothing at all (ADR-0010; ARCH §6.1).
+// in place or writes nothing at all (ADR-0010).
 describe("who moves the address", () => {
   test("a press on the capability already in the window opens nothing at all", () => {
     // Re-fetching would swap the collection out and straight back in, and the window

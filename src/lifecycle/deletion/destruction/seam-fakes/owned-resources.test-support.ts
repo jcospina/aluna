@@ -1,4 +1,4 @@
-// The acceptance fake for the owned-resource cleanup seam (ADR-0006, ARCH §6.3 Object Store).
+// The acceptance fake for the owned-resource cleanup seam (ADR-0006).
 //
 // It must never join the live cleanup adapter inventory: a manifest entry is durable and names the
 // adapter that owes it, so a fake that reached a real deletion would write an obligation only a

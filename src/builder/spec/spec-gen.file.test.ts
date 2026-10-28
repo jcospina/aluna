@@ -14,12 +14,7 @@ import {
 } from "../../registry/index.ts";
 import { FILE_FIELD_CARD_LINE, FILE_FIELD_PROMPT_LINES } from "./file-field-guidance.ts";
 import { drawFileCardLayout, drawnFileCardLayout } from "./layout-draw.ts";
-import {
-  makeSpecProvider,
-  notesIntent,
-  notesSpec,
-  recordingSend,
-} from "./spec-gen.test-support.ts";
+import { makeSpecProvider, notesIntent, notesSpec } from "./spec-gen.test-support.ts";
 import { buildSpecPrompt, generateSpec } from "./spec-gen.ts";
 
 function stageInput(spec: unknown, incarnationId = "inc_spec_test") {
@@ -27,7 +22,6 @@ function stageInput(spec: unknown, incarnationId = "inc_spec_test") {
     provider: makeSpecProvider(spec),
     prompt: "keep track of my photos",
     intent: notesIntent(),
-    send: recordingSend().send,
     incarnationId,
   };
 }

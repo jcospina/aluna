@@ -1,4 +1,4 @@
-// The capability registry access module (ARCH §6.3, §7).
+// The capability registry access module.
 //
 // The registry is the source of truth for everything Aluna has become: one lean row per
 // capability — spec, incarnation, version, artifacts pointer. Handlers, the item renderer and
@@ -489,7 +489,7 @@ export function readActiveIncarnationCatalog(
 }
 
 /**
- * List every capability — the logo layer and the intent resolver both consume this (ARCH §6.3: the
+ * List every capability — the logo layer and the intent resolver both consume this (the
  * resolver scans every row, which is why the row stays lean). Ordered by id, deterministically.
  */
 export function listCapabilities(database: Database = dbReadonly): CapabilityRow[] {

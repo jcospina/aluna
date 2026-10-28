@@ -45,14 +45,12 @@ import {
   promptCapabilitySpecSchema,
   uiCollectionLayoutSchema,
 } from "../../registry/index.ts";
-import { escapeHtml } from "../../server/http/html.ts";
 import { buildSpecPrompt, generateSpec, relatedCapabilityPromptLines } from "../index.ts";
 
 import {
   makeSpecProvider,
   notesIntent,
   notesSpec,
-  recordingSend,
   structuredOutputKeys,
 } from "./spec-gen.test-support.ts";
 
@@ -61,7 +59,6 @@ function specPrompt(request = "track my notes", intent: IntentClassification = n
     provider: makeSpecProvider(notesSpec()),
     prompt: request,
     intent,
-    send: recordingSend().send,
     incarnationId: "inc_spec_test",
   });
 }
@@ -73,7 +70,6 @@ async function issuePathsOf(raw: unknown): Promise<string[]> {
       provider: makeSpecProvider(raw),
       prompt: "track my notes",
       intent: notesIntent(),
-      send: recordingSend().send,
       incarnationId: "inc_spec_test",
     });
     return [];
@@ -106,13 +102,11 @@ describe("spec generation stage — schema contract, generation, and prompt", ()
     const spec = notesSpec();
     const usage: TokenUsage = { inputTokens: 412, outputTokens: 96, totalTokens: 508 };
     const provider = makeSpecProvider(spec, usage);
-    const { send } = recordingSend();
 
     const result = await generateSpec({
       provider,
       prompt: "I want to keep track of my notes",
       intent: notesIntent(),
-      send,
       incarnationId: "inc_spec_test",
     });
 
@@ -134,12 +128,10 @@ describe("spec generation stage — schema contract, generation, and prompt", ()
 describe("spec generation stage — required-field errors", () => {
   test("requires paired create/update missing-field cases exactly when fields are required", async () => {
     const required = notesSpec();
-    const { send } = recordingSend();
     const generated = await generateSpec({
       provider: makeSpecProvider(required),
       prompt: "track notes",
       intent: notesIntent(),
-      send,
       incarnationId: "inc_spec_test",
     });
     expect(generated.spec.behavioral_errors.map((errorCase) => errorCase.action)).toEqual([
@@ -164,7 +156,6 @@ describe("spec generation stage — required-field errors", () => {
         provider: makeSpecProvider(optional),
         prompt: "track optional notes",
         intent: notesIntent(),
-        send,
         incarnationId: "inc_spec_test",
       }),
     ).resolves.toMatchObject({ spec: { behavioral_errors: [] } });
@@ -177,7 +168,6 @@ describe("spec generation stage — required-field errors", () => {
         }),
         prompt: "track notes",
         intent: notesIntent(),
-        send,
         incarnationId: "inc_spec_test",
       }),
     ).rejects.toThrow("exact missing_required_fields cases");
@@ -187,14 +177,12 @@ describe("spec generation stage — required-field errors", () => {
 describe("spec generation stage — authored prompt", () => {
   test("the stage sends the prompt its exported builder makes from the same input", async () => {
     const provider = makeSpecProvider(notesSpec());
-    const { send } = recordingSend();
     const intent = notesIntent();
 
     await generateSpec({
       provider,
       prompt: "track my notes",
       intent,
-      send,
       incarnationId: "inc_spec_test",
     });
 
@@ -204,7 +192,6 @@ describe("spec generation stage — authored prompt", () => {
         provider,
         prompt: "track my notes",
         intent,
-        send,
         incarnationId: "inc_spec_test",
       }),
     );
@@ -304,7 +291,6 @@ describe("spec generation stage — flagged capabilities", () => {
       provider: makeSpecProvider(notesSpec()),
       prompt: "track how many copies of each book I own",
       intent: notesIntent(),
-      send: recordingSend().send,
       incarnationId: "inc_spec_test",
     };
     const books = {
@@ -350,28 +336,6 @@ describe("spec generation stage — authored modes, narration, and identity", ()
     }
     const unlisted = `${LIST_INPUT_MODES.join("_")}_unlisted`;
     expect(await issuePathsOf(listSpec(unlisted))).toEqual(["ui_intent.form.list_inputs.0.mode"]);
-  });
-
-  test("narrates in product voice from the intent label, as text, and leaks no internals", async () => {
-    const provider = makeSpecProvider(notesSpec());
-    const { events, send } = recordingSend();
-    const intent = { ...notesIntent(), user_facing_label: "Got it — <b>notes</b> & more." };
-
-    await generateSpec({
-      provider,
-      prompt: "track my notes",
-      intent,
-      send,
-      incarnationId: "inc_spec_test",
-    });
-
-    const narration = events.filter((event) => event.event === "narration");
-    expect(narration).toHaveLength(1);
-    expect(narration[0]?.data).toBe(escapeHtml(intent.user_facing_label));
-    // The hard rule: no engineering internals in anything user-visible.
-    for (const event of narration) {
-      expect(event.data).not.toMatch(/\bspec\b|\bschema\b|\bhandler\b|\bmigration\b/i);
-    }
   });
 
   test("refuses a spec whose id is the human label rather than an engineering name", async () => {

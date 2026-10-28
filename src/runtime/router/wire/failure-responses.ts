@@ -1,5 +1,4 @@
-// Every product-voice failure and refusal the router answers with (CONTEXT.md
-// "Product voice", ARCH §9.7).
+// Every product-voice failure and refusal the router answers with (CONTEXT.md "Product voice").
 //
 // Two rules hold across all of them. The copy never names an internal — no "handler",
 // "action", "capability", "route" — because the user need not, and must not, learn which

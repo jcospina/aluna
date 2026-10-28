@@ -88,7 +88,7 @@ function askedInto(sent: [string, string][], staged: Staged = {}): QuestionPipel
 }
 
 /** What reached the desk. The resolver measurement rides its own developer channel and carries
- * the intent's own name, which is engineering language and never rendered (ARCH §9.7). */
+ * the intent's own name, which is engineering language and never rendered. */
 const wire = (sent: [string, string][]) =>
   sent
     .filter(([event]) => event === "fragment")

@@ -1,5 +1,5 @@
 // The two static surfaces the app serves beside the product: High Meadow under /design,
-// and the architecture tour under /architecture. Both ship from their source directories
+// and the architecture deck under /architecture. Both ship from their source directories
 // so the page a reader opens is the file in the tree.
 
 import { describe, expect, test } from "bun:test";
@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createTestApp } from "./isolated-app.test-support.ts";
 
-describe("the architecture tour", () => {
+describe("the architecture deck", () => {
   // It ships from its own top-level folder for the reason High Meadow does: the page a
   // reader opens is the file in the tree, so neither can drift from the other.
   test("serves the page and its scripts, and sends /architecture to the folder", async () => {

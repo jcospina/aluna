@@ -28,7 +28,7 @@ describe("GET / (shell) — browser glue", () => {
     const html = readSource("public/index.html");
 
     // The window has no refresh verb, so the glue has no hand-rebuilt read: the restoration's own
-    // View read is kept alive by promoting before releasing (ARCH §8).
+    // View read is kept alive by promoting before releasing.
     expect(js).not.toContain("reloadRestoredRecords");
     expect(js).not.toContain('.ajax("GET"');
     expect(js).not.toContain('removeAttribute("hx-trigger")');

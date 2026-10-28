@@ -23,7 +23,7 @@ import { parseInto, type TreeBuilder } from "../../../server/dom-double/html-par
 import { parseSelector, type Step } from "./choice-picker.selectors.test-support.ts";
 import { windowOf } from "./doc-window.test-support.ts";
 import { formElements, formOwner, withNamedAccess } from "./form-named-access.test-support.ts";
-import { LaidOut } from "./layout-box.test-support.ts";
+import { kebab, LaidOut } from "./layout-box.test-support.ts";
 
 type Listener = (event: Record<string, unknown>) => void;
 
@@ -101,25 +101,9 @@ export class El extends LaidOut implements EventNode {
    * Written through to the `style` attribute, because the browser's is: a test that reads
    * `getAttribute("style")` back was reading `null` however much the module had written.
    */
-  private readonly ownStyle: Record<string, string> = {};
-
-  get style(): Record<string, string> {
-    return new Proxy(this.ownStyle, {
-      set: (target, key: string, value: string) => {
-        target[key] = value;
-        const written = Object.entries(target)
-          .filter(([, one]) => one !== "")
-          .map(([name, one]) => `${kebab(name)}: ${one};`)
-          .join(" ");
-        if (written === "") this.removeAttribute("style");
-        else this.setAttribute("style", written);
-        return true;
-      },
-    });
-  }
-  /** The height the element has been given, which is the floor under what it reports. */
-  protected override givenHeight(): number {
-    return Number.parseFloat(this.ownStyle.height ?? "");
+  protected override styleWritten(written: string): void {
+    if (written === "") this.removeAttribute("style");
+    else this.setAttribute("style", written);
   }
 
   constructor(
@@ -535,8 +519,6 @@ export function element(tag: string, attributes: Record<string, string> = {}): E
 
 const textNode = (text: string): El => Object.assign(new El("#text"), { ownText: text });
 
-const kebab = (key: string) => key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
-
 export class Doc extends El {
   private focusedNode: El | null = null;
   /** Every `change` that reached the document, which is where a consumer of one hears it. */
@@ -632,6 +614,9 @@ export class Doc extends El {
     }
     return element(tag);
   };
+
+  /** An SVG shape is an element like any other here: the double draws nothing. */
+  readonly createElementNS = (_namespace: string, tag: string): El => this.createElement(tag);
 
   getElementById(id: string): El | null {
     for (const node of this.descendants()) if (node.getAttribute("id") === id) return node;

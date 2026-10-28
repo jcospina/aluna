@@ -1,41 +1,49 @@
-// The architecture page's one entry point.
-//
-// Same order the design pages boot in: the document's own section windows first, then the
-// benches inside them, then the ink — last, once nothing is rearranging the DOM any more.
-//
-// Each bench is a side-effect module behind its own dynamic import, so a fault in one
-// leaves the rest standing and the console names which one went. The drawn line comes
-// last for the same reason: loaded statically, a failure anywhere in design/scripts would
-// stop every bench before it ran.
-
-const BENCHES = ["sequences", "pickers", "matrix", "gate", "lifetimes", "stores"];
-
-try {
-  const { mountWindows } = await import("../../design/scripts/window/window.js");
-  const { wireSectionWindows } = await import("../../design/scripts/sections/section-window.js");
-  wireSectionWindows(mountWindows(document));
-} catch (error) {
-  console.error("The section windows did not mount.", error);
-}
-
-for (const bench of BENCHES) {
-  try {
-    await import(`./${bench}.js`);
-  } catch (error) {
-    console.error(`The ${bench} bench failed to start.`, error);
-  }
-}
-
-/*
- * Two levels up, not one: from `/architecture/scripts/` that reaches `/design/`. The Pages
- * build flattens the page onto the site root and rewrites this to one level.
+// @ts-check
+/**
+ * Boots the deck: the desk and its build window, the pencil over them, the detail window, the deck
+ * and its controls, then hands the drawn line everything the deck draws. The ink starts last, so no
+ * later change to the page can leave a drawing behind.
  */
-try {
-  const { drawAlso, startInk } = await import("../../design/scripts/ink/ink.js");
-  drawAlso(
-    ".node, .effect, .fields__row, .rung, .lane, .seam__layer, .lifetime, .version, .hue, .aside",
-  );
-  startInk();
-} catch (error) {
-  console.error("The drawn line did not start; the page reads on without it.", error);
+
+import { drawAlso, redrawInk, startInk } from "../../design/scripts/ink/ink.js";
+import { bindControls, slideIdFrom } from "./controls.js";
+import { Deck } from "./deck.js";
+import { bindDetail } from "./detail.js";
+import { Marks } from "./marks.js";
+import { bindPresenter } from "./present.js";
+import { Stage } from "./stage.js";
+
+const DRAWN = [".plate", ".deck-rail", ".spec-card", ".plan-part", ".path-step"].join(", ");
+
+const root = document.querySelector(".deck");
+const marksLayer = document.querySelector("[data-marks]");
+const detailWindow = document.querySelector("[data-detail-window]");
+if (
+  root instanceof HTMLElement &&
+  marksLayer instanceof HTMLElement &&
+  detailWindow instanceof HTMLElement
+) {
+  const stage = new Stage(root);
+  const marks = new Marks(root, marksLayer);
+  const detail = bindDetail(document, detailWindow);
+  const deck = new Deck(root, document);
+  let shown = -1;
+  deck.onChange(({ current, index, step }) => {
+    if (index !== shown && detail.isOpen()) {
+      const focused = detailWindow.contains(document.activeElement);
+      detail.closeQuietly();
+      if (focused) root.focus({ preventScroll: true });
+    }
+    shown = index;
+    stage.show(current.el, step);
+    marks.show(current.el);
+  });
+  bindControls(deck, document, detail, bindPresenter(deck, document, detail));
+  deck.go(Math.max(deck.indexOf(slideIdFrom(location.hash)), 0));
 }
+
+drawAlso(DRAWN);
+startInk();
+
+/* The fonts swap in after the first drawing, and a box sized to its text changes size with them. */
+document.fonts?.ready.then(() => redrawInk());

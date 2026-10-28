@@ -38,6 +38,7 @@ import {
   classifyIntent,
   classifyIntentWithUsage,
   INTENT_DATA_QUERY_CONTEXT_RULE,
+  INTENT_RESOLUTION_NARRATION,
   INTENT_TYPES,
   type IntentClassification,
   type IntentResolverSend,
@@ -482,8 +483,7 @@ describe("intent resolver classification — narration and round-trip results", 
     expect(order[0]).toContain('hx-swap-oob="innerHTML"');
     expect(order[0]).not.toContain("data-prompt-refusal");
     expect(order[1]).toBe("provider");
-    expect(order[0]).toContain("new place");
-    expect(order[0]).toContain("already started");
+    expect(order[0]).toContain(INTENT_RESOLUTION_NARRATION.trim());
     expect(order[0]).not.toMatch(/intent|resolver|capability|registry|schema|provider/i);
   });
 

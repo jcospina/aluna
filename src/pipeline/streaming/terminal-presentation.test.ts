@@ -169,24 +169,29 @@ describe("a terminal the window holds", () => {
     {
       name: "a build that failed",
       line: FAILED_BUILD_ENDING,
+      ending: "failed",
       deliver: (send: (event: string, data: string) => Promise<void>) =>
         deliverFailedPresentation(send, BUILD_ID, new Error("internal"), RESTORATION, 20),
     },
     {
       name: "a refusal as stale",
       line: STALE_BUILD_ENDING,
+      ending: "failed",
       deliver: (send: (event: string, data: string) => Promise<void>) =>
         deliverStalePresentation(send, BUILD_ID, RESTORATION, 20),
     },
     {
       name: "a measured no-op",
       line: CANDIDATE_NO_CHANGE_ENDING,
+      // The one ending that is not a failure, so the window does not draw it as one.
+      ending: "unchanged",
       deliver: (send: (event: string, data: string) => Promise<void>) =>
         deliverCandidateNoChangePresentation(send, BUILD_ID, "{}", RESTORATION, "{}", 20),
     },
     {
       name: "a candidate that could not be shaped",
       line: CANDIDATE_REJECTED_ENDING,
+      ending: "failed",
       deliver: (send: (event: string, data: string) => Promise<void>) =>
         deliverCandidateRejectedPresentation(send, BUILD_ID, "{}", RESTORATION, 20),
     },
@@ -196,15 +201,15 @@ describe("a terminal the window holds", () => {
     expect(new Set(TERMINALS.map(({ line }) => line)).size).toBe(TERMINALS.length);
   });
 
-  for (const { name, line, deliver } of TERMINALS) {
+  for (const { name, line, ending, deliver } of TERMINALS) {
     test(`${name} ends the narration with its own line and holds the restoration`, async () => {
       const events = await held(deliver);
       const narration = events.filter((entry) => entry.event === "narration");
       const fragment = events.filter((entry) => entry.event === "fragment");
 
       expect(narration).toHaveLength(1);
-      expect(narration[0]?.data).toBe(renderBuildEnding(BUILD_ID, line));
-      expect(narration[0]?.data).toContain("data-build-ending");
+      expect(narration[0]?.data).toBe(renderBuildEnding(BUILD_ID, line, ending));
+      expect(narration[0]?.data).toContain(`data-build-ending="${ending}"`);
       expect(narration[0]?.data).toContain("data-build-dismiss");
 
       expect(fragment).toHaveLength(1);

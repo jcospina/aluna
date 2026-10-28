@@ -16,6 +16,7 @@
 import type { Colour } from "./contrast.js";
 import { CONTROL_PAIRINGS } from "./contrast-pairings-controls.js";
 import { EXEMPLAR_PAIRINGS } from "./contrast-pairings-exemplars.js";
+import { NARRATION_PAIRINGS } from "./contrast-pairings-narration.js";
 import { SURFACE_PAIRINGS } from "./contrast-pairings-surface.js";
 
 /**
@@ -68,6 +69,7 @@ export const AUDITED_SHEETS: readonly string[] = [
   "design/styles/components/controls/linked-field.css",
   "design/styles/components/controls/list-field.css",
   "design/styles/components/logo-contract.css",
+  "design/styles/components/narration.css",
   "design/styles/components/controls/long-text-field.css",
   "design/styles/components/window.css",
   "public/css/base.css",
@@ -115,6 +117,7 @@ export const AUDITED_PROPERTIES: readonly string[] = [
 /** Every pairing, in three files so each stays readable; see each for what it holds. */
 export const PAIRINGS: readonly Pairing[] = [
   ...SURFACE_PAIRINGS,
+  ...NARRATION_PAIRINGS,
   ...CONTROL_PAIRINGS,
   ...EXEMPLAR_PAIRINGS,
 ];

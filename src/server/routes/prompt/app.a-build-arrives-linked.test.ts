@@ -7,9 +7,11 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { ZodType } from "zod";
 import { LINK_STEP_PROMPT_PREFIX } from "../../../builder/link/link-step.ts";
 import type { IntentClassification } from "../../../pipeline/intent/index.ts";
+import { expectThePlanKept } from "../../../pipeline/streaming/build-narration.test-support.ts";
+import { PROGRESS_EVENT, type ProgressFact } from "../../../pipeline/streaming/build-narration.ts";
 import type { GenerateResult, Provider } from "../../../platform/provider/index.ts";
 import { ProviderStageTimeoutError } from "../../../platform/provider/spine.ts";
-import { buildConnecting } from "../../../presentation/controls/link/link-copy.ts";
+import { labelInSentence } from "../../../presentation/controls/link/link-copy.ts";
 import { getCapability, type Relation } from "../../../registry/index.ts";
 import { install } from "../../../runtime/router/dispatch/router.test-support.ts";
 import {
@@ -30,7 +32,6 @@ import {
   type ScratchDbEnv,
   teardownScratchDbEnv,
 } from "../../app.test-support.ts";
-import { escapeHtml } from "../../http/html.ts";
 import { AUTHORS, BOOKS, BOOKS_INCARNATION, deskRow } from "../lifecycle/link.test-support.ts";
 
 let env: ScratchDbEnv;
@@ -47,13 +48,19 @@ const textTo = (field: string): Relation => ({
   to: { capability: BOOKS.id, incarnation: BOOKS_INCARNATION, field },
 });
 
-/** What the narration says while a build connects its text field to Books. */
-const connecting = (label = NOTES_TEXT?.label ?? "") =>
-  ` ${escapeHtml(buildConnecting(NOTES_SPEC.noun, [{ field: { label }, targetPlural: BOOKS.plural }]))}`;
+/** What the window is told while a build connects its text field to Books. */
+const connecting = (label = NOTES_TEXT?.label ?? "") => ({
+  kind: "connect" as const,
+  links: [{ field: labelInSentence(label), target: BOOKS.plural }],
+});
 
 const isLinkPrompt = (prompt: string) => prompt.startsWith(LINK_STEP_PROMPT_PREFIX);
-const narration = (events: ReturnType<typeof collectSseEvents>) =>
-  events.filter(({ event }) => event === "narration").map(({ data }) => data);
+const factsOf = (events: ReturnType<typeof collectSseEvents>) =>
+  events
+    .filter(({ event }) => event === PROGRESS_EVENT)
+    .map(({ data }) => JSON.parse(data) as ProgressFact);
+const stagesOf = (events: ReturnType<typeof collectSseEvents>) =>
+  factsOf(events).flatMap((fact) => (fact.kind === "stage" ? [fact.stage] : []));
 
 function freshDesk(): void {
   env = createScratchDbEnv("omni-crud-build-arrives-linked-");
@@ -101,8 +108,11 @@ describe("a build arrives linked", () => {
     expect(done).toBe("ok");
     expect(built?.relations).toStrictEqual([textTo("title")]);
     expect(eventData(events, "commit")).toContain("data-linked-field");
-    expect(narration(events)).toContain(connecting(label));
-    expect(narration(events).join("")).not.toContain("<em>");
+    // The label travels as data and the window sets it as text, so nothing in it is markup, not
+    // even to a page whose narrator never loaded and swapped the fact in as it came.
+    expect(factsOf(events)).toContainEqual(connecting(label));
+    const progress = events.filter(({ event }) => event === PROGRESS_EVENT);
+    expect(progress.some(({ data }) => /[<&]/.test(data))).toBe(false);
     expect(rows[0]?.usage?.totalTokens).toBe(prompts.length * PROMPT_BUILD_USAGE.totalTokens);
   });
 
@@ -142,6 +152,9 @@ describe("a build arrives linked", () => {
     expect(done).toBe("ok");
     expect(built?.relations).toStrictEqual([]);
     expect(eventData(events, "commit")).not.toContain("data-linked-field");
+    // The square promised for connecting is taken back, so none is left waiting.
+    expect(stagesOf(events)).not.toContain("connect");
+    expectThePlanKept(factsOf(events));
   });
 
   test("the step runs beside the tests and the units, which read the same prompts with or without it", async () => {
@@ -170,13 +183,17 @@ describe("a build arrives linked", () => {
 
     expect(done).toBe("ok");
     expect(built?.relations).toStrictEqual([textTo("title")]);
-    // The sentence comes once the units are done, before the Gate's line, while it can be read.
-    const said = narration(plain.events);
-    expect(narration(events)).toStrictEqual([
-      ...said.slice(0, -1),
-      connecting(),
-      ...said.slice(-1),
+    // The connecting comes once the units are done, just before the checks, while it can be read.
+    const plainStages = stagesOf(plain.events);
+    const checking = plainStages.indexOf("check");
+    expect(stagesOf(events)).toStrictEqual([
+      ...plainStages.slice(0, checking),
+      "connect",
+      ...plainStages.slice(checking),
     ]);
+    expect(factsOf(events)).toContainEqual(connecting());
+    expectThePlanKept(factsOf(plain.events));
+    expectThePlanKept(factsOf(events));
     // Its call goes out right after the spec's, before any test or unit.
     expect(flagged.prompts.findIndex(isLinkPrompt)).toBe(2);
     const testsAndUnits = (prompts: readonly string[]) =>

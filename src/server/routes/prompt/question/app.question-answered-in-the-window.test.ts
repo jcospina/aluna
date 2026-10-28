@@ -298,14 +298,16 @@ describe("the two things Aluna says are said in different windows", () => {
     const built = await askInTheWindow(app, "track my books");
     const asked = await askInTheWindow(app, QUESTION);
 
-    // A build that actually finished: it narrated, and it committed a capability to the window.
-    expect(eventData(built.events, "narration").length).toBeGreaterThan(0);
+    // A build that actually finished: it told the window what it was doing, and it committed a
+    // capability there.
+    expect(eventData(built.events, "progress").length).toBeGreaterThan(0);
     expect(eventData(built.events, "commit").length).toBeGreaterThan(0);
     expect(listCapabilities(conns.readonly).map((row) => row.id)).toContain("notes");
     expect(built.fragments).not.toContain(ANSWER_WINDOW_ATTRIBUTE);
     expect(built.fragments).not.toContain(ANSWER_WINDOW_SAYING_ATTRIBUTE);
-    // A question narrates nothing on that channel: everything it says is in the answer window.
+    // A question narrates nothing on those channels: everything it says is in the answer window.
     expect(eventData(asked.events, "narration")).toBe("");
+    expect(eventData(asked.events, "progress")).toBe("");
     expect(questionsAsked()).toBe(1);
     const spoken = saidInTheAnswerWindow(asked.fragments);
     expect(spoken.length).toBeGreaterThan(1);

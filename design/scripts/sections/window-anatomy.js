@@ -7,18 +7,27 @@
  */
 
 import { wallpaperUrl } from "../desk/wallpaper.js";
-import { round2 as f, openPath } from "../lib/geometry.js";
+import { round2 as f } from "../lib/geometry.js";
+import {
+  aim,
+  arrow,
+  HIGHLIGHTER,
+  PENCIL,
+  ring,
+  svgShape as shape,
+  swipe,
+} from "../lib/pencil-marks.js";
 import { mulberry32 } from "../lib/random.js";
 
 /**
  * @typedef {import("../window/window.js").AlunaWindow} AlunaWindow
- * @typedef {{ x: number, y: number }} Point
+ * @typedef {import("../lib/pencil-marks.js").Point} Point
  * @typedef {{ left: number, top: number, right: number, bottom: number, width: number,
  *   height: number }} Box
  * @typedef {{ win: Box, bar: Box, title: Box, lamps: Box, body: Box }} Parts
- * @typedef {{ kind: "loop", at: Point, rx: number, ry: number }} Loop
+ * @typedef {import("../lib/pencil-marks.js").Loop} Loop
  * @typedef {{ kind: "brace", from: Point, to: Point }} Brace
- * @typedef {{ kind: "highlight", from: Point, to: Point, thick: number }} Highlight
+ * @typedef {import("../lib/pencil-marks.js").Highlight} Highlight
  * @typedef {Loop | Brace | Highlight} Mark
  * @typedef {"left" | "right" | "top"} Side
  * @typedef {{ name: string, says: string | ((reach: number) => string), side: Side,
@@ -129,8 +138,6 @@ const NOTES = [
   },
 ];
 
-const SVG_NS = "http://www.w3.org/2000/svg";
-
 /** Every mark is the same hand, so a redraw on resize puts the pencil back where it was. */
 const HAND_SEED = 23;
 
@@ -141,29 +148,11 @@ const NOTES_FROM = 800;
 const WASH =
   "linear-gradient(color-mix(in srgb, var(--surface) 74%, transparent), color-mix(in srgb, var(--surface) 74%, transparent))";
 
-const PENCIL = {
-  fill: "none",
-  stroke: "var(--clay)",
-  "stroke-width": "1.75",
-  "stroke-linecap": "round",
-  "stroke-linejoin": "round",
-};
-
 /**
  * @param {Note} note
  * @param {number} reach
  */
 const saying = (note, reach) => (typeof note.says === "string" ? note.says : note.says(reach));
-
-/**
- * @param {string} name
- * @param {Record<string, string>} attributes
- */
-function shape(name, attributes) {
-  const node = document.createElementNS(SVG_NS, name);
-  for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value);
-  return node;
-}
 
 /**
  * A box relative to the stage's padding box, where its absolute children are placed.
@@ -209,33 +198,6 @@ function partsOf(stage, win) {
     lamps: boxIn(lamps.getBoundingClientRect(), stage),
     body: boxIn(body.getBoundingClientRect(), stage),
   };
-}
-
-/**
- * A pencil ring round a part: one stroke that runs on past where it started, opening as it
- * goes, so it never quite closes on itself.
- *
- * @param {Loop} loop
- * @param {() => number} rnd
- */
-function ring({ at, rx, ry }, rnd) {
-  const start = -Math.PI * (0.6 + rnd() * 0.25);
-  const sweep = Math.PI * 2 * (1.14 + rnd() * 0.1);
-  const tilt = (rnd() - 0.5) * 0.35;
-  const steps = 28;
-  /** @type {Point[]} */
-  const points = [];
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps;
-    const a = start + sweep * t;
-    const x = Math.cos(a) * rx * (0.94 + 0.16 * t);
-    const y = Math.sin(a) * ry * (0.94 + 0.16 * t);
-    points.push({
-      x: at.x + x * Math.cos(tilt) - y * Math.sin(tilt),
-      y: at.y + x * Math.sin(tilt) + y * Math.cos(tilt),
-    });
-  }
-  return openPath(points);
 }
 
 /**
@@ -287,67 +249,6 @@ function beyondTip(brace, off) {
 }
 
 /**
- * A highlighter swipe: straight-ish, a little uphill, and wobbling where the hand did.
- *
- * @param {Highlight} highlight
- * @param {() => number} rnd
- */
-function swipe({ from, to }, rnd) {
-  /** @type {Point[]} */
-  const points = [];
-  for (let i = 0; i <= 6; i++) {
-    const t = i / 6;
-    points.push({
-      x: from.x + (to.x - from.x) * t,
-      y: from.y + (to.y - from.y) * t + (rnd() - 0.5) * 1.4,
-    });
-  }
-  return openPath(points);
-}
-
-/**
- * A quick pen arrow: a shallow bow, and a head of two unequal flicks.
- *
- * @param {Point} from
- * @param {Point} to
- * @param {() => number} rnd
- */
-function arrow(from, to, rnd) {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const length = Math.hypot(dx, dy) || 1;
-  const bow = (rnd() < 0.5 ? -1 : 1) * length * (0.12 + rnd() * 0.08);
-  const c = { x: from.x + dx / 2 - (dy / length) * bow, y: from.y + dy / 2 + (dx / length) * bow };
-  const back = Math.atan2(c.y - to.y, c.x - to.x);
-  /** @param {number} spread @param {number} size */
-  const flick = (spread, size) =>
-    `${f(to.x + Math.cos(back + spread) * size)},${f(to.y + Math.sin(back + spread) * size)}`;
-  const tip = `${f(to.x)},${f(to.y)}`;
-  return (
-    `M${f(from.x)},${f(from.y)} Q${f(c.x)},${f(c.y)} ${tip} ` +
-    `M${flick(0.5, 9)} L${tip} L${flick(-0.42, 7.5)}`
-  );
-}
-
-/**
- * Where an arrow from `from` lands: just clear of a ring, or just above a highlighted word.
- *
- * @param {Loop | Highlight} mark
- * @param {Point} from
- * @returns {Point}
- */
-function aim(mark, from) {
-  if (mark.kind === "highlight") {
-    const x = Math.min(Math.max(from.x, mark.from.x + 8), mark.to.x - 8);
-    return { x, y: Math.min(mark.from.y, mark.to.y) - mark.thick / 2 - 5 };
-  }
-  const { at, rx, ry } = mark;
-  const a = Math.atan2(from.y - at.y, from.x - at.x);
-  const reach = (rx * ry) / Math.hypot(ry * Math.cos(a), rx * Math.sin(a)) + 7;
-  return { x: at.x + Math.cos(a) * reach, y: at.y + Math.sin(a) * reach };
-}
-
-/**
  * @param {Mark} mark
  * @param {() => number} rnd
  */
@@ -355,11 +256,9 @@ function draw(mark, rnd) {
   if (mark.kind === "loop") return shape("path", { ...PENCIL, d: ring(mark, rnd) });
   if (mark.kind === "brace") return shape("path", { ...PENCIL, d: curl(mark, rnd) });
   return shape("path", {
+    ...HIGHLIGHTER,
     d: swipe(mark, rnd),
-    fill: "none",
-    stroke: "var(--sun)",
     "stroke-width": f(mark.thick).toString(),
-    opacity: "0.6",
   });
 }
 

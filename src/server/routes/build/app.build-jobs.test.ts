@@ -83,7 +83,7 @@ describe("POST /prompt and GET /build/:id/stream (build jobs) — admission and 
     expect(res.headers.get("cache-control")).toContain("no-store");
     expect(fragment).toContain('data-build-job-id="job-one"');
     expect(fragment).toContain('sse-connect="/build/job-one/stream"');
-    expect(fragment).toContain('sse-swap="narration"');
+    expect(fragment).toContain('sse-swap="narration,progress"');
     expect(fragment).toContain('sse-swap="fragment"');
     expect(fragment).toContain('sse-swap="commit"');
     expect(fragment).toContain('hx-post="/build/job-one/cancel"');

@@ -4,8 +4,6 @@
 // run that never drew left the form live, so what was typed since the prompt was sent is asked about.
 
 import { afterEach, describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { PROMPT_FIELD_ID, PROMPT_FORM_ID } from "#shell/core/shell-dom.js";
 import { startLeavingAForm } from "#shell/desk/leaving-a-form.js";
 import { backOutOfLeaving, startLeavingGuard } from "#shell/desk/leaving-a-run.js";
@@ -29,7 +27,7 @@ import {
   CAPABILITY,
   RECORD,
   recordDesk,
-  standingWindow,
+  startTheGlue,
 } from "../record-view/record-view.test-support.ts";
 import { RECORD_VIEW_ATTR, renderRecordView } from "../record-view/record-view.ts";
 
@@ -51,34 +49,6 @@ afterEach(() => {
 /** A real event, aimed at a node of the desk, the way htmx sends its own. */
 function send(node: El, type: string, detail: unknown): boolean {
   return node.dispatchEvent(new CustomEvent(type, { detail, bubbles: true, cancelable: true }));
-}
-
-/** `public/app.js` on the desk's document as the page runs it, its shell component started. */
-function startTheGlue(doc: El, frames: (() => void)[]) {
-  const globals = globalThis as Record<string, unknown>;
-  const page = standingWindow() as unknown as Record<string, unknown>;
-  let shell: (() => { init(): void }) | undefined;
-  page.Alpine = { data: (_name: string, factory: () => { init(): void }) => (shell = factory) };
-  const glue = readFileSync(resolve("public/app.js"), "utf8");
-  const names = ["HTMLInputElement", "HTMLFormElement", "HTMLElement", "Element"];
-  Function(
-    "document",
-    "window",
-    "requestAnimationFrame",
-    ...names,
-    "HTMLTemplateElement",
-    "Node",
-    glue,
-  )(
-    doc,
-    page,
-    (frame: () => void) => frames.push(frame),
-    ...names.map((name) => globals[name]),
-    globals.HTMLTemplateElement,
-    { TEXT_NODE: 3 },
-  );
-  send(doc, "alpine:init", null);
-  shell?.().init();
 }
 
 /**

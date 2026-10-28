@@ -1,5 +1,4 @@
-// Deterministic DDL derivation for capability data tables
-// (ARCH §3, §6.3 "Data Tables", §7 "Writes", ADR-0004).
+// Deterministic DDL derivation for capability data tables (ADR-0004).
 //
 // The AI authors only the validated capability spec. The platform owns table
 // names, platform columns, and SQL generation, so generated code never writes
@@ -77,7 +76,7 @@ export interface AdditiveCapabilityMigration {
 }
 
 /**
- * Derive the additive migration for one evolution (ARCH §3, §6.3, §9.3; ADR-0006). A new field
+ * Derive the additive migration for one evolution (ADR-0006). A new field
  * derives a nullable `ADD COLUMN`; hide and reactivate touch no DDL.
  */
 export function deriveAdditiveCapabilityMigration(

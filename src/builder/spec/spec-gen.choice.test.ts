@@ -17,21 +17,14 @@ import {
   MAX_CHOICE_OPTIONS,
   PLATFORM_OWNED_ERROR_CODES,
 } from "../../registry/index.ts";
-import {
-  makeSpecProvider,
-  notesIntent,
-  notesSpec,
-  recordingSend,
-} from "./spec-gen.test-support.ts";
+import { makeSpecProvider, notesIntent, notesSpec } from "./spec-gen.test-support.ts";
 import { buildSpecPrompt } from "./spec-gen.ts";
 
 function choicePrompt(): string {
-  const { send } = recordingSend();
   return buildSpecPrompt({
     provider: makeSpecProvider(notesSpec()),
     prompt: "track my notes",
     intent: notesIntent(),
-    send,
     incarnationId: "inc_spec_test",
   });
 }

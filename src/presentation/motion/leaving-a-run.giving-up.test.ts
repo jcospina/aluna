@@ -17,6 +17,7 @@ import {
   leavingIsBeingAsked,
   questionJobIdIn,
   runIsUsingWindow,
+  runRefusesThePrompt,
   standDownWith,
   startLeavingGuard,
 } from "#shell/desk/leaving-a-run.js";
@@ -41,6 +42,14 @@ describe("whether a run is using the window", () => {
     parseHtml(renderBuildEnding("build-7", "That didn’t work."), narration);
     expect(runIsUsingWindow(win as never)).toBe(false);
     expect(runIsUsingWindow(new El("div") as never)).toBe(false);
+  });
+
+  test("one that landed and holds its last line a moment is not, and refuses nothing", () => {
+    const win = parseHtml(renderBuildSubscriber("build-7"), new El("div"));
+    parseHtml("<p>Notes</p>", win.querySelector(".build-stream__commit") as El);
+    expect(runIsUsingWindow(win as never)).toBe(false);
+    expect(runRefusesThePrompt(win as never)).toBe(false);
+    expect(buildJobIdIn(win as never)).toBeNull();
   });
 });
 

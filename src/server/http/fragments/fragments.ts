@@ -168,12 +168,17 @@ function buildStreamControlElementId(buildId: string): string {
 
 /**
  * A run's last line and the control that ends the wait: failure, stale refusal and measured no-op
- * all speak here. Continue, not "Got it" — that word is Aluna's (CONTEXT.md).
+ * all speak here. Continue, not "Got it" — that word is Aluna's (CONTEXT.md). `unchanged` marks
+ * the no-op, the one ending that is not a failure, so the window does not draw it as one.
  */
-export function renderBuildEnding(buildId: string, line: string): string {
+export function renderBuildEnding(
+  buildId: string,
+  line: string,
+  ending: "failed" | "unchanged" = "failed",
+): string {
   const controlId = escapeHtml(buildStreamControlElementId(buildId));
   return [
-    `<p class="build-stream__ending" data-build-ending>${escapeHtml(line)}</p>`,
+    `<p class="build-stream__ending" data-build-ending="${ending}">${escapeHtml(line)}</p>`,
     `<button id="${controlId}" class="btn btn--outline build-stream__dismiss" type="button" data-build-dismiss hx-swap-oob="outerHTML">Continue</button>`,
   ].join("\n");
 }
@@ -187,8 +192,8 @@ export const RUN_LEAVING_BACK_ATTRIBUTE = "data-run-leaving-back";
 export const RUN_LEAVING_GO_ATTRIBUTE = "data-run-leaving-go";
 
 /**
- * What the run asks before the person leaves it (ARCH §9.7). Focus lands on the
- * back-out, so it names what is kept: "Keep going" alone reads as the destructive answer.
+ * What the run asks before the person leaves it. Focus lands on the back-out, so it names what
+ * is kept: "Keep going" alone reads as the destructive answer.
  */
 export const LEAVING_A_RUN_QUESTION =
   "If you leave now, I’ll stop making this. Nothing you already have will change.";
@@ -235,7 +240,9 @@ export function renderBuildSubscriber(jobId: string): string {
   const cancelPath = buildCancelUrl(jobId);
   return [
     `<section class="build-stream" ${BUILD_JOB_ID_ATTRIBUTE}="${escapeHtml(jobId)}" hx-ext="sse" sse-connect="${escapeHtml(streamPath)}" sse-close="done">`,
-    '  <div class="build-stream__narration" aria-live="polite" sse-swap="narration" hx-swap="beforeend"></div>',
+    // `progress` facts are drawn by the window's narration (`public/desk/build-narration.js`);
+    // `narration` still carries an ending, appended after what is drawn.
+    '  <div class="build-stream__narration" aria-live="polite" sse-swap="narration,progress" hx-swap="beforeend"></div>',
     '  <div class="build-stream__fragment" sse-swap="fragment" hx-swap="beforeend"></div>',
     '  <div class="build-stream__commit" aria-live="polite" sse-swap="commit" hx-swap="innerHTML"></div>',
     // Last, so it stands where every other action in the window stands: on the

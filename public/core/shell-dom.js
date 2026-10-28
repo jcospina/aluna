@@ -113,7 +113,7 @@ export const COLLECTION_COUNT_SIDECAR_PREFIX = "<!--aluna:count:";
 export const COLLECTION_COUNT_SIDECAR_SUFFIX = "-->";
 
 /**
- * Said when the window's content changes hands (ARCH §6.1); `navigated` is true only where a
+ * Said when the window's content changes hands; `navigated` is true only where a
  * capability took the window. Restated in `public/app.js`, a classic script that imports nothing.
  */
 export const WINDOW_TOOK_CAPABILITY_EVENT = "aluna:window-took-capability";

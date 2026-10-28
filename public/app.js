@@ -3,7 +3,7 @@
 // Authored shell glue — plain JavaScript served verbatim from /static/app.js, with `// @ts-check`
 // plus JSDoc getting `tsc --noEmit` to typecheck it at zero runtime cost.
 //
-// Everything here is presentation-only (ARCH §6.1), and it is what is left over from the shell's
+// Everything here is presentation-only, and it is what is left over from the shell's
 // modules rather than a subject of its own: the `shell` Alpine component, developer-preview SSE
 // payloads handed to the panel, a build's terminal presentation promoted once its stream closes,
 // and a run that ended with something to tell you held until the press that gives the window back.
@@ -36,8 +36,8 @@ const PROMPT_NOTICE_ID = "prompt-notice";
 const PROMPT_REFUSAL_SELECTOR = "[data-prompt-refusal]";
 
 /**
- * What the desk says on the prompt bar: the glue says what happened and the bar places it
- * (ARCH §6.1). `aboutTheRun` marks the two sentences that stop being true when the run ends.
+ * What the desk says on the prompt bar: the glue says what happened and the bar places it.
+ * `aboutTheRun` marks the two sentences that stop being true when the run ends.
  *
  * @param {string} sentence the empty string retires whatever is standing
  * @param {boolean} [refused] @param {boolean} [aboutTheRun]
@@ -217,6 +217,7 @@ const REFUSE_IN_THE_ANSWER_WINDOW_EVENT = "aluna:refuse-in-the-answer-window";
  * by a test that runs both.
  */
 const RESTORE_THE_WINDOW_EVENT = "aluna:restore-the-window";
+const RUN_CLOSING_EVENT = "aluna:run-closing";
 
 /** Whether the desk took this close's restoration to ask first, which then has the keyboard. */
 let theDeskIsAsking = false;
@@ -420,7 +421,7 @@ function preserveActiveView(listener, raw) {
 
 /**
  * The run saying what it turned out to be. It lands nowhere: the desk owns the window, so this
- * is told rather than placed (ARCH §6.1).
+ * is told rather than placed.
  *
  * @param {HTMLElement} listener
  * @param {string} raw
@@ -637,14 +638,17 @@ document.addEventListener("htmx:beforeRequest", (event) => {
 
 /**
  * Whether a run is using the window, rather than only standing in it. A run waiting to be read is
- * not, and neither is a question, which gave the window back as it opened its answer window —
+ * not, nor one that landed and holds its last line a moment, and neither is a question, which
+ * gave the window back as it opened its answer window —
  * refusing a press over one would hold the desk for a run that is not in it, and would put the
  * deletion that cancels a question out of reach. `leaving-a-run.js` draws it so too.
  * @returns {boolean}
  */
 function runIsUsingTheWindow() {
   const standing = inTheWindow(`${BUILD_SUBSCRIBER_SELECTOR}:not(${QUESTION_RUN_SELECTOR})`);
-  return standing instanceof HTMLElement && standing.querySelector(BUILD_ENDING_SELECTOR) === null;
+  if (!(standing instanceof HTMLElement) || standing.querySelector(BUILD_ENDING_SELECTOR))
+    return false;
+  return !standing.querySelector(".build-stream__commit")?.childNodes.length;
 }
 
 /**
@@ -711,7 +715,7 @@ document.addEventListener("htmx:beforeSwap", (event) => {
 });
 
 /**
- * The window's content changed hands, said rather than decided (ARCH §6.1). `navigated` is true
+ * The window's content changed hands, said rather than decided. `navigated` is true
  * only where a capability took the window: a build's successful v1 activation.
  * @param {boolean} navigated
  */
@@ -893,7 +897,6 @@ function rescueHeldEnding(eventTarget) {
  * @returns {boolean} whether a real pointer activation took the window
  */
 function finishTerminalPresentation(eventTarget) {
-  theDeskIsAsking = false;
   if (!(eventTarget instanceof Element)) return false;
   const subscriber = eventTarget.closest(BUILD_SUBSCRIBER_SELECTOR);
   const output = subscriber?.closest(`#${WINDOW_REGION_ID}`);
@@ -956,7 +959,14 @@ document.addEventListener("htmx:afterSettle", (event) => {
 });
 document.addEventListener("htmx:sseClose", (event) => {
   if (closeTypeOf(event) !== "message") return;
+  // Cleared now, not when a held run is placed: the prompt bar reads it as this close's answer.
+  theDeskIsAsking = false;
   // Only a real pointer activation navigated: its capability's canonical collection is standing
   // somewhere for the first time. A restoration puts back what was displaced and is owed no entry.
-  tellDeskTheWindowTookCapability(finishTerminalPresentation(event.target));
+  const place = () => tellDeskTheWindowTookCapability(finishTerminalPresentation(event.target));
+  // The narration may hold a landed run on its last line a moment longer (`build-narration.js`).
+  const detail = { run: event.target, until: /** @type {Promise<void> | undefined} */ (undefined) };
+  document.dispatchEvent(new CustomEvent(RUN_CLOSING_EVENT, { detail }));
+  if (detail.until) void detail.until.then(place);
+  else place();
 });

@@ -1,4 +1,4 @@
-// Post-commit cleanup retry (ARCH §6.3 cross-store lifecycle recovery).
+// Post-commit cleanup retry, the cross-store half of deletion recovery.
 //
 // Deletion crosses its point of no return in one SQLite transaction and then owes durable
 // external work: delete the incarnation's artifacts and any other owned resource, then remove the

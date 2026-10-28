@@ -26,6 +26,7 @@ import {
   evolutionUnitProvenance,
   type FrozenBehavioralTestsResult,
   freezeBehavioralTests,
+  type GateObserver,
   GENERATED_UNITS,
   type GeneratedUnit,
   type GeneratedUnitName,
@@ -99,6 +100,8 @@ export interface AssembleEvolutionCandidateInput {
   readonly maxAttempts?: number;
   /** Per-unit generation liveness for the units the work plan regenerates. */
   readonly observer?: UnitGenerationObserver;
+  /** The Gate's liveness: each check as it starts, each repair as it is made. */
+  readonly gateObserver?: GateObserver;
   /** Assembly-stage liveness: the derived plan, each byte-copy, and the Gate handover. */
   readonly progress?: EvolutionAssemblyProgress;
   /**
@@ -139,6 +142,8 @@ export interface EvolutionAssemblyProgress {
    * Reported before any unit is written, because that is the guarantee.
    */
   readonly onTestsFrozen?: (frozen: FrozenBehavioralTestsResult) => void | Promise<void>;
+  /** The tests, if the tier wrote any, are frozen and the first unit is about to be written or copied. */
+  readonly onUnitsStart?: () => void | Promise<void>;
   /**
    * A unit read verbatim off the committed snapshot. It is reported so the inventory a
    * developer watches is complete; the bytes still never enter a generation prompt.
@@ -218,6 +223,7 @@ export async function assembleEvolutionCandidate(
   const frozenTests = await freezeEvolutionTests(input, verified);
   await reportFrozenTests(input, frozenTests);
   throwIfAborted(isAborted);
+  await input.progress?.onUnitsStart?.();
 
   const fixtureUnits = new Set<GeneratedUnitName>();
   const units = await assembleUnits(
@@ -248,6 +254,7 @@ export async function assembleEvolutionCandidate(
       frozenTests,
       evolutionImpact(input, verified.spec, regenerated),
     ),
+    ...(input.gateObserver ? { observer: input.gateObserver } : {}),
   });
 
   // Fold any bounded Gate repair back into the assembled bytes, as a v1 build does. A copied unit

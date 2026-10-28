@@ -46,7 +46,12 @@ import {
   UnitGenerationPassError,
 } from "../../../units/generation/units.ts";
 import { checkGeneratedUnit } from "../../../units/safety/unit-checks.ts";
-import type { CapabilityGateInput, DesignLintAttempt, DesignLintGateResult } from "../../gate.ts";
+import type {
+  CapabilityGateInput,
+  DesignLintAttempt,
+  DesignLintGateResult,
+  GateObserver,
+} from "../../gate.ts";
 import { loadItemRenderer } from "../../gate-internal.ts";
 import { scratchFileName } from "../../gate-scratch-names.ts";
 import { drawsEmptyMediaFrame, fileKindViolation, mislabelledDocument } from "./gate-file-kinds.ts";
@@ -126,6 +131,7 @@ export async function runDesignLintRung(input: CapabilityGateInput): Promise<Des
       previousFailure,
       attempts,
       usages,
+      observer: input.observer,
     });
     candidate = step.content;
     if (step.usage) usages.add(step.usage);
@@ -158,6 +164,7 @@ interface DesignStepInput {
   readonly previousFailure: UnitGenerationFailure | undefined;
   readonly attempts: DesignLintAttempt[];
   readonly usages: TokenUsageAccumulator;
+  readonly observer: GateObserver | undefined;
 }
 
 async function designStep(
@@ -167,8 +174,11 @@ async function designStep(
   // `maxAttempts` is 1 without a provider, so a later attempt implies one. A bug that broke
   // that invariant fabricated a failure string and fed it to the loop as a provider answer.
   if (!input.provider) throw new Error("A design-lint fix attempt was scheduled with no provider.");
+  input.observer?.onRepair?.([ITEM_RENDERER_UNIT.name]);
   try {
-    return await regenerateItemRenderer(input.provider, input.spec, input.previousFailure);
+    const step = await regenerateItemRenderer(input.provider, input.spec, input.previousFailure);
+    input.observer?.onRepaired?.();
+    return step;
   } catch (error) {
     throw asDesignStepFailure(error, input);
   }

@@ -1,0 +1,212 @@
+/*
+ * The deck's frame: a desk that fills the screen, the slides laid over it one at a time, and the
+ * rail that moves between them.
+ *
+ * Browsing runs at the design system's own size, menubar included. Presenting hides the menubar
+ * and lets the root size follow the screen, so a projector gets bigger type and boxes while the
+ * drawn line stays 2px, as the design system says a line must.
+ */
+
+html:has(> body.is-presenting) {
+  font-size: clamp(100%, 0.3rem + 0.35vw + 0.85vh, 165%);
+}
+
+body.deck-page {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.skip {
+  position: fixed;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 100;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface);
+  color: var(--ink);
+  border: var(--line) solid var(--ink);
+  translate: 0 -200%;
+}
+
+.skip:focus-visible {
+  translate: 0 0;
+}
+
+.deck-menubar {
+  flex: none;
+}
+
+/* The deck's own sheets load after the design manifest, so a drawn element's declared
+   border would outlast the drawing; this hands every one of them back to the ink. */
+.deck-page .is-ink {
+  border-color: transparent;
+}
+
+.deck-menubar a[aria-current="true"] {
+  opacity: 1;
+  text-decoration: underline;
+  text-underline-offset: 0.35em;
+}
+
+/* ── The desk ───────────────────────────────────────────────────────── */
+
+.deck {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  outline: none;
+  background-color: var(--ground);
+  background-size: cover;
+  background-position: center 58%;
+  touch-action: pan-y pinch-zoom;
+}
+
+/* A slide is a layer of words over the desk; only its plates take a press. */
+[data-slide] {
+  display: none;
+}
+
+.slide.is-current,
+.slide.is-leaving {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.slide.is-current {
+  animation: slide-arrive var(--dur-rise) var(--ease-rise);
+}
+
+.slide.is-leaving {
+  animation: slide-leave var(--dur-rise) var(--ease-rise) forwards;
+}
+
+.slide.is-leaving .plate {
+  pointer-events: none;
+}
+
+@keyframes slide-arrive {
+  from {
+    opacity: 0;
+    translate: calc(1.5rem * var(--travel) * var(--dir, 1)) 0;
+  }
+}
+
+@keyframes slide-leave {
+  to {
+    opacity: 0;
+  }
+}
+
+/* ── Steps ──────────────────────────────────────────────────────────── */
+
+[data-step] {
+  transition:
+    opacity var(--dur-rise) var(--ease-rise),
+    visibility var(--dur-rise),
+    translate calc(var(--dur-rise) * var(--travel)) var(--ease-rise);
+}
+
+[data-step]:not(.is-shown) {
+  opacity: 0;
+  visibility: hidden;
+  translate: 0 calc(0.5rem * var(--travel));
+}
+
+/* ── The rail ───────────────────────────────────────────────────────── */
+
+.deck-rail {
+  --ink-hand: frame;
+  --ink-shadow: var(--shadow-window-wall);
+  position: fixed;
+  right: var(--space-5);
+  bottom: calc((var(--prompt-clearance) - var(--control-h-lg)) / 2);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-h-lg);
+  padding: 0 var(--space-2);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
+  transition: opacity var(--dur-rise) ease;
+}
+
+.deck-rail__go {
+  display: grid;
+  place-items: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.deck-rail__go svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.deck-rail__go:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.deck-rail__count {
+  min-width: 4.75em;
+  margin: 0;
+  font-size: var(--type-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.deck-rail .btn {
+  margin-left: var(--space-2);
+}
+
+.deck-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ── Presenting ─────────────────────────────────────────────────────── */
+
+.is-presenting .deck-menubar {
+  display: none;
+}
+
+.is-presenting.is-idle .deck-rail {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.is-presenting.is-idle,
+.is-presenting.is-idle * {
+  cursor: none;
+}
+
+/* ── The desk as a phone ────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  .deck {
+    background-position: 30% 58%;
+  }
+
+  .deck-rail {
+    right: auto;
+    left: 50%;
+    translate: -50% 0;
+  }
+}

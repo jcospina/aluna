@@ -142,7 +142,7 @@ export function buildRunIn(el) {
  */
 export function runIsUsingWindow(el) {
   const run = buildRunIn(el);
-  return run !== null && run.querySelector(BUILD_ENDING_SELECTOR) === null;
+  return run !== null && !runEnded(run);
 }
 
 /**
@@ -155,7 +155,7 @@ export function runIsUsingWindow(el) {
  */
 export function runRefusesThePrompt(el) {
   const run = el.querySelector(`[${RUN_ID_ATTRIBUTE}]:not([${QUESTION_RUN_ATTRIBUTE}])`);
-  return run !== null && run.querySelector(BUILD_ENDING_SELECTOR) === null;
+  return run !== null && !runEnded(run);
 }
 
 /**
@@ -192,9 +192,21 @@ export function runDrew(run) {
  */
 export function buildJobIdIn(el) {
   const run = buildRunIn(el);
-  if (run === null || run.querySelector(BUILD_ENDING_SELECTOR) !== null) return null;
-  if (holdsSomething(run.querySelector(BUILD_COMMIT_SELECTOR))) return null;
-  return run.getAttribute(RUN_ID_ATTRIBUTE);
+  return run === null || runEnded(run) ? null : run.getAttribute(RUN_ID_ATTRIBUTE);
+}
+
+/**
+ * Whether a run has ended: it has something to tell you, or it landed. A landed run may stand in
+ * the window a moment longer on its last line, and is no longer using it.
+ *
+ * @param {RunNode} run
+ * @returns {boolean}
+ */
+function runEnded(run) {
+  return (
+    run.querySelector(BUILD_ENDING_SELECTOR) !== null ||
+    holdsSomething(run.querySelector(BUILD_COMMIT_SELECTOR))
+  );
 }
 
 /**

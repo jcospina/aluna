@@ -1,8 +1,8 @@
-// The generation-metrics access module (ARCH §6.3, §6.2).
+// The legacy generation-metrics access module (migration 0004).
 //
-// One row per generation, recording what the system did to build itself — distinct from the event
-// log, which is the record of what the user did. Every build, every failed build and every
-// deflection writes exactly one row, so latency and capability conclusions come from querying it.
+// One row per generation, recording what the system did to build itself. No production path
+// writes it any more: an admitted build or evolution records `generation_lifecycle_metrics`, and
+// refusals, deflections and questions record `intent_resolution_metrics`.
 //
 // The writer is callable with partial knowledge: the optional groups map to nullable columns, so
 // "did not get that far" is stored as honest absence rather than a fabricated zero. The insert
@@ -31,9 +31,9 @@ import {
 export { GENERATION_METRICS_TABLE } from "../persistence/table-names.ts";
 
 /**
- * `success` committed a capability; `failure` stopped at a stage or rung (failure is data, ARCH
- * §6.2); `deflected` classified the prompt and built nothing; refusals and deflections now leave
- * the resolver-only row (`intent-resolution-store.ts`) instead.
+ * `success` committed a capability; `failure` stopped at a stage or rung (failure is data);
+ * `deflected` classified the prompt and built nothing; refusals and deflections now leave the
+ * resolver-only row (`intent-resolution-store.ts`) instead.
  */
 export const GENERATION_OUTCOMES = ["success", "failure", "deflected"] as const;
 export const generationOutcomeSchema = z.enum(GENERATION_OUTCOMES);
@@ -73,7 +73,7 @@ export const generationMetricsSchema = z
     id: z.string().min(1),
     outcome: generationOutcomeSchema,
     // The single globally configured model the generation ran against (provider
-    // config, ARCH §4). Always known — it is config, available even on early failure.
+    // config). Always known — it is config, available even on early failure.
     model: z.string().min(1),
     intent: generationIntentSchema,
     // The capability this generation built or targeted, when known. Null on a
@@ -100,7 +100,7 @@ export const generationMetricsSchema = z
 export type GenerationMetrics = z.infer<typeof generationMetricsSchema>;
 
 /**
- * The written shape plus the platform-stamped `createdAt` (ARCH §6.3), validated on the way out so
+ * The written shape plus the platform-stamped `createdAt`, validated on the way out so
  * a hand-edited or drifted row fails loudly at the read site rather than three queries later.
  */
 export const storedGenerationMetricsSchema = generationMetricsSchema.extend({

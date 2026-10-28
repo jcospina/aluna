@@ -4,6 +4,8 @@
 // and puts every global back when the test is over. A card press asks the desk for its record, which
 // `answerPresses` answers through the real address module, drawing what the record address draws.
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { capabilityUrl } from "#shell/core/routes.js";
 import { WINDOW_CONTENT_ID } from "#shell/core/shell-dom.js";
 import { recordFromAddress, replaceAddress, startDeskHistory } from "#shell/desk/desk-address.js";
@@ -161,6 +163,34 @@ export const standingWindow = () =>
     .window;
 
 type Desk = Awaited<ReturnType<typeof recordDesk>>;
+
+/** `public/app.js` on the desk's document as the page runs it, its shell component started. */
+export function startTheGlue(doc: El, frames: (() => void)[]) {
+  const globals = globalThis as Record<string, unknown>;
+  const page = standingWindow() as unknown as Record<string, unknown>;
+  let shell: (() => { init(): void }) | undefined;
+  page.Alpine = { data: (_name: string, factory: () => { init(): void }) => (shell = factory) };
+  const glue = readFileSync(resolve("public/app.js"), "utf8");
+  const names = ["HTMLInputElement", "HTMLFormElement", "HTMLElement", "Element"];
+  Function(
+    "document",
+    "window",
+    "requestAnimationFrame",
+    ...names,
+    "HTMLTemplateElement",
+    "Node",
+    glue,
+  )(
+    doc,
+    page,
+    (frame: () => void) => frames.push(frame),
+    ...names.map((name) => globals[name]),
+    globals.HTMLTemplateElement,
+    { TEXT_NODE: 3 },
+  );
+  doc.dispatchEvent(new CustomEvent("alpine:init", { bubbles: true, cancelable: true }) as never);
+  shell?.().init();
+}
 
 /** The logos of `ids` as the server draws them on the ground: the capabilities on the desk. */
 export const logosOf = (...ids: readonly string[]): string =>

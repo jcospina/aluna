@@ -242,10 +242,19 @@ describe("an accepted candidate", () => {
 
     const events = collectSseEvents(await readSse(await app.request(streamPath)));
 
-    // Foreground narration stays in product voice — no internals leak.
-    const narration = eventData(events, "narration");
-    expect(narration).toContain("Let me think through that change.");
-    expect(narration).not.toMatch(/handler|spec|migration|schema|gate/i);
+    // The window narrates from facts: the change's own sentence, and the parts it leaves alone,
+    // which the drawing shows finished from the start.
+    const facts = events
+      .filter((event) => event.event === "progress")
+      .map(
+        (event) =>
+          JSON.parse(event.data) as { kind: string; text?: string; part?: string; state?: string },
+      );
+    expect(facts.find((fact) => fact.kind === "opening")?.text).toBe(
+      "Let me think through that change.",
+    );
+    const kept = facts.filter((fact) => fact.kind === "part" && fact.state === "kept");
+    expect(kept.map((fact) => fact.part).sort()).toEqual(["card", "open", "remove"]);
 
     // The developer receives the accepted candidate and the Diff Engine's facts/work plan.
     expect(eventData(events, "spec-preview")).toContain('"mood"');
@@ -400,7 +409,7 @@ describe("a measured no-op", () => {
     // Warm close in product voice ending the narration, committed View held for the
     // dismissal, no version bump.
     expect(eventData(events, "narration")).toContain(
-      renderBuildEnding(jobId, CANDIDATE_NO_CHANGE_ENDING),
+      renderBuildEnding(jobId, CANDIDATE_NO_CHANGE_ENDING, "unchanged"),
     );
     expect(eventData(events, "fragment")).toContain("capability-surface");
     expect(eventData(events, "done")).toBe("ok");
@@ -436,7 +445,7 @@ describe("a rejected candidate", () => {
     ).toBe(true);
 
     // Warm rejection, not a crash: the pointer never moves, and the durable row closes
-    // at the stage the candidate failed its own gate ("failure is data", ARCH §9.6).
+    // at the stage the candidate failed its own gate ("failure is data").
     expect(eventData(events, "done")).toBe("error");
     expect(eventData(events, "fragment")).toContain("capability-surface");
     expect(eventData(events, "commit")).toBe("");

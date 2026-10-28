@@ -11,7 +11,11 @@ import { resolve } from "node:path";
 import { PROMPT_NOTICE_ID } from "#shell/core/shell-dom.js";
 import { REJECT_DEFLECTION } from "../../../pipeline/build/admission/deflection.ts";
 import type { RecordMetrics } from "../../../pipeline/index.ts";
-import type { IntentClassification } from "../../../pipeline/intent/index.ts";
+import {
+  INTENT_RESOLUTION_NARRATION,
+  type IntentClassification,
+} from "../../../pipeline/intent/index.ts";
+import type { ProgressFact } from "../../../pipeline/streaming/build-narration.ts";
 import { FAILED_BUILD_ENDING } from "../../../pipeline/streaming/terminal-presentation.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { Provider } from "../../../platform/provider/index.ts";
@@ -94,10 +98,36 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(eventNames.at(-2)).toBe("commit");
     expect(eventNames.at(-1)).toBe("done");
     expect(dataFor("done")).toBe("ok");
-    expect(events[0]?.data).toContain("new place");
-    expect(events[0]?.data).toContain("already started");
-    const narrations = events.filter((event) => event.event === "narration");
-    expect(narrations[0]?.data).toBe(escapeHtml(NEW_CAPABILITY_INTENT.user_facing_label));
+    expect(events[0]?.data).toContain(INTENT_RESOLUTION_NARRATION.trim());
+    // The window narrates from facts: the plan of stages first, then the model's own sentence,
+    // carried as data the window sets as text rather than as markup it swaps in.
+    const facts = events
+      .filter((event) => event.event === "progress")
+      .map((event) => JSON.parse(event.data) as { kind: string; text?: string });
+    expect(facts[0]?.kind).toBe("plan");
+    const opening = facts.find((fact) => fact.kind === "opening")?.text;
+    expect(opening).toBe(NEW_CAPABILITY_INTENT.user_facing_label);
+    // Every stage it plans, it reaches in order; every part is made before the checks start, and
+    // checked before the finish, which is told before the window is handed what was made.
+    const told = events
+      .filter((event) => event.event === "progress")
+      .map((event) => JSON.parse(event.data) as ProgressFact);
+    const plan = told[0]?.kind === "plan" ? told[0].stages : [];
+    const stages = told.flatMap((fact) => (fact.kind === "stage" ? [fact.stage] : []));
+    expect(stages).toStrictEqual(plan.filter((stage) => stage !== "listen"));
+    const at = (kind: string, state?: string) =>
+      told.findIndex(
+        (fact) => fact.kind === kind && (!state || ("state" in fact && fact.state === state)),
+      );
+    const lastAt = (state: string) =>
+      told.findLastIndex((fact) => fact.kind === "part" && fact.state === state);
+    const stageAt = (stage: string) =>
+      told.findIndex((fact) => fact.kind === "stage" && fact.stage === stage);
+    expect(told.filter((fact) => fact.kind === "part" && fact.state === "made")).toHaveLength(6);
+    expect(lastAt("made")).toBeLessThan(stageAt("check"));
+    expect(at("part", "checked")).toBeGreaterThan(stageAt("check"));
+    expect(lastAt("checked")).toBeLessThan(stageAt("finish"));
+    expect(eventNames.lastIndexOf("progress")).toBeLessThan(eventNames.indexOf("commit"));
     const metricEvents = events.filter((event) => event.event === "metrics-preview");
     expect(JSON.parse(metricEvents[0]?.data ?? "null")).toMatchObject({
       lifecycleStatus: "running",
@@ -121,7 +151,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     expect(prompts[1]).toContain("Aluna's Capability Builder");
     expect(prompts[1]).toContain("Create a notes capability.");
 
-    expect(dataFor("narration")).not.toMatch(/\bspec\b|\bschema\b|\bhandler\b|\bmigration\b/i);
+    expect(opening).not.toMatch(/\bspec\b|\bschema\b|\bhandler\b|\bmigration\b/i);
     const commitSwap = dataFor("commit");
     expect(commitSwap).toContain('class="capability-surface"');
     expect(commitSwap).toContain('hx-get="/capability/notes/read"');
@@ -372,8 +402,7 @@ describe("POST /prompt and GET /build/:id/stream (resolver-driven default pipeli
     // still working the sentence out, which is sent before the classification comes back.
     const settled = events.slice(events.findIndex((event) => event.event === "metrics-preview"));
     expect(eventData(settled, "fragment")).not.toContain(`id="${PROMPT_NOTICE_ID}"`);
-    expect(events[0]?.data).toContain("new place");
-    expect(events[0]?.data).toContain("already started");
+    expect(events[0]?.data).toContain(INTENT_RESOLUTION_NARRATION.trim());
     expect(events.at(-1)).toMatchObject({ event: "done", data: "ok" });
     expect(narration).not.toMatch(
       /capability|intent|data_query|registry|schema|migration|handler|artifact|metrics|provider/i,

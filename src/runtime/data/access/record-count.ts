@@ -1,6 +1,6 @@
 // How many records a capability holds.
 //
-// A `count` is a read, and reading is free (ARCH §3), so this is taken through the physically
+// A `count` is a read, and reading is free, so this is taken through the physically
 // read-only connection and creates no registry, version, artifact, cache or read-dependency
 // state. It counts the capability's canonical table whole, which is the same row set the
 // platform's canonical read renders: the table carries no soft-delete column for the two to

@@ -28,8 +28,7 @@ import {
 export const INTENT_DATA_QUERY_CONTEXT_RULE =
   "- On a data_query, target_capability is the active capability when the question leans on it for a vague word — these, ones, how many did I add — and null when the question names its own subject. It says what those words point at; it never limits what may be searched.";
 
-export const INTENT_RESOLUTION_NARRATION =
-  "I’m sorting out whether this is a new place or belongs with something you’ve already started. ";
+export const INTENT_RESOLUTION_NARRATION = "Mulling over what you said. ";
 
 /**
  * Aluna working out what a sentence is belongs on the prompt bar, not in a window. It used to

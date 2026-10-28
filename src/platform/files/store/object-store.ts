@@ -1,4 +1,4 @@
-// The object store (ARCH §6.3, ADR-0009): where an admitted file's bytes live, under opaque
+// The object store (ADR-0009): where an admitted file's bytes live, under opaque
 // keys. S3-shaped, so a cloud adapter (R2, S3, Garage) can take the same interface: it would
 // stage locally the same way and upload at `place`.
 //

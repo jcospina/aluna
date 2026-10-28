@@ -1,4 +1,4 @@
-// The deterministic capability router (ARCH §6.2, ADR-0004). The generated UI invents no
+// The deterministic capability router (ADR-0004). The generated UI invents no
 // routes: it targets the one convention `/capability/:id/:action`, and the router loads and
 // runs the matching handler. Routing is never an AI concern.
 //
@@ -8,7 +8,7 @@
 // the mutation port, the physically read-only free-query port — loads the handler from the version
 // directory `artifacts_path` names, invokes its default export, and wraps the fragment in the
 // response. A handler that throws surfaces a warm failure; the cause is logged for the developer
-// and never leaked to the UI (CONTEXT.md, ARCH §9.7).
+// and never leaked to the UI (CONTEXT.md).
 
 import type { Context, Hono } from "hono";
 import { CAPABILITY_PATH_PREFIX } from "#shell/core/routes.js";

@@ -250,7 +250,9 @@ cancels the running question.
 
 **Build narration is untouched.** It stays in the window, where M5 put it, because a
 build narration is a long streaming log ending in a thing appearing in that window, and
-because during a build the window is where the user is already looking.
+because during a build the window is where the user is already looking. (Since 2026-10-27 it is a drawing
+rather than a log, drawn from the facts a build reports — ADR-0002 — and it still stays in
+the window, for the same reason.)
 
 **The open capability is context, never a filter.** It resolves vague references exactly
 as it does for evolution, and never fences the search: a question about expenses asked

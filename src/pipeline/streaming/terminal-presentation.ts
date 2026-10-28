@@ -1,3 +1,4 @@
+import { FAILED_BUILD_ENDING } from "#design/narration/voice.js";
 import { errorDetail } from "../../platform/errors.ts";
 import { CapabilityIdActiveError, CapabilityIdReservedError } from "../../registry/index.ts";
 import { renderBuildEnding } from "../../server/http/fragments/fragments.ts";
@@ -6,8 +7,7 @@ import { buildDemoErrorPreview } from "./previews.ts";
 
 export const DEFAULT_TERMINAL_PRESENTER_TIMEOUT_MS = 2_000;
 
-/** The product-voice failure line: the last thing the narration says. */
-export const FAILED_BUILD_ENDING = "Hmm, that didn’t work. Mind trying again?";
+export { FAILED_BUILD_ENDING };
 
 /**
  * A capability id a deletion tombstone still reserves cannot be rebuilt until that deletion's
@@ -193,7 +193,10 @@ export async function deliverCandidateNoChangePresentation(
     async (sendWhileActive) => {
       await sendWhileActive("metrics-preview", metricsPreview);
       await sendWhileActive("candidate-preview", candidatePreview);
-      await sendWhileActive("narration", renderBuildEnding(buildId, CANDIDATE_NO_CHANGE_ENDING));
+      await sendWhileActive(
+        "narration",
+        renderBuildEnding(buildId, CANDIDATE_NO_CHANGE_ENDING, "unchanged"),
+      );
       await sendWhileActive("fragment", restorationFragment);
       await sendWhileActive("done", "ok");
     },

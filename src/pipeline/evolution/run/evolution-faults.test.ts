@@ -1,8 +1,7 @@
-// The engine's fault model around the point of no return (ARCH §6.2
-// steps 6–7 and "Cross-store lifecycle recovery"; ADR-0006).
+// The engine's fault model around the point of no return: publication, then activation.
 //
 // Publication is a filesystem fact and activation is a SQLite fact, so the two cannot be
-// one transaction. What this battery pins is the asymmetry the architecture promises
+// one transaction. What this battery pins is the asymmetry ADR-0006 promises
 // instead: before the activation COMMIT, every failure leaves the committed version live
 // (plus, at most, a complete never-activated candidate for guarded reconciliation);
 // committed history is never treated as an orphan; and the durable lifecycle row always

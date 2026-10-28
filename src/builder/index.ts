@@ -1,4 +1,4 @@
-// The Capability Builder (ARCH §6.2 "Capability Builder").
+// The Capability Builder.
 //
 // The public surface for the builder's pipeline stages. Spec generation is the
 // first stage: prompt + intent → a Zod-valid capability spec, the
@@ -139,6 +139,7 @@ export {
   frozenBehavioralTestCases,
   frozenBehavioralTestsSchema,
   GATE_RUNG_ORDER,
+  type GateObserver,
   type GateRungName,
   type GateRungOutcome,
   type GateRungStatus,

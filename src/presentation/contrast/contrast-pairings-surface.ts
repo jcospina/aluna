@@ -32,7 +32,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "design/styles/base.css § .kicker [color]",
       "design/styles/components/collection.css § .detail__back:hover [color]",
       "design/styles/components/controls/controls.css § .btn [color]",
-      "design/styles/components/desk.css § .build__line:last-child [color]",
+      'design/styles/components/narration.css § .narration__sheet :is([data-state="inking"], [data-state="inked"]) [stroke]',
       "design/styles/components/desk.css § .logo-menu__item [color]",
       "design/styles/components/desk.css § .logo-tile--dev [color]",
       "design/styles/components/desk.css § .prompt-bar__input [color]",
@@ -282,7 +282,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "design/styles/components/collection.css § .collection__count [color]",
       "design/styles/components/collection.css § .detail__back [color]",
       "design/styles/components/controls/controls.css § .control > .caps [color]",
-      "design/styles/components/desk.css § .build__line [color]",
+      "design/styles/components/narration.css § .narration__sheet text[data-part] [fill]",
       "design/styles/components/desk.css § .devpanel__stage [color]",
       "design/styles/components/desk.css § .logo-rename__error [color]",
       "design/styles/doc.css § .numbers small [color]",
@@ -373,7 +373,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "Guidance and a placeholder are text a reader is meant to read, so neither is " +
       "incidental and neither is exempt. `--ink-3` was #8b9c82 at 2.86 here.",
     sites: [
-      "design/styles/components/desk.css § .build__note [color]",
+      "design/styles/components/narration.css § .narration__sheet [data-part] [stroke]",
       "design/styles/components/desk.css § .devpanel__size [color]",
       "design/styles/components/desk.css § .prompt-bar__input::placeholder [color]",
       "design/styles/doc.css § .gallery__meta [color]",

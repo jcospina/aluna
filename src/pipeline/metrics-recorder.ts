@@ -59,7 +59,7 @@ import type { IntentClassification } from "./intent/index.ts";
  * real writer rides the read-write connection while tests pass a capturing stub.
  */
 export interface RecordMetrics {
-  /** Legacy best-effort resolution-only measurement writer. */
+  /** Legacy `generation_metrics` writer; no production path calls it. */
   (metrics: GenerationMetrics): void;
   readonly resolve: (metrics: IntentResolutionMetrics) => void;
   readonly start: (input: StartGenerationLifecycleInput) => GenerationLifecycle;
@@ -404,7 +404,7 @@ export function lifecycleFailureOutcome(failure: GenerationFailure): GenerationF
 /**
  * Write the resolver-only metrics row: the one a refusal, a deflection or a question leaves. A
  * refusal and a deflection leave it because the platform does not act on them; a question leaves
- * it because answering one builds nothing (ARCH §9.6). Best-effort in every case.
+ * it because answering one builds nothing. Best-effort in every case.
  */
 export function writeResolverOnlyMetrics(
   recordMetrics: RecordMetrics,

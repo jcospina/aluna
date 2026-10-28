@@ -1,4 +1,4 @@
-// The core-owned half of the Event Log payload-cleanup seam (ADR-0006, ARCH §6.3).
+// The core-owned half of the Event Log payload-cleanup seam (ADR-0006).
 //
 // Deletion's one SQLite transaction purges capability-owned Event Log payloads at the instant the
 // registry row becomes a tombstone and the data table goes. Core-owned SQL over a fixed store, not
@@ -7,7 +7,7 @@
 // The implicit loop installs the store for real; until then a platform without one purges nothing
 // and reports zeroes, while the seam fake installs this fixed shape so the purge is proven now.
 //
-// Purging redacts rather than deletes. ARCH §6.3 keeps a content-free deletion fact: the event
+// Purging redacts rather than deletes, keeping a content-free deletion fact: the event
 // row survives with its identity and timestamp, its payload is irreversibly replaced, and its
 // ownership rows for the deleted pair are released, so no later incarnation joins purged content.
 

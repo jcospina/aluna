@@ -49,8 +49,21 @@
           Press a logo to open its capability and another to swap what the window holds. Drag the
           window by its title bar and resize it from the bottom-right corner. Type into the prompt
           bar and press <strong>Make it</strong> to grow one. The capabilities are fixtures, and a
-          build runs on a timer.
+          build runs on a timer, ending the way picked below.
         </p>
+
+        <div class="row">
+          <span
+            class="segmented"
+            role="group"
+            aria-label="How the next build ends"
+            data-build-endings
+          >
+            <button type="button" aria-pressed="true" data-state="lands">Lands</button>
+            <button type="button" aria-pressed="false" data-state="mends">Mends first</button>
+            <button type="button" aria-pressed="false" data-state="fizzles">Fizzles</button>
+          </span>
+        </div>
 
         <div class="stage stage--flush">
           <div data-desk></div>

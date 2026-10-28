@@ -45,6 +45,7 @@ import {
   staleAdmissionMeasurement,
   staleAdmissionStages,
 } from "../metrics-recorder.ts";
+import { narrateBuild } from "../streaming/build-narration.ts";
 import type {
   ResolvedBuildRequest,
   ResolvedExistingCapabilityRequest,
@@ -357,7 +358,7 @@ async function runAdmittedNewCapability(
       }),
     ),
   });
-  // Revalidation has passed, so the incarnation may now be assigned (ARCH §6.2 step 1).
+  // Revalidation has passed, so the incarnation may now be assigned.
   const incarnationId = createCapabilityIncarnationId();
   const acc: DemoBuildAccumulator = { usages: [request.resolver.usage], timings: {} };
   input.recordMetrics.start({
@@ -431,6 +432,7 @@ async function runOpenNewCapability(
           measurement: lifecycleMeasurement(acc, input.builtAt),
         }),
       request.targetExpectation,
+      narrateBuild(input.presenter.send, input.builtAt),
     );
   } catch (error) {
     if (error instanceof AbortedBuildError || input.presenter.isAborted()) {

@@ -1,5 +1,5 @@
-// Unit generation (ARCH §6.2 step 3; ADR-0003 whole-file retry; ADR-0004 generated artifact
-// contract as amended by ADR-0005 §2).
+// Unit generation (ADR-0003 whole-file retry; ADR-0004 generated artifact contract as amended
+// by ADR-0005 §2).
 //
 // This extends the original one item renderer plus Handler model to the complete fixed Action
 // inventory. The item renderer turns one record into capability-specific inner markup, generated

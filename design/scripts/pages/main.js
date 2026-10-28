@@ -15,7 +15,7 @@ import { mountLineBench } from "../sections/line-bench.js";
 import { mountPalette } from "../sections/palette.js";
 import { mountScales } from "../sections/scales.js";
 import { wireSectionWindows } from "../sections/section-window.js";
-import { swapStates } from "../sections/state-picker.js";
+import { swapStates, wireStates } from "../sections/state-picker.js";
 import { mountWindowBench } from "../sections/window-bench.js";
 import { mountWindows } from "../window/window.js";
 
@@ -114,10 +114,13 @@ function bootDesk() {
    * cannot own the real address bar, so it says what the address would read.
    */
   const address = document.querySelector("[data-desk-address]");
-  new Desk(host, CAPABILITIES, {
+  const desk = new Desk(host, CAPABILITIES, {
     onAddress: (path) => {
       if (address instanceof HTMLElement) address.textContent = path;
     },
+  });
+  wireStates(document.querySelector("[data-build-endings]"), (state) => {
+    desk.ending = /** @type {import("../narration/rehearsal.js").Ending} */ (state);
   });
 }
 

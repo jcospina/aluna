@@ -1,6 +1,6 @@
-// Tests for the platform's one route file — the cold-start shell and the
-// deterministic, provider-free demo surfaces (detail interaction, few-shot
-// gallery). The provider-driven build/stream slices live in the sibling
+// Tests for the Hono application — the cold-start shell, its security headers, the developer
+// surfaces, and the retired /demo surfaces staying unregistered. The provider-driven
+// build/stream slices live in the sibling
 // app.*.test.ts files; shared setup, fixtures, and fake providers live in
 // app.test-support.ts. app.request drives app.fetch without binding a port.
 

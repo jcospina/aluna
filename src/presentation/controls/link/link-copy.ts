@@ -1,5 +1,5 @@
-// The Link control's words (`design/controls.html` § Links), and the build's sentence about the
-// fields it connects. Product copy says connect, never link. Every phrase is built from what the
+// The Link control's words (`design/controls.html` § Links), and the prompt bar's sentences about
+// the fields a request connects. Product copy says connect, never link. Every phrase is built from what the
 // registry stores: the record noun is singular and takes `’s`, and a field label is never
 // pluralised or given an article.
 
@@ -15,15 +15,6 @@ export function everyRecordsField(noun: string, field: Pick<SpecField, "label">)
 export interface ConnectedField {
   readonly field: Pick<SpecField, "label">;
   readonly targetPlural: string;
-}
-
-/**
- * What a build says while it connects fields: "I’m connecting every copy’s book to your books."
- * Nothing when it connects none.
- */
-export function buildConnecting(noun: string, connected: readonly ConnectedField[]): string {
-  const fields = connectedClauses(noun, connected);
-  return fields === "" ? "" : `I’m connecting ${fields}.`;
 }
 
 function connectedClauses(noun: string, connected: readonly ConnectedField[]): string {

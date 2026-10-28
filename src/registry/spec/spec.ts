@@ -178,8 +178,8 @@ export const fieldLifecycleSchema = z.enum(["active", "inactive"]);
 export type FieldLifecycle = z.infer<typeof fieldLifecycleSchema>;
 
 /**
- * One user field. Strictness is what rejects ARCH §6.3's `auto` example key, a deliberate
- * deviation; the wire spelling of absence is {@link promptCapabilitySpecSchema}.
+ * One user field. Strictness rejects an `auto` key, since the platform stamps `created_at`
+ * itself; the wire spelling of absence is {@link promptCapabilitySpecSchema}.
  */
 const specFieldShape = {
   name: sqlNameText
@@ -296,7 +296,7 @@ export const uiIntentSchema = z.strictObject({
 });
 export type UiIntent = z.infer<typeof uiIntentSchema>;
 
-// The spec proper — everything the AI authors (ARCH §2, §6.3). `version` and `artifacts_path` are
+// The spec proper — everything the AI authors. `version` and `artifacts_path` are
 // deliberately absent: the platform assigns those at commit, the AI never does.
 const commonSpecShape = {
   // Engineering identity — becomes the `cap_<id>` table name and the artifacts

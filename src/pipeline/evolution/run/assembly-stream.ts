@@ -1,5 +1,5 @@
 // The evolution assembly stage's liveness wiring: the developer panel's plan, units, tests and
-// Gate previews, the narration between them, and the link step's sentence before the Gate.
+// Gate previews, and the facts the window narrates between them, the link step's among them.
 
 import type {
   BehavioralTestActionReport,
@@ -8,8 +8,9 @@ import type {
   GeneratedUnit,
 } from "../../../builder/index.ts";
 import type { CapabilityRow, CapabilitySpec } from "../../../registry/index.ts";
-import { connectingNarration, type LinkStepRun } from "../../build/linking.ts";
+import type { LinkStepRun } from "../../build/linking.ts";
 import type { SendBuildEvent } from "../../jobs/build-jobs.ts";
+import { type BuildNarration, bothUnitObservers } from "../../streaming/build-narration.ts";
 import {
   buildBehavioralTestProgressPreview,
   buildEvolutionCandidateAcceptedPreview,
@@ -83,7 +84,7 @@ export async function sendAssembledPreviews(
 
 export interface AssemblyStream {
   /** The liveness wiring handed to the assembler. */
-  readonly hooks: Pick<AssembleEvolutionCandidateInput, "observer" | "progress">;
+  readonly hooks: Pick<AssembleEvolutionCandidateInput, "observer" | "gateObserver" | "progress">;
   /** Close out the plan the panel is showing when the assembly does not finish. */
   reportAbandoned(): Promise<void>;
 }
@@ -97,8 +98,10 @@ export function streamAssembly(
   candidate: CapabilitySpec,
   diff: CapabilityDiff,
   linking: LinkStepRun,
+  narration: BuildNarration,
 ): AssemblyStream {
   const unitPreviews = createUnitPreviewStream(input.send, input.isAborted);
+  let writingRules = false;
   let planned: EvolutionAssemblyPlan | undefined;
   let behavioralTests: readonly BehavioralTestActionReport[] | undefined;
   let behavioralTestProgress: BehavioralTestFreezeProgress | undefined;
@@ -127,17 +130,21 @@ export function streamAssembly(
 
   return {
     hooks: {
-      observer: unitPreviews.observer,
+      observer: bothUnitObservers(unitPreviews.observer, narration.units),
+      gateObserver: narration.gate,
       progress: {
+        // The parts this change leaves alone are drawn finished from the start.
         onPlanned: async (plan) => {
           planned = plan;
           await sendPlan(plan, "running");
-          await input.send(
-            "narration",
-            " I’m establishing what this change needs to preserve before I build it.",
-          );
+          await narration.shape(candidate);
+          await narration.stage("room");
+          for (const name of plan.copiedUnits) await narration.part({ name }, "kept");
         },
         onTestsProgress: async (progress) => {
+          if (!writingRules) await narration.stage("rules");
+          writingRules = true;
+          await narration.rules(progress);
           behavioralTestProgress = progress;
           await input.send(
             "behavioral-tests-preview",
@@ -157,8 +164,8 @@ export function streamAssembly(
               ),
             );
           }
-          await input.send("narration", " I’m shaping that into something you can use.");
         },
+        onUnitsStart: () => narration.stage("make"),
         onUnitCopied: async (unit) => {
           unitPreviews.record(unit);
           await unitPreviews.flush("running", true);
@@ -168,9 +175,8 @@ export function streamAssembly(
         // once its units are done, so the fields it connects are said before the Gate runs.
         onGateStart: async () => {
           await unitPreviews.flush("complete", true);
-          const connecting = connectingNarration(candidate, await linking.settled());
-          if (connecting) await input.send("narration", ` ${connecting}`);
-          await input.send("narration", " I’m checking it over now.");
+          await narration.connect(candidate, await linking.settled());
+          await narration.stage("check");
         },
         // …and re-send it if the Gate's repairs changed the bytes underneath that view.
         onUnitsFinalized: recordFinal,

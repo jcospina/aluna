@@ -104,6 +104,7 @@ export async function runSmokeRepairLoop(
       if (!failure.action || !input.provider || attempts.length >= maxAttempts) {
         throw new SmokeRungFailure(failure.action, attempts, failure.message, error);
       }
+      input.observer?.onRepair?.([failure.action]);
       pending = await prepareValidRepair({
         input,
         action: failure.action,
@@ -113,6 +114,7 @@ export async function runSmokeRepairLoop(
         dependencyCatalog,
       });
       handlers[pending.action] = pending.content;
+      input.observer?.onRepaired?.();
     }
   }
 

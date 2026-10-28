@@ -163,13 +163,14 @@
  * touched. It is not a modal: focus is not trapped, and only what the veil covers
  * inside the window is inert while a form's question stands.
  */
+/* Centred by the panel's own auto margins, so a window too short for the panel scrolls the veil
+   to reach its answers rather than pushing them out of reach. */
 .window__leaving {
   position: absolute;
   z-index: 1;
   inset: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: auto;
   margin: 0;
   padding: var(--space-4);
   /* `in srgb`: `transparent` carries no hue, and an `oklch` mix with it comes out pink. */
@@ -183,6 +184,7 @@
 .window__leaving-panel {
   --ink-shadow: var(--shadow-window);
 
+  margin: auto;
   display: flex;
   width: min(30rem, 100%);
   flex-direction: column;

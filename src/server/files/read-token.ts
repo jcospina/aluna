@@ -1,4 +1,4 @@
-// The read token both file routes take on one incarnation (ARCH §8, ADR-0006): against the
+// The read token both file routes take on one incarnation (ADR-0006): against the
 // active registry as it stands, so a deleted or closing incarnation yields none.
 
 import type { PlatformDatabase } from "../../platform/persistence/db.ts";

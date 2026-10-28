@@ -1,4 +1,4 @@
-// Candidate-spec generation (ADR-0006 candidate ownership; ARCH §6.2 evolution steps 1–2).
+// Candidate-spec generation (ADR-0006 candidate ownership).
 //
 // Evolution's first stage: the AI authors one complete candidate spec from four inputs — the
 // committed spec including every inactive field, the resolved intent, the field-lifecycle
@@ -10,7 +10,6 @@
 // stage's own gate — `validateCandidateSpec` runs before anything downstream sees the candidate.
 
 import type { IntentClassification } from "../../../pipeline/intent/index.ts";
-import type { SendBuildEvent } from "../../../pipeline/jobs/build-jobs.ts";
 import type { Provider, TokenUsage } from "../../../platform/provider/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
@@ -36,7 +35,6 @@ import {
   promptCapabilitySpecSchema,
   uiCollectionLayoutSchema,
 } from "../../../registry/index.ts";
-import { escapeHtml } from "../../../server/http/html.ts";
 import { FILE_FIELD_PROMPT_LINES } from "../../spec/file-field-guidance.ts";
 import type { DependencyGenerationCatalogEntry } from "../dependency-catalog.ts";
 import { committedSpecView, validateCandidateSpec } from "./candidate-validation.ts";
@@ -49,8 +47,6 @@ export interface GenerateCandidateSpecInput {
   readonly intent: IntentClassification;
   /** The immutable active dependency-generation catalog, frozen under the lease. */
   readonly dependencyCatalog: readonly DependencyGenerationCatalogEntry[];
-  /** The job's stream. Narration rides it in product voice while the candidate generates. */
-  readonly send: SendBuildEvent;
 }
 
 export interface CandidateSpecGenResult {
@@ -157,14 +153,12 @@ export function buildCandidateSpecPrompt(input: GenerateCandidateSpecInput): str
 }
 
 /**
- * Run the stage: narrate in product voice, author the candidate through the provider contract,
- * then validate it completely. Throws `CandidateValidationError` on rejection.
+ * Run the stage: author the candidate through the provider contract, then validate it
+ * completely. Throws `CandidateValidationError` on rejection.
  */
 export async function generateCandidateSpec(
   input: GenerateCandidateSpecInput,
 ): Promise<CandidateSpecGenResult> {
-  await input.send("narration", escapeHtml(input.intent.user_facing_label));
-
   const startedAt = performance.now();
 
   const result = input.provider.generate(

@@ -1,7 +1,7 @@
-// The Hono application — the platform's one route file (ARCH §4: "no framework
-// ceremony, one route file"). This is the thin wiring sheet: it assembles the
-// injectable dependencies and attaches each route, delegating the work to the
-// subsystems (sse transport, web presentation, build pipeline, capability router).
+// The Hono application, and the thin wiring sheet: it assembles the injectable
+// dependencies and attaches each route group, delegating the work to the subsystems
+// (sse transport, web presentation, build pipeline, lifecycle routes, file routes, capability
+// router).
 //
 // It serves the fixed shell page at `/`, static assets under /static/*, and the
 // production `/prompt` → `/build/:id/stream` build-job flow — the one admission path
@@ -602,7 +602,8 @@ export function createApp(deps: AppDeps = {}): Hono {
   });
 
   // The deterministic capability router: the fixed `/capability/:id/:action` convention the
-  // generated UI targets. Its own subsystem (src/router), so this file stays the wiring sheet.
+  // generated UI targets. Its own subsystem (src/runtime/router), so this file stays the
+  // wiring sheet.
   registerCapabilityRoutes(app, wakeFileCleanup, {
     ...ctx.capabilityRouter,
     mutationCoordinator: ctx.mutationCoordinator,
@@ -629,7 +630,7 @@ export function createApp(deps: AppDeps = {}): Hono {
     }),
   );
 
-  // The architecture tour ships the same way, from its own top-level folder: its scripts
+  // The architecture deck ships the same way, from its own top-level folder: its scripts
   // reach design/styles and design/scripts by relative path, so neither can drift.
   app.get("/architecture", (c) => c.redirect("/architecture/", 301));
   app.get(

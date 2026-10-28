@@ -10,14 +10,12 @@ import {
   isProviderAbortError,
   type Provider,
 } from "../../platform/provider/index.ts";
-import { buildConnecting } from "../../presentation/controls/link/link-copy.ts";
 import {
   type CapabilityRow,
   type CapabilitySpec,
   listCapabilities,
   type Relation,
 } from "../../registry/index.ts";
-import { escapeHtml } from "../../server/http/html.ts";
 import type { IntentClassification } from "../intent/index.ts";
 import type { DemoBuildAccumulator } from "../metrics-recorder.ts";
 
@@ -124,14 +122,4 @@ async function linkUnderLease(
 
 function logNothingLinked(spec: CapabilitySpec, failure: unknown): void {
   console.error(`omni-crud's link step linked nothing for ${spec.id}:`, errorDetail(failure));
-}
-
-/** The sentence about the fields a build or an evolution connects, in field order: "" for none. */
-export function connectingNarration(spec: CapabilitySpec, linked: Linked): string {
-  const connected = spec.schema.fields.flatMap((field) => {
-    const relation = linked.relations.find((each) => each.field === field.name);
-    const target = linked.flagged.find(({ id }) => id === relation?.to.capability);
-    return target ? [{ field, targetPlural: target.plural_noun }] : [];
-  });
-  return escapeHtml(buildConnecting(spec.noun, connected));
 }

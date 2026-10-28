@@ -1,12 +1,12 @@
 // Layered build gate (ADR-0004).
 //
-// The gate is a final verdict, distinct from the unit-generation fix loop. It runs
-// always-on rungs in order: structural checks first (`gate-structural.ts`), then a
-// scratch-database smoke round-trip (`gate-smoke.ts`), then the opt-in behavioral
-// tier (`gate-behavioral.ts`). This file owns the public contract — the rung result
-// shapes, the gate input/output, and the gate error — plus the orchestration that
-// runs the rungs in order and records their outcomes. The cross-rung mechanics live
-// in `gate-internal.ts`.
+// The gate is a final verdict, distinct from the unit-generation fix loop. It runs rungs in
+// order: structural checks (`gate-structural.ts`), a scratch-database smoke round-trip
+// (`gate-smoke.ts`), design lint (`gate-design-lint.ts`), then the behavioral tier, on by default
+// (`gate-behavioral.ts`). Outcomes are reported in `GATE_RUNG_ORDER`, which lists behavioral
+// before design lint. This file owns the public contract — the rung result shapes, the gate
+// input/output, and the gate error — plus the orchestration that runs the rungs and records
+// their outcomes. The cross-rung mechanics live in `gate-internal.ts`.
 
 import type { Database } from "bun:sqlite";
 import type { GateRungName, GateRungStatus } from "../../platform/gate-rungs.ts";
@@ -14,7 +14,7 @@ import type { Provider, TokenUsage } from "../../platform/provider/index.ts";
 import { addTokenUsage, ZERO_TOKEN_USAGE } from "../../platform/provider/usage.ts";
 import type { CapabilitySpec, CapabilityTool } from "../../registry/index.ts";
 import type { CapabilityTableDdl } from "../../runtime/data/index.ts";
-import type { HandlerUnitName } from "../units/generation/units.ts";
+import type { HandlerUnitName, ItemRendererUnitName } from "../units/generation/units.ts";
 import {
   CapabilityGateError,
   type CapabilityGateFailureMeasurement,
@@ -272,6 +272,20 @@ export interface CapabilityGateInput {
   // The full physical schema of every declared read dependency, applied to the Gate's fresh
   // in-memory catalog. Live registry rows and capability data never enter scratch.
   readonly scratchCatalog?: readonly ScratchCatalogCapability[];
+  readonly observer?: GateObserver;
+}
+
+/**
+ * Who watches the Gate while it runs. Each call comes as the work starts, so a watcher can say
+ * which check is under way and which units a repair is rewriting, never what the Gate decided.
+ */
+export interface GateObserver {
+  /** A rung's first pass is starting. A re-run that proves repaired bytes is not reported. */
+  readonly onRung?: (rung: GateRungName) => void;
+  /** A repair is about to rewrite these units. */
+  readonly onRepair?: (units: readonly (HandlerUnitName | ItemRendererUnitName)[]) => void;
+  /** The repair's new bytes are in place and the rung is about to run them. */
+  readonly onRepaired?: () => void;
 }
 
 export interface ScratchCatalogCapability {
@@ -338,7 +352,7 @@ export {
 export { CapabilityGateError, type CapabilityGateFailureMeasurement };
 
 /**
- * Run the layered Gate — structural, smoke, behavioral (when on), design lint — throwing
+ * Run the layered Gate — structural, smoke, design lint, then behavioral (when on) — throwing
  * {@link CapabilityGateError} at the first failing rung. The caller supplies the frozen suite.
  */
 export async function runCapabilityGate(input: CapabilityGateInput): Promise<CapabilityGateResult> {
@@ -346,7 +360,9 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
   const outcomes: GateRungOutcome[] = [];
   const behavioralTierEnabled = resolveBehavioralTierEnabledForInput(input);
 
+  input.observer?.onRung?.("structural");
   const structural = await runGateRung(outcomes, "structural", () => runStructuralRung(input));
+  input.observer?.onRung?.("smoke");
   let smokeRun = await runGateRung(
     outcomes,
     "smoke",
@@ -358,6 +374,7 @@ export async function runCapabilityGate(input: CapabilityGateInput): Promise<Cap
   const skippedBehavioral = behavioralTierEnabled
     ? undefined
     : skipGateRung(outcomes, "behavioral", "Behavioral tier is off for this run.");
+  input.observer?.onRung?.("design-lint");
   const designLint = await runGateRung(
     outcomes,
     "design-lint",
@@ -504,6 +521,7 @@ async function runBehavioralPhase(
       handlers: prior.handlers,
     };
   }
+  finalInput.observer?.onRung?.("behavioral");
   const run = await runGateRung(outcomes, "behavioral", () => runBehavioralRung(finalInput));
   if (run.result.tier !== "on" || !run.result.repair.fixed) {
     return {

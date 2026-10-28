@@ -76,7 +76,7 @@ function placeOf(pathname) {
   return id === null ? null : JSON.stringify([id]);
 }
 
-/** The bare desk. Putting the window away comes back here (ADR-0010; ARCH §6.1). */
+/** The bare desk. Putting the window away comes back here (ADR-0010). */
 export const DESK_ADDRESS = "/";
 
 /**

@@ -1,4 +1,4 @@
-// Behavioral test execution selection (ADR-0006; ARCH §6.2 step 5).
+// Behavioral test execution selection (ADR-0006).
 //
 // Generation follows total per-Action inputs. Execution follows executable impact, and this
 // module is the whole of that decision: a suite this build generated has never run against any

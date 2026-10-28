@@ -14,6 +14,12 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { publishedSnapshotFiles } from "../../../builder/artifacts/publication/snapshot-contract.test-support.ts";
 import type { RecordMetrics } from "../../../pipeline/index.ts";
+import {
+  expectRulesWrittenBeforeMaking,
+  expectThePlanKept,
+  expectToldInOrder,
+  toldFacts,
+} from "../../../pipeline/streaming/build-narration.test-support.ts";
 import type { GenerationMetrics } from "../../../platform/metrics/index.ts";
 import type { PlatformDatabase } from "../../../platform/persistence/db.ts";
 import type { Provider } from "../../../platform/provider/index.ts";
@@ -402,6 +408,7 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
     const dataFor = (name: string) => eventData(events, name);
 
     assertBuildEventOrder(events);
+    expectRulesWrittenBeforeMaking(toldFacts(events));
     assertSpecAndMigrationPreview(dataFor);
     assertUnitsPreview(events);
     assertGatePreview(dataFor);
@@ -439,6 +446,20 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
       attempts: 2,
       content: SEARCH_HANDLER,
     });
+    // The window heard the Gate as it ran: the search failed its try-out, was mended, and the
+    // checking carried on before the build finished.
+    const told = toldFacts(events);
+    expectToldInOrder(told, [
+      { kind: "stage", stage: "check" },
+      { kind: "check", check: "fit" },
+      { kind: "check", check: "try" },
+      { kind: "stage", stage: "mend" },
+      { kind: "part", part: "search", state: "mending" },
+      { kind: "stage", stage: "check" },
+      { kind: "part", part: "search", state: "checked" },
+      { kind: "stage", stage: "finish" },
+    ]);
+    expectThePlanKept(told);
 
     const committed = getCapability("notes", conns.readonly);
     if (!committed) throw new Error("repaired capability did not commit");

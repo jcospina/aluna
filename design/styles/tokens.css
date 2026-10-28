@@ -276,6 +276,8 @@
   --travel-press: calc(2px * var(--travel));
   --travel-lift: calc(-2px * var(--travel));
   --dur-travel: calc(var(--dur-fast) * var(--travel));
+  /* A piece of a failed build's drawing leaning from its corner, its far end swept along. */
+  --dur-travel-swing: calc(900ms * var(--travel));
 }
 
 /*

@@ -1,0 +1,526 @@
+/* The answer-window lab's ten options, inside the real window frame. */
+
+/* ── The window body, as the product's own shell sheet sets it ───────────── */
+
+.lab-answer {
+  container: window / inline-size;
+  white-space: pre-wrap;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+  text-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.lab-answer p {
+  margin: 0;
+}
+
+/* ── The line: one saying at a time, the new rising as the old lifts away ─── */
+
+.lab-line {
+  display: grid;
+  align-items: start;
+  flex: none;
+}
+
+.lab-line > * {
+  grid-area: 1 / 1;
+}
+
+.lab-said {
+  animation: lab-arrive var(--dur-rise) var(--ease-rise) 120ms both;
+}
+
+.lab-said.is-leaving {
+  animation: lab-leave 260ms ease-in both;
+}
+
+@keyframes lab-arrive {
+  from {
+    opacity: 0;
+    translate: 0 calc(var(--travel-press) * 3);
+  }
+}
+
+@keyframes lab-leave {
+  to {
+    opacity: 0;
+    translate: 0 calc(var(--travel-lift) * 3);
+  }
+}
+
+@keyframes lab-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The Blueprint voice: the build narration's line, sized by the window's own width. */
+.lab-voice {
+  --lab-lines: 2;
+  font-size: clamp(1.2rem, 4.4cqi, 1.6rem);
+  font-weight: 500;
+  line-height: 1.35;
+  min-height: calc(var(--lab-lines) * 1.35em);
+}
+
+@container window (width < 34rem) {
+  .lab-voice {
+    --lab-lines: 3;
+  }
+}
+
+/* A quiet line for options that save the big voice for the answer. */
+.lab-quiet {
+  font-size: var(--type-md);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.lab-quiet .is-answer,
+.lab-voice .is-answer {
+  color: var(--ink);
+}
+
+.lab-quiet .is-answer {
+  font-size: clamp(1.2rem, 4.4cqi, 1.6rem);
+  line-height: 1.35;
+}
+
+.lab-inked,
+.lab-landing {
+  font-size: clamp(1.2rem, 4.4cqi, 1.6rem);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.lab-line .is-answer.is-mid,
+.lab-inked.is-mid,
+.lab-landing.is-mid {
+  font-size: var(--type-lg);
+  line-height: 1.45;
+}
+
+.lab-line .is-answer.is-long,
+.lab-inked.is-long,
+.lab-landing.is-long {
+  font-size: var(--type-md);
+  line-height: 1.6;
+}
+
+/* ── Notes: a step written down, with a square that goes from sun to ink ── */
+
+.lab-note {
+  display: grid;
+  grid-template-columns: 5px 1fr;
+  gap: var(--space-2);
+  align-items: baseline;
+  list-style: none;
+  animation: lab-fade 400ms ease-out both;
+  transition: opacity 400ms ease;
+}
+
+.lab-note__mark {
+  width: 5px;
+  height: 5px;
+  translate: 0 -0.1em;
+  border: 1px solid color-mix(in oklab, var(--ink) 35%, transparent);
+  transition: background-color 0.4s;
+}
+
+.lab-note[data-state="now"] .lab-note__mark {
+  background-color: var(--sun);
+}
+
+.lab-note[data-state="done"] .lab-note__mark {
+  background-color: color-mix(in oklab, var(--ink) 35%, transparent);
+}
+
+/* ── 2 and 5: the creeping rule ─────────────────────────────────────────── */
+
+.lab-rule {
+  flex: none;
+  height: 2px;
+  background-image:
+    linear-gradient(
+      color-mix(in oklab, var(--ink) 38%, transparent),
+      color-mix(in oklab, var(--ink) 38%, transparent)
+    ),
+    linear-gradient(
+      color-mix(in oklab, var(--ink) 12%, transparent),
+      color-mix(in oklab, var(--ink) 12%, transparent)
+    );
+  background-repeat: no-repeat;
+  background-size:
+    var(--lab-fill, 0%) 100%,
+    100% 100%;
+  transition:
+    background-size var(--lab-eta, 0ms) cubic-bezier(0.2, 0.6, 0.35, 1),
+    opacity 500ms ease 360ms;
+}
+
+.lab-rule.is-spent {
+  opacity: 0;
+}
+
+/* ── 3: pencil, then ink ────────────────────────────────────────────────── */
+
+.lab-pencil {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  transition: opacity 400ms ease;
+}
+
+.lab-pencil.is-lifting {
+  opacity: 0;
+}
+
+.lab-pencil .lab-note {
+  grid-template-columns: 1fr;
+  font-size: var(--type-md);
+  line-height: 1.4;
+  color: var(--ink-3);
+  animation: lab-arrive var(--dur-rise) var(--ease-rise) both;
+}
+
+.lab-pencil .lab-note[data-state="now"] {
+  color: var(--ink-2);
+}
+
+.lab-pencil .lab-note.is-gone {
+  opacity: 0;
+}
+
+.lab-pencil .lab-note__mark {
+  display: none;
+}
+
+.lab-inked {
+  animation:
+    lab-arrive var(--dur-rise) var(--ease-rise) 200ms both,
+    lab-ink 1100ms ease-out 300ms both;
+}
+
+.lab-inked a {
+  animation: lab-ink 1100ms ease-out 300ms both;
+}
+
+@keyframes lab-ink {
+  from {
+    color: var(--ink-3);
+  }
+}
+
+/* ── 4: ghost lines ─────────────────────────────────────────────────────── */
+
+.lab-status {
+  font-size: var(--type-sm);
+  font-weight: 500;
+  color: var(--ink-2);
+  transition: opacity 300ms ease;
+}
+
+.lab-ghost-area {
+  display: grid;
+}
+
+.lab-ghost-area > * {
+  grid-area: 1 / 1;
+}
+
+.lab-ghost-wait {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  transition: opacity 600ms ease;
+}
+
+.lab-ghosts {
+  display: grid;
+  align-content: start;
+  font-size: clamp(1.2rem, 4.4cqi, 1.6rem);
+}
+
+.lab-ghost {
+  display: block;
+  height: 1.35em;
+  background-image: repeating-linear-gradient(to right, var(--ink-3) 0 3px, transparent 3px 6px);
+  background-size: 100% 1.2px;
+  background-position: 0 72%;
+  background-repeat: no-repeat;
+  opacity: 0.28;
+  animation:
+    lab-fade 320ms ease-out backwards,
+    lab-breathe 2.4s ease-in-out 400ms infinite alternate;
+}
+
+.lab-ghost:nth-child(1) {
+  width: 94%;
+}
+
+.lab-ghost:nth-child(2) {
+  width: 86%;
+  animation-delay: 40ms, 700ms;
+}
+
+.lab-ghost:nth-child(3) {
+  width: 52%;
+  animation-delay: 80ms, 1000ms;
+}
+
+@keyframes lab-breathe {
+  to {
+    opacity: 0.5;
+  }
+}
+
+.lab-ghost-area.is-landed .lab-ghost-wait {
+  opacity: 0;
+}
+
+.lab-ghost-area.is-landed .lab-ghost {
+  animation: none;
+}
+
+.lab-landing {
+  animation: lab-fade 600ms ease-out 150ms both;
+}
+
+/* ── 5: the band ────────────────────────────────────────────────────────── */
+
+.lab-band {
+  display: grid;
+  gap: 2px;
+  transition: opacity 300ms ease;
+}
+
+.lab-band.is-spent {
+  opacity: 0;
+}
+
+.lab-band__row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-height: 1.5em;
+}
+
+.lab-band__stage {
+  font-size: var(--type-sm);
+}
+
+.lab-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.lab-dot {
+  width: 5px;
+  height: 5px;
+  border: 1px solid color-mix(in oklab, var(--ink) 35%, transparent);
+  transition: background-color 0.4s;
+  animation: lab-fade 300ms ease-out both;
+}
+
+.lab-dot[data-state="done"] {
+  background-color: color-mix(in oklab, var(--ink) 35%, transparent);
+}
+
+.lab-dot[data-state="now"] {
+  background-color: var(--sun);
+}
+
+/* The answer lands where the last sentence stood: a crossfade, with no rise and no lift. */
+.lab-o-band .lab-line.is-concluded > .lab-said {
+  animation: lab-fade 420ms ease-out 160ms both;
+}
+
+.lab-o-band .lab-line.is-concluded > .lab-said.is-leaving {
+  animation: lab-fade-out 260ms ease-in both;
+}
+
+@keyframes lab-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* ── 6: the quiet trail ─────────────────────────────────────────────────── */
+
+.lab-trail {
+  padding-top: var(--space-3);
+  background: linear-gradient(var(--ink-hair), var(--ink-hair)) top left / 3rem 1px no-repeat;
+  font-size: var(--type-sm);
+  line-height: 1.5;
+  color: var(--ink-2);
+  animation: lab-fade 500ms ease-out 700ms both;
+}
+
+.lab-trail__label {
+  margin-right: var(--space-1);
+}
+
+/* ── 7: the big figure ──────────────────────────────────────────────────── */
+
+.lab-figure__value {
+  display: block;
+  font-family: var(--font-display);
+  font-size: var(--type-title-lg);
+  font-weight: 700;
+  font-variation-settings:
+    "SOFT" 80,
+    "WONK" 1,
+    "opsz" 120;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variant-numeric: lining-nums;
+}
+
+@container window (width >= 30rem) {
+  .lab-figure__value {
+    font-size: calc(var(--type-title-lg) * 2);
+  }
+}
+
+.lab-figure__sentence {
+  display: block;
+  margin-top: var(--space-2);
+  font-size: var(--type-md);
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+/* ── 8: margin notes ────────────────────────────────────────────────────── */
+
+.lab-margin-grid {
+  display: grid;
+  grid-template-columns: 9.5rem minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.lab-margin,
+.lab-ledger {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+}
+
+.lab-margin .lab-note {
+  font-size: var(--type-sm);
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.lab-margin .lab-note[data-state="done"] {
+  color: var(--ink-3);
+}
+
+.lab-margin.is-settled {
+  opacity: 0.8;
+}
+
+@container window (width < 30rem) {
+  .lab-margin-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  .lab-margin .lab-note:not(:last-child) {
+    display: none;
+  }
+
+  .lab-margin.is-settled {
+    display: none;
+  }
+}
+
+/* ── 9: the ledger that folds ───────────────────────────────────────────── */
+
+.lab-ledger .lab-note {
+  font-size: var(--type-md);
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+
+.lab-ledger .lab-note[data-state="done"] {
+  color: var(--ink-3);
+}
+
+.lab-ledger.is-folded {
+  display: none;
+}
+
+.lab-ledger.is-folded.is-unfolded {
+  display: grid;
+  animation: lab-fade 300ms ease-out both;
+}
+
+.lab-ledger.is-folded .lab-note {
+  font-size: var(--type-sm);
+  animation: none;
+}
+
+.lab-fold__toggle {
+  align-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  font: inherit;
+  font-size: var(--type-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--caps-tracking);
+  color: var(--ink-2);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  animation: lab-fade 400ms ease-out 500ms both;
+}
+
+.lab-fold__toggle::before {
+  content: "▸";
+  transition: rotate var(--dur-fast);
+}
+
+.lab-fold__toggle[aria-expanded="true"]::before {
+  rotate: 90deg;
+}
+
+.lab-fold__toggle:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── 10: spoken pace ────────────────────────────────────────────────────── */
+
+.lab-said.is-paced {
+  animation: none;
+}
+
+.lab-word {
+  animation: lab-fade 260ms ease-out both;
+  animation-delay: calc(var(--lab-order, 0) * 55ms + 120ms);
+}
+
+/* Held at a moment: everything before it lands without motion. */
+.lab-window.is-instant.is-instant *,
+.lab-window.is-instant.is-instant *::before,
+.lab-window.is-instant.is-instant *::after {
+  animation-duration: 0s;
+  animation-delay: 0s;
+  transition-duration: 0s;
+  transition-delay: 0s;
+}

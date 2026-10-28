@@ -1,9 +1,9 @@
-// The generation-metrics store (ARCH §6.3 "Generation Metrics", §6.2).
+// The generation-metrics store.
 //
-// The single public entry point for the metrics subsystem: the validated row
-// shape a generation assembles, the writer that persists one row per generation
-// (build, failed build, or deflection), and the read surface the experiment harness
-// queries the dataset through. Callers import from here and depend on nothing inside.
+// The single public entry point for the metrics subsystem: the lifecycle row every admitted
+// build or evolution writes, the resolver-only row for refusals, deflections and questions,
+// the legacy per-generation row, and their read surfaces. Callers import from here and depend
+// on nothing inside.
 
 export {
   getIntentResolutionMetrics,

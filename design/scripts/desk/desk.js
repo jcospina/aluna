@@ -27,6 +27,9 @@
  * framework, and the frame path is rebuilt on resize only.
  */
 
+import { Narrator } from "../narration/narrator.js";
+import { REHEARSAL_PACE, rehearsal } from "../narration/rehearsal.js";
+import { FAILED_BUILD_ENDING } from "../narration/voice.js";
 import { AlunaWindow } from "../window/window.js";
 import { addWindowDrag, addWindowGrip, setMaximised } from "../window/window-gestures.js";
 import { refusePress } from "../window/window-press.js";
@@ -40,7 +43,7 @@ import {
   refreshGeometry,
 } from "./desk-geometry.js";
 import { devTile, logoButton, nameLogo } from "./desk-logo.js";
-import { clearStages, DEV_STAGES, devPanelBody, writeStage } from "./devpanel.js";
+import { clearStages, devPanelBody, writeStage } from "./devpanel.js";
 import { renderCollection } from "./patterns.js";
 import { mountPromptBar } from "./prompt-bar.js";
 import { wallpaperUrl } from "./wallpaper.js";
@@ -102,14 +105,13 @@ function record(box) {
  */
 
 /** A build in flight: what it will become, and what it took the window from. */
-/** @typedef {{ id: string, displaced: string | null, timers: number[] }} Build */
-
 /**
- * The eight stages, in the order they arrive. They live with the panel that files
- * them — `devpanel.js` — because the product's second window reads the same list,
- * and a stage the two surfaces disagree about is a stage a developer cannot check.
+ * @typedef {{ id: string, displaced: string | null, timers: number[], narrator?: Narrator,
+ *   landed?: boolean }} Build
  */
-const STAGES = DEV_STAGES;
+
+/** How long a landed build holds its last line before the window becomes what it made. */
+const LANDING_HOLD_MS = 1600;
 
 export class Desk {
   /**
@@ -133,6 +135,9 @@ export class Desk {
     this.openId = null;
     /** @type {Build | null} */
     this.build = null;
+    /** How the next rehearsed build goes, once it is checked. */
+    /** @type {import("../narration/rehearsal.js").Ending} */
+    this.ending = "lands";
 
     const surface = this.#buildSurface();
     this.logoLayer = surface.logoLayer;
@@ -711,8 +716,8 @@ export class Desk {
 
     const entry = this.#ensureWindow();
     this.openId = null;
-    entry.win.setTitle("Making it");
-    this.#setBody(entry, this.#buildBody(label));
+    entry.win.setTitle("Building…");
+    this.#setBody(entry, this.#buildBody());
     this.#focus(entry);
     this.#announce();
     this.#devClear();
@@ -725,68 +730,92 @@ export class Desk {
    * the story of its own construction instead, which is the whole reason the
    * window opens at submit rather than at commit.
    *
-   * @param {string} label
    * @returns {HTMLElement}
    */
-  #buildBody(label) {
+  #buildBody() {
     const shell = document.createElement("div");
     shell.className = "build";
 
-    const log = document.createElement("div");
-    log.className = "build__log";
-    log.setAttribute("role", "log");
-    log.setAttribute("aria-live", "polite");
+    const story = document.createElement("div");
+    story.className = "build__story";
+    story.setAttribute("aria-live", "polite");
 
     const foot = document.createElement("div");
     foot.className = "build__foot";
-    const note = document.createElement("span");
-    note.className = "build__note xs";
-    note.textContent = `Making ${label}`;
     const cancel = document.createElement("button");
     cancel.type = "button";
     cancel.className = "btn btn--outline";
     cancel.textContent = "Cancel";
     cancel.addEventListener("click", () => this.cancelBuild());
-    foot.append(note, cancel);
+    foot.append(cancel);
 
-    shell.append(log, foot);
+    shell.append(story, foot);
     return shell;
   }
 
   /**
-   * Eight stages on a timer. In the product these arrive over SSE and the logo
-   * request is made after the gate clears — money is never spent on a build
-   * that can still fail (ADR-0007).
+   * A build on a timer (`rehearsal.js`). In the product its facts arrive over SSE and the
+   * logo request is made after the gate clears — money is never spent on a build that can
+   * still fail (ADR-0007).
    *
    * @param {Capability} capability
    */
   #runBuild(capability) {
     const build = this.build;
-    if (!build) return;
+    const story = this.win?.el.querySelector(".build__story");
+    if (!build || !(story instanceof HTMLElement)) return;
+    const narrator = new Narrator(story, { pace: REHEARSAL_PACE });
+    build.narrator = narrator;
+    const subject = {
+      label: capability.label,
+      noun: capability.noun,
+      plural: capability.label.toLowerCase(),
+      fields: capability.fields.map((field) => field.label),
+    };
 
-    STAGES.forEach(({ key, line }, index) => {
-      const timer = window.setTimeout(
-        () => {
-          this.#say(line);
-          this.#devWrite(key, `{ "stage": "${key}", "capability": "${capability.id}" }`);
-          if (key === "spec") nameLogo(this.root, capability);
-          if (index === STAGES.length - 1) this.#commit(capability);
-        },
-        420 + index * 380,
-      );
+    for (const beat of rehearsal(subject, this.ending)) {
+      const timer = window.setTimeout(() => this.#play(beat, capability), beat.at);
       build.timers.push(timer);
-    });
+    }
   }
 
-  /** @param {string} line */
-  #say(line) {
-    const log = this.win?.el.querySelector(".build__log");
-    if (!(log instanceof HTMLElement)) return;
-    const row = document.createElement("p");
-    row.className = "build__line sm";
-    row.textContent = line;
-    log.append(row);
-    log.scrollTop = log.scrollHeight;
+  /**
+   * One beat of a rehearsed build. A landed build holds its last line before the window
+   * becomes what it made, as the product's does.
+   *
+   * @param {import("../narration/rehearsal.js").Beat} beat
+   * @param {Capability} capability
+   */
+  #play(beat, capability) {
+    const build = this.build;
+    if (!build?.narrator) return;
+    if (beat.fact) build.narrator.take(beat.fact);
+    if (beat.fact?.kind === "shape") nameLogo(this.root, capability);
+    if (beat.dev) this.#devWrite(beat.dev, `{ "stage": "${beat.dev}" }`);
+    if (beat.failed) return this.#fizzle(build.narrator);
+    if (!beat.landed) return;
+    build.narrator.ready();
+    // Landed, so there is nothing left to cancel: the product's commit takes the control away.
+    build.landed = true;
+    this.win?.el.querySelector(".build__foot")?.setAttribute("hidden", "");
+    build.timers.push(window.setTimeout(() => this.#commit(capability), LANDING_HOLD_MS));
+  }
+
+  /**
+   * A rehearsed build that failed: its ending takes the line, as the product's does, and its one
+   * control becomes Continue, which gives the window back.
+   *
+   * @param {Narrator} narrator
+   */
+  #fizzle(narrator) {
+    const ending = document.createElement("p");
+    ending.className = "build-stream__ending";
+    ending.setAttribute("data-build-ending", "failed");
+    ending.textContent = FAILED_BUILD_ENDING;
+    narrator.root.after(ending);
+    narrator.conclude(true);
+    const control = this.win?.el.querySelector(".build__foot .btn");
+    if (control) control.textContent = "Continue";
   }
 
   /**
@@ -795,12 +824,13 @@ export class Desk {
    * longer and then becomes the logo it keeps for life (ADR-0007).
    *
    * @param {Capability} capability
+   * @param {boolean} [open] whether the window shows it, rather than being put away
    */
-  #commit(capability) {
+  #commit(capability, open = true) {
     this.build = null;
     capability.records = [];
     this.renderLogos();
-    this.open(capability.id);
+    if (open) this.open(capability.id);
 
     /* The logo request, which the gate has already cleared the way for. */
     window.setTimeout(() => {
@@ -821,6 +851,10 @@ export class Desk {
     const build = this.build;
     if (!build) return;
     for (const timer of build.timers) window.clearTimeout(timer);
+    build.narrator?.stop();
+    // A window put away while a landed build holds its last line keeps what it made.
+    const landed = build.landed && this.capabilities.find((c) => c.id === build.id);
+    if (landed) return this.#commit(landed, !opts.silent);
     this.build = null;
 
     this.capabilities = this.capabilities.filter((c) => c.id !== build.id);

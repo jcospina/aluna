@@ -239,7 +239,10 @@ describe("the developer panel can receive everything the run emits", () => {
     const emitted = [...new Set(events.map((event) => event.event))];
     expect(emitted.length).toBeGreaterThan(0);
 
-    const swapped = new Set([...fragment.matchAll(/sse-swap="([^"]+)"/g)].map((match) => match[1]));
+    // A region may listen for several events: `sse-swap` takes a comma list.
+    const swapped = new Set(
+      [...fragment.matchAll(/sse-swap="([^"]+)"/g)].flatMap((match) => (match[1] ?? "").split(",")),
+    );
     // `done` is the stream's own close signal (`sse-close="done"`), not a swap target.
     for (const event of emitted) {
       if (event === "done") continue;

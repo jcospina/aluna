@@ -5,9 +5,9 @@ import {
 } from "../../platform/persistence/scratch-db.test-support.ts";
 import { REGISTRY_TABLE } from "./store.ts";
 
-// The registry row stays lean (ARCH §6.3): every column is listed here by hand, so adding one
-// is a decision this file records rather than a side effect of a migration. The list IS the
-// policy; nothing it is compared with derives from it.
+// The registry row stays lean because the intent resolver scans every row, so each column is
+// listed here by hand: adding one is a decision this file records, not a migration's side
+// effect. The list IS the policy; nothing it is compared with derives from it.
 //
 // A test rather than a `*.policy.ts`, because the columns are only knowable by running the
 // migrations: 0012 adds three of them from a loop, so the migration text does not spell them out.

@@ -1,14 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import {
-  flat,
-  readSource,
-  shellScripts,
-  shippedStylesheets,
-} from "../../safety/source.test-support.ts";
+import { readSource, shellScripts, shippedStylesheets } from "../../safety/source.test-support.ts";
 
-// Opening a second capability (ARCH §6.1 and §8) gets no staleness
-// machinery at all. `capability-swap.test.ts` runs the swap; this holds the shell to having none.
+// Opening a second capability gets no staleness machinery at all. `capability-swap.test.ts`
+// runs the swap; this holds the shell to having none.
 
 describe("the outgoing capability's work is released on the swap", () => {
   test("the hand-off is gone from the shell, not merely unreferenced", () => {
@@ -20,7 +15,7 @@ describe("the outgoing capability's work is released on the swap", () => {
 
 describe("every open is a fresh read", () => {
   test("the shell stores presentation and never a collection", () => {
-    // ARCH §6.1: the shell may remember how things look; it never decides what is true. Exactly
+    // The shell may remember how things look; it never decides what is true. Exactly
     // two presentation records live in storage, and the desk holds nothing else across a reload.
     const keys = new Set<string>();
     for (const [name, source] of shellScripts()) {
@@ -84,13 +79,5 @@ describe("no invalidation bus, version stamp or refresh control exists anywhere"
     const htmx = readSource("public/vendor/htmx.min.js");
     expect(htmx).toContain('!t.firstInitCompleted&&e.trigger==="load"');
     expect(htmx).toContain('if(e!=="firstInitCompleted")delete t[e]');
-  });
-
-  test("the architecture says the edge is accepted rather than engineered away", () => {
-    const architecture = flat(readSource("docs/architecture.md"));
-    expect(architecture).toContain("Cross-capability reads need no invalidation channel.");
-    expect(architecture).toContain(
-      "an accepted edge rather than a reason to build a bus, a version stamp, or the refresh control the window deliberately does not have",
-    );
   });
 });

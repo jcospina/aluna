@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>Answer window lab</title>
+    <link rel="stylesheet" href="/design/styles/index.css">
+    <link rel="stylesheet" href="/static/labs/answer-window/lab-page.css">
+    <link rel="stylesheet" href="/static/labs/answer-window/lab-options.css">
+    <script type="module" src="/static/labs/answer-window/answer-lab.js"></script>
+  </head>
+  <body class="lab">
+    <p class="lab-banner" data-banner hidden>
+      The design system’s stylesheet did not load, so this page is unstyled. Check that the dev
+      server is serving /design/styles/index.css.
+    </p>
+
+    <aside class="lab-side">
+      <h1 class="lab-side__title">Answer window lab</h1>
+      <p class="xs">
+        Ten ways to show Aluna looking, then answering. Arrow keys step through them; R replays.
+      </p>
+      <div class="lab-options" data-options role="group" aria-label="Options"></div>
+    </aside>
+
+    <main class="lab-main-col">
+      <div class="lab-stage" data-stage></div>
+
+      <div class="lab-controls">
+        <div class="lab-control">
+          <span class="caps">Question</span>
+          <div data-scenarios></div>
+        </div>
+        <div class="lab-control">
+          <span class="caps">Hold at</span>
+          <div data-moments></div>
+        </div>
+        <div class="lab-control lab-control--row">
+          <div class="lab-control">
+            <span class="caps">Speed</span>
+            <div class="segmented" data-speeds role="group" aria-label="Speed">
+              <button type="button" value="0.5" aria-pressed="false">½×</button>
+              <button type="button" value="1" aria-pressed="true">1×</button>
+              <button type="button" value="2" aria-pressed="false">2×</button>
+            </div>
+          </div>
+          <div class="lab-control">
+            <span class="caps">Window</span>
+            <div class="segmented" data-sizes role="group" aria-label="Window">
+              <button type="button" value="narrow" aria-pressed="false">Narrow</button>
+              <button type="button" value="default" aria-pressed="true">Default</button>
+              <button type="button" value="roomy" aria-pressed="false">Roomy</button>
+            </div>
+          </div>
+          <button type="button" class="btn btn--secondary btn--sm" data-replay>Replay</button>
+          <span class="xs lab-clock" data-clock></span>
+        </div>
+      </div>
+
+      <section class="lab-notes" data-notes></section>
+    </main>
+  </body>
+</html>

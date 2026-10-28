@@ -10,8 +10,8 @@
 import type { SSEStreamingApi } from "hono/streaming";
 
 /**
- * Below Bun's server idle timeout (`src/index.ts`'s `STREAM_IDLE_TIMEOUT_SECONDS`), so the
- * heartbeat fires before a silent generation stage lets the connection go idle.
+ * Below Bun's server idle timeout, `STREAM_IDLE_TIMEOUT_SECONDS` in `src/server/serve-options.ts`,
+ * so the heartbeat fires before a silent generation stage lets the connection go idle.
  */
 export const DEFAULT_SSE_HEARTBEAT_MS = 15_000;
 

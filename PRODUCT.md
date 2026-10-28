@@ -22,6 +22,8 @@ recoverable, and safe to activate.
 
 Warm, grounded, quietly wondrous. Aluna speaks plainly, encourages without being
 cutesy, and carries expert confidence without sounding like an engineering tool.
+The one place it plays is a build's narration, which names each stage with an odd
+little verb ("Tinkering", "Prodding") and keeps a plain line under it.
 
 ## Anti-references
 

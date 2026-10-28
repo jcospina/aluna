@@ -745,45 +745,41 @@
  * to give the window back.
  */
 
+/* A window too short for the story's band and its control scrolls here, as the product's region
+   does; the story itself never scrolls. */
 .build {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  overflow-y: auto;
 }
 
-.build__log {
+.build__story {
   flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  min-height: min-content;
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  overflow: clip;
+  overflow-wrap: anywhere;
 }
 
-.build__line {
-  margin: 0;
-  color: var(--ink-2);
-}
-
-.build__line:last-child {
-  color: var(--ink);
-  font-weight: 500;
+@supports not (overflow: clip) {
+  .build__story {
+    overflow: hidden;
+  }
 }
 
 .build__foot {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding-top: var(--space-2);
-  border-top: var(--line-plate) solid var(--ink-hair);
+  justify-content: flex-end;
 }
 
-.build__note {
-  color: var(--ink-3);
+/* A landed build has nothing to cancel, but its last line holds with the control's room kept. */
+.build__foot[hidden] {
+  display: flex;
+  visibility: hidden;
 }
 
 /* ── Phone ────────────────────────────────────────────────────────────── */

@@ -15,7 +15,7 @@ import type {
 export const METRIC_ID = "metric-under-deletion";
 export const BUILD_ID = "build-under-deletion";
 
-/** Both incarnation-keyed measurement stores ARCH §6.3 keeps outside the cleanup seam. */
+/** Seeds a row in both incarnation-keyed measurement stores, outside the cleanup seam. */
 export function seedGenerationMetric(conns: PlatformDatabase, incarnationId: string): void {
   conns.readwrite.run(
     "INSERT INTO generation_metrics (id, outcome, intent_type, intent_confidence, model, incarnation_id) VALUES (?, ?, ?, ?, ?, ?)",

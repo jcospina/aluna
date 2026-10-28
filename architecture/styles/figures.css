@@ -1,0 +1,245 @@
+/*
+ * What the plates and windows show besides words: the two specs the Diff Engine compares and the
+ * work plan it makes, the closing path, a Finance tracker card, and the detail window's page.
+ */
+
+/* ── The Diff Engine ────────────────────────────────────────────────── */
+
+.specs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.spec-card {
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-2);
+  border: var(--line) solid var(--ink);
+  font-size: var(--type-sm);
+  line-height: 1.4;
+}
+
+.spec-card .caps {
+  margin-bottom: var(--space-1);
+  font-size: var(--type-xs);
+}
+
+.spec-card p + p {
+  margin-top: var(--space-1);
+}
+
+.spec-card b {
+  display: block;
+  font-size: var(--type-xs);
+  color: var(--ink-2);
+}
+
+.spec-card mark {
+  padding: 0 0.15em;
+  background: color-mix(in srgb, var(--sun) 60%, transparent);
+  color: var(--ink);
+}
+
+.plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.plan__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.plan__label {
+  min-width: 8.5em;
+  font-size: var(--type-xs);
+}
+
+.plan-part {
+  padding: 0 var(--space-2);
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
+  font-size: var(--type-sm);
+  font-weight: 700;
+}
+
+.plan-part--kept {
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+/* ── The whole path ─────────────────────────────────────────────────── */
+
+.paths {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: var(--space-6);
+  margin-top: var(--space-5);
+}
+
+.paths__close .plate__line {
+  margin-top: 0;
+}
+
+.paths__close .plate__links {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+@media (max-width: 900px) {
+  .paths {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .paths__close {
+    grid-column: 1 / -1;
+  }
+}
+
+.path {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.path-step {
+  position: relative;
+  padding: var(--space-1) var(--space-3);
+  background: var(--surface-2);
+  border: var(--line) solid var(--ink);
+  font-size: var(--type-sm);
+  font-weight: 700;
+}
+
+.path-step + .path-step::before {
+  content: "↓";
+  position: absolute;
+  bottom: 100%;
+  left: var(--space-3);
+  line-height: var(--space-4);
+  font-weight: 500;
+  color: var(--clay);
+}
+
+/* ── A Finance tracker card ─────────────────────────────────────────── */
+
+.finance-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.finance-card__top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.finance-card__says {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.finance-card__date {
+  font-size: var(--type-xs);
+  color: var(--ink-3);
+}
+
+.finance-card__title,
+.finance-card__amount {
+  font-size: var(--type-lg);
+  font-weight: 700;
+}
+
+.finance-card__amount {
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.finance-card__category {
+  font-size: var(--type-xs);
+  color: var(--ink-2);
+}
+
+.pill--none {
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+
+/* ── The detail window's page ───────────────────────────────────────── */
+
+.more {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  font-size: var(--type-md);
+  line-height: 1.5;
+  outline: none;
+}
+
+.more :where(p, ul) {
+  margin: 0;
+}
+
+.more ul {
+  display: grid;
+  gap: var(--space-2);
+  padding-left: 1.2em;
+}
+
+.more code {
+  font-size: 0.9em;
+}
+
+.more__table {
+  border-collapse: collapse;
+  font-size: var(--type-sm);
+  line-height: 1.4;
+}
+
+.more__table th,
+.more__table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--rule, var(--ink-3));
+  text-align: left;
+  vertical-align: top;
+}
+
+.more__table th {
+  font-size: var(--type-xs);
+  letter-spacing: var(--caps-tracking);
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.more__close {
+  align-self: flex-start;
+}
+
+@media (max-height: 820px) {
+  .path {
+    gap: var(--space-3);
+  }
+
+  .paths {
+    margin-top: var(--space-4);
+  }
+}

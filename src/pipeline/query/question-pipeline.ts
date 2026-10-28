@@ -2,7 +2,7 @@
 //
 // Three endings arrive here. The loop's own two speak for themselves through the result; the
 // third is a throw, and this file owns the sentence for it, because a question that could not be
-// finished still speaks in product voice (ADR-0001, ARCH §9.7).
+// finished still speaks in product voice (ADR-0001).
 //
 // Nothing on this path writes to the desk. The scope creates nothing (`data-query.ts`), and the
 // one row a question leaves behind is the resolver measurement a refusal and a deflection leave too.
@@ -224,7 +224,7 @@ async function runToAnEnding(
 /**
  * The whole of a question, wrapped in the one row it leaves. Every ending writes it, the two that
  * never open a window included: what a question cost is data whether or not anyone was still
- * there to be told the answer (ARCH §9.6). Those two write no cost, having run nothing to cost.
+ * there to be told the answer. Those two write no cost, having run nothing to cost.
  */
 export async function streamQuestion(
   input: QuestionPipelineInput,

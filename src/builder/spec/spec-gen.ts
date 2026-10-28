@@ -1,4 +1,4 @@
-// Spec generation (ARCH §6.2 step 1, §9.1).
+// Spec generation.
 //
 // The first real stage of the pipeline: prompt plus resolved intent becomes the capability spec
 // — `schema + ui_intent + behavior`, plus identity and resolver context — authored by the model
@@ -10,7 +10,6 @@
 // `capabilitySpecSchema` is the hard wall that rejects anything outside it.
 
 import type { IntentClassification } from "../../pipeline/intent/index.ts";
-import type { SendBuildEvent } from "../../pipeline/jobs/build-jobs.ts";
 import type { Provider, TokenUsage } from "../../platform/provider/index.ts";
 import {
   BEHAVIORAL_ERROR_MARKERS,
@@ -39,7 +38,6 @@ import {
   promptCapabilitySpecSchema,
   uiCollectionLayoutSchema,
 } from "../../registry/index.ts";
-import { escapeHtml } from "../../server/http/html.ts";
 import { FILE_FIELD_CARD_LINE, FILE_FIELD_PROMPT_LINES } from "./file-field-guidance.ts";
 import { drawFileCardLayout, drawnFileCardLayout } from "./layout-draw.ts";
 import {
@@ -51,11 +49,9 @@ export interface GenerateSpecInput {
   readonly provider: Provider;
   // The prompt bar text — what the user wants Aluna to keep track of.
   readonly prompt: string;
-  // The resolved intent, read for `proposed_action` and `user_facing_label`. Carried as the
-  // existing classification type, so wiring the resolver in front is a pass-through.
+  // The resolved intent, read for `proposed_action`. Carried as the existing classification
+  // type, so wiring the resolver in front is a pass-through.
   readonly intent: IntentClassification;
-  // The job's stream. Narration rides it in product voice while the spec generates.
-  readonly send: SendBuildEvent;
   // The capability's incarnation, which draws the layout of a card that shows a file.
   readonly incarnationId: string;
   // The capabilities the resolver flagged, read under the build lease. Absent or empty, the prompt
@@ -168,15 +164,8 @@ export function buildSpecPrompt(input: GenerateSpecInput): string {
   ].join("\n");
 }
 
-/**
- * Run the stage: narrate in product voice from the intent's `user_facing_label` — no "spec" or
- * "schema" reaches the user — then generate, validate, and measure.
- */
+/** Run the stage: generate, validate, and measure. The pipeline tells the person about it. */
 export async function generateSpec(input: GenerateSpecInput): Promise<SpecGenResult> {
-  // The one user-visible line for this stage. The label is the intent's warm
-  // sentence; nothing about how the spec is built crosses into it.
-  await input.send("narration", escapeHtml(input.intent.user_facing_label));
-
   const startedAt = performance.now();
 
   const result = input.provider.generate(buildSpecPrompt(input), promptCapabilitySpecSchema);

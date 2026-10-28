@@ -142,6 +142,7 @@ export async function runBehavioralRepairLoop(
       state.handlers[entry.action] = entry.content;
       state.repairedHandlers.add(entry.action);
     }
+    options.input.observer?.onRepaired?.();
   }
 }
 
@@ -278,6 +279,7 @@ async function repairFromCaseFailure(
     throw behavioralRungFailure(state, execution, error.message, error);
   }
 
+  options.input.observer?.onRepair?.(eligibleHandlers);
   const round = await repairAttributedHandlers({
     provider,
     input: options.input,

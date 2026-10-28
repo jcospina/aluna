@@ -210,6 +210,13 @@ export function narrateEnding(scene: ReturnType<typeof desk>) {
   scene.narration.append(new El("p", { "data-build-ending": "" }));
 }
 
+/** The run lands: its commit region holds the capability, its last line still showing. */
+export function land(scene: ReturnType<typeof desk>) {
+  const commit = new El("div", { class: "build-stream__commit" });
+  commit.append(new El("div", { [ACTIVE_CAPABILITY_ATTRIBUTE]: "notes" }));
+  scene.subscriber.append(commit);
+}
+
 /**
  * A real event, aimed at a node of the double. The glue asks `event instanceof CustomEvent`
  * before it trusts a close, so a plain object would be waved through every rule under test.
