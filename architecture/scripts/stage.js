@@ -16,7 +16,7 @@ import { Replay } from "./replay.js";
  * @typedef {{ run: "first" | "evolution", cue: number, lands?: 1 | 2 }} Build
  * @typedef {{ version: 1 | 2, saved: boolean }} App
  * @typedef {{ prompt: string, make?: true, busy?: true, notice?: string, logo: Logo,
- *   title?: string, build?: Build, app?: App, opens?: number }} Scene
+ *   title?: string, build?: Build, app?: App, opens?: number, liveLogoAt?: number }} Scene
  */
 
 const FIRST = "I want to track my personal finances";
@@ -28,8 +28,6 @@ const THINKING = "Thinking…";
 
 /** How long a landed build holds its last line before the window becomes what it made. */
 const LANDING_HOLD_MS = 1600;
-/** How long after the commit the logo the build asked for arrives. */
-const LOGO_MS = 700;
 
 /** @param {number} cue @param {Logo} [logo] @returns {Scene} */
 const first = (cue, logo = "named") => ({
@@ -49,6 +47,9 @@ const evolving = (cue) => ({
   build: { run: "evolution", cue },
 });
 
+/** The evolution's spec and its diff happen while the window is still scheming. */
+const scheming = evolving(0);
+
 /** @type {Record<string, Scene>} */
 const SCENES = {
   cover: { prompt: FIRST, make: true, logo: "none" },
@@ -60,7 +61,7 @@ const SCENES = {
   prodding: first(4),
   mending: first(5),
   polishing: first(6),
-  landing: { ...first(7), build: { run: "first", cue: 7, lands: 1 } },
+  landing: { ...first(7), build: { run: "first", cue: 7, lands: 1 }, liveLogoAt: 1 },
   later: {
     prompt: SECOND,
     make: true,
@@ -76,8 +77,9 @@ const SCENES = {
     title: THINKING,
     app: { version: 1, saved: true },
   },
-  "evolution-scheming": evolving(0),
-  "diff-engine": evolving(0),
+  "evolution-scheming": scheming,
+  "diff-engine": scheming,
+  "work-plan": scheming,
   "only-what-changed": evolving(1),
   "version-swap": evolving(2),
   "evolution-landing": { ...evolving(3), build: { run: "evolution", cue: 3, lands: 2 }, opens: 1 },
@@ -85,9 +87,13 @@ const SCENES = {
 };
 
 export class Stage {
-  /** @param {HTMLElement} root */
-  constructor(root) {
+  /**
+   * @param {HTMLElement} root
+   * @param {() => void} onLanded told once a build the slide waits on has landed in the window
+   */
+  constructor(root, onLanded) {
     this.root = root;
+    this.onLanded = onLanded;
     this.input = /** @type {HTMLInputElement} */ (root.querySelector("[data-prompt-input]"));
     this.make = /** @type {HTMLButtonElement} */ (root.querySelector("[data-make]"));
     this.notice = /** @type {HTMLElement} */ (root.querySelector("[data-notice]"));
@@ -114,6 +120,7 @@ export class Stage {
   /**
    * @param {HTMLElement} slide
    * @param {number} step
+   * @returns {boolean} whether the window has yet to land, and with it what the notes point at
    */
   show(slide, step) {
     const scene = SCENES[slide.dataset.scene ?? ""];
@@ -121,9 +128,9 @@ export class Stage {
     const same = scene === this.scene;
     this.scene = scene;
     this.step = step;
-    // A step on the same scene only adds notes, or opens a record once the window has landed.
     if (!same) this.#set(scene);
-    else if (this.landedOn) this.#app(this.landedOn, this.landedOn === 2);
+    this.#stepTo(scene);
+    return Boolean(scene.build?.lands) && !this.landedOn;
   }
 
   /** @param {Scene} scene */
@@ -135,17 +142,33 @@ export class Stage {
     this.#setLogo(scene.logo);
     this.win.el.hidden = !scene.title;
     if (scene.title) this.win.setTitle(scene.title);
-    // Coming back to a landing past its first press finds it the way it was left: landed.
-    if (scene.build?.lands && this.step > 0) {
-      this.replay.stop();
-      this.#land(scene.build.lands);
-      this.#setLogo("live");
-    } else if (scene.build) {
-      const { run, cue } = scene.build;
-      this.replay.show(this.#story(), RUNS[run], cue);
+    const { build } = scene;
+    // A landing entered past its first press is drawn landed, by the step below.
+    if (build && !(build.lands && this.step > 0)) {
+      this.replay.show(this.#story(), RUNS[build.run], build.cue);
     } else {
       this.replay.stop();
       if (scene.app) this.#app(scene.app.version, scene.app.saved);
+    }
+  }
+
+  /**
+   * What a press changes on its scene: a landing still holding lands at once, a landed window
+   * opens its record, and the logo arrives with the note that says when.
+   *
+   * @param {Scene} scene
+   */
+  #stepTo(scene) {
+    const lands = scene.build?.lands;
+    if (lands && this.step > 0 && this.landedOn !== lands) {
+      this.#cancel();
+      this.replay.stop();
+      this.#land(lands);
+    } else if (this.landedOn) {
+      this.#app(this.landedOn, this.landedOn === 2);
+    }
+    if (scene.liveLogoAt !== undefined) {
+      this.#setLogo(this.step >= scene.liveLogoAt ? "live" : scene.logo);
     }
   }
 
@@ -157,7 +180,7 @@ export class Stage {
       setTimeout(() => {
         this.replay.stop();
         this.#land(lands);
-        this.timers.push(setTimeout(() => this.#setLogo("live"), LOGO_MS));
+        this.onLanded();
       }, LANDING_HOLD_MS),
     );
   }

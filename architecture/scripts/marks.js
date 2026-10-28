@@ -1,14 +1,16 @@
 // @ts-check
 /**
- * The pencil over the desk, drawn the way the design system's window anatomy is: every note on
- * the slide that names a `data-point` gets a ring round what it points at and a quick arrow to it,
- * leaving from the side of its plate that faces the ring. A point that matches nothing, or nothing
- * with a size yet, is left unmarked until the next draw.
+ * The pencil over the desk, drawn the way the design system's window anatomy is. A note that names
+ * a `data-point` gets a quick arrow from its plate to what it points at, then a ring round it or a
+ * highlighter behind its words; a `data-ring` gets the ring alone. A `data-bow` of left, right, up
+ * or down sets which way the arrow bulges, where chance would pick badly. The pencil waits until
+ * the slide and the window have stopped moving, draws each mark stroke by stroke, and from then on
+ * moves only when the desk changes size.
  */
 
 import {
   aim,
-  arrow,
+  arrowParts,
   HIGHLIGHTER,
   PENCIL,
   ring,
@@ -18,23 +20,46 @@ import {
 import { mulberry32 } from "../../design/scripts/lib/random.js";
 
 /** @typedef {import("../../design/scripts/lib/pencil-marks.js").Point} Point */
+/** @typedef {import("../../design/scripts/lib/pencil-marks.js").Loop} Loop */
+/** @typedef {import("../../design/scripts/lib/pencil-marks.js").Highlight} Highlight */
 /** @typedef {{ left: number, top: number, right: number, bottom: number }} Box */
+/** @typedef {{ box: Box, boxes: Box[], words: boolean }} Target */
+/** @typedef {{ d: string, paint: Record<string, string>, at: number, ms: number }} Stroke */
 
 /** How far an arrow leaves from its plate, and how loose a ring sits round its target. */
 const GAP = 8;
 const SLACK = { x: 14, y: 10 };
+/** A ring round something long squares up, with room to clear its corners. */
+const LONG = { ratio: 3, slack: { x: 30, y: 16 }, square: 6 };
 
 /** The largest target a ring goes round; a bigger one, like the whole drawing, takes the arrow alone. */
 const RINGED = { width: 260, height: 140 };
 
-/** How long a step takes to arrive, after which its note stands where its arrow should leave. */
-const SETTLED_MS = 450;
+/** How long a slide or a step takes to arrive, which the pencil waits out. */
+const ARRIVE_MS = 480;
+
+/** How long each stroke takes, in the order the hand draws them. */
+const STROKE_MS = { shaft: 260, head: 120, mark: 320, next: 90, loop: 520 };
+
+/** A ring with no arrow to lead the eye to it is drawn heavier, so the wallpaper cannot hide it. */
+const LONE_RING = { ...PENCIL, "stroke-width": "2.75" };
+
+/** @type {Record<string, Point>} */
+const BOWS = {
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+  up: { x: 0, y: -1 },
+  down: { x: 0, y: 1 },
+};
 
 /** Where the plate stands over the window, and an arrow would cross what it explains. */
 const STACKED = "(max-width: 900px)";
 
-/** The drawing's own strokes and ticks move nothing a note points at. */
-const SKETCH = ".narration__sheet";
+/**
+ * @param {Element | null} node
+ * @returns {node is HTMLElement}
+ */
+const isHTML = (node) => node instanceof HTMLElement;
 
 /**
  * @param {DOMRect} r
@@ -47,6 +72,12 @@ const boxIn = (r, origin) => ({
   right: r.right - origin.left,
   bottom: r.bottom - origin.top,
 });
+
+/** @param {Box} box */
+const sizeOf = (box) => ({ width: box.right - box.left, height: box.bottom - box.top });
+
+/** @param {Box} box @returns {Point} */
+const centreOf = (box) => ({ x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 });
 
 /**
  * Words are marked where the words are, not across the box they stand in.
@@ -64,12 +95,12 @@ function drawnBox(node) {
 }
 
 /**
- * Every element a selector names, as one box; null when none of them has a size.
+ * Every element a selector names, each with its box; null when none of them has a size.
  *
  * @param {HTMLElement} root
  * @param {string} selector
  * @param {DOMRect} origin
- * @returns {{ box: Box, words: boolean } | null}
+ * @returns {Target | null}
  */
 function targetOf(root, selector, origin) {
   const nodes = [...root.querySelectorAll(selector)];
@@ -78,15 +109,13 @@ function targetOf(root, selector, origin) {
     .filter((r) => r.width > 0 && r.height > 0)
     .map((r) => boxIn(r, origin));
   if (boxes.length === 0) return null;
-  return {
-    box: {
-      left: Math.min(...boxes.map((b) => b.left)),
-      top: Math.min(...boxes.map((b) => b.top)),
-      right: Math.max(...boxes.map((b) => b.right)),
-      bottom: Math.max(...boxes.map((b) => b.bottom)),
-    },
-    words: nodes.every(isWords),
+  const box = {
+    left: Math.min(...boxes.map((b) => b.left)),
+    top: Math.min(...boxes.map((b) => b.top)),
+    right: Math.max(...boxes.map((b) => b.right)),
+    bottom: Math.max(...boxes.map((b) => b.bottom)),
   };
+  return { box, boxes, words: nodes.every(isWords) };
 }
 
 /**
@@ -119,6 +148,112 @@ function onEdge(box, from) {
   return { x: x + ((from.x - x) / length) * GAP, y: y + ((from.y - y) / length) * GAP };
 }
 
+/**
+ * A ring round a box, squared up when the box is long.
+ *
+ * @param {Box} box
+ * @param {boolean} [squares] whether a long box gets the squared ring
+ * @returns {Loop}
+ */
+function loopRound(box, squares = false) {
+  const { width, height } = sizeOf(box);
+  const long = squares && width > height * LONG.ratio;
+  const slack = long ? LONG.slack : SLACK;
+  return {
+    kind: "loop",
+    at: centreOf(box),
+    rx: width / 2 + slack.x,
+    ry: height / 2 + slack.y,
+    square: long ? LONG.square : 2,
+  };
+}
+
+/**
+ * A highlighter swipe behind one line of words.
+ *
+ * @param {Box} box
+ * @returns {Highlight}
+ */
+function swipeBehind(box) {
+  const { height } = sizeOf(box);
+  const y = centreOf(box).y + height * 0.1;
+  return {
+    kind: "highlight",
+    from: { x: box.left - 4, y },
+    to: { x: box.right + 4, y: y - 2 },
+    thick: height * 0.8,
+  };
+}
+
+/**
+ * What goes round a note's target: a swipe behind each of several words, a ring round something
+ * small, a swipe behind a long line, or nothing round something bigger.
+ *
+ * @param {Target} target
+ * @returns {(Loop | Highlight)[]}
+ */
+function marksFor({ box, boxes, words }) {
+  if (words && boxes.length > 1) return boxes.map(swipeBehind);
+  const { width, height } = sizeOf(box);
+  if (width <= RINGED.width && height <= RINGED.height) return [loopRound(box)];
+  return words ? [swipeBehind(box)] : [];
+}
+
+/**
+ * @param {Loop | Highlight} mark
+ * @param {() => number} rnd
+ * @param {number} at
+ * @param {number} ms
+ * @returns {Stroke}
+ */
+function markStroke(mark, rnd, at, ms) {
+  if (mark.kind === "loop") return { d: ring(mark, rnd), paint: PENCIL, at, ms };
+  const paint = { ...HIGHLIGHTER, "stroke-width": String(mark.thick) };
+  return { d: swipe(mark, rnd), paint, at, ms };
+}
+
+/**
+ * The arrow from a note's plate, then whatever goes round its target.
+ *
+ * @param {Target} target
+ * @param {Box} plate
+ * @param {Box} note
+ * @param {() => number} rnd
+ * @param {Point} [bow] the way the arrow must bulge
+ * @returns {Stroke[]}
+ */
+function pointStrokes(target, plate, note, rnd, bow) {
+  const marks = marksFor(target);
+  const from = leaving(plate, note, centreOf(target.box));
+  const distance = (/** @type {Loop | Highlight} */ mark) => {
+    const at = mark.kind === "loop" ? mark.at : mark.from;
+    return Math.hypot(at.x - from.x, at.y - from.y);
+  };
+  const nearest = [...marks].sort((a, b) => distance(a) - distance(b))[0];
+  const to = nearest ? aim(nearest, from) : onEdge(target.box, from);
+  const { shaft, head } = arrowParts(from, to, rnd, bow);
+  const after = STROKE_MS.shaft + STROKE_MS.head;
+  return [
+    { d: shaft, paint: PENCIL, at: 0, ms: STROKE_MS.shaft },
+    { d: head, paint: PENCIL, at: STROKE_MS.shaft, ms: STROKE_MS.head },
+    ...marks.map((mark, i) => markStroke(mark, rnd, after + i * STROKE_MS.next, STROKE_MS.mark)),
+  ];
+}
+
+/**
+ * @param {Stroke[]} strokes
+ * @param {boolean} animate whether the hand draws them now, or they are simply there
+ */
+function groupOf(strokes, animate) {
+  const group = svgShape("g", animate ? { class: "is-drawing" } : {});
+  for (const { d, paint, at, ms } of strokes) {
+    const path = svgShape("path", { ...paint, d, pathLength: "1" });
+    if (animate) path.setAttribute("style", `--mark-at: ${at}ms; --mark-ms: ${ms}ms`);
+    group.append(path);
+  }
+  return group;
+}
+
 export class Marks {
   /**
    * @param {HTMLElement} root the desk every target and note sits on
@@ -126,100 +261,124 @@ export class Marks {
    */
   constructor(root, layer) {
     this.root = root;
-    this.layer = layer;
+    this.svg = svgShape("svg", { "aria-hidden": "true" });
+    layer.replaceChildren(this.svg);
     /** @type {HTMLElement | null} */
     this.slide = null;
-    this.frame = 0;
+    /** @type {Map<HTMLElement, SVGElement>} each drawn note's marks */
+    this.drawn = new Map();
+    /** Whether the slide has arrived, and whether the window still moves what its notes point at. */
+    this.arrived = false;
+    this.holding = false;
     /** @type {ReturnType<typeof setTimeout> | undefined} */
-    this.settling = undefined;
-    new ResizeObserver(() => this.draw()).observe(root);
-    // A line rolling in or a window changing what it holds moves what a note points at.
-    /** @param {Node} target */
-    const moves = (target) =>
-      !layer.contains(target) && !(target instanceof Element && target.closest(SKETCH));
-    new MutationObserver((records) => {
-      if (records.some(({ target }) => moves(target))) this.draw();
-    }).observe(root, { childList: true, subtree: true });
+    this.waiting = undefined;
+    this.frame = 0;
+    new ResizeObserver(() => this.#follow()).observe(root);
   }
 
   /**
-   * Draw for a slide now, and again once its steps have finished moving. A new slide's pencil
-   * waits out of sight until then, since its plate is still sliding in.
+   * A new slide's marks go at once. Marks already drawn on this one stay, and lose any note a step
+   * back hid; new notes are drawn once the slide has arrived and the window, when `holding`, has
+   * said with {@link release} that it stopped moving.
    *
    * @param {HTMLElement} slide
+   * @param {boolean} [holding] whether the window is still moving what the notes point at
    */
-  show(slide) {
-    const arriving = slide !== this.slide;
+  show(slide, holding = false) {
+    clearTimeout(this.waiting);
+    if (slide !== this.slide) this.#clear();
     this.slide = slide;
-    if (arriving) this.layer.classList.add("is-arriving");
-    this.draw();
-    clearTimeout(this.settling);
-    this.settling = setTimeout(() => {
-      this.layer.classList.remove("is-arriving");
-      this.draw();
-    }, SETTLED_MS);
+    this.arrived = false;
+    this.holding = holding;
+    this.#place();
+    this.waiting = setTimeout(() => {
+      this.arrived = true;
+      this.#settle();
+    }, ARRIVE_MS);
   }
 
-  /** Draw on the next frame. */
-  draw() {
+  /** The window has stopped moving what the slide's notes point at. */
+  release() {
+    this.holding = false;
+    this.#settle();
+  }
+
+  #settle() {
+    if (!this.arrived || this.holding) return;
+    this.#place();
+    this.#drawNew(true);
+  }
+
+  /** A desk that changes size moves every mark with it, drawn at once. */
+  #follow() {
     cancelAnimationFrame(this.frame);
-    this.frame = requestAnimationFrame(() => this.#draw());
+    this.frame = requestAnimationFrame(() => {
+      this.#place();
+      if (this.arrived && !this.holding) this.#drawNew(false);
+    });
   }
 
-  #draw() {
-    const svg = svgShape("svg", { "aria-hidden": "true" });
-    this.layer.replaceChildren(svg);
-    const { slide } = this;
-    if (!slide || matchMedia(STACKED).matches) return;
+  #clear() {
+    this.drawn.clear();
+    this.svg.replaceChildren();
+  }
+
+  /** Every mark already drawn, placed again; one whose note is hidden or target gone goes. */
+  #place() {
+    if (matchMedia(STACKED).matches) return this.#clear();
     const origin = this.root.getBoundingClientRect();
-    const rnd = mulberry32(Number(slide.dataset.seed) || 7);
-    for (const note of slide.querySelectorAll("[data-point]")) {
-      if (note instanceof HTMLElement && this.#visible(note)) this.#mark(note, svg, origin, rnd);
+    for (const [note, group] of this.drawn) {
+      const strokes = this.#visible(note) ? this.#strokes(note, origin) : null;
+      if (strokes) {
+        const placed = groupOf(strokes, false);
+        group.replaceWith(placed);
+        this.drawn.set(note, placed);
+      } else {
+        group.remove();
+        this.drawn.delete(note);
+      }
     }
+  }
+
+  /** @param {boolean} animate */
+  #drawNew(animate) {
+    if (matchMedia(STACKED).matches) return;
+    const origin = this.root.getBoundingClientRect();
+    for (const note of this.#notes()) {
+      if (this.drawn.has(note) || !this.#visible(note)) continue;
+      const strokes = this.#strokes(note, origin);
+      if (!strokes) continue;
+      const group = groupOf(strokes, animate);
+      this.svg.append(group);
+      this.drawn.set(note, group);
+    }
+  }
+
+  #notes() {
+    return [...(this.slide?.querySelectorAll("[data-point], [data-ring]") ?? [])].filter(isHTML);
   }
 
   /**
+   * The same note draws the same marks every time, so a mark placed again does not change shape.
+   *
    * @param {HTMLElement} note
-   * @param {SVGElement} svg
    * @param {DOMRect} origin
-   * @param {() => number} rnd
+   * @returns {Stroke[] | null}
    */
-  #mark(note, svg, origin, rnd) {
-    const target = targetOf(this.root, note.dataset.point ?? "", origin);
-    if (!target) return;
-    const { box } = target;
-    const width = box.right - box.left;
-    const height = box.bottom - box.top;
-    const at = { x: box.left + width / 2, y: box.top + height / 2 };
-    const plate = note.closest(".plate") ?? note;
-    const from = leaving(
-      boxIn(plate.getBoundingClientRect(), origin),
-      boxIn(note.getBoundingClientRect(), origin),
-      at,
-    );
-    /** @type {import("../../design/scripts/lib/pencil-marks.js").Loop | import("../../design/scripts/lib/pencil-marks.js").Highlight | null} */
-    let mark = null;
-    if (width <= RINGED.width && height <= RINGED.height) {
-      mark = { kind: "loop", at, rx: width / 2 + SLACK.x, ry: height / 2 + SLACK.y };
-      svg.append(svgShape("path", { ...PENCIL, d: ring(mark, rnd) }));
-    } else if (target.words) {
-      const y = at.y + height * 0.1;
-      mark = {
-        kind: "highlight",
-        from: { x: box.left - 4, y },
-        to: { x: box.right + 4, y: y - 2 },
-        thick: height * 0.8,
-      };
-      svg.append(
-        svgShape("path", {
-          ...HIGHLIGHTER,
-          d: swipe(mark, rnd),
-          "stroke-width": String(mark.thick),
-        }),
-      );
+  #strokes(note, origin) {
+    const seed = (Number(this.slide?.dataset.seed) || 7) * 97 + this.#notes().indexOf(note);
+    const rnd = mulberry32(seed);
+    const alone = note.dataset.ring;
+    const target = targetOf(this.root, alone ?? note.dataset.point ?? "", origin);
+    if (!target) return null;
+    if (alone !== undefined) {
+      const loop = markStroke(loopRound(target.box, true), rnd, 0, STROKE_MS.loop);
+      return [{ ...loop, paint: LONE_RING }];
     }
-    const to = mark ? aim(mark, from) : onEdge(box, from);
-    svg.append(svgShape("path", { ...PENCIL, d: arrow(from, to, rnd) }));
+    const plate = note.closest(".plate") ?? note;
+    const plateBox = boxIn(plate.getBoundingClientRect(), origin);
+    const noteBox = boxIn(note.getBoundingClientRect(), origin);
+    return pointStrokes(target, plateBox, noteBox, rnd, BOWS[note.dataset.bow ?? ""]);
   }
 
   /** @param {HTMLElement} note */

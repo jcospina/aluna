@@ -56,7 +56,8 @@ body.deck-page {
   position: relative;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  /* Clipped, not hidden: a link to a slide that is still sliding in must not scroll the desk. */
+  overflow: clip;
   outline: none;
   background-color: var(--ground);
   background-size: cover;

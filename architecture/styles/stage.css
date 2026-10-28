@@ -7,6 +7,8 @@
 .deck {
   --plate-left: calc(var(--logo-cell-w) + var(--space-6));
   --plate-w: min(30rem, 36vw);
+  /* Every plate starts at the cover's corner, so the eye finds each one where the last stood. */
+  --plate-top: 12%;
   --stage-top: var(--space-5);
   --stage-foot: calc(
     var(--prompt-clearance) +
@@ -96,12 +98,6 @@
   z-index: 25;
   pointer-events: none;
   mix-blend-mode: multiply;
-  transition: opacity var(--dur-rise) ease;
-}
-
-.marks.is-arriving {
-  opacity: 0;
-  transition: none;
 }
 
 .marks svg {
@@ -110,12 +106,37 @@
   overflow: visible;
 }
 
+/* Each stroke runs from its start to its end, after the strokes the hand made before it. */
+.marks .is-drawing path {
+  stroke-dasharray: 1 2;
+  animation: mark-draw calc(var(--mark-ms) * var(--travel)) ease-in-out
+    calc(var(--mark-at) * var(--travel)) both;
+}
+
+@keyframes mark-draw {
+  from {
+    stroke-dashoffset: 1.01;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* A short screen, a projector's 720 lines among them, starts every plate a little higher. */
+@media (max-height: 820px) {
+  .deck {
+    --plate-top: 7%;
+  }
+}
+
 /* ── Narrower desks: the plate above, the window under it ───────────── */
 
 @media (max-width: 900px) {
   .deck {
     --plate-left: var(--space-4);
     --plate-w: calc(100% - var(--space-4) * 2);
+    --plate-top: var(--stage-top);
   }
 
   .stage__logos {

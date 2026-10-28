@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="How Aluna works, followed through one real build and one evolution: the Intent Resolver, the Core Builder, the Gate, versions, the Diff Engine and the version swap."
+      content="Aluna’s architecture, walked through one build and one evolution of a Finance tracker: the Intent Resolver, the Core Builder, the Gate, versions, the Diff Engine and the version swap."
     >
     <title>How Aluna works</title>
     <link rel="icon" href="data:,">
@@ -93,8 +93,9 @@
         data-scene="cover"
         data-part="build"
         data-name="Aluna"
+        data-seed="10"
       >
-        <div class="plate">
+        <div class="plate" data-ring=".stage__prompt">
           <p class="caps">How it works</p>
           <p class="cover__title">Aluna</p>
           <p class="plate__line">A personal app that builds itself from what its user types.</p>
@@ -115,13 +116,13 @@
             <p class="caps plate__kicker">Mulling</p>
             <h2 class="plate__heading">The Intent Resolver</h2>
             <p>
-              The sentence goes to one model call, along with every capability already on the desk:
-              their names, fields and versions, never a record.
+              One model call reads the sentence and a list of every capability on the desk. The list
+              gives each capability’s name, fields and version. It holds no records.
             </p>
             <p>
-              The call answers with one decision: build something new, change a capability, link two
-              of them, answer a question, or refuse. The desk is empty, so this sentence starts a
-              build.
+              The call returns one decision: build something new, change a capability, link two
+              capabilities, answer a question or refuse. The desk is empty and the sentence names
+              something to track, so the call decides to build.
             </p>
             <button class="plate__more" type="button" data-more-open="resolver">
               More on the Resolver
@@ -144,16 +145,21 @@
             <p class="caps plate__kicker">Scheming</p>
             <h2 class="plate__heading">The Core Builder writes the spec</h2>
             <p data-point=".narration__sheet">
-              The Core Builder takes the job. Its first model call writes the spec: the capability’s
-              name, its fields and their types, how its cards and forms look, and what it does, in
-              plain words.
+              The Core Builder’s first model call writes the spec. The spec names the capability,
+              lists its fields with their types, sets how its cards and forms look and describes its
+              behavior in plain words.
             </p>
             <p>
-              Every later step is written from this spec. The platform checks it strictly, and a
-              spec that fails the check ends the build.
+              The platform checks the spec strictly. A spec that fails ends the build. Every later
+              model call works from the checked spec.
             </p>
-            <p class="plate__step" data-step="1" data-point="[data-logos] .logo-tile">
-              A blank tile lands on the desk while the build runs. It has no name yet.
+            <p
+              class="plate__step"
+              data-step="1"
+              data-point="[data-logos] .logo-tile"
+              data-bow="left"
+            >
+              While the build runs, a blank tile waits on the desk. It has no name yet.
             </p>
             <button class="plate__more" type="button" data-more-open="spec">
               More on the spec
@@ -178,10 +184,13 @@
             <p data-point='.narration__sheet [data-part="labels"]'>
               The spec names four fields: Date, Description, Amount and Category.
             </p>
-            <p data-point="[data-logos] .logo-label">The tile takes the name the spec chose.</p>
+            <p data-point="[data-logos] .logo-label" data-bow="left">
+              The tile takes the name the spec chose.
+            </p>
             <p>
-              The platform plans a table for those fields and tries it only on a scratch database.
-              The real table is created at the very end, in the step that makes the capability live.
+              The platform plans a table for these fields and tries the plan only on a scratch
+              database. It creates the real table at the end, in the commit that makes the
+              capability live.
             </p>
           </div>
         </div>
@@ -200,13 +209,13 @@
           <div class="plate__body">
             <p class="caps plate__kicker">Rule-writing</p>
             <h2 class="plate__heading">Tests before code</h2>
-            <p data-point=".narration__said:last-child">
-              Five calls, two at a time, write test cases for the five things the app does: add,
-              open, change, remove and search.
+            <p data-point=".narration__band">
+              Five model calls write test cases, one for each Action: add, open, change, remove and
+              search. Two calls run at a time.
             </p>
             <p>
-              They are written from the spec alone, because no code exists yet, and then frozen. The
-              code written next has to pass them, and no later step in the build may change them.
+              Each call sees part of the spec and never any code. The tests are then frozen. The
+              code written next must pass them unchanged.
             </p>
             <button class="plate__more" type="button" data-more-open="tests">
               More on the tests
@@ -229,17 +238,17 @@
             <p class="caps plate__kicker">Tinkering</p>
             <h2 class="plate__heading">Six units of code</h2>
             <p data-point=".narration__sheet">
-              Six more calls write the code, one unit each: the card that shows one transaction,
-              then the Handlers behind add, open, change, remove and search.
+              Six more model calls write the code, one unit each: the item renderer, which draws
+              each transaction’s card, and a Handler for each of the five Actions.
             </p>
             <p>
-              Each unit is checked on arrival against what generated code may never do, such as
-              importing a module. One that fails goes back to the model once, and a second failure
-              ends the build.
+              As each unit arrives, the platform checks it for anything generated code may never do,
+              such as import a module. A unit that fails goes back to the model once, and a second
+              failure ends the build.
             </p>
             <p class="plate__step" data-step="1">
-              With the tests on, a clean build makes twelve model calls after the Resolver: one
-              spec, five test suites and six units.
+              Tests are on by default. A build that needs no rewrite then makes twelve model calls
+              after the Resolver: one spec, five test suites and six units.
             </p>
             <button class="plate__more" type="button" data-more-open="units">More on units</button>
           </div>
@@ -260,13 +269,13 @@
             <p class="caps plate__kicker">Prodding</p>
             <h2 class="plate__heading">The Gate</h2>
             <p data-point=".narration__sheet">
-              The Gate runs the new code on scratch databases before any of it is written to the
-              capability’s folder. Four checks run in turn: the structure, a smoke run through every
-              Action, the card’s markup, and the frozen tests.
+              The Gate runs the new code on scratch databases before the platform saves any of it.
+              Four checks run in turn: the structure, a smoke run of every Action, the card’s markup
+              and the frozen tests.
             </p>
             <p class="plate__step" data-step="1">
-              The Gate fails closed. A check that still fails once its repairs are spent ends the
-              build, and nothing is published.
+              Three of the checks can send failing code back for a repair. A check that still fails
+              ends the build, and nothing is published.
             </p>
             <button class="plate__more" type="button" data-more-open="gate">
               More on the Gate
@@ -289,13 +298,14 @@
             <p class="caps plate__kicker">Mending</p>
             <h2 class="plate__heading">One repair, then check again</h2>
             <p data-point='.narration__sheet [data-part="rail"]'>
-              Here a frozen search case finds the wrong rows. The Gate sends the search Handler back
-              to the model with the failure, then runs the tests again.
+              In this build, the search Handler returns the wrong rows for one frozen case. The Gate
+              sends the Handler back to the model with the failure, then runs the tests again.
             </p>
             <p>
-              Each check may rewrite a failing unit once at most, and none ever edits a test. This
-              stage appears only when a check fails and the Gate tries a repair.
+              A repair rewrites code, never a test. The smoke run and the markup check allow one
+              repair each. The frozen tests allow one rewrite of each Handler they catch.
             </p>
+            <p>A build with nothing to repair skips this stage.</p>
             <button class="plate__more" type="button" data-more-open="gate">
               More on the Gate
             </button>
@@ -316,17 +326,18 @@
           <div class="plate__body">
             <p class="caps plate__kicker">Polishing</p>
             <h2 class="plate__heading">Version 1 and one commit</h2>
-            <p data-point=".narration__said:last-child">
-              The cleared code is written to disk as version 1: a folder with the spec, the six
-              units and the tests, and a checksum for every file. That folder never changes again.
+            <p data-point=".narration__band">
+              The platform writes the code that passed the Gate to disk as version 1: a folder
+              holding the spec, the six units, the tests and a checksum for every file. The folder
+              never changes after that.
             </p>
             <p>
-              Then one SQLite transaction creates the Finance tracker’s table and points the tracker
-              at v1.
+              Then one SQLite transaction creates the Finance tracker’s table and points the
+              capability at v1.
             </p>
             <p class="plate__step" data-step="1">
               If the transaction fails before it commits, SQLite rolls it back and nothing goes
-              live. The folder stays on disk, unreferenced, until reconciliation removes it.
+              live. The unused folder stays on disk until the next build or restart removes it.
             </p>
             <button class="plate__more" type="button" data-more-open="live">
               More on versions and going live
@@ -349,12 +360,17 @@
             <p class="caps plate__kicker">Ta-da</p>
             <h2 class="plate__heading">Live, without a reload</h2>
             <p data-point="[data-build-window] .window__title">
-              After the commit, one event carries the Finance tracker into the window, and the
-              drawing gives way to the app. The page never reloads.
+              After the commit, one event carries the Finance tracker into the window, where it
+              replaces the build’s sketch. The page does not reload.
             </p>
-            <p class="plate__step" data-step="1" data-point="[data-logos] .logo-tile">
-              Only now, with v1 live, does the new tile ask for its logo, so a failed drawing can
-              never fail the build. The logo appears once it is drawn.
+            <p
+              class="plate__step"
+              data-step="1"
+              data-point="[data-logos] .logo-tile"
+              data-bow="left"
+            >
+              The platform asks for the logo only now, with v1 live, so a failed logo cannot fail
+              the build. The logo appears once it is drawn.
             </p>
           </div>
         </div>
@@ -369,13 +385,14 @@
         data-scene="later"
         data-part="evolution"
         data-name="Some weeks later"
+        data-seed="20"
       >
-        <div class="plate plate--side plate--title">
+        <div class="plate plate--side plate--title" data-ring=".stage__prompt">
           <div class="plate__body">
             <p class="caps">Some weeks later</p>
             <p class="plate__title">Changing what exists</p>
             <p class="plate__line">
-              The Finance tracker holds six transactions. Its owner wants to tell income from
+              The Finance tracker holds six transactions. Its user wants to tell income from
               expenses.
             </p>
           </div>
@@ -396,9 +413,9 @@
             <p class="caps plate__kicker">Mulling</p>
             <h2 class="plate__heading">Same Resolver, another answer</h2>
             <p>
-              This time the Resolver reads the sentence beside the Finance tracker’s fields. The
-              sentence asks it to store something new, so the answer is an evolution of the Finance
-              tracker, not a new capability.
+              This time the list holds one capability, the Finance tracker, with its fields. The
+              sentence asks the tracker to store one more thing, so the Resolver decides to evolve
+              it.
             </p>
             <button class="plate__more" type="button" data-more-open="resolver">
               More on the Resolver
@@ -421,8 +438,8 @@
             <p class="caps plate__kicker">Scheming</p>
             <h2 class="plate__heading">A complete new spec</h2>
             <p data-point=".narration__sheet">
-              An evolution starts with one call too. It returns a whole candidate spec for the
-              Finance tracker, every old field included and Type added. It is never a patch.
+              As in the first build, the next model call writes a spec: a whole new one for the
+              Finance tracker, with every old field plus Type. This spec is called the candidate.
             </p>
             <p>The capability keeps its table, its records and its logo, and gains a version.</p>
             <button class="plate__more" type="button" data-more-open="evolution">
@@ -441,42 +458,85 @@
         data-name="The Diff Engine"
         data-seed="23"
       >
-        <div class="plate plate--side plate--dense">
+        <div class="plate plate--side plate--broad">
           <div class="plate__body">
             <p class="caps plate__kicker">Scheming</p>
             <h2 class="plate__heading">The Diff Engine</h2>
             <p>
-              It compares the live spec with the candidate and names each difference as a typed
-              fact.
+              The Diff Engine compares the live spec with the candidate and names each difference it
+              recognizes as a typed fact.
             </p>
             <div class="specs" role="group" aria-label="The two specs">
               <div class="spec-card">
                 <p class="caps">v1, live</p>
-                <p><b>Fields</b> Date, Description, Amount, Category</p>
-                <p><b>Card shows</b> date, description, amount, category</p>
+                <dl>
+                  <dt>Fields</dt>
+                  <dd>Date, Description, Amount, Category</dd>
+                  <dt>Card shows</dt>
+                  <dd>date, description, amount, category</dd>
+                </dl>
               </div>
               <div class="spec-card">
-                <p class="caps">Candidate</p>
-                <p><b>Fields</b> Date, Description, Amount, Category, <mark>Type</mark></p>
-                <p><b>Card shows</b> date, description, amount, category, <mark>type</mark></p>
+                <p class="caps">The candidate</p>
+                <dl>
+                  <dt>Fields</dt>
+                  <dd>Date, Description, Amount, Category, <mark>Type</mark></dd>
+                  <dt>Card shows</dt>
+                  <dd>date, description, amount, category, <mark>type</mark></dd>
+                </dl>
               </div>
             </div>
             <p class="plate__step" data-step="1">
-              Two facts: a new field, Type, and a card that shows it. A difference no fact explains
-              would stop the run.
+              It finds two facts: Type is a new field, and the card now shows it. Any other
+              difference would end the build.
             </p>
-            <div class="plate__step plan" data-step="2">
-              <p class="plan__row">
-                <span class="caps plan__label">Written again</span>
-                <span class="plan-part">card</span><span class="plan-part">add</span
-                ><span class="plan-part">change</span><span class="plan-part">search</span>
-              </p>
-              <p class="plan__row">
-                <span class="caps plan__label">Copied from v1</span>
-                <span class="plan-part plan-part--kept">open</span
-                ><span class="plan-part plan-part--kept">remove</span>
-              </p>
+            <button class="plate__more" type="button" data-more-open="evolution">
+              More on the Diff Engine
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="slide"
+        id="work-plan"
+        data-slide
+        data-scene="work-plan"
+        data-part="evolution"
+        data-name="The work plan"
+        data-seed="24"
+      >
+        <div class="plate plate--side plate--broad">
+          <div class="plate__body">
+            <p class="caps plate__kicker">Scheming</p>
+            <h2 class="plate__heading">The work plan</h2>
+            <p>From the two facts, the Diff Engine plans which units to write again.</p>
+            <div class="plan" role="group" aria-label="The work plan">
+              <div class="plan__row">
+                <p class="caps plan__label">Written again</p>
+                <ul class="plan__parts">
+                  <li class="plan-part">item renderer</li>
+                  <li class="plan-part">add</li>
+                  <li class="plan-part">change</li>
+                  <li class="plan-part">search</li>
+                </ul>
+              </div>
+              <div class="plan__row">
+                <p class="caps plan__label">Copied from v1</p>
+                <ul class="plan__parts">
+                  <li class="plan-part plan-part--kept">open</li>
+                  <li class="plan-part plan-part--kept">remove</li>
+                </ul>
+              </div>
             </div>
+            <p>
+              Type needs new add, change and search Handlers, and the item renderer needs rewriting
+              to show it.
+            </p>
+            <p class="plate__step" data-step="1">
+              Open and remove are copied byte for byte from v1, with their tests. Their code never
+              goes into a prompt.
+            </p>
             <button class="plate__more" type="button" data-more-open="evolution">
               More on the Diff Engine
             </button>
@@ -491,19 +551,18 @@
         data-scene="only-what-changed"
         data-part="evolution"
         data-name="Only what changed"
-        data-seed="24"
+        data-seed="25"
       >
         <div class="plate plate--side">
           <div class="plate__body">
             <p class="caps plate__kicker">Building v2</p>
             <h2 class="plate__heading">Only what changed</h2>
             <p data-point='.narration__sheet [data-part="sheet"]'>
-              Open and remove are drawn finished from the start. Their code is copied from v1, and
-              so are their tests.
+              Open and remove start out finished.
             </p>
             <p>
-              New tests are written for add, change and search, then the four units in the plan are
-              written again. The Gate still checks all six together.
+              Three model calls write new tests for add, change and search. Four more rewrite the
+              units in the plan. The Gate then checks all six.
             </p>
           </div>
         </div>
@@ -516,16 +575,16 @@
         data-scene="version-swap"
         data-part="evolution"
         data-name="The version swap"
-        data-seed="25"
+        data-seed="26"
       >
         <div class="plate plate--side">
           <div class="plate__body">
             <p class="caps plate__kicker">Polishing</p>
             <h2 class="plate__heading">The version swap</h2>
-            <p data-point=".narration__said:last-child">
-              v2 is written as a new folder beside v1. One transaction then adds a Type column to
-              the table and moves the Finance tracker from v1 to v2, but only if it still points at
-              v1.
+            <p data-point=".narration__band">
+              The platform writes v2 as a new folder beside v1. Then one transaction adds a Type
+              column to the table and moves the Finance tracker from v1 to v2, but only if the
+              tracker still points at v1.
             </p>
             <p>
               v1 stays on disk unchanged. If the transaction fails, v1 is still the live version.
@@ -544,19 +603,19 @@
         data-scene="evolution-landing"
         data-part="evolution"
         data-name="Ta-da: same records, one new field"
-        data-seed="26"
+        data-seed="27"
       >
         <div class="plate plate--side">
           <div class="plate__body">
             <p class="caps plate__kicker">Ta-da</p>
             <h2 class="plate__heading">Same records, one new field</h2>
             <p data-point=".finance-card:first-child .pill--none">
-              The window swaps to v2 in place. The six transactions are the same rows as before, and
-              each holds nothing in Type, because the column was added after they were saved.
+              The window swaps to v2 in place and shows the same six transactions. Their Type is
+              empty, because the column did not exist when they were saved.
             </p>
             <p class="plate__step" data-step="1" data-point="[data-build-window] .segmented">
-              Opened, the oldest shows neither Expense nor Income. No stored value is ever
-              rewritten, so Type stays empty until someone edits it.
+              Rent, the oldest transaction, opens with no Type picked. Type stays empty until
+              someone picks Expense or Income and saves.
             </p>
             <button class="plate__more" type="button" data-more-open="evolution">
               More on evolution
@@ -577,48 +636,70 @@
       >
         <div class="plate plate--wide">
           <div class="plate__body">
-            <p class="caps">The whole path</p>
-            <p class="plate__title">Every version takes this path</p>
-            <div class="paths">
+            <div class="paths__head">
               <div>
-                <p class="caps">The first build</p>
-                <ol class="path">
-                  <li class="path-step">A sentence</li>
-                  <li class="path-step">Intent Resolver</li>
-                  <li class="path-step">Core Builder: spec, tests, six units</li>
-                  <li class="path-step">Gate</li>
-                  <li class="path-step">v1, in one commit</li>
-                </ol>
+                <p class="caps plate__kicker">The whole path</p>
+                <h2 class="plate__heading">Every version takes this path</h2>
               </div>
-              <div>
-                <p class="caps">Every change after it</p>
-                <ol class="path">
-                  <li class="path-step">A sentence</li>
-                  <li class="path-step">Intent Resolver</li>
-                  <li class="path-step">Candidate spec</li>
-                  <li class="path-step">Diff Engine</li>
-                  <li class="path-step">Only what changed</li>
-                  <li class="path-step">Gate</li>
-                  <li class="path-step">v2, in one swap</li>
-                </ol>
-              </div>
-              <div class="paths__close">
-                <p class="plate__line">
-                  A model writes each capability’s spec, tests and code. A fixed platform checks
-                  that work, keeps older versions on disk, and puts each new one live in a single
-                  transaction.
-                </p>
-                <div class="plate__links">
-                  <a
-                    class="btn btn--warm"
-                    href="https://github.com/jcospina/aluna/blob/main/docs/architecture.md"
-                    >Read the architecture document</a
-                  ><a class="btn btn--outline" href="https://github.com/jcospina/aluna"
-                    >See the source</a
-                  >
-                </div>
+              <div class="plate__links">
+                <a
+                  class="btn btn--warm"
+                  href="https://github.com/jcospina/aluna/blob/main/docs/architecture.md"
+                  >Read the architecture document</a
+                ><a class="btn btn--outline" href="https://github.com/jcospina/aluna"
+                  >See the source</a
+                >
               </div>
             </div>
+            <div class="lanes">
+              <div class="lanes__lane">
+                <p class="caps">The first build</p>
+                <ol class="lane lane--first">
+                  <li class="path-step">
+                    <b>A sentence</b><span>“I want to track my personal finances”</span>
+                  </li>
+                  <li class="path-step">
+                    <b>Intent Resolver</b><span>One model call decides what to do</span>
+                  </li>
+                  <li class="path-step path-step--builder">
+                    <b>Core Builder</b><span>Writes the spec, the tests and six units</span>
+                  </li>
+                  <li class="path-step">
+                    <b>Gate</b><span>Runs the code on scratch databases</span>
+                  </li>
+                  <li class="path-step">
+                    <b>v1</b><span>One commit creates the table</span>
+                  </li>
+                </ol>
+              </div>
+              <div class="lanes__lane">
+                <p class="caps">Every change after it</p>
+                <ol class="lane">
+                  <li class="path-step">
+                    <b>A sentence</b><span>“Let me separate income from expenses”</span>
+                  </li>
+                  <li class="path-step">
+                    <b>Intent Resolver</b><span>Same call, another answer</span>
+                  </li>
+                  <li class="path-step"><b>Candidate spec</b><span>A whole new spec</span></li>
+                  <li class="path-step">
+                    <b>Diff Engine</b><span>Names each difference and plans the work</span>
+                  </li>
+                  <li class="path-step">
+                    <b>Only what changed</b><span>Writes the tests and units that changed</span>
+                  </li>
+                  <li class="path-step"><b>Gate</b><span>Checks all six units</span></li>
+                  <li class="path-step">
+                    <b>v2</b><span>One commit adds a column and swaps</span>
+                  </li>
+                </ol>
+              </div>
+            </div>
+            <p class="plate__line paths__close">
+              A model writes each capability’s spec, tests and code. Hand-written platform code
+              checks that work, keeps older versions on disk and makes each new version live in one
+              transaction.
+            </p>
           </div>
         </div>
       </section>
@@ -648,15 +729,16 @@
 
     <template data-more="resolver" data-title="The Intent Resolver">
       <p>
-        Every sentence typed into the prompt bar gets at most one Resolver call. A plain check runs
-        first: when the words left in the sentence, once short and common words are dropped, match
-        the name of exactly one capability, the job ends with a line saying the user already has it.
-        That path makes no model call.
+        Every sentence typed into the prompt bar gets at most one Resolver call. A word match runs
+        first, with no model call. It drops words under three letters and twenty request words such
+        as make, track and want. When the words left are the name of exactly one capability, Aluna
+        answers that the user already has it.
       </p>
       <p>
-        The call carries the sentence, the capability open in the window, and every active
-        capability: its id, label, nouns, version, description and fields. It carries no records.
-        The model answers with one JSON object whose <code>type</code> picks what happens next.
+        The call carries the sentence, the capability open in the window and a list of every active
+        capability with its id, label, nouns, version, description and fields. It carries no
+        records. The model answers with one JSON object, and its <code>type</code> picks what
+        happens next.
       </p>
       <table class="more__table">
         <thead>
@@ -672,23 +754,23 @@
           </tr>
           <tr>
             <td><code>extend_capability</code></td>
-            <td>An evolution of an existing one.</td>
+            <td>An evolution of an existing capability.</td>
           </tr>
           <tr>
             <td><code>ui_change</code></td>
             <td>
               An evolution that changes only presentation: the name or nouns, a field’s label, a
               list’s input mode, which text fields get a multi-line box, a field’s hint, the card’s
-              fields or direction, or the layout.
+              fields, the card’s direction or the layout.
             </td>
           </tr>
           <tr>
             <td><code>link_capability</code></td>
-            <td>Connects a field to another capability.</td>
+            <td>A field the records already have starts naming records of another capability.</td>
           </tr>
           <tr>
             <td><code>data_query</code></td>
-            <td>A question about what is saved.</td>
+            <td>An answer about what is saved.</td>
           </tr>
           <tr>
             <td><code>reject</code></td>
@@ -697,49 +779,52 @@
         </tbody>
       </table>
       <p>
-        The Resolver takes no lease, so two sentences can resolve at once. Their builds then queue.
+        The Resolver does not wait for the build lock, so two sentences can resolve at once. Their
+        builds then queue.
       </p>
     </template>
 
     <template data-more="spec" data-title="The spec">
+      <p>One model call writes the spec. It holds:</p>
+      <ul>
+        <li>the capability’s id, label and nouns, and a one-line description;</li>
+        <li>its fields, and how its cards and forms look;</li>
+        <li>its behavior in plain words, and the errors it declares;</li>
+        <li>the other tables it may read;</li>
+        <li>a brief for its logo.</li>
+      </ul>
       <p>
-        One call writes the spec: the capability’s id, label and nouns, a one-line description, its
-        fields, how its cards and forms look, its behavior in plain words, the errors it declares,
-        the other tables it may read, and a brief for its logo.
-      </p>
-      <p>
-        A field has a name, a label, one of nine types, a required flag, and options or limits where
+        A field has a name, a label, one of nine types, a required flag and options or limits where
         its type has them. The types are <code>string</code>, <code>number</code>,
         <code>boolean</code>, <code>date</code>, <code>datetime</code>, <code>choice</code>,
         <code>string[]</code>, <code>file</code> and <code>file[]</code>.
       </p>
       <p>
         The platform parses the spec strictly. Field names must be unique, a spec holds at most 40
-        fields, every field a card shows must exist, and a taken or reserved id is refused. Nothing
-        repairs a bad spec: the build fails.
+        fields, every field a card shows must exist and a taken or reserved id is refused. Nothing
+        repairs a bad spec, so the build fails.
       </p>
       <p>
         Every unit is written from the spec. In an evolution, a unit written again may also see its
-        old source, once the platform has checked that the source still fits.
+        old source, if the platform finds that the source still fits the new spec.
       </p>
     </template>
 
     <template data-more="tests" data-title="Tests first">
       <p>
-        With the behavioral tier on, which is the default, one call per Action writes its test
-        cases, two calls at a time. A case is data: rows to seed, an input, the rows expected
-        afterwards, and the markers the answer must carry, such as the code of a declared error.
+        With tests on, as they are by default, one model call per Action writes that Action’s test
+        cases. Two calls run at a time. Each case is data: rows to seed, an input, the rows expected
+        afterwards and the markers the answer must carry, such as a declared error’s code.
       </p>
       <p>
-        The calls see the spec’s behavior, each Action’s fields, declared errors and read
-        dependencies, and the names and types of every field, for writing fixtures. They never see
-        code, because none exists yet. Once written, the tests are frozen, so they cannot be bent to
-        fit the code.
+        Each call sees the spec’s behavior text, the Action’s fields, its declared errors and which
+        tables it reads, along with the name and type of every field for its fixtures. No call sees
+        any code. The tests are frozen once written, so they cannot be bent to fit the code.
       </p>
       <p>
-        Each Action’s suite holds at least one ordinary case and one case per error it declares, and
-        update and delete each hold one case for a missing record. A suite that breaks this contract
-        fails the build.
+        Each Action’s suite holds at least one ordinary case and one case per error it declares. The
+        suites for change and remove also hold a case for a missing record. A suite that breaks
+        these rules fails the build.
       </p>
       <p>
         In the Gate, every case runs on a fresh scratch database, seeded through the real save path.
@@ -748,36 +833,41 @@
 
     <template data-more="units" data-title="Units and the source check">
       <p>
-        Every model call in a build returns structured output, checked against a schema, and has
-        five minutes. Six of them write the units: the item renderer, which draws one record’s card,
-        and the five Handlers, one each for create, read, update, delete and search.
+        Every model call in a build returns structured output that a schema checks. Each call times
+        out after five minutes. Six calls write the units: the item renderer, which draws one
+        record’s card, and one Handler for each Action.
       </p>
-      <p>Each unit passes the source check as it arrives:</p>
+      <p>
+        The five Actions are add, open, change, remove and search, named create, read, update,
+        delete and search in the code.
+      </p>
+      <p>Each unit goes through the source check as it arrives:</p>
       <ul>
         <li>
-          one default export, no imports, and no <code>Bun</code>, <code>process</code>,
+          one default export, no imports and no <code>Bun</code>, <code>process</code>,
           <code>globalThis</code>, <code>eval</code> or prototype access;
         </li>
         <li>
           a Handler opens no database connection, makes no raw HTTP call, writes no
-          <code>INSERT</code>, <code>UPDATE</code> or <code>DELETE</code>, builds no SQL at runtime,
+          <code>INSERT</code>, <code>UPDATE</code> or <code>DELETE</code>, builds no SQL at runtime
           and touches no table beyond its own and the ones it may read;
         </li>
         <li>the item renderer reads only the fields its card shows;</li>
         <li>a strict TypeScript check against the platform’s contracts.</li>
       </ul>
       <p>
-        A unit that fails goes back to the model with the error, once. A second failure ends the
-        build. A clean build makes twelve model calls after the Resolver: one spec, five test suites
-        and six units.
+        A unit that fails goes back to the model once, with the error. A second failure ends the
+        build. With tests on and no rewrites, a build makes twelve model calls after the Resolver:
+        one spec, five test suites and six units. A capability related to others adds one call that
+        works out its links.
       </p>
     </template>
 
     <template data-more="gate" data-title="The Gate">
       <p>
-        The Gate runs a candidate’s code before any of it is written to the capability’s folder,
-        from source held in memory against scratch databases. It fails closed: a check that still
-        fails once its repairs are spent ends the build, and nothing is published.
+        The Gate runs the new code from memory against scratch databases, before any of it is
+        written to the capability’s folder. It fails closed: a check that still fails after any
+        repair it allows ends the build, and nothing is published.
       </p>
       <table class="more__table">
         <thead>
@@ -791,7 +881,7 @@
           <tr>
             <td>Structural</td>
             <td>
-              Re-parses the spec, requires exactly five Handlers, runs the source check again and
+              Parses the spec again, requires exactly five Handlers, runs the source check again and
               type-checks. Executes nothing.
             </td>
             <td>None</td>
@@ -799,8 +889,8 @@
           <tr>
             <td>Smoke</td>
             <td>
-              A full cycle on scratch SQLite: an empty read, then create, read back, update each
-              field, a set of hostile searches, and delete.
+              A full cycle on scratch SQLite: open with nothing saved, add, open again, change each
+              field, run hostile searches and remove.
             </td>
             <td>Rewrites the Handler that failed, once</td>
           </tr>
@@ -820,33 +910,37 @@
         </tbody>
       </table>
       <p>
-        Every repair is checked again: a repaired unit passes the source check and smoke runs again
-        on it. Behavioral runs last, so it tests the final card.
+        A repaired unit goes through the source check again, and the smoke check runs on it again.
+        The behavioral check runs last, so it tests the final card.
       </p>
     </template>
 
     <template data-more="live" data-title="Versions and going live">
       <p>
-        The platform writes the cleared version to a staging folder, with a manifest holding a
-        sha256 digest for every file. It verifies the staged copy from disk, then renames the folder
-        to
-        <code>v1</code>, or the next number, with a rename that refuses to replace a folder already
-        there. From then on the folder never changes.
+        The platform writes the version that passed the Gate to a staging folder, with a manifest
+        that holds a sha256 checksum for every file. It verifies the staged copy from disk, then
+        renames the folder to its version number, such as <code>v1</code>. The rename refuses to
+        replace a folder already there. From then on the folder never changes.
       </p>
       <p>
-        A version holds one spec, its six units and, with the tests on, its tests. The registry
-        points each capability at exactly one version. Older folders are kept, and nothing restores
+        A version holds one spec, its six units and, with tests on, its tests. The registry points
+        each capability at exactly one version. Older folders stay on disk, and nothing restores
         them.
       </p>
-      <p>
-        The platform then makes it live in one SQLite transaction, which creates the capability’s
-        table, or adds columns to it in an evolution, points the registry row at the new version by
-        compare-and-swap, writes any links between capabilities, and marks the build a success.
-      </p>
+      <p>Then one SQLite transaction makes the version live. The transaction:</p>
+      <ul>
+        <li>creates the capability’s table, or adds columns to it in an evolution;</li>
+        <li>points the registry row at the new version by compare-and-swap;</li>
+        <li>writes any links between capabilities;</li>
+        <li>
+          in an evolution, wakes any link whose rules hold again and rewrites its linked text;
+        </li>
+        <li>marks the build a success.</li>
+      </ul>
       <p>
         Once SQLite commits, the new version is live. If anything fails before that, SQLite rolls
-        back the table change and the registry row, and the published folder is left unreferenced
-        until reconciliation removes it.
+        back the table change and the registry row. Nothing points at the published folder, and the
+        next build or restart removes it.
       </p>
       <p>
         After the commit, one event carries the new view into the window and the logo tile onto the
@@ -857,18 +951,21 @@
     <template data-more="evolution" data-title="Evolution and the Diff Engine">
       <p>
         An evolution keeps the capability’s id, its table, its records and its logo, and adds a
-        version. One call returns a complete candidate spec, never a patch.
+        version. One model call returns a complete candidate spec, never a patch.
       </p>
       <p>
-        The Diff Engine compares the live spec with the candidate and emits typed change facts: a
-        new field, a hidden field, a field made required, a new layout, changed behavior text, and
-        twenty more. It removes from both specs every part a fact accounts for and requires what is
-        left to be identical, so a difference no fact explains stops the run. No facts at all means
-        no change, and no version is made.
+        The Diff Engine compares the live spec with the candidate and emits typed change facts.
+        There are twenty-five kinds, among them a new field, a hidden field, a field made required,
+        a new layout and changed behavior text.
       </p>
       <p>
-        From the facts it derives a work plan. A unit the plan selects is written again. One it does
-        not is copied byte for byte from the live version and never enters a prompt.
+        It then sets aside every part of both specs that a fact covers and requires the rest to
+        match exactly. Any other difference ends the build. When there are no facts at all, nothing
+        changed and no version is made.
+      </p>
+      <p>
+        From the facts it derives a work plan. The plan names the units to write again, and every
+        other unit is copied byte for byte from the live version without ever entering a prompt.
       </p>
       <table class="more__table">
         <thead>
@@ -880,7 +977,7 @@
         <tbody>
           <tr>
             <td>A new field</td>
-            <td>create and update, plus search for a text, choice or list field</td>
+            <td>add and change, plus search for a text, choice or list field</td>
           </tr>
           <tr>
             <td>Card fields or card direction</td>
@@ -888,22 +985,25 @@
           </tr>
           <tr>
             <td>A choice option added</td>
-            <td>create and update, plus the item renderer when the card shows the field</td>
+            <td>add and change, plus the item renderer when the card shows the field</td>
+          </tr>
+          <tr>
+            <td>The behavior text</td>
+            <td>every Handler, and the tests of every Action</td>
           </tr>
         </tbody>
       </table>
       <p>
-        No stored value is ever rewritten. The only table change is a nullable
-        <code>ADD COLUMN</code>, so existing records hold NULL in a new field. Hiding a field keeps
-        its column and its values. A field’s type never changes. To store a value differently, the
-        user asks for the old field to be hidden and a new one added.
+        An evolution’s only schema change is adding nullable columns, so existing records hold NULL
+        in a new field. A link it wakes rewrites the linked field to its target’s current text.
+        Hiding a field keeps its column and its values. A field’s type never changes. To store a
+        value another way, the user can hide the old field and add a new one, which starts empty.
       </p>
       <p>
-        The Gate, publication and activation then run as they do for a new capability, with two more
-        checks: every version already published is verified first, and the capabilities it reads
-        from are checked again just before the commit. The transaction adds the new columns and
-        moves the registry row to the new version, only if it still points at the version the
-        evolution started from.
+        The Gate, publication and activation then run as they do for a new capability, with one more
+        check: just before the commit, the platform checks again the capabilities the new version
+        reads from. The transaction adds the new columns and moves the registry row to the new
+        version, but only if the row still points at the version the evolution started from.
       </p>
     </template>
 

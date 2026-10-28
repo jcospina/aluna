@@ -104,12 +104,15 @@ export function arrow(from, to, rnd) {
  * @param {Point} from
  * @param {Point} to
  * @param {() => number} rnd
+ * @param {Point} [toward] a direction the bow must bulge toward; otherwise it falls either way
  */
-export function arrowParts(from, to, rnd) {
+export function arrowParts(from, to, rnd, toward) {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
   const length = Math.hypot(dx, dy) || 1;
-  const bow = (rnd() < 0.5 ? -1 : 1) * length * (0.12 + rnd() * 0.08);
+  const either = rnd() < 0.5 ? -1 : 1;
+  const leaning = toward ? Math.sign(toward.y * dx - toward.x * dy) : 0;
+  const bow = (leaning || either) * length * (0.12 + rnd() * 0.08);
   const c = { x: from.x + dx / 2 - (dy / length) * bow, y: from.y + dy / 2 + (dx / length) * bow };
   const back = Math.atan2(c.y - to.y, c.x - to.x);
   /** @param {number} spread @param {number} size */

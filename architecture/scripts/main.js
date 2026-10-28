@@ -23,8 +23,8 @@ if (
   marksLayer instanceof HTMLElement &&
   detailWindow instanceof HTMLElement
 ) {
-  const stage = new Stage(root);
   const marks = new Marks(root, marksLayer);
+  const stage = new Stage(root, () => marks.release());
   const detail = bindDetail(document, detailWindow);
   const deck = new Deck(root, document);
   let shown = -1;
@@ -35,8 +35,7 @@ if (
       if (focused) root.focus({ preventScroll: true });
     }
     shown = index;
-    stage.show(current.el, step);
-    marks.show(current.el);
+    marks.show(current.el, stage.show(current.el, step));
   });
   bindControls(deck, document, detail, bindPresenter(deck, document, detail));
   deck.go(Math.max(deck.indexOf(slideIdFrom(location.hash)), 0));

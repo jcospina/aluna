@@ -1,15 +1,15 @@
 /*
  * Words on the wallpaper stand on a plate: the surface, drawn, casting like anything else on the
- * desk. The cover's plate sits in the sky. Every other slide's plate stands beside the logo
- * column, says what the build is doing, and its notes send pencil arrows to what they explain.
+ * desk. Every plate starts at the same corner beside the logo column. The cover's sits in the sky;
+ * the others say what the build is doing, and their notes send pencil arrows to what they explain.
  */
 
 .plate {
   --ink-hand: frame;
   --ink-shadow: var(--shadow-window-wall);
   position: absolute;
-  left: clamp(var(--space-5), 7vw, 8rem);
-  top: 12%;
+  left: var(--plate-left);
+  top: var(--plate-top);
   max-width: min(42rem, 52%);
   padding: var(--space-6) var(--space-7) var(--space-7);
   background: var(--surface);
@@ -67,9 +67,8 @@
    with room at its edges for the focus rings and shadows of what it holds. */
 .plate--side,
 .plate--wide {
-  top: var(--stage-top);
   max-width: none;
-  max-height: calc(100% - var(--stage-top) - var(--stage-foot));
+  max-height: calc(100% - var(--plate-top) - var(--stage-foot));
   display: flex;
   flex-direction: column;
 }
@@ -101,12 +100,9 @@
   margin-bottom: 0;
 }
 
-.plate--dense {
-  font-size: var(--type-md);
-}
-
-.plate--dense .plate__body {
-  gap: var(--space-2);
+/* The Diff Engine's specs and plan are read from across a room, so their plate grows rightward. */
+.plate--broad {
+  width: min(46rem, calc(100% - var(--plate-left) - var(--space-6)));
 }
 
 .plate__heading {
@@ -126,10 +122,6 @@
 .plate__step {
   padding-left: var(--space-3);
   border-left: var(--line) solid var(--clay);
-}
-
-.plate--title {
-  top: 18%;
 }
 
 .plate--title .plate__body {
@@ -171,9 +163,18 @@
 /* ── The closing plate ──────────────────────────────────────────────── */
 
 .plate--wide {
-  left: 50%;
-  translate: -50% 0;
-  width: min(64rem, calc(100% - var(--space-6) * 2));
+  width: calc(100% - var(--plate-left) - var(--space-6));
+  padding: var(--space-5) var(--space-6) var(--space-6);
+}
+
+.plate--wide .plate__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.plate--wide .caps {
+  margin: 0;
 }
 
 .plate__links {
@@ -183,8 +184,9 @@
   margin-top: var(--space-6);
 }
 
-/* A short screen, a projector's 720 lines among them, sets the plate a size smaller. */
-@media (max-height: 820px) {
+/* A short screen, a projector's 720 lines among them, sets the plate a size smaller; so does a
+   narrow one, where the plate's column is narrow and its words wrap more. */
+@media (max-height: 820px), (max-width: 1200px) {
   .plate--side {
     padding: var(--space-4) var(--space-5) var(--space-5);
     font-size: var(--type-md);
@@ -201,20 +203,16 @@
   .plate--wide {
     padding: var(--space-5) var(--space-6) var(--space-6);
   }
-
-  .plate--wide .plate__title {
-    font-size: var(--type-display);
-  }
 }
 
 /* A narrow desk stacks the plate over the window, in the half above it. */
 @media (max-width: 900px) {
+  .plate {
+    max-width: calc(100% - var(--plate-left) * 2);
+  }
+
   .plate--side {
     max-height: calc(46% - var(--stage-top) - var(--space-3));
     font-size: var(--type-md);
-  }
-
-  .plate--title {
-    top: var(--stage-top);
   }
 }

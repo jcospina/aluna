@@ -1,6 +1,7 @@
 /*
- * What the plates and windows show besides words: the two specs the Diff Engine compares and the
- * work plan it makes, the closing path, a Finance tracker card, and the detail window's page.
+ * What the plates and windows show besides words: the two specs the Diff Engine compares, the work
+ * plan it makes, the closing diagram of both paths, a Finance tracker card and the detail window's
+ * page.
  */
 
 /* ── The Diff Engine ────────────────────────────────────────────────── */
@@ -8,30 +9,39 @@
 .specs {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 .spec-card {
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
   background: var(--surface-2);
   border: var(--line) solid var(--ink);
+}
+
+.plate .spec-card .caps {
+  margin-bottom: var(--space-2);
+}
+
+.spec-card dl {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.spec-card dt {
   font-size: var(--type-sm);
-  line-height: 1.4;
-}
-
-.spec-card .caps {
-  margin-bottom: var(--space-1);
-  font-size: var(--type-xs);
-}
-
-.spec-card p + p {
-  margin-top: var(--space-1);
-}
-
-.spec-card b {
-  display: block;
-  font-size: var(--type-xs);
+  font-weight: 700;
   color: var(--ink-2);
+}
+
+.spec-card dd {
+  margin: 0 0 var(--space-2);
+  font-size: var(--type-lg);
+  line-height: 1.35;
+}
+
+.spec-card dd:last-child {
+  margin-bottom: 0;
 }
 
 .spec-card mark {
@@ -40,29 +50,35 @@
   color: var(--ink);
 }
 
+/* ── The work plan ──────────────────────────────────────────────────── */
+
 .plan {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-block: var(--space-2);
+}
+
+.plan__row {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.plan__row {
+.plan__parts {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.plan__label {
-  min-width: 8.5em;
-  font-size: var(--type-xs);
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .plan-part {
-  padding: 0 var(--space-2);
+  padding: var(--space-1) var(--space-3);
   background: var(--surface);
   border: var(--line) solid var(--ink);
-  font-size: var(--type-sm);
+  font-size: var(--type-xl);
   font-weight: 700;
 }
 
@@ -74,37 +90,26 @@
 
 /* ── The whole path ─────────────────────────────────────────────────── */
 
-.paths {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
-  gap: var(--space-6);
-  margin-top: var(--space-5);
-}
-
-.paths__close .plate__line {
-  margin-top: 0;
-}
-
-.paths__close .plate__links {
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-@media (max-width: 900px) {
-  .paths {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .paths__close {
-    grid-column: 1 / -1;
-  }
-}
-
-.path {
+/* Both lanes share seven columns, so the steps they have in common line up: the Core Builder
+   spans the three an evolution splits into a candidate, its diff and only what changed. */
+.lanes {
+  --lane-gap: var(--space-5);
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: var(--space-4);
+  margin-top: var(--space-1);
+}
+
+.lanes__lane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.lane {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--lane-gap);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -112,21 +117,122 @@
 
 .path-step {
   position: relative;
-  padding: var(--space-1) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3) var(--space-3);
   background: var(--surface-2);
   border: var(--line) solid var(--ink);
-  font-size: var(--type-sm);
-  font-weight: 700;
+}
+
+.path-step--builder {
+  grid-column: span 3;
+}
+
+.path-step b {
+  font-size: var(--type-lg);
+  line-height: 1.2;
+}
+
+.path-step span {
+  font-size: var(--type-base);
+  line-height: 1.35;
+  color: var(--ink-2);
 }
 
 .path-step + .path-step::before {
-  content: "↓";
+  content: "→";
   position: absolute;
-  bottom: 100%;
-  left: var(--space-3);
-  line-height: var(--space-4);
-  font-weight: 500;
+  top: 50%;
+  right: 100%;
+  width: var(--lane-gap);
+  translate: 0 -50%;
+  text-align: center;
+  font-size: var(--type-lg);
+  font-weight: 700;
   color: var(--clay);
+}
+
+.paths__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+}
+
+.paths__head .plate__links {
+  margin-top: 0;
+}
+
+.plate .paths__close {
+  max-width: 72ch;
+  margin-top: var(--space-2);
+  font-size: var(--type-lg);
+}
+
+/* A narrower desk keeps the seven columns, closer together and set smaller. */
+@media (max-width: 1200px) {
+  .lanes {
+    --lane-gap: var(--space-4);
+  }
+
+  .lanes .path-step {
+    padding: var(--space-1) var(--space-2) var(--space-2);
+  }
+
+  .lanes .path-step b {
+    font-size: var(--type-base);
+  }
+
+  .lanes .path-step span {
+    font-size: var(--type-sm);
+  }
+}
+
+/* Narrow and short, a desk has room for the steps' names alone. */
+@media (max-width: 1200px) and (max-height: 900px) {
+  .lanes .path-step span {
+    display: none;
+  }
+}
+
+/* A short window keeps the menubar, so it has room for the names alone until it presents. */
+@media (max-height: 760px) {
+  .deck-page:not(.is-presenting) .lanes .path-step span {
+    display: none;
+  }
+}
+
+/* Too narrow for seven columns, each lane runs down the plate, the two side by side. */
+@media (max-width: 900px) {
+  .lanes {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .lane {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .path-step + .path-step::before {
+    content: "↓";
+    top: auto;
+    right: auto;
+    bottom: 100%;
+    left: var(--space-3);
+    width: auto;
+    translate: none;
+    line-height: var(--space-4);
+  }
+}
+
+@media (max-width: 560px) {
+  .lanes {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* ── A Finance tracker card ─────────────────────────────────────────── */
@@ -184,6 +290,12 @@
   color: var(--ink-3);
 }
 
+/* The record's drawn fields reach a hair past its edge, which would give its scroller a sideways
+   bar; two pixels of room hold them. */
+.stage__window .detail {
+  padding-inline: 2px;
+}
+
 /* ── The detail window's page ───────────────────────────────────────── */
 
 .more {
@@ -235,11 +347,41 @@
 }
 
 @media (max-height: 820px) {
-  .path {
+  .lanes {
     gap: var(--space-3);
   }
 
-  .paths {
-    margin-top: var(--space-4);
+  .path-step {
+    padding: var(--space-1) var(--space-2) var(--space-2);
+  }
+
+  .path-step b {
+    font-size: var(--type-md);
+  }
+
+  .path-step span {
+    font-size: var(--type-sm);
+  }
+
+  .plate .paths__close {
+    font-size: var(--type-md);
+  }
+
+  .spec-card {
+    padding: var(--space-2) var(--space-3) var(--space-3);
+  }
+
+  .spec-card dd {
+    margin-bottom: var(--space-1);
+    font-size: var(--type-md);
+  }
+
+  .plan {
+    gap: var(--space-3);
+    margin-block: 0;
+  }
+
+  .plan-part {
+    font-size: var(--type-lg);
   }
 }
