@@ -124,6 +124,18 @@ function bindSwipe(deck) {
 }
 
 /**
+ * Make it starts the build, so its press passes the slides that still show the desk before it.
+ *
+ * @param {Deck} deck
+ */
+function pressMake(deck) {
+  const { scene } = deck.current.el.dataset;
+  const started = deck.slides.findIndex((s, i) => i > deck.index && s.el.dataset.scene !== scene);
+  if (started < 0) deck.next();
+  else deck.go(started);
+}
+
+/**
  * A mouse press on the rail hands focus back to the desk, so the next Space turns the slide
  * instead of pressing the same button again.
  *
@@ -135,7 +147,7 @@ function bindButtons(deck, doc) {
   const presses = [
     ['[data-go="prev"]', () => deck.prev()],
     ['[data-go="next"]', () => deck.next()],
-    ["[data-make]", () => deck.next()],
+    ["[data-make]", () => pressMake(deck)],
   ];
   for (const [selector, move] of presses) {
     for (const button of doc.querySelectorAll(selector)) {

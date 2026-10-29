@@ -80,11 +80,14 @@ const sizeOf = (box) => ({ width: box.right - box.left, height: box.bottom - box
 const centreOf = (box) => ({ x: (box.left + box.right) / 2, y: (box.top + box.bottom) / 2 });
 
 /**
- * Words are marked where the words are, not across the box they stand in.
+ * Words are marked where the words are, not across the box they stand in. A button is its box.
  *
  * @param {Element} node
  */
-const isWords = (node) => node.childElementCount === 0 && Boolean(node.textContent?.trim());
+const isWords = (node) =>
+  !(node instanceof HTMLButtonElement) &&
+  node.childElementCount === 0 &&
+  Boolean(node.textContent?.trim());
 
 /** @param {Element} node */
 function drawnBox(node) {
