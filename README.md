@@ -1,6 +1,16 @@
 # Aluna
 
-**A self-building app. It ships with no business logic and builds what you ask for while it runs.**
+**TL;DR:** Aluna is a self-building application where you can turn intent into working capabilities. [How to run it](#how-to-run-it)
+
+Aluna ships with no business logic: no books, no recipes, no expenses, no subject it already knows how to track. What it ships is a platform that builds capabilities on demand from simple promptsß. You say what you want to keep track of, a model writes the capability, and the platform checks it and puts it live while the app runs.
+
+A capability is one subject's records together with everything that works on them: the fields, the rules, the forms, the search and how each record looks. Type *track the books I read* and Aluna builds Books. *add the date I finished* changes it, and *which books did I finish this year?* gets an answer read from your records. You never write a schema or a line of code, and nothing needs a restart or a deploy.
+
+Aluna is not a coding agent, and it does not hand you a codebase. A capability lives only inside Aluna, with no repository, no deploy and no source to edit.
+
+This repository is an architecture more than a product. It proposes how to build an app that builds itself, and Aluna is that proposal built and running. The proposal turns on two questions: how much of an app a model can write, and what a hand-written platform has to check before the model's code runs.
+
+The name comes from the [Kogi](https://en.wikipedia.org/wiki/Kogi_people) of Colombia's Sierra Nevada de Santa Marta. To them *aluna* is the world of thought, and the material world is born from it.
 
 <p>
   <img src="design/assets/logos/reading-journal.svg" width="72" height="72" alt="Logo of a reading journal capability">
@@ -12,31 +22,6 @@
 </p>
 
 [See how Aluna works](https://jcospina.github.io/aluna/) · [Open the design system](https://jcospina.github.io/aluna/design/)
-
-## Contents
-
-1. [What Aluna is](#what-aluna-is)
-2. [How it works](#how-it-works)
-3. [The design system](#the-design-system)
-4. [Not built yet](#not-built-yet)
-5. [How to run it](#how-to-run-it)
-   - [What you need](#what-you-need)
-   - [Getting your keys](#getting-your-keys)
-   - [Install and start](#install-and-start)
-   - [Environment variables](#environment-variables)
-   - [Commands](#commands)
-   - [Keep it local](#keep-it-local)
-6. [License](#license)
-
-## What Aluna is
-
-Aluna is an app that builds itself. It ships with no business logic: no books, no recipes, no expenses, no subject it already knows how to track. What it ships is a platform that builds capabilities on demand, from prompts. You say what you want to keep track of, a model writes the capability, and the platform checks it and puts it live while the app runs.
-
-A capability is one subject's records together with everything that works on them: the fields, the rules, the forms, the search and how each record looks. Type *track the books I read* and Aluna builds Books. *add the date I finished* changes it, and *which books did I finish this year?* gets an answer read from your records. You never write a schema or a line of code, and nothing needs a restart or a deploy.
-
-Aluna is not a coding agent, and it does not hand you a codebase. A capability lives only inside Aluna, with no repository, no deploy and no source to edit.
-
-The name comes from the [Kogi](https://en.wikipedia.org/wiki/Kogi_people) of Colombia's Sierra Nevada de Santa Marta. To them *aluna* is the world of thought, and the material world is born from it.
 
 ## How it works
 
@@ -50,22 +35,31 @@ A question changes none of your records. The model reads them with read-only SQL
 
 The [architecture deck](https://jcospina.github.io/aluna/) walks through all of this one slide at a time, from an empty desk to a live Finance tracker and its first change. The whole architecture is in the [architecture document](docs/architecture.md), its vocabulary in [CONTEXT.md](CONTEXT.md), and the reasons behind its decisions in the [architecture decision records](docs/adr/).
 
-## The design system
+## Measurements
 
-Aluna looks like a desk on a meadow wallpaper, with every line inked as if by hand in the colours of one closed palette, High Meadow. The model writes the markup for each capability's cards, but only with the design system's colours, sizes and spacing. Fonts, borders and shadows belong to the platform. The Gate rejects markup that breaks these rules, so a capability you build today and one you build next month look like they belong on the same desk.
+Aluna records the tokens, time and outcome of every build in the `generation_lifecycle_metrics` table of its database. The table holds 86 builds from 26 August to 29 October 2026, all on the default `gpt-5.6-terra` at medium reasoning effort.
 
-The design system is three working pages built on the stylesheets Aluna ships, and you can try them without running Aluna. One is the desk, with fixtures and a timer standing in for the model. One puts every control a generated form can use through its states. One shows how a capability's logo is put together.
+| | New capability | Change to a capability |
+| --- | ---: | ---: |
+| Builds that went live | 49 | 15 |
+| Tokens per build, median | 38,100 | 34,300 |
+| Tokens per build, middle half | 34,300 to 41,300 | 30,200 to 43,900 |
+| Output tokens per build, median | 10,800 | 8,000 |
+| Prompt to live, median | 1 min 46 s | 1 min 20 s |
+| Prompt to live, fastest and slowest | 1 min 15 s and 4 min 27 s | 25 s and 3 min 41 s |
+| Builds that failed | 8 of 57 (14%) | 1 of 18 (6%) |
 
-[Open the design system](https://jcospina.github.io/aluna/design/) · [Read the names and rules](design/design-system.md) · [Serve it locally](design/README.md)
+Tokens and times count only the builds that went live. Both include the Intent Resolver's reading of the sentence. The time runs from the moment the prompt arrives to the moment the new version is live, including any wait behind another build. Counting what failed and cancelled builds spent too, each new capability that went live cost about 47,300 tokens and each change about 39,600.
 
-## Not built yet
+Two of the 18 change requests ended when the Diff Engine found nothing to change, and they count as neither live nor failed. Eleven more builds, 8 new and 3 changes, were cancelled before they finished, and the failure counts leave them out.
 
-Aluna is a research prototype, and some things are missing:
+Seven of the nine failed builds stopped at the behavioural tests the model writes from the spec. They included a search that missed a record with an accent in its name, a list in the wrong date order and a list of logins that showed a password. The model writes those tests as well as the code, and a failed test does not record which of the two was wrong. The other two builds failed while the model was writing code: a search handler in a new capability still failed the strict TypeScript check after two attempts, and the AI provider took more than the five-minute limit to write one piece of a change.
 
-- Suggestions from use. Aluna does not watch how you use a capability or suggest changes from it.
-- Reading documents. Aluna keeps your PDFs and Word files, but a question cannot reach what they say.
-- Going back to an earlier version. Every version stays on disk, but nothing on the desk restores one.
-- A dashboard for comparing builds over time.
+In 23 of the 49 new capabilities that went live, at least one piece of code failed a check first and the model rewrote it. A change writes only the code it touches, and 2 of the 15 needed a rewrite.
+
+The `intent_resolution_metrics` table has timed 38 questions since 14 September. They took a median of 10 seconds to answer, from 6 to 30.
+
+These are one developer's builds, and they are no benchmark: the prompts were not fixed in advance, and the platform changed between builds.
 
 ## How to run it
 
