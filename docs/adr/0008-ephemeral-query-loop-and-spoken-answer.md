@@ -1,375 +1,289 @@
-# 0008 — The ephemeral query loop: read-only agent turns, a worker, and a spoken answer
+# 0008 — The ephemeral question loop and the spoken answer
 
-Status: accepted
+Status: Accepted
 
-Seeds Module 6 (`modules/06-reads-set-free/PLAN.md`). It settles what a `data_query`
-does, where its answer appears, and what the platform is allowed to say about a user's
-data. It amends ARCH §7's `data_query` subsection and narrows ARCH §1's "no roaming
-agent loop" to the building path, which is what that sentence was written about.
+## Context
+
+A person asks Aluna about their own things: how many coffees from Colombia they have
+tasted, or what they spent on groceries. The Intent Resolver classifies such a sentence
+as a `data_query`. The answer may lie in one capability or across several, and the
+question's words rarely match the stored values. When someone's expenses are
+categorized food, cheese and vegetables, no single label means "groceries", so the
+model has to look at what the values are, decide which belong, and only then compute:
+two model turns with a read between them. Generated SQL is also sometimes simply wrong.
+
+Aluna is not a coding agent, and during a build the model calls no tools
+([What Aluna is and what it is not](../architecture.md#2-what-aluna-is-and-what-it-is-not)).
+A question is where a model does call one, so that tool has to be harmless whatever the
+model does with it.
+
+`bun:sqlite` is synchronous, so a statement on the main thread blocks the event loop for
+as long as it runs. One missing join condition across three capabilities scans the
+product of their rows before it returns a single number, and the desk freezes while it
+does: no request served, no stream advancing. No bound on result size catches that.
+
+Outside the developer panel, Aluna shows the person no developer surface (ADR-0001), and
+a grid with column headers taken from SQL aliases would be one.
 
 ## Decision
 
-**A `data_query` is a bounded loop of read-only SQL steps whose result Aluna speaks.**
-It builds nothing, persists nothing, and is re-run in full every time it is asked.
+A `data_query` is a bounded loop of read-only SQL steps whose result Aluna speaks. It
+builds nothing, keeps nothing, and runs again in full every time it is asked.
+[Answering questions](../architecture.md#410-answering-questions) traces it step by step.
 
-**The loop.** The resolver classifies `data_query` as it does today. The classified
-question then enters a loop in which the model is given exactly one tool — run a
-parameterized read-only query — and decides its own next step, up to **ten steps**. It
-uses those steps to find where the subject lives, to read what the user's values are
-actually called, and to compute. A fixed pipeline was rejected: it answers the
-anticipated question and then grows a retry branch for malformed SQL, an unknown column
-or an empty result, and a retry branch is a loop that is embarrassed about itself.
+### The loop
 
-**The tool is the physically read-only adapter, and that is the whole safety story.**
-Every step runs against `SQLITE_OPEN_READONLY` plus `PRAGMA query_only = ON`. A mutating
-statement fails at the SQLite seam regardless of how many turns the loop takes or how badly
-it reasons.
+The model has one tool, `run_read_only_query`, which runs one parameterized SQL
+statement. On each turn it decides its own next step: read, answer, or say that the
+desk has nowhere for the subject. It reads to find where the subject lives, to learn
+what the person's values are called, and to compute. A question gets ten steps. A
+statement that fails, or that the platform refuses, is an ordinary step whose message
+goes back to the model, so an unknown column or an empty result needs no retry branch.
 
-*Amended 2026-09-14 — what the seam actually is.* This paragraph said "plus the authorizer"
-until the seam was built. `bun:sqlite` exposes no `sqlite3_set_authorizer`, so there is no
-authorizer anywhere in this product and there never was. What shipped instead, measured
-against a read-only connection on Bun 1.3.12: `SQLITE_OPEN_READONLY` alone still let
-`VACUUM INTO` write a complete readable copy of the catalog and `CREATE TEMP TABLE` spill to
-disk, and `PRAGMA query_only = ON` closes both — it is load-bearing, not a belt. `ATTACH`
-is closed by neither and is refused by name in `query-worker-thread.ts`, which is therefore
-also load-bearing. `PRAGMA temp_store = MEMORY` bounds by RAM what `query_only` already
-refuses. The table bound (`assertWholeCatalogQuery`) enumerates what an `EXPLAIN` opens and
-is not the seam, as below. An agent loop is normally dangerous because an agent can act; this one can only
-look, so its blast radius is zero by construction. The cheap reject/route classifier is
-a courtesy, never the seam — as ARCH §7 already insists.
+SQL computes and the model finds the words. The statement carries the whole
+computation, counting, totaling, grouping, ordering and rounding included, and the
+model never does arithmetic by reading rows. Arithmetic done that way would make every
+answer depend on the payload caps below, which are only a backstop.
 
-**Execution moves off the main thread.** The loop's queries run in a Worker holding its
-own read-only connection to the one documented database file. `bun:sqlite` is
-synchronous, so an in-process query blocks the event loop for its whole duration: a
-clumsy unconditional join across three capabilities would freeze the desk — no request
-served, no stream advancing — while returning a single row, which no result-size bound
-can catch. Measured on Bun 1.3.12 against `data/omni-crud.db`: a read-only connection
-opens inside a Worker; a `CREATE TABLE` through it still fails with *attempt to write a
-readonly database*; the main thread ticked 39 times against an expected 40 during two
-seconds of a runaway recursive query. `terminate()` does not stop that query: a later
-measurement, recorded in `src/runtime/query/worker/query-worker.ts`, found the thread still burning
-2.98s of CPU in the 3s after `terminate()` returned. What closing the worker ends at once is
-the wait, because every pending read rejects.
+No statement and no question has a deadline. Slow is permitted and freezing is not, and
+the worker removes the freezing without a timeout. The provider's per-generation
+deadline still bounds each model call.
 
-*Amended 2026-09-25 — how the worker opens (Module 7 PLAN decision 37, 7.1/09).* The
-worker's own `main` is an empty in-memory database, and the one documented file is attached
-`mode=ro` under a schema name the platform's own connection does not have; `query_only`,
-`temp_store` and the refusals by name all stand. Every catalog table is read through a temp
-view named like it and listing the columns the table bound admits (`id`, `created_at`, the
-active fields); every other table in the file, the ledger included, is shadowed by an empty
-view. A file column comes without its key, and a `string`, a `string[]` or a file's name
-that may hold an address — a `/files/` path, a NUL no SQLite text function reads past, or a
-ledger key in any case once the common separators the views list are dropped — comes as a
-withheld phrase. A key no statement can see is one no statement can spell out another way.
-The residual: a copy some Handler stored with other characters between its digits, or
-already cut up, is read whole only by the scrub of what comes back, and a statement can
-reorder its pieces past that scrub. The views' check costs time: text dense with hex digits
-takes about 10µs a character, in every row whose text a statement reads, returned or not. A
-question over megabytes of such text is slow, and with no timeout it runs until it ends or
-is cancelled. The table bound prepares every read on the platform's connection, where that
-schema does not exist, so it is the one barrier against a statement that names the schema to
-reach a table under its view; a write it lets through unprepared fails `mode=ro` before
-reading anything, or, through a view, as *cannot modify it because it is a view*.
-`main.`-qualified names now find nothing, and the worker is handed the view statements at
-birth, written on the main thread — names, never a token.
+### The read-only seam
 
-*Amended 2026-10-08 — question views gain the link joins (ADR-0011, pending 8.1/01's
-sign-off).* The link table is the first platform table a question reads. "How many
-copies of Le Guin's books do I have?" follows Inventory to Books to Authors through
-it, instead of guessing a join on plain columns. The table bound admits the link
-table by its real name on the platform's connection, and the worker shadows it with a
-view of the same name that holds only active relations' rows, while every other
-platform table stays an empty view. The view leaves out the target's incarnation, so
-the worker still never learns one, and the bound refuses a statement that names that
-column. A link join, like every question statement, declares no read dependency.
+Every statement runs in a Worker against the one database file, attached read-only
+(`mode=ro`), under `PRAGMA query_only = ON`. The worker also refuses by name `ATTACH`,
+`PRAGMA` and the other forms that leave the file behind, and refuses a second statement
+(`src/runtime/query/worker/query-worker-thread.ts`). On a read-only connection alone,
+`VACUUM INTO` writes a readable copy of the catalog and `CREATE TEMP TABLE` spills to
+disk. `query_only` closes both, and only the refusal by name stops `ATTACH`. A mutating
+statement fails at this seam however many turns the loop takes and however badly it
+reasons. An agent loop is dangerous when the agent can act, and this one can only look.
+The Resolver's classification is never the seam, and neither is the table bound, which
+checks every read with `EXPLAIN` on the main thread's read-only connection against the
+tables and columns a question may see, and passes a write through unchecked to fail at
+the seam.
 
-**Ownership stays on the main thread.** The complete per-incarnation read-token set is
-acquired atomically against one catalog snapshot or not at all, and released in
-`finally`, exactly as ADR-0006 and ARCH §8 require. The worker is only where SQL
-executes. It never receives a token and never learns which incarnations it is reading.
+The worker sees the catalog only through views. Each capability's table is read through
+a view of the same name listing `id`, `created_at` and the active fields. A file column
+comes without its key, and text that may hold a file's address comes as a withheld
+phrase, because a statement can disguise any value it can read and no scrub of the
+result undoes that. The link table's view holds only the rows of relations that hold,
+without the target's incarnation (ADR-0011), and an empty view shadows every other
+table in the file. The file itself is attached under a schema name the platform's
+connection lacks, so the table bound refuses a statement that names the schema to reach
+under a view. A scrub of what comes back catches a stored copy the views cannot
+recognize (ADR-0009).
 
-**Cancellation aborts the question and closes its worker if one has started, and it has
-four triggers**: the
-user asks something new, the user dismisses the answer, the browser disconnects from the
-answer's stream, or a capability the question holds a token for begins closing for
-deletion. A question holds a token for every capability that was active when its read
-scope opened, so deleting any of them
-cancels it, whether or not the question was about that capability. The fourth is the one
-that matters architecturally. An in-process synchronous query cannot observe cancellation
-at all, so before this ADR the read gate's drain could only wait and time out against a
-long query. In a worker the gate's signal ends the question at once and its tokens
-release, so the drain becomes a mechanism rather than a hope, even though the statement
-runs on to its end in the terminated thread.
+Ownership stays on the main thread. The question takes a read token on every active
+capability at once, against one catalog snapshot, or takes none, and releases them in
+`finally` (ADR-0006). The worker is handed view statements, never a token, and never
+learns which incarnations it reads.
 
-**There is no timeout.** Slow is permitted; freezing is not, and the worker addresses
-freezing structurally instead of trading one against the other. This replaces the
-"defensive `LIMIT` + timeout" approach planned before this ADR.
+### Cancellation
 
-**A step whose result exceeds a payload cap is refused, not truncated**, and the refusal
-is addressed to the model so it narrows or aggregates and the loop continues. Silent
-truncation is how a spoken answer becomes a lie — half the expenses summed with total
-confidence, and no table on screen to expose it. The cap is measured in payload size
-rather than rows, because ten thousand `(month, total)` pairs are trivial while two
-hundred long-text records are on the order of 100k tokens re-sent on every subsequent
-turn.
+Closing the worker does not stop a running statement, which runs to its end inside
+SQLite after `terminate()`. Closing ends the wait at once, because every pending read
+rejects. Cancellation aborts the question, ends its model call and closes its worker.
+Four things trigger it: the person asks something new, the person dismisses the answer,
+the browser disconnects from the answer's stream, or a deletion closes the read gate of
+a capability the question holds a token for. A question holds a token for every
+capability that was active when it started, so deleting any of them cancels it,
+whatever it was about. The fourth trigger lets a deletion's drain end a question at
+once, where a statement on the main thread could only be waited out.
 
-**A whole question carries a payload budget beside the per-step cap.** Every turn's prompt
-re-renders every prior step's complete row set, so a question's cost grows as n²/2 across
-the budget and a per-step cap of `C` admits about `55C` across ten reads. A question
-therefore accumulates against a budget of its own, and a read that would fit on its own is
-refused once that budget is spent — in the same shape and for the same reason, addressed to
-the model so it narrows. Without it the step cap bounds a step and nothing bounds the
-question, which is what a context-window overrun is made of.
+### Results are refused, not truncated
 
-**SQL computes; the model only finds the words.** Generated SQL must carry the whole
-computation — counting, totalling, grouping, ordering. The model never performs
-arithmetic by reading rows. Free reads exist precisely so SQL can be asked to do this
-(ARCH §3); leaning on the model instead would waste a guarantee the architecture already
-bought, and would make the payload cap load-bearing rather than a backstop.
+A step whose result exceeds the per-step cap is refused, and the refusal tells the
+model to narrow or aggregate. Silent truncation is how a spoken answer becomes wrong:
+half the expenses summed with the confidence of a whole total, and no table on screen
+to expose it. The cap counts bytes, not rows: four hundred `(month, total)` pairs fit
+under it, and two hundred long notes, re-sent in full on every later turn, do not.
 
-**The answer is prose in Aluna's voice. There is no auto-table.** This replaces the
-"platform-owned generic auto-table renders a bounded result" of ARCH §7. Every question a
-person actually asks is answered by a sentence, with bullets where a sentence would be a
-list. A one-cell table headed `count(*)` is an engineering artifact, and ARCH §9.7
-forbids the product from being one.
+A whole question also carries a payload budget. Every turn re-renders every earlier
+step, so a question's payload grows with the square of its steps, and a per-step cap
+alone would admit about 55 times the cap across ten reads. Once the budget is spent, a
+read that fits the step cap is refused the same way.
 
-*Amended 2026-10-03 — an answer carries answer links to the records it names
-(ADR-0010).* The answer is still prose, and it may now carry answer links. The model
-returns `{ answer, records }`, where each `{ says, id }` nominates the words that
-name a record and the id it says it read. The platform links a nomination only after
-four checks, the first being that a step returned that id. It removes from the spoken
-text every record id the steps returned, and it builds each anchor itself, so no
-anchor reaches the screen unchecked and no markup the model wrote reaches it at all.
-Only an answered question carries links: the platform's own sentences for **nothing
-matched**, **nowhere for it**, every statement failing and a spent step budget link
-nothing.
+### What she says
 
-**Amended 2026-09-11 — rule 1 is withdrawn by the owner.** The restatement shipped, was read
-on a real desk, and was rejected: *"THE USER KNOWS WHICH CAPABILITIES IT HAS THERE IS NO NEED
-FOR ALUNA TO SAY OH I LOOKED FOR COFFEES UNDER COFFEE."* Naming what she read before every
-answer made each one arrive in the same shape — *"Under Colombia in your Coffee tasting, you
-have 7"* — which reads as a machine reporting in rather than as her. The answer is now one
-generated sentence with no restatement in front of it: *"You have tasted 7 coffees from
-Colombia."* Rules 2 and 3 are untouched, and so is everything below about what she may not say.
+The answer is prose in Aluna's voice, written as a list only when the answer is one, and
+there is no auto-table. A separate model call writes it from what the steps returned and
+nothing else. She answers the question and stops. Where she looked is not part of what
+she says, because the person knows what they keep. The collections a statement opened
+and the values it bound still reach the answer's prompt, because the sentence needs
+them: "from Colombia" is the value she searched on.
 
-What that costs is written down rather than argued away: the restatement was the user's only
-check on a fluent, confidently wrong answer, and there is now no check at all. The collections
-a statement opened and the values it narrowed to still reach the answer's prompt, because the
-sentence needs them — *from Colombia* is the value she searched on — so a mis-scoped answer can
-still show in the words, but nothing makes it. The owner has this trade and chose it twice.
+An answer may carry **answer links** to the records it names (ADR-0010). The model
+nominates the words that name a record and the id it read, and the platform links a
+nomination only after its own checks, the first being that a step returned that id. The
+platform strips every returned record id from the spoken text and builds each anchor
+itself. Only an answered question carries links.
 
-Three rules make a spoken answer safe to trust:
+Two rules bound what a spoken answer may claim:
 
-1. ~~**She says what she looked at before she says what she found.**~~ Withdrawn above. She
-   answers the question and stops; where she looked is not part of what she says.
-2. **Zero matched rows is never stated as a fact about the user's life.** The platform
-   distinguishes "no rows matched" from "the rows matched and totalled zero"
-   deterministically — a count returns `0`, a sum over no rows returns `NULL` — so this is
-   a code check, not a model judgment. She may say she could not find something; she may
-   not say the user does not have it.
-3. **Narration is platform-owned.** The model's tool call carries a label drawn from a
-   closed vocabulary, and the platform owns the sentence for each label. The model picks
-   the kind of step; it never writes the words. It cannot invent progress, report an
-   uncomputed number, or narrate outside product voice. No SQL, table name, column, or
-   error string reaches the surface.
+1. **Nothing matched is never stated as a fact about the person's life.** The platform
+   tells **nothing matched** apart from rows that matched and totaled zero, by reading
+   what SQLite returned against what the statement's plan returns over no rows, and a
+   plan it cannot read counts as matching nothing. This is a code check, never a model
+   judgment. A question whose statements ran and matched nothing ends in the platform's
+   own sentence, which names any collections she read. One whose every statement failed
+   ends in another, which claims only that she got nowhere: she did not search, so she
+   may not report a search. She may say she could not find something. She may not say
+   the person does not have it.
+2. **Narration is platform-owned.** The tool call carries a **step label** from a closed
+   vocabulary, and the platform owns the sentence for each label. The model picks the
+   kind of step and never writes the words, so it cannot invent progress, report an
+   uncomputed number, or narrate outside the product voice. No SQL, table name, column
+   or error string reaches the surface. Nothing checks a label against its statement, so
+   a mislabeled step says the sentence for the wrong kind of step, which claims nothing
+   about the data.
 
-**Amended 2026-10-28 by the owner — the band.** While she looks, the answer window shows
-the build narration's band over her sentence: *Looking* in caps, one square per step, and
-under the sentence a rule that creeps without a percentage. The squares tell the person how
-many steps she has taken, which the window used to keep to itself, and nothing about what
-the steps were. The rule claims no share of a total, because a question does not know its
-own length, and it runs out only when she has seen the question through: an answer, a search
-that matched nothing, or a desk with nowhere for it. A question she got nowhere with, stopped
-short of, gave up on, or whose stream closed without an ending lets it go where it stands. The
-server marks the sentence a question ends on (`data-answer-ending`, valued `unfinished` when
-she did not see it through), so the window knows when to put the band away.
+While she looks, the answer window shows the build narration's band: *Looking* in caps,
+one square per step, and a rule under her sentence that creeps and states no percentage.
+The squares say how many steps she has taken and nothing about what they were. The rule
+claims no share of a total, because a question does not know its own length, and it
+runs out only when she has seen the question through: an answer, nothing matched, or
+nowhere for it. Any other ending leaves the rule where it stands.
 
-**Meaning is supplied, not stored.** The model is given the vocabulary of the user's
-data: `choice` fields already declare their options in the registry, and small
-categorical string fields are enumerated by an ordinary loop step. The model applies its
-own knowledge of language — that "mother", "mum" and "mom" are one idea — inside the SQL
-it writes. **Embeddings and any other semantic index are declined.** They would make this
-a write feature: computed on save, recomputed on edit, deleted on delete, rebuilt on
-evolution and swept on capability deletion through the incarnation and tombstone
-machinery — a fourth derived artifact beside the Handler, the renderer and the tests,
-with its own version key, its own lifecycle recovery, its own coordinator traffic, and an
-AI call on the write path. This is a single-user app whose entire categorical vocabulary
-fits in a few hundred tokens; an index exists to search a space too large to enumerate,
-and this one is not. Should the supplied-vocabulary approach prove insufficient in use,
-semantic storage earns its own ADR and its own module.
+Meaning is supplied, not stored. The model is given the vocabulary of the person's
+data: a choice field's options come from the registry, a file field lists its kinds and
+media types, and an ordinary step reads every other field's values. The model applies
+its own knowledge of language, that "mother", "mum" and "mom" are one idea, inside the
+SQL it writes. Aluna keeps no embeddings and no other semantic index.
 
-**When nothing can answer, Aluna names the gap and stops.** She says the user has nowhere
-for the subject yet and that they can ask her to make one. She presents no confirmation
-control: an offer-with-a-yes is a proposal, and the proposal surface belongs to Module 10
-— `src/pipeline/intent/schema.ts` admits only `requires_confirmation: z.literal(false)`,
-and reserves confirmations for M4 deletion and M10 proposals. The information still
-arrives, and the action is one ordinary sentence away in the box already under the
-cursor.
+When nothing on the desk can hold the subject, she names the gap and stops: the person
+has nowhere for it yet and can ask her to make one. That ending is **nowhere for it**.
+The sentence is the platform's, and the model only picks which of the person's own words
+name the subject. The platform refuses the gap before any collection has been read, and
+answers the question instead when the words name something the desk already holds, or
+name nothing while a window stands. She offers no confirmation control, because an offer
+with a yes is a proposal and Aluna has no proposal surface. Making the capability is one
+ordinary sentence away in the prompt bar.
 
-**The answer opens in its own window.** This resolves the question ARCH §7 and
-`modules/05-the-desk/PLAN.md` both deliberately left open, and it resolves it with
-machinery that already exists rather than a new surface primitive. The desk now stands
-three singular windows — the capability window, the developer panel, and the answer
-window — each opened from its own place, none displacing another, and still no window
-manager. **A capability stays open while it is asked about**, which is the whole reason
-this is a window and not something anchored to the prompt bar.
+### The answer window
 
-M5's one-window rule is superseded rather than bent: it was written when the only thing a
-window could hold was a capability, and the developer panel was already its one exception.
-An answer is the second, on the same reasoning — reading an answer about a capability
-while looking at that capability is one activity, exactly as watching a build in the panel
-beside it is.
+A question's answer appears in the **answer window**, which opens once the Resolver
+returns `data_query` and displaces nothing. A capability stays open while it is asked
+about, because reading an answer about a capability while looking at it is one activity,
+as watching a build in the developer panel beside it is. The desk stands three windows at
+most, the capability window, the developer panel and the answer window, each opened from
+its own place, with no window manager.
 
-**One answer window, and a new question replaces its content in place.** It is never
-closed and reopened between questions: the frame stays standing and only what it holds
-changes, which is the swap the desk already performs when a second capability is opened
-into the one window. Because it never closes, it stays where the user left it without
-anything being stored — it simply has not moved.
+There is one answer window, and a new question replaces its content in place. The frame
+is never closed and reopened between questions, so it stays where the person left it
+with nothing stored.
 
-**There is no way back, and that is the point.** It has no logo on the desk, no tile and
-no address, so there is no route to an answer that is not on screen — which is why it is
-*dismissed* rather than *put away*: put away means retrievable, and this is not. A reload
-starts with no answer window, and nothing about it reaches storage. This
-also protects a distinction M5 paid for: the logo layer means the capabilities the user
-has, and the developer tile is already drawn unlike a capability so nothing confuses the
-two. An answer icon would have muddied that for something there is no reason to return
-to. Future persistence — a history of answers, a reopen, recent questions — is out of
-scope and no groundwork for it is laid.
+The answer window has no logo, no tile and no address, so the logo layer keeps meaning
+the capabilities the person has and nothing leads back to an answer that is gone. It is
+dismissed, never put away, because put away means retrievable. A reload starts with no
+answer window, and nothing about it reaches storage. An answer link leads to a record's
+address, never back to the answer. Aluna keeps no history of answers and no list of
+recent questions.
 
-*Amended 2026-10-03 (ADR-0010):* an answer link leads to a record's address, never
-back to the answer, and `intent_resolution_metrics` records no record id.
+A refusal opens no window. On a desk with no answer window, the Resolver's `reject`
+speaks in the prompt bar's notice slot. When an answer window stands, the refusal takes
+it instead, re-titled to the words that were refused, brought forward, and said there and
+not on the bar. That window was answering a question this sentence is not, and leaving
+its answer standing would leave the desk answering something nobody asked. Every other
+sentence the prompt bar speaks stays on the bar. Wherever the refusal lands, the typed
+words stay in the field, so trying again is one edit away.
 
-**A refusal opens no window.** The classification says which it is, so the window opens
-only once the resolver returns `data_query`; `reject` speaks in the prompt bar's notice
-slot exactly as it does today. This costs one beat between submit and the window opening,
-and it means M5's notice contract is left entirely untouched — moving answers into a
-window *reduces* what this module changes.
-
-**Amended 2026-09-14 by the owner — a refusal speaks where it lands.** It still opens no
-window, and on a desk holding none it speaks in the notice slot as above. Where an answer
-window is already standing the refusal takes that window instead, re-titled to the words
-that were refused and brought forward, and it is said once rather than on both surfaces.
-The window it takes was answering a question this sentence is not, and leaving that answer
-standing leaves the desk answering something nobody asked. The slot, the sentence and the
-400ms cue are unchanged, so M5's notice contract holds in shape; what moved is who writes
-it. The deflection sends no notice for a `reject`, and the desk says it on the bar once it
-learns no window took it. The typed prompt and the keyboard survive either way, and the
-sentence clears when the words change.
-
-**A query does not lock the prompt bar**; asking something else is always possible and
+A question does not lock the prompt bar. Asking something else is always possible and
 cancels the running question.
 
-**Build narration is untouched.** It stays in the window, where M5 put it, because a
-build narration is a long streaming log ending in a thing appearing in that window, and
-because during a build the window is where the user is already looking. (Since 2026-10-27 it is a drawing
-rather than a log, drawn from the facts a build reports — ADR-0002 — and it still stays in
-the window, for the same reason.)
+Build narration stays in the capability window, because a build ends in a capability
+appearing there and the person is already looking at it.
 
-**The open capability is context, never a filter.** It resolves vague references exactly
-as it does for evolution, and never fences the search: a question about expenses asked
-with Recipes open is answered about expenses. Scope is stated in the answer sentence
-rather than shown as a chip, badge or pill.
+The open capability is context, never a filter. It resolves vague references, as it
+does for an evolution, and never fences the search: a question about expenses asked
+with Recipes open is answered about expenses. No chip, badge or pill shows scope.
 
-**Nothing is created.** No registry row, no logo, no version, no artifact, no cache, no
-persisted read dependency, no conversation thread. The same question asked twice runs
-twice. Metrics remain the existing best-effort, content-free `intent_resolution_metrics`
-row, gaining steps taken and wall-clock elapsed — no prompt, no SQL, no results, nothing
-about the user's data.
+### Nothing is kept
 
-**Every collection states how many records it holds**, and when that number is filtered
-it says so, so a filtered count is never presented as the whole truth. It is
-platform-owned scaffolding against the read connection, so generated code is untouched,
-and it answers the most common question in this module before anyone has to ask it.
+A question creates no registry row, logo, version, artifact, cache, persisted read
+dependency or conversation thread. Its reads hold read tokens and no mutation lease, and
+it creates no lifecycle state. The same question asked twice runs twice. It leaves one
+best-effort, content-free `intent_resolution_metrics` row, queued behind the
+platform-write lease as a refusal's is, holding the steps taken and the wall-clock
+elapsed and nothing about the person's data: no prompt, no SQL, no results, no record id.
 
-## Context / why
+## Considered options
 
-The constrained-write / free-read split (ARCH §3) has until now been a safety property
-nobody could see: a second connection with no pen, protecting data the user never
-suspected was at risk. `data_query` is the first time the user *receives* something from
-it, which is why the module is named for the reads rather than for the answers.
+**A fixed pipeline.** Classify, write SQL, run it, answer. It grows a retry branch for
+malformed SQL, an unknown column and an empty result, and it cannot reach the groceries
+case, which needs a read before the SQL that computes.
 
-The auto-table was the one place the architecture flinched. Every other surface in this
-product refuses to look like a developer tool — the desk, the drawn line, the logo
-contract, the closed field vocabulary, ARCH §9.7's flat prohibition — and then
-`data_query` was to render a grid with column headers taken from SQL aliases. Removing it
-is not a formatting preference; it is the feature finally agreeing with the rest of the
-product. The cost is real and was accepted deliberately: the table was also the user's
-only way to audit an answer, and nothing replaces it — the restatement rule that once did
-was withdrawn on 2026-09-11, as the amendment above records.
+**Statements on the main thread under a timeout.** A timer cannot fire while a
+synchronous statement holds the event loop, and a timeout trades a frozen desk for
+cutting off a question that is only slow.
 
-The loop earns its place on a case the naive design cannot reach at all. A user asks what
-they spent on groceries; their expenses are categorised food, cheese and vegetables.
-There is no single label to map "groceries" onto, so the answer requires looking at what
-the values actually are, deciding which of them belong, and only then computing. That is
-two model turns with a read between them, and once two turns exist, the honest structure
-is a bounded loop rather than a pipeline with branches bolted to it. It also absorbs the
-failure the naive design has to handle anyway: NL→SQL sometimes simply produces bad SQL.
+**An SQLite authorizer.** `bun:sqlite` exposes no `sqlite3_set_authorizer`, so the seam
+is the read-only attach, `query_only` and the worker's refusals by name.
 
-ARCH §1's "no roaming agent loop" is written inside the argument that Aluna is not a
-coding agent, coding platform or site builder, and that there is no preview-adjust-approve
-loop where the user supervises generated code. A read-only query loop does not contradict
-that intent — the user supervises nothing, approves nothing, and sees no code — but it
-does contradict the wording, so the wording is narrowed here rather than discovered later
-as a violation.
+**Interrupting the statement with `sqlite3_interrupt`.** It would stop a cancelled
+statement and free its core, and it needs FFI against the worker's `Database.handle`.
+Closing the worker already ends the wait, which is all the person and a deletion's
+drain wait on, so what a runaway statement still costs is the core.
 
-The worker was not part of the original design and was added on evidence. The
-liveness failure it prevents is specific and cheap to trigger: one missing join condition
-across three capabilities scans the product of their rows before returning a single
-number, and freezes the entire desk while doing it. It is not an adversarial case — the
-architecture is explicit that in-process execution guards against clumsy model output
-rather than hostile code — but clumsy is exactly what it protects against. The
-measurements above were taken rather than assumed, including the one that was genuinely
-in doubt: whether a thread blocked inside SQLite's C code can be terminated at all. It
-cannot: the statement survives `terminate()` and runs to its end.
+**A generic auto-table of the result.** A one-cell table headed `count(*)` is an
+engineering artifact. The table would also be the person's one way to audit an answer,
+and nothing replaces it.
 
-Declining embeddings is a scope judgment, not a technical one. Nothing about them is
-hard; everything about them is *lifecycle*. They would cross the module's own boundary,
-adding machinery to the write path inside a module named for reads, and would do it to
-solve a problem that this product's scale does not have.
+**Naming what she read before every answer.** A restatement such as "Under Colombia in
+your Coffee tasting, you have 7" gives the person a check on a fluent wrong answer, but
+every answer arrives in the same shape and reads as a machine reporting in, and the
+person already knows what they keep.
+
+**Embeddings or another semantic index.** They would make questions a write feature:
+computed on save, recomputed on edit, deleted on delete, rebuilt on evolution and swept
+on capability deletion, with their own version key, their own recovery and an AI call on
+the write path. One person's whole categorical vocabulary fits in a few hundred tokens,
+and an index exists to search a space too large to enumerate.
+
+**The answer in the capability window.** It would displace the capability the person is
+asking about.
 
 ## Consequences
 
-- ARCH §7's `data_query` subsection is superseded by this contract, including its closing
-  paragraph deferring the answer's surface. ARCH §1's agent-loop sentence is narrowed to
-  the building path.
-- The read gate gains a cancellation mechanism it did not have. Any future long-running
-  read that wants to be drainable should follow the same shape.
-- Module 10 inherits a named first customer for its proposal surface: the moment a
-  confirmation exists, the gap answer is where it belongs. Until then M10 remains free to
-  design that surface without inheriting a shape this module guessed at.
-- Module 11 inherits two numbers that tell it whether the ten-step budget was generous or
-  tight.
-- The desk gains a third window and no window manager. Anything later wanting a fourth
-  should expect to justify it against this contract's reasoning, not merely cite it.
-- `data_query` remains outside the mutation coordinator, creates no lifecycle state, and
-  declares no read dependency, exactly as ARCH §7 and §8 already require.
+The model stands between the person and their data. With no table and no restatement, a
+fluent and confidently wrong answer is invisible. The nothing-matched rule is the one
+defense by proof, and it covers one narrow claim: she may not report a figure for a
+search that matched nothing. Beyond that, the collections and values a statement used
+reach the answer's prompt, so a mis-scoped answer can show in the words, but nothing
+makes it show. Anything that weakens the nothing-matched rule removes the last defense.
 
-## Hazards this contract carries forward
+The rule leans toward nothing matched: a statement whose plan the platform cannot read,
+or a match that hands back what an empty search would, ends as nothing matched, which is
+weaker than the truth and never a false figure.
 
-**The model now stands between the user and their data.** With no table and no restatement,
-a fluent and confidently wrong answer is invisible. What is left is the zero-row rule, which
-is a defence by *proof* over one narrow claim — she may not report a figure for a search that
-matched nothing — and, short of that, the collections a statement opened and the values it
-bound, which still cross into the answer's prompt so a mis-scoped sentence *can* show in the
-words. Nothing makes it show. The owner has this trade and chose it twice (see the 2026-09-11
-amendment); it is recorded here so a later reader does not mistake the absence for an
-oversight, and so anything that weakens the zero-row rule is read as removing the last one.
+Nothing bounds a statement in time. Ten steps, cancellation and the per-generation
+deadline on each model call are the only limits on how long an answer takes. A
+pathological statement costs the asker's patience and a CPU core instead of the whole
+desk, and the core stays busy until the statement ends, even after its question is
+cancelled. A deletion admitted during a long question cancels it instead of waiting,
+because the deletion was confirmed and the question can be asked again. Because a
+question takes the whole catalog or nothing, every new question is refused while a
+deletion holds any capability closing.
 
-**Nothing bounds an answer in time.** With no timeout, the only limits are ten steps and
-cancellation. A pathological query now costs the asker's patience and, until it ends, a
-CPU core, instead of the whole desk, which is the intended trade. A question that runs
-long while a deletion waits will be cancelled by that deletion rather than delaying it. That is the correct precedence — the
-deletion was confirmed, the question can be asked again — and it is recorded here so it
-reads as a decision rather than a surprise.
+The payload caps bound what reaches the model, not memory: the worker materializes an
+over-size result in full and copies it to the main thread before anything weighs it.
 
-**The loop is nondeterministic in a way the build path is not.** The same question may
-take a different route on different runs, so tests must assert the contract — steps
-bounded, writes refused, over-size steps refused rather than truncated, zero rows never
-asserted as fact, no machinery in the narration — rather than a fixed sequence of queries.
-A suite that pins the exact steps will be flaky and will be deleted by whoever inherits
-it.
+The views' check for a file's address runs on every row a statement reads, returned or
+not, and is slow on text dense with hex digits, so a question over megabytes of such
+text runs until it ends or is cancelled. A file key that some Handler stored with other
+characters between its digits, or already cut up, is caught only by the scrub of what
+comes back, and a statement can reorder its pieces past that scrub.
 
-**The supplied-vocabulary approach has a known ceiling.** It cannot find a note about
-someone's mother that never uses the word. That gap is accepted, and the decision to
-close it is deliberately deferred to its own ADR rather than left as an implicit
-requirement on this one.
+The loop's route varies from run to run, where a build's stages are fixed, so tests
+assert the contract (steps bounded, writes refused, over-size steps refused, nothing
+matched never stated as fact, no machinery in the narration) and never a fixed sequence
+of statements.
+
+The supplied vocabulary has a ceiling: it cannot find a note about someone's mother that
+never uses the word. That gap is accepted.
+
+A read gate can end a long read at once. Any other long-running read that has to be
+drainable needs the same shape, with execution the gate's signal can close.
+
+The desk holds three windows at most. A fourth window would reopen this decision.

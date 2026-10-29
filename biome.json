@@ -9,8 +9,6 @@
     "includes": [
       "**",
       "!**/node_modules",
-      "!**/.claude",
-      "!**/.agents",
       "!**/.husky",
       "!public/vendor",
       "!dist",
@@ -21,8 +19,7 @@
       "!**/*.db",
       "!**/*.sqlite",
       "!**/*.sqlite3",
-      "!bun.lock",
-      "!skills-lock.json"
+      "!bun.lock"
     ]
   },
   "formatter": {

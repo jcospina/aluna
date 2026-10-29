@@ -5,7 +5,7 @@
    stands on it. The logo layer itself is not styled here: `.desk__logos` and the
    logo it holds ship from design/styles/components/desk.css and logo-contract.css,
    which is the one copy of those numbers. The developer tile stands with them, and
-   the panel it opens is the second window (design/styles/components/desk.css).
+   the panel it opens is the second window (design/styles/components/devpanel.css).
    ========================================================================== */
 .shell {
   display: flex;

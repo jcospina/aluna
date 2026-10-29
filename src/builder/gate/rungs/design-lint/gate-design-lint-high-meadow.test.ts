@@ -1,5 +1,5 @@
-// The re-derived design-lint rung: three closed axes picked from the High Meadow sets, and
-// three properties never declared at all (ADR-0005 §4 as amended 2026-08-20).
+// The design-lint rung: three closed axes picked from the High Meadow sets, and four properties
+// never declared at all (ADR-0005 §4).
 //
 // These are the cases the token-layer cutover turned over. The rest of the rung's surface
 // — escaping, fabricated classes, interactive descendants, the fix loop — is unchanged and
@@ -99,7 +99,7 @@ describe("design-lint — the three closed axes, re-derived", () => {
   });
 });
 
-describe("design-lint — the three never-declared properties", () => {
+describe("design-lint — the four never-declared properties", () => {
   test("does not mistake an escaped payload that reads like a style attribute for one", () => {
     // The hostile probes carry `<b style="color: #ff0000">`, which a correct renderer escapes
     // to inert text. The scan parses the record rather than pattern-matching those characters.

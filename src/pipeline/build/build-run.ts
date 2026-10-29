@@ -14,6 +14,7 @@ import {
   activatePublishedSnapshot,
   applyCapabilityMigration,
   type BehavioralExecutionImpact,
+  type BehavioralTestFreezeProgress,
   type BehavioralTierInput,
   CapabilityGateError,
   type CapabilityGateResult,
@@ -62,6 +63,7 @@ import {
   plannedStages,
 } from "../streaming/build-narration.ts";
 import {
+  buildBehavioralTestProgressPreview,
   buildGatePreview,
   buildMigrationPreview,
   buildUnitsPreview,
@@ -279,7 +281,7 @@ async function buildFromSpec(input: {
   const tierEnabled = resolveBehavioralTierEnabled();
   if (tierEnabled) await narration.stage("rules");
   const frozenTests = tierEnabled
-    ? await freezeBehavioralTests({ provider, spec, onProgress: narration.rules })
+    ? await freezeTestsWithPreview(send, provider, spec, narration)
     : undefined;
   // Measured where it happened, so a build that freezes five suites and then fails the Gate
   // still reports the generation it paid for.
@@ -459,6 +461,34 @@ function logBuildVerification(
       behavioral: gateResult.behavioral,
     },
   });
+}
+
+/**
+ * Freezes the behavioral suites with a `behavioral-tests-preview` snapshot as each Action's tests
+ * start and land, the narration of each, and a closing `complete` snapshot once all are frozen.
+ */
+async function freezeTestsWithPreview(
+  send: Send,
+  provider: Provider,
+  spec: CapabilitySpec,
+  narration: BuildNarration,
+): Promise<FrozenBehavioralTestsResult> {
+  let latest: BehavioralTestFreezeProgress | undefined;
+  const frozen = await freezeBehavioralTests({
+    provider,
+    spec,
+    onProgress: async (progress) => {
+      latest = progress;
+      await narration.rules(progress);
+      const preview = buildBehavioralTestProgressPreview(progress, "running");
+      await send("behavioral-tests-preview", JSON.stringify(preview));
+    },
+  });
+  if (latest) {
+    const preview = buildBehavioralTestProgressPreview(latest, "complete");
+    await send("behavioral-tests-preview", JSON.stringify(preview));
+  }
+  return frozen;
 }
 
 /**

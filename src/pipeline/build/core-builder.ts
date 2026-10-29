@@ -4,8 +4,8 @@
 //
 // It owns no prompt route, no DOM and no SSE vocabulary: it takes a resolved request and a
 // presenter and emits the run's one terminal lifecycle event, so a test drives it with a fake.
-// The split is real for the terminal only — `send` still carries SSE names authored in the
-// stages, a failing `send` reads as *cancelled*, and the wording is the stages', not a presenter's.
+// The split is real for the terminal only — `send` carries SSE names authored in the stages,
+// and a failing `send` reads as *cancelled*. The stages report facts; the words are the presenter's.
 //
 // The catalog fingerprint covers every active row, not the target's, so a queued build is refused
 // even when the change that landed was about something else: false refusals under concurrency,

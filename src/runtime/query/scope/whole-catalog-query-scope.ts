@@ -5,7 +5,7 @@
 // the tables one statement may read, by enumerating what an `EXPLAIN` says it opens rather than
 // by matching strings. A mutation passes straight through and fails in the worker, at `mode=ro`
 // or at a view, but a read naming the worker's schema would reach a table under its view: this
-// bound refuses it, preparing on a connection with no such schema (ADR-0008, amended 2026-09-25).
+// bound refuses it, preparing on a connection with no such schema (ADR-0008).
 // The `?` arity check, the collection names the answer's prompt carries, and the plan the
 // zero-rows ending is read from rest on it too.
 //

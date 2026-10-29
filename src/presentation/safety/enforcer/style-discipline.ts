@@ -1,5 +1,4 @@
-// Token-discipline for the inline-`style` escape hatch (ADR-0005 §4, amended 2026-07-01 and
-// re-derived against High Meadow 2026-08-20; design/design-system.md).
+// Token-discipline for the inline-`style` escape hatch (ADR-0005 §4; design/design-system.md).
 //
 // The escape hatch relaxed off-token style, never the executable surface, so `sanitizeStyle`
 // works declaration by declaration. It drops a declaration that names a never-declared property,
@@ -207,8 +206,8 @@ function neverDeclaredReason(prop: string): string | undefined {
   return NEVER_DECLARED.find((ban) => ban.owns(prop))?.reason;
 }
 
-/** The other ways out of the item's box; width and height stay free (ADR-0005 counts them as
- *  arrangement). A family test, not a list: the enumeration it replaced let `rotate` escape. */
+/** The other ways out of the item's box; width and height stay free, as arrangement (ADR-0005).
+ *  A family test, not a list, so no new member of the family escapes. */
 function isBoundsEscapingProp(prop: string): boolean {
   if (prop === "zoom") return true;
   if (prop === "transform" || prop.startsWith("transform-")) return true;

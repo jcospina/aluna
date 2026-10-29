@@ -1,14 +1,14 @@
 // The token half of the closed-value design contract — the names generated markup may pick from
-// on the three closed axes, re-derived against High Meadow (ADR-0005 §4 as amended 2026-08-20).
+// on the three closed axes of High Meadow (ADR-0005 §4).
 //
 // Names live here and in `design/design-system.md`; every value lives once in
 // `design/styles/tokens.css`, so the two cannot disagree about one, and `design-tokens.policy.ts`
 // cross-checks every name below against that stylesheet. Both enforcement surfaces key on these
 // sets: `style-discipline.ts` at render time and the design-lint gate rung at build time.
 //
-// There is no fourth axis. ADR-0005's border weight is retired: every boundary is
-// drawn by the ink system, so `border` is never declared. `--line` survives in the stylesheet as
-// the room a platform component reserves for that drawn line, not a value a record names.
+// There is no fourth axis: the ink system draws every boundary, so `border` is never declared
+// (ADR-0005 §4). `--line` in the stylesheet is the room a platform component reserves for that
+// drawn line, not a value a record names.
 
 /**
  * The closed colour list a record picks from: five fills, `--ink` and its two weaker type

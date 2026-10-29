@@ -34,7 +34,7 @@ export interface TokenUsage {
 
 /**
  * The result of a single `generate` call, returned synchronously: the stream is available at once
- * and the network round-trip happens lazily behind these handles (ADR-0002/0003).
+ * and the network round-trip happens lazily behind these handles (ADR-0003).
  */
 export interface GenerateResult<T> {
   // Successive deep-partial snapshots as the object streams in. Iterating to completion is

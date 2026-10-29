@@ -39,9 +39,9 @@ as a card, and tests written before any of that code. The platform runs the test
 and its own checks against the code, and when they pass, Books goes live without a
 restart or a deploy.
 
-Every later change is typed the same way. *add the date I finished* gives every
+Most later changes are typed the same way. *add the date I finished* gives every
 book a new field. *how many Le Guin books did I finish this year?* is answered by
-read-only SQL, with each book the answer names linked to its record. *link each
+read-only SQL, with the books the answer names linked to their records. *link each
 book to its author* turns the author field into a pick-list of the records in
 Authors.
 
@@ -65,9 +65,9 @@ Aluna is not:
 - An app generator that hands over a codebase. A capability exists only inside
   Aluna. It has no repository, no deploy and no source the user edits.
 - A site builder. How a capability looks is the platform's decision, and a request
-  to restyle one is refused. The model picks a layout and input modes from closed
-  sets and writes card markup, which the Gate rejects when it leaves the design
-  contract ([section 4.7](#47-generated-ui)).
+  to change its colour, size, spacing, position or typography is refused. The model
+  picks a layout and input modes from closed sets and writes card markup, which the
+  Gate rejects when it leaves the design contract ([section 4.7](#47-generated-ui)).
 - A hosted service. Generated code runs inside the server process, and the
   platform's checks are not a sandbox ([section 5](#5-trust-boundary)).
 
@@ -120,7 +120,9 @@ Three rules divide the work:
    races all come from writes, so writes are where the platform puts its checks.
 3. **Nothing goes live unchecked.** A capability becomes reachable only after the
    Gate has run its code on synthetic data, and only inside one SQLite transaction.
-   When any step fails, nothing goes live and whatever was live stays.
+   When any step fails, nothing goes live and whatever was live stays. Only linking
+   fails open, so a capability can go live without the links it would have made
+   ([section 4.5](#45-going-live-without-a-redeploy)).
 
 No platform code names a capability. One route, `/capability/:id/:action`, serves
 them all ([section 4.5](#45-going-live-without-a-redeploy)), so a new capability
@@ -170,9 +172,10 @@ refuses a blank prompt or one over 4,000 characters, and otherwise creates a job
 memory. The browser then opens `GET /build/:id/stream`, a server-sent-events
 stream, and the job runs while the stream is open. The stream carries `progress`
 (a fact about the run: a stage starting, an Action's house rules being written, a
-part being made or checked, a check under way), `narration` (the line a run that did not land ends on), `fragment` (HTML
-for the window or the prompt bar) and `commit` (the finished capability), plus
-preview events for a developer panel, and it ends with `done`. The window draws the
+part being made or checked, a check under way), `narration` (the line a run that
+did not land ends on), `fragment` (HTML for the window, the prompt bar or the desk's
+provisional tile) and `commit` (the finished capability), plus preview events for a
+developer panel, and it ends with `done`. The window draws the
 facts as a sketch of the window being made, with Aluna's line under it; the words are
 the window's own (`design/scripts/narration/voice.js`). Cancelling the job
 aborts any model call in flight. Only one build runs at a time, and the rest wait
@@ -375,7 +378,7 @@ goes live.
 | Wire contract and platform refusals | each request | malformed input, undeclared choices, over-long text, unknown files | [4.6](#46-serving-records) |
 | Mutation and query ports | each request | writes outside the record, reads outside the declared tables | [4.6](#46-serving-records) |
 | Enforcer and fragment sanitizer | each request | markup outside the design contract, scripts | [4.7](#47-generated-ui) |
-| File admission | each upload | unlisted types, contents that do not match the extension | [4.11](#411-files) |
+| File admission | each upload | unlisted types, contents that do not match the extension's family | [4.11](#411-files) |
 
 The Gate runs a candidate's code before any of it is written to the capability's
 directory, on in-memory source and scratch databases. It fails closed: a rung that
@@ -539,7 +542,7 @@ sequenceDiagram
     else refusal or error
         R->>DB: ROLLBACK
     end
-    R-->>B: 200, or 422 with the message for the field
+    R-->>B: 200, 422 with the message for the field, or 500 on an error
 ```
 
 Three of those steps carry rules the diagram cannot show. The wire contract is
@@ -561,7 +564,7 @@ lease never queues, and the router stops waiting for the Handler after 10 second
 | delete | `input`, `query`, `mutation.delete` |
 | read, search | `input`, `query`, `present` |
 
-A Handler never holds the id of the record it changes: update and delete get a
+A Handler is never handed the id of the record it changes: update and delete get a
 mutation port already bound to that record. The port accepts only active fields,
 normalizes each value by its type, checks required fields on the resulting record,
 mints the record's UUID, claims uploaded files and writes link rows, all inside a
@@ -623,7 +626,7 @@ The design contract lets card markup style itself only with the shared design
 tokens, on three axes (colour, type size and spacing) written as `var(--token)`,
 and with the shared layout classes. Card markup may never declare a font, a border,
 a radius, a shadow, a transform, a position other than `static` or `relative`, a
-raw colour, `url()` or `!important`.
+raw colour, `url()` or `!important`. Width and most other properties are free.
 
 The enforcer rewrites card markup with Bun's `HTMLRewriter` against an allow-list of
 elements. It removes some elements together with their content, among them
@@ -691,10 +694,12 @@ and adds a version.
 | read dependency or declared error | the Handlers of the Actions it names |
 | free-text `behavior` | all five Handlers |
 | a change in whether any active `file` field, or any active `file[]` field, exists | all five Handlers |
-| capability label, nouns, input modes, hints, length limits, retired choice options | none: platform work only |
+| capability label, nouns, input modes, hints, length limits, retired choice options | none: platform work only; with the behavioral tier on, a length limit or a retired option also gets new create and update tests |
 
-No stored value is ever rewritten. The only table change is a nullable `ADD COLUMN`
-for a new field, so existing records hold NULL there. A hidden field keeps its
+No stored value is ever rewritten, except that a relation the evolution wakes brings
+its linked field to the target's current text ([section 4.9](#49-linking-capabilities)).
+The only table change is a nullable `ADD COLUMN` for a new field, so existing records
+hold NULL there. A hidden field keeps its
 column and its values; the capability's own code never sees it, and bringing it
 back restores the values. A field's type never changes: the candidate prompt forbids it
 and the DDL refuses it. To store a value differently, the user asks for the old field to
@@ -797,15 +802,15 @@ From then on:
 - an author's record view lists the books that link to it;
 - search also returns records reached through links;
 - a relation goes dormant when its rule stops holding, because a field was hidden,
-  made long text, or given a limit the rule no longer allows, and comes back at the
-  next activation where it holds again;
+  made long text, or given a limit the rule no longer allows, and comes back, with
+  its target's current text, at the next activation where it holds again;
 - the unlink control removes a relation and its link rows, and the records keep
   their text.
 
 ### 4.10 Answering questions
 
-A `data_query` builds nothing and keeps nothing. The question loop first takes a
-read token on every capability at once, all or none. Inside a Worker thread it
+A `data_query` builds nothing and keeps nothing of what it read or said. The
+question loop first takes a read token on every capability at once, all or none. Inside a Worker thread it
 attaches the database read-only and builds temporary views over it. Each view shows
 `id`, `created_at` and the active fields, and withholds file keys and any text that
 might hold one. A further view shows the link rows of relations that hold.
@@ -868,7 +873,7 @@ flowchart TD
     NH -->|yes| K["One call names the missing subject"]
     K -->|"names something on the desk, or nothing with a window open"| H
     K --> KN["Nowhere for it"]
-    H -->|yes| I["Answer call: sentence and checked record links"]
+    H -->|yes| I["Answer call: sentence and checked answer links"]
     H -->|no| J["Nothing found, or nothing worked"]
 ```
 
@@ -929,6 +934,8 @@ a time, of four kinds:
 A deletion must not drop a table while a request still reads it, so every
 capability incarnation has a read gate. Each request takes a read token from every
 read gate it needs, all or none, and a question takes one from every read gate.
+Apart from a pick's target, a token on a linked capability is taken on its own, and
+skipped when that capability's read gate is closing.
 Only a deletion closes a read gate: it aborts the readers and waits up to 15
 seconds, and if they are still running, the read gate reopens and the deletion is
 refused.
@@ -1174,8 +1181,8 @@ These catch a model's mistakes. They are not a sandbox: code written to escape t
 can. The Gate puts no time limit on the code it runs, and at request time the router
 stops waiting for a Handler after 10 seconds without stopping the code. Aluna
 therefore listens only on `127.0.0.1`, for one person.
-[ADR-0003](adr/0003-ai-provider-spine-and-coding-harness.md) defers a process
-sandbox.
+[ADR-0003](adr/0003-ai-provider-spine-and-coding-harness.md) explains why there
+is no process sandbox.
 
 ## 6. Not built yet
 
@@ -1185,9 +1192,6 @@ sandbox.
 - A dashboard over the metrics.
 - Reading documents. A document is stored and served, never read for its content.
 - A process sandbox for generated code.
-- The cleared-target rule of [ADR-0011](adr/0011-linked-capabilities.md). Clearing a
-  target's text should empty an optional linked field; today the linking records
-  keep their old text with the broken-link mark.
 
 ## 7. Further reading
 
@@ -1196,12 +1200,12 @@ sandbox.
 - The ADRs:
   - [0001](adr/0001-product-style-and-voice.md) product style and voice
   - [0002](adr/0002-sse-transport-conventions.md) SSE transport conventions
-  - [0003](adr/0003-ai-provider-spine-and-coding-harness.md) the AI provider spine and coding harness
-  - [0004](adr/0004-capability-artifact-contract-and-validation-isolation.md) the capability artifact contract and validation isolation
-  - [0005](adr/0005-opinionated-capability-ui-design-contract-and-gate.md) the UI design contract and the Gate
-  - [0006](adr/0006-capability-evolution-versioning-and-diff-contract.md) evolution, versioning and the diff contract
-  - [0007](adr/0007-capability-logo-contract.md) the logo contract
-  - [0008](adr/0008-ephemeral-query-loop-and-spoken-answer.md) the question loop and the spoken answer
-  - [0009](adr/0009-files-platform-admission-and-the-file-ledger.md) file admission and the file ledger
-  - [0010](adr/0010-record-addresses-and-record-links-in-answers.md) record addresses and record links in answers
+  - [0003](adr/0003-ai-provider-spine-and-coding-harness.md) AI provider spine and the code-writing harness
+  - [0004](adr/0004-capability-artifact-contract-and-validation-isolation.md) capability artifact contract and validation isolation
+  - [0005](adr/0005-opinionated-capability-ui-design-contract-and-gate.md) opinionated capability UI: platform presentation, one item renderer and a closed design contract
+  - [0006](adr/0006-capability-evolution-versioning-and-diff-contract.md) capability evolution and deletion: total diffs, immutable publication and frozen intent
+  - [0007](adr/0007-capability-logo-contract.md) capability logos: one accepted artwork per incarnation, immutable delivery and bounded retry
+  - [0008](adr/0008-ephemeral-query-loop-and-spoken-answer.md) the ephemeral question loop and the spoken answer
+  - [0009](adr/0009-files-platform-admission-and-the-file-ledger.md) files: the platform admits and stores, the ledger owns
+  - [0010](adr/0010-record-addresses-and-record-links-in-answers.md) record addresses and answer links
   - [0011](adr/0011-linked-capabilities.md) linked capabilities

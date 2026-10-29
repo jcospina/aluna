@@ -249,7 +249,7 @@ describe("a present row whose artwork has gone", () => {
     const recovered = await recover();
 
     expect(recovered[0]?.action).toBe("lost");
-    // ADR-0007's once-accepted rule still applies after loss: `abandoned`, not back to `absent`,
+    // ADR-0007's never-remade rule holds after loss: `abandoned`, not back to `absent`,
     // so no later load spends a call trying to draw a replacement.
     expect(logoState()).toEqual({ status: "abandoned", attempts: 1 });
     expect(claimLogoGeneration("notes", NOTES_INCARNATION_ID, conns.readwrite)).toBeNull();

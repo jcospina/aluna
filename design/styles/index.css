@@ -29,6 +29,8 @@
 @import url("./components/controls/file-recorder.css");
 @import url("./components/collection.css");
 @import url("./components/desk.css");
+/* The developer panel, the second window on the desk. Below desk.css, which lays out the desk it stands on. */
+@import url("./components/devpanel.css");
 @import url("./components/narration.css");
 /* The logo tile and label. Below desk.css, which owns the button they sit in. */
 @import url("./components/logo-contract.css");

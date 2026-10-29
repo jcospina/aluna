@@ -1,170 +1,139 @@
-# 0004 — Capability artifact contract & validation isolation (seeds Module 2)
+# 0004 — Capability artifact contract and validation isolation
 
-Status: accepted
+Status: Accepted
 
-> Module 2 contract. [ADR-0005](0005-opinionated-capability-ui-design-contract-and-gate.md)
-> amends the View and injected-toolbox parts in Module 3: structural View chrome
-> becomes platform-rendered, and one generated item renderer is supplied to
-> handlers through a capability-scoped presentation adapter. The scratch-adapter
-> contract remains; its non-sandbox containment scope is clarified below.
+## Context
 
-**Amended 2026-10-08 (ADR-0011, pending 8.1/01's sign-off).** The router's closed set
-of reserved keys grows by one. Beside `__aluna_present`, `__aluna_record_id` and
-`__aluna_drawn`, a linked single-line text field posts `__aluna_link`, carrying the
-field and the picked record's id. The router validates and strips it before generated
-code runs, checks that the id names a live record of the relation's target, and
-checks again inside the save's transaction, as it does a file reference. It never
-reaches a Handler, and a forged or stale id refuses the save. Generated code receives
-no link projection: a linked field reaches a Handler as the text it always held.
+A Handler is the most rewritten code in Aluna. A model writes all five when it builds a
+capability and rewrites the affected ones on every evolution, and nobody reads them
+before they go live.
 
-**Amended 2026-07-10 for Module 4.** The original M2 `insert` + scoped `select`
-tool was a deliberately small first slice, not the end-state read contract. M4
-splits it into a capability-bound mutation interface and a free SQL query
-interface backed by a physically read-only connection. It also preserves repeated
-request values and adds record-targeted update/delete. The mutation guarantee
-remains scoping by construction; read freedom is reconciled with permanent
-capability deletion through the declared dependency contract in ADR-0006.
+Four parties depend on one contract for that code: the model writes to it, the Gate
+asserts it, the smoke rung runs it, and the router builds it. Every convention the model
+must remember, such as an import path, how to parse HTTP or a table's name, is one more
+way for a unit to fail. Only a concrete shape, one default-exported function, is cheap
+for the Gate to assert. The smoke rung must be able to hand the same function a practice
+toolbox pointed at a scratch database. The router builds the context every Handler
+receives, so no Handler parses a request itself.
 
-**Amended 2026-07-11 for the deferred sandbox.** Generated execution remains
-in-process and is not a security containment seam. Supplied adapters, the scratch
-database, structural checks, and static rejection of direct imports/known bypasses
-protect against accidental generated output that conforms to or is caught by the
-contract. They do not contain deliberately adversarial code or unknown ambient
-Bun/OS access. A true untrusted-code threat model requires the process sandbox
-still deferred by ADR-0003.
+The interface Aluna supplies must also fail safely when the model gets confused: a Notes
+Handler using what it was given cannot write to Recipes.
 
-**Amended 2026-07-15 for authored list input modes.** An active `string[]`
-declares one closed platform form mode. `repeatable` preserves one raw control
-value per array element, including commas. `comma_separated` is chosen only for
-comma-free atomic values and treats commas as separators, trims surrounding
-whitespace, and discards empty segments. The router normalizes either raw form
-representation before generated code, so the Handler interface remains one
-ordered `readonly string[]`; the choice is not Handler input.
+An evolution may copy a Handler byte for byte once the Diff Engine proves that
+nothing it depends on changed (ADR-0006), so the code must keep working as its
+capability gains fields.
+
+This record defines a capability's generated code, what that code receives and how the
+Gate runs it. ADR-0005 defines how the capability's Views and cards are drawn.
 
 ## Decision
 
-Settled in the Module 2 grilling session (2026-06-12). Three interlocking choices
-define what a generated capability artifact *is* and how the gate may touch it.
-Implementation lands with epics 2.2/2.3/2.5; exact type names and context fields
-remain implementation detail.
+### Six units
 
-1. **Views are data-free scaffolding.** A capability's compiled `.html` views
-   contain **zero user data** — only chrome, forms, and HTMX hooks that load
-   dynamic regions through the capability's own `read` action. This is what makes
-   "cached, version-keyed HTML" (ARCH §6.3, §9.1) honest: the cache can never go
-   stale, because data never enters it. Toolbar clicks can serve the cached view
-   as-is.
+A capability version holds six generated units: a Handler for each of the five Actions,
+and the item renderer. A Handler is a default-exported async function, the item renderer
+a default-exported synchronous one, and neither imports anything. The platform derives
+each table's DDL from the spec.
 
-2. **Handlers follow one parsed-input and injected-toolbox contract and return
-   HTML.** Every generated Handler file exports one async function that receives
-   a platform-built context. Generated code never touches raw HTTP, routing, a
-   read-write database, or a filesystem path. Parsed values preserve multiplicity
-   (`string | readonly string[]`) and carry a validated submitted-field set. Spec
-   names cannot use the reserved `__aluna_` prefix; platform forms emit repeated
-   `__aluna_present` markers, and update/delete emit exactly one nonblank
-   `__aluna_record_id`. The router validates and strips that namespace, rejecting
-   missing/duplicate/unexpected targets before generated code runs. Record
-   identity arrives separately, never as a writable field, so update distinguishes
-   preserve from explicit null/false/empty-list. For active `string[]` fields, the
-   same platform seam also reads the spec's closed list input mode: repeated
-   controls preserve each value exactly, while a comma-separated control
-   splits/trims/discards empty segments. Both yield the same ordered-array Handler
-   value and required/optional empty-list semantics.
+No View is a unit. The platform draws every View (ADR-0005), so generated code reaches
+the screen only as a Handler's fragment and the cards the item renderer draws through
+`present`.
 
-   The toolbox has separate interfaces:
+### Handlers take parsed input and an injected toolbox, and return HTML
 
-   - **Mutations are capability/target-bound.** Create authority is bound to the
-     capability; update/delete authority is additionally bound to the one
-     router-validated record target before generated code runs. The adapters
-     expose no table/capability/record selector. The interface owns active-field
-     allow-listing, platform-column protection, normalization, logical
-     requiredness, lifecycle rules, update merge, and resulting-record validation.
-     Cross-capability mutation and record-target substitution are unrepresentable
-     through the supplied interface.
-   - **Reads are free SQL.** Every Action may use arbitrary parameterized
-     `SELECT`/joins through a connection opened physically read-only; `read` and
-     `search` necessarily do. Persistent external reads are limited by that
-     Action's committed dependency catalog (ADR-0006). Record-producing queries
-     return ordered target ids, and the platform rehydrates full canonical target
-     rows on the same read snapshot, so copied code cannot omit future columns.
-     Canonical rows stay platform-internal; generated code receives only
-     Action-safe active projections/opaque handles.
-     Every query also declares a closed ordered result alias/type descriptor; the
-     adapter projects only it and fails missing/duplicate/type-invalid declared
-     values, preventing additive columns from leaking through `SELECT *`.
-     Mutation SQL through this interface fails at the SQLite seam.
+A Handler receives a context the platform builds and returns an HTML fragment as a
+string. The platform owns the route, the response, its status and its headers, and it
+strips executable markup from the fragment before sending it. Generated code never
+touches raw HTTP, routing, a read-write database connection or a file path. Its injected
+toolbox is all it has: it reaches data only through the query port and, for create,
+update and delete, a mutation port, and it draws records only through `present`, given
+to every Action but delete (ADR-0005).
 
-   The function returns an HTML fragment string; the platform owns the response,
-   headers, status, and route. Generated Handlers retain capability behavior and
-   may perform incidental I/O, but canonical state always goes through mutations.
+`input` holds the parsed values and the set of fields the form submitted. Parsing keeps
+repeated values. Presence travels apart from value, so an update can tell a field left
+alone from one cleared to null, false or an empty list. The router turns a list field's
+posted values into one ordered array, following the spec's list input mode, so a Handler
+never sees the mode. It also refuses an undeclared choice value and a string over its
+`max_length` before generated code runs, so a Handler never validates either (ADR-0005).
 
-3. **Gate data access is isolated through supplied adapters, not process
-   containment.** The smoke rung, and the behavioral rung when that tier is on,
-   executes Handlers against scratch SQLite. The target uses the candidate DDL;
-   declared read dependencies use complete physical compatibility-schema copies,
-   all seeded only with synthetic data, while model generation receives only
-   active-field projections. Scratch exposes separate read-write mutation and
-   physically read-only query adapters satisfying the live interfaces. Those
-   adapters expose only synthetic scratch data, and known direct-import/bypass
-   shapes fail structural/static validation. Because execution is still
-   in-process, this is not a claim that deliberately adversarial generated code
-   cannot reach ambient runtime authority. This distinction supports Module 4
-   rebuilds over real records without pretending the deferred sandbox already
-   exists.
+The `__aluna_` prefix belongs to the platform, and no field name may use it. The router
+accepts four reserved keys, `__aluna_present`, `__aluna_record_id`, `__aluna_drawn` and
+`__aluna_link` (ADR-0011). It refuses any other key with the prefix and any missing,
+duplicate or misplaced marker, then strips the namespace before generated code runs.
 
-## Context / why
+The router checks a picked record and a file reference (ADR-0009) before generated code
+runs and again inside the save's transaction, so it refuses a save carrying a forged or
+stale one. The record an update or delete acts on reaches a Handler bound into its
+mutation port, never as a writable field. A linked field reaches a Handler as the text
+it holds.
 
-The Handler skeleton is the most-rewritten code in the system: the AI authors it
-on v1 and selectively rewrites affected units during evolution. Four parties pull
-on the one contract.
+### Mutations are bound, and reads are free SQL
 
-- **The AI writes and later selectively rewrites it**: every convention (import
-  paths, HTTP parsing, table names) is a fresh way for an affected build unit to
-  fail. The contract must be nearly unflubbable; M4 may copy a positively proven
-  unaffected Handler byte-for-byte.
-- **The gate asserts it** (epic 2.5 "assert action signatures"): only a concrete
-  skeleton — one default-exported function — is cheaply assertable.
-- **The smoke test runs it**: injection lets the platform hand the same function
-  a *practice* toolbox pointed at the scratch db.
-- **The supplied interface must fail safely under ordinary model confusion**: a
-  Notes Handler using its admitted context cannot write to Recipes, and known
-  bypass attempts fail structural/static checks.
+Create's mutation port is bound to the capability, and update's and delete's to the one
+record the router validated, so no port takes a table, capability or record selector. A
+write to another capability, or to a substituted record, cannot be expressed through the
+ports. A port accepts only active fields and never a platform column, normalizes each
+value by its type, checks required fields on the resulting record and merges an update.
+A Handler carries its capability's behavior, and canonical state changes only through
+its mutation port. The source check refuses a Handler that carries write SQL or builds
+SQL at runtime.
 
-This extends adapter/interface protection from the read path (read-only
-connection, ARCH §7) to Handler scope and validation. It closes accidental
-cross-capability mutation through the supplied interface; it is not a hostile-code
-security boundary.
+Every Action may run any parameterized `SELECT`, joins included, through the query port,
+on a connection SQLite opened read-only, so a write statement fails in SQLite itself. A
+query reaches only the capability's own table and the read dependencies its Action
+declares (ADR-0006). It declares an alias and a type for each result column and gets
+exactly those back, so a `SELECT *` leaks no column a later evolution adds. A query for
+records returns their ids, the platform reads the full rows on the same snapshot, and
+the Handler receives opaque handles holding only the active values its Action may see.
+`present` accepts only those handles, so a Handler cannot invent a card.
 
-**Rejected, with reasons:**
+### The Gate isolates data access, not the process
 
-- **JSON handlers + platform templating** — requires a platform-owned rendering
-  engine; edges into the forbidden platform business logic (ARCH §1).
-- **Handler-interpolated views** (handler imports its `.html` as a private
-  template) — makes "cached HTML" unservable as-is and un-cacheable honestly.
-- **Direct platform imports in generated code** ("key to the house") — couples
-  every generated file to repo layout, makes scoping trust-based (table name as
-  a string), and defeats practice-toolbox substitution during the gate.
-- **Handlers returning raw `Response`** — power nothing in M2 needs; every
-  header/status decision is new surface for subtle generation bugs.
-- **Smoke against the real table with cleanup** — ghost records on crashed
-  gates; come M4, synthetic writes interleave with real user data mid-build.
-- **Mocked toolbox (no db)** — proves the handler *calls* things, not that the
-  SQL and schema actually round-trip; defeats the smoke rung's purpose.
+The Gate runs generated code before any of it is published, against scratch SQLite in
+memory. The candidate's table comes from the candidate's DDL, each declared read
+dependency's from its full physical schema, and every table holds synthetic rows only.
+The scratch database supplies the live interfaces, a read-write mutation port and a
+read-only query port, so the practice toolbox has the shape of the real one. Because the
+Gate never touches a real table, an evolution can rebuild a capability that already
+holds the person's records.
+
+The code still runs inside the server's process, with no process sandbox (ADR-0003). The
+source check and the scratch adapters catch a model's mistakes and do not contain code
+written to escape them.
+
+## Considered options
+
+**Handlers that return JSON for the platform to template.** The platform would need a
+rendering engine that interprets each capability's results, which edges into the
+business logic the platform does not hold.
+
+**Direct platform imports in generated code.** Every generated file would depend on the
+repository's layout, scoping would rest on trust with a table name passed as a string,
+and the Gate could not substitute its practice toolbox.
+
+**Handlers that return a raw `Response`.** No capability needs that power, and every
+header or status decision is new surface for subtle generation bugs.
+
+**A smoke run against the real table, with cleanup.** A crashed Gate leaves ghost
+records, and during an evolution synthetic writes would interleave with the person's
+records.
+
+**A mocked toolbox with no database.** It proves that a Handler calls the right methods,
+not that its SQL round-trips against the schema, which is what the smoke rung is for.
 
 ## Consequences
 
-- The router parses requests without losing repeated values, extracts record
-  targets for update/delete, builds the action-appropriate context, and wraps
-  returned fragments in responses — generated code never does.
-- The builder (epic 2.5) generates handlers to this skeleton; the gate asserts
-  the export shape and injects scratch adapters.
-- The build pipeline must be able to apply its generated DDL to an arbitrary
-  connection (real db and scratch db alike) — good hygiene it would want anyway.
-- M4 unit checks remain Action-sensitive: no Handler may carry raw mutation
-  SQL/table selection, while every Action may use only its declared read-only
-  query catalog.
-- The M2 `CapabilityDataTool` name and scoped `select()` shape are superseded by
-  the split interfaces when M4 lands; they are not a second authority to retain.
-- If a future capability genuinely needs response-level control (redirects,
-  downloads), the contract is extended **deliberately** — amend or supersede
-  this ADR rather than letting generated code grow ad-hoc power.
+- The router does what generated code never does: it parses each request, binds the
+  record target, builds the Action's context and wraps the returned fragment in the
+  response.
+- The source check and the structural rung assert the unit shape, and the smoke and
+  behavioral rungs hand each Handler the scratch toolbox.
+- The DDL derivation applies the same statements to the live database and to a scratch
+  one (`src/runtime/data/schema/ddl.ts`).
+- Generated code shares the server's process, so boot moves the model-provider and
+  Recraft keys out of `process.env` before any generated code loads
+  (`src/platform/secrets.ts`). That limits what an escape could read and does not
+  prevent one.
+- A capability that needs control of the response, such as a redirect or a download,
+  extends this contract through a change to this record, never through power generated
+  code takes on its own.

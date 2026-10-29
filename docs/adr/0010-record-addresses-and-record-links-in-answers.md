@@ -1,176 +1,138 @@
-# 0010 — Record addresses and record links in answers
+# 0010 — Record addresses and answer links
 
-Status: accepted
+Status: Accepted
 
-Seeds epic 7.5 (`modules/07-files-upload-store-serve/PLAN.md`, decisions 40 to 49). It
-gives every record an address of its own, and lets an answer link the records it names.
-It reverses three earlier decisions: Module 5's decision 6, under which the address
-named a capability and nothing below it; ADR-0005's deferral of a route that reads a
-single record; and Module 7's decision 37, which kept the answer window text. It amends
-the address, router, record view and answer window passages of ARCH, and the address
-rule the design pages carried then.
+## Context
 
-**Amended 2026-10-08 (ADR-0011, pending 8.1/01's sign-off).** Module 8 hands
-generated code no link projection, so the consequence "Module 8 points at the record
-address" no longer holds as written. A linked field reaches a Handler as the text it
-always held, and the record address survives as what a linked field's name opens,
-drawn by the platform in the read view 8.2/01 adds. The anchors this record builds in
-an answer are called *answer links* from here on, because *link* now names Module 8's
-tie between a linked field and the record it picked. *Amended 2026-10-17 (ADR-0011):*
-the owner dropped the read view, and the record address is what an icon in a linked
-field opens (8.2/01).
+A capability's collection has an address, `/capability/:id`. Without an address for each
+record, a record would open only from its card. A question about a Photos capability can
+count its photos, but to see one the person would read its name in the answer and then
+hunt for its card, and an open record would survive no reload and could not be pasted into
+a new tab.
 
-Files made the gap visible. A question about a Photos capability can count its photos,
-but to find one the person reads a name in the answer and then hunts for its card.
+Two constraints shape the design. Every capability declares the same fixed five Actions,
+each served by a generated Handler. And an answer is prose (ADR-0008) whose words reach
+the screen as escaped text, so anything in it that points somewhere has to come from the
+platform.
 
 ## Decision
 
-**The address has three shapes.** `/` is the bare desk, `/capability/:id` is a
-capability's collection, and `/capability/:id/:record` is one record open in its record
-view: the *record address*. `:record` is the record's `id`, a UUID from `randomUUID()`,
-compared in lower case. The search term and a half-typed edit still stay out of the
-address. The record view is the form in edit mode, as it is today, and there is no
-read-only details surface.
+### The address
 
-**The record address is a platform route, not an Action.** `GET /capability/:id/:record`
-is registered ahead of `/capability/:id/:action`. A segment shaped like a UUID is a
-record, the five Action names keep their route, and anything else answers 404 as it does
-today. No Action can collide with a record, and the fixed set of Actions does not
-change. The route takes a read token and closes with the read gate, exactly as the
-collection view does, and its full-page load runs the desk-load recovery.
+The address has three shapes. `/` is the bare desk, `/capability/:id` is a capability's
+collection, and `/capability/:id/:record` is one record open in its record view: the
+*record address*. `:record` is the record's `id`, a random UUID, compared in lower case.
+The search term and a half-typed edit stay out of the address and die with the tab. The
+record view is the form in edit mode, and Aluna has no read view of a record.
 
-**The server draws the record.** The platform reads one row by `id` from the active
-incarnation's table and narrows it as the collection does: `item.shows`, the record
-target, the active detail and edit fields, and `created_at`, with no inactive field and
-no `extra`. It draws the record view, and no generated Handler runs. With `HX-Request`
-the route answers the record view fragment for the window. Without it, the route answers
-the whole desk, which opens that record from its address, so a reload, a pasted address
-and a new tab all land on the record. *Amended 2026-10-17 (Module 8 PLAN decisions 34 to
-39):* a card press asks this route too, so no card carries its record's form in a
-`<template>` any more. Between the form's fields and its action row, the view lists the
-records linking to the record, a section per relation pointing in. For each, the route
-takes the linking incarnation's read token apart from its own, reads the linking records
-through that capability's query port, newest first, and draws the first five with that
-capability's own card renderer through its presentation adapter, under the Handler time
-limit. A renderer that throws or returns after the limit leaves its section out, as does a
-linking capability closed by its own deletion, and the record opens either way. "Show all"
-fetches the cards after the last one a section shows from
-`/capability/:id/:record/listed/:source/:field`, which holds the same tokens and the same
-limit. A card renderer is the generated presentation the Gate already checked, so the record
-view still runs no Handler.
+Opening a record moves the address. A card press pushes the record address. The back
+control, Save, Cancel and Delete return to wherever the record was opened from, a
+collection or another record, and the back control names it. When no such place is known,
+as after a pasted address or a reload, they go to the record's own collection. Back and
+Forward render without pushing, and the leave question and the run hold cover a record
+address like any other traversal.
 
-**An absent record leaves its capability open.** A record address whose record was
-deleted, never existed or lives in another capability opens that capability's
-collection, says the existing not-found notice on the prompt bar, answers 404, and
-corrects the address to `/capability/:id`. An absent capability still gives the bare
-desk. Every capability declares all five Actions today, so every capability has a record
-view. The record view renders nothing for a capability without `update`, and the record
-address follows that guard: it would open such a capability's collection without a
-notice. Record ids are random, so a capability deleted and built again under the same id
-finds none of the old records, and the address needs no incarnation.
+A build gives back the collection, and the address follows it. A build's restoration
+descriptor names a capability and never a record. A build started from a record address
+keeps that address while it runs, as it keeps any address it displaced. When it gives the
+window back to that capability, restored or shown evolved, the window shows the collection
+and the address is replaced with `/capability/:id`, adding no entry. A successful first
+build pushes its new capability.
 
-**Opening a record moves the address.** A card press pushes the record address. The
-back control, a save and a delete all leave the record view the same way. *Amended
-2026-10-18 (Module 8 PLAN decisions 40 and 41):* the back control, Save, Cancel and
-Delete return to wherever the record was opened from, a collection or another record,
-and the back control names it. When this page knows the entry before and it is a
-collection, or a record the page has shown, they read it afresh and step back onto it.
-If that record has been deleted, they open its collection instead, as a Back onto it
-does. Otherwise, as after a pasted address, a reload or the bare desk, they replace the
-entry with the address of the record's own collection. Back and Forward render a record
-or a collection without pushing. The leave question for unsaved changes and the hold on
-a running build cover a record address like any other traversal. `desk-address.js`
-keeps its single `pushState` and its single `replaceState`.
+### The record address is a platform route
 
-**A build gives back the collection, and the address follows it.** A build's restoration
-descriptor stays capability-only. A build started from a record address keeps that
-address while it runs, as it keeps any displaced address. When it gives the window back
-to that capability, restored or shown evolved, the window shows the collection and the
-address is replaced with `/capability/:id`, adding no entry. A successful first build
-pushes its new capability as before.
+`GET /capability/:id/:record` is registered ahead of `/capability/:id/:action`. A segment
+shaped like a UUID is a record, the five Action names keep their route, and anything else
+answers 404. No Action can collide with a record, and the fixed set of Actions does not
+change. The route takes a read token and closes with the read gate, as the collection view
+does, and its full-page load runs the desk-load recovery.
 
-**The model nominates records, and the platform vouches for them.** When a question asks
-about particular records rather than a figure, the turn prompt asks the model to select
-`id` with them. The answer schema becomes `{ answer, records }`, where `records` is a
-required array, possibly empty, of `{ says, id }`: the words in the answer that name a
-record, and the id the model says it read for it. Both keys are required, which keeps
-the schema safe under strict structured outputs. The platform keeps a nomination only
-when four checks hold:
+The server draws the record. The platform reads one row by `id` from the active
+incarnation's table and narrows it as the collection does, so the view gets no inactive
+field and no `extra`. It draws the record view, and no generated Handler runs. With
+`HX-Request` the route answers the record view fragment for the window. Without it, the
+route answers the whole desk, which opens the record from its address, so a reload, a
+pasted address and a new tab all land on the record. A card press asks this route too.
 
-1. The id came back as a cell in a row that some step returned.
-2. Exactly one capability that step read holds a record with that id, checked inside the
-   same read scope.
-3. That capability has a record view, which every capability with `update` has.
-4. `says` occurs in the answer outside any other link.
+Between the form's fields and its action row, the record view lists the records linking to
+the record: each relation pointing in gets a section of the linking records, newest first,
+drawn with the linking capability's own item renderer. The route takes each linking
+capability's read token apart from the record's own, and draws each section under the
+Handler timeout. A renderer that throws, or returns after the timeout, leaves its section
+out, as does a linking capability its own deletion has closed, and the record opens either
+way. A renderer that never returns is out of reach, as on a list route. "Show all" fetches
+the rest of a section under the same tokens and the same timeout. An item renderer is
+generated presentation the Gate already checked, so the record view runs no Handler.
 
-The platform links the first free occurrence of `says`. It drops any other nomination
-without a word, and the answer is still spoken. Only an answered question carries links.
-A question that ends on **nothing matched** or **nowhere for it**, whose every statement
-failed, or that spent its step budget ends in the platform's own sentence, which links
-nothing.
+An absent record leaves its capability open. A record address whose record was deleted,
+never existed or lives in another capability opens that capability's collection, says the
+not-found notice on the prompt bar, answers 404, and corrects the address to
+`/capability/:id`. An absent capability gives the bare desk.
 
-**The prose never carries an id.** The prompt tells the model so, and the platform
-removes from the answer every record id the steps returned before it is shown.
+### Answer links
 
-**The platform builds every link.** The answer fragment holds escaped text runs and `<a
+The model nominates records, and the platform vouches for them. When a question asks about
+particular records rather than a figure, the turn prompt asks the model to select `id` with
+them. The answer schema is `{ answer, records }`, where `records` is a required array,
+possibly empty, of `{ says, id }`: the words in the answer that name a record, and the id
+the model says it read for it. Both keys are required, which keeps the schema valid under
+strict structured outputs. The platform keeps a nomination only when five checks hold:
+
+1. The id came back as a whole cell in a row that some step returned.
+2. Exactly one capability read by the steps that returned the id holds a record with that
+   id, checked inside the question's own read scope.
+3. That capability has a record view.
+4. `says` stands as whole words in a cell of a row that returned the id, and that cell,
+   ignoring case, is one of the record's own text or choice values. A statement can return
+   any id beside any name, so this check links a name to the record it names and not to one
+   returned beside it.
+5. `says` occurs in the answer outside any other link.
+
+The platform links the first free occurrence of `says` that stands as words of its own,
+else the first free one. It drops any other nomination without a word, and the answer is
+spoken either way. Only an answered question carries links. A question that ends on
+**nothing matched** or **nowhere for it**, whose every statement failed, or that spent its
+step budget ends in the platform's own sentence, which links nothing.
+
+The prose never carries an id. The prompt tells the model so, and the platform removes from
+the answer every record id the steps returned before it is shown.
+
+The platform builds every link. The answer fragment holds escaped text runs and `<a
 data-answer-record href="/capability/:id/:record">` elements whose text is the escaped
-`says`. The client builds each anchor itself, with `createElement` and `textContent`,
-from a capability id and a record id it validates, through one `recordAddress()` builder
-in `routes.js`. It never parses markup out of the answer. Generated item markup still
-cannot emit `<a>` or `href`, and a card stays a `<button>`.
+`says`. The client reads that fragment parsed and inert. Of each anchor written that way it
+keeps only its words and the two ids, which it validates, and it reads every other node as
+the words it shows. It then builds each anchor itself, with `createElement` and
+`textContent`, through the one `recordAddress()` builder in `public/core/routes.js`.
+Generated item markup cannot emit `<a>` or `href`, and a card stays a `<button>`.
 
-**A link press opens the record in the capability window.** A plain press takes the same
-path as a record address: push, then open, under the same leave question and run hold.
-The answer window stays where it is, and the capability window comes forward with the
-record's first field focused, on every desk (owner ruling 2026-10-05).
-A modified or middle press belongs to the browser and opens the record address in a new
-tab. The answer still has no address, and nothing about it survives a reload.
-`intent_resolution_metrics` records no record id.
+A plain press on an answer link takes the same path as a record address: push, then open,
+under the same leave question and run hold. The answer window stays where it is, and the
+capability window comes forward with the record's first field focused. A modified or
+middle press belongs to the browser and opens the record address in a new tab.
 
 ## Considered options
 
-**The record view as a sixth Action.** Rejected. It would change the fixed set of
-Actions every capability declares, and it would put a generated Handler on a read the
-platform can do alone, from the same narrowed row a card is drawn from.
+**The record view as a sixth Action.** It would change the fixed set of Actions every
+capability declares, and it would put a generated Handler on a read the platform can do
+alone, from the same narrowed row a card is drawn from.
 
-**A read-only details surface beside the form.** Rejected. The form in edit mode is the
-desk's one record surface (ADR-0005, amended 2026-08-20), and the record address opens
-that surface rather than adding another.
+**A read view beside the form.** The record view is the form in edit mode, and Aluna has
+no read view (ADR-0005), so the record address opens the form.
 
-**The incarnation in the record address.** Rejected. Record ids are random, so a
-capability rebuilt under the same id holds none of the old ones, and the absent-record
-rule already answers an address from before the rebuild.
+**The incarnation in the record address.** Record ids are random, so a capability deleted
+and built again under the same id holds none of the old records, and the absent-record rule
+already answers an address from before the rebuild.
 
-**Ids in the prose, or links written by the model.** Rejected. The model nominates and
-the platform checks each nomination against what the steps returned. An id in the spoken
-text or an anchor the model wrote would reach the screen without that check, so the
-platform builds every link from ids it checked and never parses markup out of the
-answer.
+**Ids in the prose, or links the model writes.** An id in the spoken text or an anchor the
+model wrote would reach the screen without the platform's checks, so the platform builds
+every link from ids it checked.
 
 ## Consequences
 
-**Module 5's address rule is reversed.** Module 5's plan is closed and stays as it was.
-ARCH and `CONTEXT.md` carry the third shape, and *record address* is
-the term. "Deep link" stays on the Avoid list.
+**Generated code never handles a record address.** A linked field reaches a Handler as the
+text it holds. The open icon in a linked field, which the platform draws, opens its
+target's record address and takes the same path as a press on an answer link (ADR-0011).
 
-**ADR-0005's read-single route now exists, as a platform route.** ADR-0005 deferred it
-because it would expand the fixed route contract and add a generated handler. This route
-adds no handler and no Action: the platform reads the record, and the closed item
-vocabulary is unchanged.
-
-**The answer window carries links, and still never a capability's records.** It shows
+**The answer window carries answer links and never a capability's records.** It shows
 prose and the platform-built links inside it. It shows no file, no image and no file
-address, and the question loop still never sees a file key (ADR-0008, ADR-0009).
-
-**Module 8 points at the record address.** Its link projection hands generated code a
-`url` beside a name, as a file reference does. For a linked record that `url` is the
-record address, so Module 8 needs no second scheme. *Amended 2026-10-08 (ADR-0011,
-pending 8.1/01's sign-off):* generated code receives nothing for a link. The record
-address is what a linked field's name opens, and the platform draws that anchor
-itself. *Amended 2026-10-17 (ADR-0011):* there is no read view, and that anchor is an
-icon in the linked field.
-
-**Module 10's Event Log must admit the record address as a route context.** The Event
-Log derives which capability incarnations an event belongs to from admitted route, query
-and read-token context, and an event recorded on a record address belongs to that
-record's capability exactly as one on its collection does.
+address, and the question loop never sees a file key (ADR-0008, ADR-0009).

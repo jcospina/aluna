@@ -18,7 +18,7 @@ export const DEFAULT_SSE_HEARTBEAT_MS = 15_000;
 /**
  * Emit one SSE event. Carries an app-level monotonic id (see {@link sseTransport}).
  *
- * @param event - The event name (the seed vocabulary: `narration`, `fragment`, `done`).
+ * @param event - The event name (ADR-0002's vocabulary, or a developer-panel preview).
  * @param data - The event payload (already-escaped HTML, plain text, or JSON).
  */
 export type Send = (event: string, data: string) => Promise<void>;

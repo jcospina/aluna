@@ -93,7 +93,7 @@ const REGISTRY: Record<Wire, WireAdapter> = {
 };
 
 /**
- * Pick the wire shape off the endpoint — the registry "keyed by baseURL". Every host that is
+ * Pick the wire shape off the endpoint's host (ADR-0003). Every host that is
  * neither Anthropic's nor OpenAI's is treated as a generic OpenAI-compatible endpoint.
  */
 export function selectWire(baseURL: string): Wire {

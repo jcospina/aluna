@@ -174,6 +174,16 @@ export const CONTROL_PAIRINGS: readonly Pairing[] = [
     ],
   },
   {
+    what: "the focus ring on a fold in the developer well",
+    foreground: ring,
+    background: ink,
+    threshold: "non-text",
+    note:
+      "Inset in the fold's own two columns, so it never covers the brace or key beside " +
+      "it, and read against the well's ink fill on every side.",
+    sites: ["design/styles/components/devpanel.css § .devpanel__twist:focus-visible [outline]"],
+  },
+  {
     what: "a disabled control",
     foreground: ink3,
     background: surface,

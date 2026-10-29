@@ -3,8 +3,8 @@
 //
 // Handlers are checked for the ADR-0004 artifact contract (one default async export,
 // no imports, no raw HTTP or mutation SQL) and type-checked in isolation against the
-// platform-authored handler contract — which, since ADR-0005 §2, carries the injected
-// `present` adapter. The item renderer is checked for its own contract (one default,
+// platform-authored handler contract, which carries the injected `present` adapter
+// (ADR-0005 §2). The item renderer is checked for its own contract (one default,
 // synchronous function export, no imports) and type-checked against the `ItemRenderer`
 // shape the presentation adapter binds. A returned message becomes the failure fed back
 // into the next attempt's prompt. (Off-token styling / unknown classes / executable

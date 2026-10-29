@@ -1,79 +1,88 @@
-# 0001 — Product style & voice: subtler neobrutalism on Paper & Ink
+# 0001 — Product style and voice
 
-Status: accepted
+Status: Accepted
 
-**Amended 2026-08-20 — the visual half is superseded, the voice half is not.**
-This ADR settles three separable things, and the desktop design session
-(`modules/05-the-desk/PLAN.md`, decision 7) supersedes exactly one of them.
+## Context
 
-*Superseded.* The Paper & Ink palette, the neobrutalist border and shadow ladder,
-the 10px radius, the single `public/app.css` with one `:root` (since split into
-`public/css/`), and the Outfit-only typography all give way to the **High
-Meadow** system in `design/styles/`. That directory is the shipped stylesheet
-rather than a reference mockup, and it is the source of truth for the visual
-system **including token names**, so the `--color-*` vocabulary introduced here
-does not survive the move. High Meadow pairs a display face (Fraunces) with
-Outfit as the body face, which retires "no separate display face is carried
-over"; both are still vendored locally, so the offline, build-free, no-CDN part
-of the typography decision holds. The 10px radius gets no successor value: every
-corner is mitred and there are no radius tokens at all. ADR-0005's closed design
-axes re-derive against High Meadow names, in its own 2026-08-20 amendment.
+Aluna writes, checks and hosts code while it runs, so its insides are specs,
+Handlers, migrations and Gate checks. The person it serves wants to keep track of
+something and has no interest in designing software. When those insides show
+through in a sentence or a screen, Aluna reads as the coding agent or developer
+console that [PRODUCT.md](../../PRODUCT.md) rules out. A model writes some of what
+the person sees, from a build's opening line to each record's card, so the rules
+have to bind its output as well as the platform's.
 
-*Survives.* The warm, encouraging, first-person product voice with zero internals
-jargon is untouched, and `CONTEXT.md` stays its home as durable guidance for
-every coding agent's copy. Aluna stays the user-facing name. The styled
-lockup that carried the name in the deleted shell goes with that shell — the
-design handbook's wordmark section is a deletion rather than a rewrite (§7a) —
-but the name this ADR introduced stands.
+## Decision
 
-*Retired.* "A dark theme stays a purely additive future override" no longer
-holds. High Meadow is daylight and does not invert, and no dark theme is planned
-(§12f). The semantic-token insurance below bought a future that has since been
-declined.
+### One product voice
 
-## Original decision (visual half superseded above)
+Every sentence Aluna says to the person is warm, encouraging and gently curious, in
+the first person and addressed to "you", plainspoken and never cutesy or cryptic.
+No sentence exposes internals: no word from Aluna's engineering vocabulary, such
+as handler, spec, migration or schema, reaches the person. The prompts behind a
+build's opening line, a Handler's validation errors and a spoken answer carry the
+same rule. The [Product voice](../../CONTEXT.md#product-voice) section of
+CONTEXT.md is the guide.
 
-Aluna's base visual style is subtler neobrutalism on a Paper & Ink palette,
-typeset in Outfit (vendored locally) and expressed through semantic CSS
-custom-property tokens in a single `public/css/app.css` with one `:root` and no
-theming machinery (light theme only). The product speaks in a warm, first-person
-product voice that never exposes internals (ARCH §9.7). This ADR introduces
-Aluna as the user-facing wordmark.
+A build narration is the one departure from "never cutesy": it names each stage
+with an odd little verb, such as Scheming or Prodding, over a plain line
+(`design/scripts/narration/voice.js`). The departure covers what the narration
+says while a build runs and the line a build that lands ends on. A build that does
+not land ends in the plain voice.
 
-## Context / why
+The developer panel stands outside the voice. It shows a build's raw payloads, in
+the only monospace face in Aluna.
 
-The token source is an existing Paper & Ink theme, not a loud, high-chroma
-default. Paper & Ink is already quiet: warm cream page, warm near-black ink,
-terracotta primary. Its full role set (text/surface/background, primary,
-secondary, info, feature, warm) carries over, re-homed under `--color-*` names,
-and some roles are reserved for capabilities to use later.
+### One name
 
-Shadows and borders make the style subtler, not color; the result is a quieter,
-PostHog-like register. We turn the neobrutalist dial *down*: 1px softened-ink
-borders on structural surfaces only, where loud neobrutalism uses 2–4px; two-step
-down-right hard shadows `2px/4px`, where loud neobrutalism piles up left-down
-`-2/-6/-12/-16px`; a gentle 1–2px press instead of a 3–6px slam. The 10px radius
-is retained.
+Aluna is the only name a person sees, and it is the page title. The desk carries no
+styled wordmark and no header row.
 
-The owner is locking Paper & Ink, so there is a single `:root` and no theming
-machinery — no `data-schema`, no theme registry, no dark stylesheet. Using
-*semantic* tokens still leaves a dark theme as a purely additive future override,
-which satisfies the "structured for dark later" requirement without building any
-switching machinery.
+### One visual system
 
-Typography is the highest-leverage warmth lever, and "look how friendly" is part
-of the thesis (ARCH §2, §9.7), so Outfit is vendored locally: the OFL-licensed
-variable woff2 keeps it build-free and offline, with no CDN. No separate shaded
-display/logo face is carried over — the wordmark is typographic in Outfit.
+Aluna has one visual system, High Meadow, and ships `design/styles/` as its
+stylesheet. A logo's artwork is the one exception, with shades of its own
+([ADR-0007](0007-capability-logo-contract.md)). `design/styles/tokens.css` is the
+source of truth for every token's name and value. The shell's own sheets in
+`public/css/` load after `design/styles/index.css` and declare no token and no
+literal colour. [`design/design-system.md`](../../design/design-system.md) holds
+the system's names and rules, and
+[ADR-0005](0005-opinionated-capability-ui-design-contract-and-gate.md) binds a
+model's card markup to them.
 
-The product voice is warm, encouraging and gently curious, first person, with
-zero internals jargon (ARCH §9.7). It lives in `CONTEXT.md` as durable guidance
-because it steers every future coding agent's copy.
+### Two faces, shipped with the app
+
+Fraunces sets display type and Outfit sets body type. Both are OFL-licensed
+variable woff2 files in `design/assets/fonts/`, declared in
+`design/styles/base.css`, so Aluna's type needs no build step, no CDN and no
+network. The developer panel's system monospace is the only other face.
+
+### No dark theme
+
+High Meadow is a daylight palette with no dark variant. `tokens.css` declares
+`color-scheme: light` and has no `prefers-color-scheme` rule, so a dark OS setting
+changes nothing. A dark theme is declined, not deferred.
+
+## Considered options
+
+**A dark theme, or one that follows the OS.** A contrast audit sets High Meadow's
+type strengths against its own fills, so a dark theme would need a second audited
+palette that every generated card also reads on. PRODUCT.md lists dark themes among
+Aluna's anti-references.
+
+**A copy of High Meadow in the app's own stylesheet.** Two copies drift apart.
+Loading `design/styles/` directly keeps the product and its design pages on the
+same files, and the shell's sheets add rules on top without restating a token.
+
+**A technical voice.** Machinery words make Aluna sound like the coding agent it is
+not, and the developer panel already shows the machinery to anyone who wants it.
 
 ## Consequences
 
-- High Meadow is daylight-only; a dark theme is declined. The voice guidance governs
-  every surface.
-- Coding agents must consult `design/design-system.md` for the practical reference
-  and `CONTEXT.md` for language and voice before adding UI. The CSS in
-  `design/styles/` is the source of truth for token *values* and names.
+A change to a colour, a type size or a spacing step is one edit to `tokens.css`, and
+the product and the design pages pick it up together. Lint policies keep the token
+layer in that file (`src/presentation/tokens/high-meadow-token-layer.policy.ts`) and
+the wordmark off the desk (`src/presentation/shell/desk/desk-ground.policy.ts`).
+Tests on the surfaces that speak assert that their copy names no machinery.
+
+A viewer whose OS is set to dark sees Aluna in daylight.

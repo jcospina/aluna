@@ -1,8 +1,7 @@
-// Unit generation (ADR-0003 whole-file retry; ADR-0004 generated artifact contract as amended
-// by ADR-0005 §2).
+// Unit generation (ADR-0003 whole-file retry; ADR-0004 generated artifact contract; ADR-0005 §2).
 //
-// This extends the original one item renderer plus Handler model to the complete fixed Action
-// inventory. The item renderer turns one record into capability-specific inner markup, generated
+// One item renderer plus a Handler for each of the fixed Actions. The item renderer turns one
+// record into capability-specific inner markup, generated
 // knowing the chosen `collection.layout`; the Handlers call the injected presentation adapter
 // instead of emitting row markup, so create and read render identically by construction.
 // Generation retries only inside one unit at a time — generate the whole file, check, feed the

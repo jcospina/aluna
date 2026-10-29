@@ -1,5 +1,4 @@
 {
-  "scripts/lint/biome-hooks.test.ts": 374,
   "scripts/build.test.ts": 465,
   "scripts/lint/comments/comment-budget.test.ts": 19,
   "scripts/lint/comments/comment-references.test.ts": 20,

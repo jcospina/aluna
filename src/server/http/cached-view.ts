@@ -2,12 +2,9 @@
 // capability's spec.
 //
 // Opening a committed capability renders the platform list container
-// deterministically from the registry row — no AI, no regeneration, and no served
-// `list.html`/`create.html`. The ADR-0004 "never-stale cache" property
-// is preserved because data never enters the chrome: records still arrive through the
-// capability's `read` action into the container's live region. The generated
-// list/create Views are no longer served from here; their *generation* is retired later
-// (finalized by unit generation).
+// deterministically from the registry row: no AI and no regeneration. Data never enters
+// the chrome (ADR-0005): records arrive through the capability's `read` action into the
+// container's live region.
 
 import type { Database } from "bun:sqlite";
 import { readFileSync } from "node:fs";

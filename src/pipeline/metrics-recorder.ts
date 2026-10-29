@@ -472,8 +472,8 @@ export function classifyBuildFailure(error: unknown, acc: DemoBuildAccumulator):
 }
 
 /**
- * Records the unit-generation legs: code-gen (handlers) and presentation-gen wall time — the item
- * renderer succeeds the original html-gen (ADR-0005) — plus per-unit fix attempts and token usage.
+ * Records the unit-generation legs: code-gen (handlers) and presentation-gen (the item renderer,
+ * ADR-0005) wall time, plus per-unit fix attempts and token usage.
  */
 export function recordUnitMetrics(
   acc: DemoBuildAccumulator,

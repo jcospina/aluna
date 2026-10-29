@@ -1,14 +1,13 @@
 // The isolation boundary every generated unit shares: no imports, no ambient runtime, no
 // dynamic code loading or evaluation.
 //
-// It used to live inside the handler check alone, which left the item renderer — the unit the
-// design-lint rung runs *in-process during the Gate* — with no ambient ban at all. A renderer
-// reading `process.env` and calling `fetch` through `globalThis` passed unit generation, the
-// design-lint rung and the structural rung, and its `fetch` calls really fired.
+// It covers the item renderer as well as the Handlers, because the design-lint rung runs the
+// renderer *in-process during the Gate*: a renderer reading `process.env` and calling `fetch`
+// through `globalThis` would otherwise pass every rung with its `fetch` calls really firing.
 //
 // A static deny-list over identifiers cannot be a sandbox: `({}).constructor.constructor` reaches
 // the Function constructor while naming nothing banned. The ban below closes the reachable
-// spellings, not the family. Containment is `src/platform/secrets.ts` (ADR-0004 unchanged).
+// spellings, not the family. Containment is `src/platform/secrets.ts` (ADR-0004).
 
 import ts from "typescript";
 

@@ -1,0 +1,416 @@
+/* ── The developer panel ──────────────────────────────────────────────── */
+/*
+ * A second window, and exempt from the one-window rule — it may sit beside a
+ * capability, because watching a build and reading what the build actually did
+ * is one activity. Read-only, and outside the product voice: this is the only
+ * surface in Aluna set in a monospace face, because it shows raw payloads and a
+ * proportional face makes them worse.
+ *
+ * How far the terminal reading goes is settled here: each stage is a code block —
+ * a drawn frame, a caption naming the stage and how many bytes came down the wire,
+ * the reader's controls over that payload, and the payload in a well below it. No
+ * further. There is no line numbering, no prompt mark and no clock, because those
+ * describe a session and this describes a build; and there is no imported editor
+ * theme, because every colour a payload wears is already on this palette.
+ */
+
+.window--dev .window__body {
+  padding: var(--space-3);
+}
+
+.devpanel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/*
+ * One stage. The frame is declared as an ordinary border and drawn over by the ink
+ * system (the block asks by name, `data-ink`) — the same line as everything else
+ * inside a window, in the same hand.
+ */
+.devpanel__block {
+  display: flex;
+  flex-direction: column;
+  padding: 0 0.4375rem 0.4375rem;
+  background: var(--surface);
+  border: var(--line) solid var(--ink);
+}
+
+/*
+ * Caption over payload, separated by the change of fill rather than by a rule.
+ * A second straight line inside a drawn box would read as the one thing on the
+ * surface nobody bothered to draw. The caption is chrome, so no selection ever
+ * picks it up: a payload copied by hand is the payload and nothing around it.
+ */
+.devpanel__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  padding: 0.375rem 0.0625rem 0.3125rem;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/*
+ * The stage's name is also the block's fold, with a chevron before it. Same words,
+ * second job, so it keeps the caption's look and adds only the chevron. Neither it
+ * nor the size breaks across lines: a narrow window moves the controls below them.
+ */
+.devpanel__fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  margin-right: auto;
+  /* The controls' own padding, so a caption is as tall resting as it is once its block fills. */
+  padding: 0.0625rem 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.devpanel__fold::before,
+.devpanel__twist::before {
+  content: "";
+  width: 0.3125rem;
+  height: 0.3125rem;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  margin-top: -0.125rem;
+  rotate: 45deg;
+  transition: rotate var(--dur-fast) ease;
+}
+
+.devpanel__fold[aria-expanded="false"]::before,
+.devpanel__twist[aria-expanded="false"]::before {
+  margin: 0 0 0 -0.125rem;
+  rotate: -45deg;
+}
+
+/*
+ * The reader's controls on a payload, set in the caption's face and quiet until
+ * wanted. Pressed is the sun fill a pressed segmented button takes. A resting stage
+ * has nothing to read pretty or to copy, so its controls are not there at all.
+ */
+.devpanel__tools {
+  display: inline-flex;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.devpanel__block:not(.is-filled) .devpanel__tools {
+  display: none;
+}
+
+.devpanel__tool {
+  display: inline-grid;
+  padding: 0.0625rem 0.3125rem;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--type-xs);
+  letter-spacing: var(--caps-tracking);
+  text-transform: uppercase;
+  color: inherit;
+  cursor: pointer;
+}
+
+.devpanel__tool:hover {
+  background: var(--surface-2);
+}
+
+.devpanel__tool[aria-pressed="true"] {
+  background: var(--sun);
+}
+
+/* Copy's word and the widest word it can say, in one place, so the button never changes width. */
+.devpanel__said,
+.devpanel__room {
+  grid-area: 1 / 1;
+}
+
+.devpanel__room {
+  visibility: hidden;
+}
+
+/*
+ * Show latest, in the well's corner rather than the caption, and only while a
+ * selection is holding a newer payload back: it comes and goes without moving the
+ * caption or the payload under the reader's pointer. The corner holds no room of its
+ * own and keeps to the top of what the panel shows of the well, so the button is in
+ * sight while any of the well is. Mid-drag it is not there to be dragged over.
+ */
+.devpanel__corner {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 0;
+}
+
+.devpanel__latest {
+  position: absolute;
+  top: 0.375rem;
+  right: 1rem;
+  z-index: 1;
+  padding: 0.0625rem 0.3125rem;
+  border: 0;
+  background: var(--sun);
+  font: inherit;
+  font-size: var(--type-xs);
+  letter-spacing: var(--caps-tracking);
+  text-transform: uppercase;
+  color: inherit;
+  cursor: pointer;
+}
+
+.devpanel__block:not(.is-held) .devpanel__latest,
+.devpanel__block.is-selecting .devpanel__latest {
+  display: none;
+}
+
+/* Said to a screen reader, never shown: how a copy went. */
+.devpanel__status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.devpanel__stage {
+  font-size: var(--type-xs);
+  letter-spacing: var(--caps-tracking);
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.devpanel__size {
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--type-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+/*
+ * The well is dark, and this is the one surface in Aluna where that is allowed.
+ *
+ * Every ground on this palette is tinted green, because the desk is a meadow. That
+ * is right for a surface you look past and wrong for the one surface you read a
+ * hundred lines of JSON on: a saturated ground fights every tint in front of it,
+ * and washing it out only trades the tint for no contrast at all. The panel already
+ * stands outside the product voice and has the only monospace face in the
+ * product for exactly this reason — it shows raw payloads. The well is the same
+ * exemption, and it stops at this element: `--ink` is lines and type everywhere
+ * else, and nothing a capability generates may fill with it.
+ *
+ * Inset inside the block rather than run to its edges, so the drawn frame still
+ * reads against surface instead of disappearing into the well.
+ */
+.devpanel__pre {
+  /* What a fold's chevron is placed against, so it scrolls with the payload it sits in. */
+  position: relative;
+  margin: 0;
+  padding: 0.5rem 0.625rem;
+  max-height: 18rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: var(--surface);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/*
+ * `code` in prose is an inline chip — a `--surface-2` fill and a little padding
+ * either side (`base.css`). A payload is not prose: left alone, the chip paints a
+ * pale box behind every line of the well and the block reads as highlighted rather
+ * than as code. The face is the one thing the chip contributes that belongs here,
+ * and it comes from `inherit` on the `<pre>` above.
+ */
+.devpanel__code {
+  padding: 0;
+  background: none;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+/* A stage with nothing in it yet is a resting dash, not an absence. */
+.devpanel__block:not(.is-filled) .devpanel__pre {
+  color: color-mix(in oklab, var(--surface), var(--ink) 40%);
+}
+
+/*
+ * A drag that starts in a well stays in it (`devpanel-gestures.js`). For the length
+ * of the drag nothing else on the page takes a selection, so a pointer past the
+ * well's edge — over the next block's caption, or off the panel — has nowhere to
+ * carry it, and the well goes on scrolling under the selection it already has.
+ */
+:root.devpanel-selecting {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+:root.devpanel-selecting .devpanel__block.is-selecting .devpanel__pre {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/*
+ * A pretty payload is laid out by the sheet: each member is a line of its own, a step
+ * in from the one it belongs to, and a value too long for its line wraps two steps in
+ * from its key, deeper than the members under it. The root's fold takes the two
+ * columns at the left; every other fold sits in the step before the key it opens. The
+ * line breaks and spaces of the two-space indent are still in the text, unseen, so a
+ * copy of the well reads as the payload does.
+ */
+.devpanel__code.is-tree {
+  display: block;
+  padding-left: 2ch;
+}
+
+.devpanel__unseen {
+  display: none;
+}
+
+.devpanel__body {
+  display: block;
+}
+
+.devpanel__line {
+  display: block;
+  padding-left: 6ch;
+  text-indent: -4ch;
+}
+
+.devpanel__line .devpanel__body {
+  margin-left: -4ch;
+}
+
+.devpanel__node.is-folded > .devpanel__body {
+  display: none;
+}
+
+/*
+ * Sized in the well's own face, so its two columns are two of the payload's. Out of the
+ * line's flow, where it stays put beside its key: a line never breaks between the two.
+ */
+.devpanel__twist {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2ch;
+  height: 1lh;
+  margin-left: -2ch;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-indent: 0;
+  color: color-mix(in oklab, var(--surface), var(--ink) 40%);
+  cursor: pointer;
+}
+
+.devpanel__twist:hover {
+  color: var(--surface);
+}
+
+/* Inside its own two columns, so the ring never covers the brace or key beside it. */
+.devpanel__twist:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -3px;
+}
+
+/* What a fold hides, told by how much rather than shown. Drawn, never text, so it is never copied. */
+.devpanel__elided {
+  display: none;
+  color: color-mix(in oklab, var(--surface), var(--ink) 40%);
+  cursor: pointer;
+}
+
+.devpanel__elided::before {
+  content: attr(data-elided);
+}
+
+.devpanel__node.is-folded > .devpanel__elided {
+  display: inline;
+}
+
+/*
+ * A string that spans lines — a unit's source, a migration's SQL — set out as those
+ * lines under its key and ruled down its left in the string tint, so it still reads
+ * as one value. Its text is the well's own colour: it is code to read, not a string to
+ * tell apart from a key. Its closing quote ends its last line, so whether the string
+ * ends on a line break can be seen.
+ */
+.devpanel__lines {
+  display: block;
+  padding-left: 1ch;
+  border-left: 1px solid var(--leaf);
+  text-indent: 0;
+}
+
+/*
+ * One line of the code, drawn at its own indent and wrapping a step in from it, so a
+ * long line's rest never lands in the column of the next statement. An empty line
+ * keeps its height.
+ */
+.devpanel__codeline {
+  display: block;
+  min-height: 1lh;
+  padding-left: calc((var(--devpanel-lead, 0) + 2) * 1ch);
+  text-indent: -2ch;
+}
+
+/*
+ * The payload's five kinds, in the palette's own anchors — re-picked for a dark
+ * well, so each one clears AA against it rather than being the light-ground
+ * choice used at half the contrast. Atoms are `--ochre` at 5.01 rather than the
+ * violet they were at 4.38: violet has one job now and it is the focus ring.
+ * `--signal` is not among the five and never will be: it is the alert colour,
+ * and a payload reporting a failed Gate is still a reading rather than an alarm.
+ */
+.devpanel__key {
+  color: var(--sky);
+}
+
+.devpanel__string {
+  color: var(--leaf);
+}
+
+.devpanel__number {
+  color: var(--sun);
+}
+
+.devpanel__atom {
+  color: var(--ochre);
+}
+
+/*
+ * Punctuation is the well's own faint, derived from the surface rather than
+ * borrowed from `--ink-3`. The two pull opposite ways: `--ink-3` is faint by
+ * being darker, which is what a light fill needs and exactly wrong on a dark
+ * one. Deriving keeps the well the one exception it already is.
+ */
+.devpanel__punct {
+  color: color-mix(in oklab, var(--surface), var(--ink) 40%);
+}
+
+/* An open fold's closing brace, back under the key that opened it. */
+.devpanel__line .devpanel__node:not(.is-folded) > .devpanel__elided + .devpanel__punct {
+  margin-left: -4ch;
+}

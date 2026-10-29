@@ -1,4 +1,4 @@
-// The capability handler contract, as amended by the presentation adapter.
+// The capability handler contract, with the presentation adapter (ADR-0004, ADR-0005).
 //
 // This is the one shape every handler — AI-generated, or hand-written as a fixture here —
 // is authored against, and the one the router builds and invokes. Four parties pull on it:

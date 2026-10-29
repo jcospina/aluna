@@ -1,4 +1,4 @@
-// The views a question's worker reads the catalog through (ADR-0008, amended 2026-09-25).
+// The views a question's worker reads the catalog through (ADR-0008).
 // Written here, on the main thread, and handed to the worker as SQL it runs at open: the
 // worker imports nothing, so what the platform's tables, fields and words are is decided here
 // and only executed there.

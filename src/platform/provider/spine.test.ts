@@ -15,7 +15,7 @@ import { z } from "zod";
 import { API_KEY_ENV_VAR, BASE_URL_ENV_VAR, MODEL_ENV_VAR } from "./config.ts";
 import { createProvider, providerFault, pumpStream, selectWire } from "./spine.ts";
 
-describe("selectWire (the registry, keyed by baseURL)", () => {
+describe("selectWire (the wire, chosen by the endpoint's host)", () => {
   test("routes Anthropic Messages hosts to the Anthropic wire", () => {
     expect(selectWire("https://api.anthropic.com/v1")).toBe("anthropic");
   });

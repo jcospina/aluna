@@ -226,7 +226,10 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     background: ink,
     threshold: "text",
     note: "The developer panel: the one dark ground in Aluna, and the only place ink is a fill.",
-    sites: ["design/styles/components/desk.css § .devpanel__pre [color]"],
+    sites: [
+      "design/styles/components/devpanel.css § .devpanel__pre [color]",
+      "design/styles/components/devpanel.css § .devpanel__twist:hover [color]",
+    ],
   },
   {
     what: "a name read straight off the wallpaper",
@@ -282,7 +285,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "design/styles/components/collection.css § .detail__back [color]",
       "design/styles/components/controls/controls.css § .control > .caps [color]",
       "design/styles/components/narration.css § .narration__sheet text[data-part] [fill]",
-      "design/styles/components/desk.css § .devpanel__stage [color]",
+      "design/styles/components/devpanel.css § .devpanel__stage [color]",
       "design/styles/components/desk.css § .logo-rename__error [color]",
       "design/styles/doc.css § .numbers small [color]",
       "design/styles/doc.css § .swatch__meta code [color]",
@@ -372,7 +375,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "incidental and neither is exempt. `--ink-3` was #8b9c82 at 2.86 here.",
     sites: [
       "design/styles/components/narration.css § .narration__sheet [data-part] [stroke]",
-      "design/styles/components/desk.css § .devpanel__size [color]",
+      "design/styles/components/devpanel.css § .devpanel__size [color]",
       "design/styles/components/desk.css § .prompt-bar__input::placeholder [color]",
       "design/styles/doc.css § .gallery__meta [color]",
       "design/styles/doc.css § .swatch__meta small [color]",
@@ -436,7 +439,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     background: ink,
     threshold: "text",
     note: "",
-    sites: ["design/styles/components/desk.css § .devpanel__key [color]"],
+    sites: ["design/styles/components/devpanel.css § .devpanel__key [color]"],
   },
   {
     what: "a string in the developer well",
@@ -444,7 +447,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     background: ink,
     threshold: "text",
     note: "",
-    sites: ["design/styles/components/desk.css § .devpanel__string [color]"],
+    sites: ["design/styles/components/devpanel.css § .devpanel__string [color]"],
   },
   {
     what: "a number in the developer well",
@@ -452,7 +455,7 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
     background: ink,
     threshold: "text",
     note: "",
-    sites: ["design/styles/components/desk.css § .devpanel__number [color]"],
+    sites: ["design/styles/components/devpanel.css § .devpanel__number [color]"],
   },
   {
     what: "an atom in the developer well",
@@ -463,10 +466,10 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "Ochre, not violet. Violet was 4.38 here and violet is the focus ring, which " +
       "pulls the other way — the ring needs it dark enough to read on the desk. " +
       "Ochre is the anchor with no other job.",
-    sites: ["design/styles/components/desk.css § .devpanel__atom [color]"],
+    sites: ["design/styles/components/devpanel.css § .devpanel__atom [color]"],
   },
   {
-    what: "punctuation and a resting stage in the developer well",
+    what: "punctuation, a resting stage and a fold in the developer well",
     foreground: wellFaint,
     background: ink,
     threshold: "text",
@@ -474,8 +477,10 @@ export const SURFACE_PAIRINGS: readonly Pairing[] = [
       "The well's own faint, derived from the surface. `--ink-3` is faint by being " +
       "darker, which is exactly wrong on the one dark ground in the product.",
     sites: [
-      "design/styles/components/desk.css § .devpanel__block:not(.is-filled) .devpanel__pre [color]",
-      "design/styles/components/desk.css § .devpanel__punct [color]",
+      "design/styles/components/devpanel.css § .devpanel__block:not(.is-filled) .devpanel__pre [color]",
+      "design/styles/components/devpanel.css § .devpanel__punct [color]",
+      "design/styles/components/devpanel.css § .devpanel__twist [color]",
+      "design/styles/components/devpanel.css § .devpanel__elided [color]",
     ],
   },
 ];

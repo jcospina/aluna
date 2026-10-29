@@ -386,7 +386,7 @@ describe("on-load logo rehydration", () => {
     expect(html).toContain(LOGO_PLACEHOLDER.trim());
 
     // The load path restores the desk only: no capability view is ever composed into the
-    // page (a click serves it into the window the client opens, ADR-0004).
+    // page (a click serves it into the window the client opens).
     expect(html).not.toContain("capability-surface");
   });
 

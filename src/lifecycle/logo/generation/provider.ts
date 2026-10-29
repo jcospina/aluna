@@ -1,7 +1,7 @@
 // The hosted vector service, behind a one-method contract.
 //
-// A logo call costs real money ([ADR-0007](../../../../docs/adr/0007-capability-logo-contract.md)
-// puts it at roughly $0.08), so the seam matters more than the client: every test injects a
+// A logo call is paid ([ADR-0007](../../../../docs/adr/0007-capability-logo-contract.md)), so
+// the seam matters more than the client: every test injects a
 // {@link LogoGenerationProvider} and none reaches the network, as `src/platform/provider/spine.ts`
 // does for the text spine.
 //

@@ -367,8 +367,8 @@ describe("deterministic capability router — view scaffolding", () => {
     ).text();
     const desk = await (await app.request("/capability/notes")).text();
 
-    // The fragment renders the read-wired region and bakes in no record: ADR-0004's never-stale
-    // cache holds because the chrome is deterministic from the spec rather than the data.
+    // The fragment renders the read-wired region and bakes in no record: the chrome is drawn
+    // from the spec rather than the data (ADR-0005).
     expect(fragment).toContain('id="notes-records"');
     expect(fragment).toContain('hx-get="/capability/notes/read"');
     expect(fragment).toContain('hx-trigger="load"');

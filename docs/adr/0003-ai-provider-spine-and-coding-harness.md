@@ -1,176 +1,138 @@
-# 0003 — AI provider spine & the code-writing harness (seeds epic 1.5)
+# 0003 — AI provider spine and the code-writing harness
 
-Status: accepted
+Status: Accepted
+
+## Context
+
+Every language-model call Aluna makes, from resolving a sentence to writing a Handler,
+asks for the same thing: a structured object, streamed while the model writes it and
+validated against a schema at the end. The person brings their own API key and may
+choose any model, whether Claude, GPT, Gemini or one of the open Chinese coding models
+such as Qwen, GLM, Kimi, MiniMax or DeepSeek. A streaming client, retries,
+structured-output validation and a switch between providers are solved problems, and the
+Vercel AI SDK solves them.
+
+The step that writes code adds a constraint of its own. The Core Builder fixes
+everything around the model's output: the spec is the source of truth and every unit
+derives from it, an evolution regenerates only the units the Diff Engine selects
+(ADR-0006), the Gate fails closed, and a version goes live when the registry's pointer
+moves to it. An autonomous coding agent decides for itself which files to touch, so it
+would choose the scope the Diff Engine exists to fix. Writing code is the right job for
+a model only inside a loop bounded to one unit. No SDK ships the Core Builder, the Diff
+Engine or the Gate, so those stay Aluna's own code.
 
 ## Decision
 
-The AI provider contract (ARCH §4 "Model strategy") is built
-on the Vercel AI SDK as a thin, in-process provider spine — not a hand-rolled
-streaming client, and not an autonomous coding-agent harness. The SDK supplies
-the one primitive the `generate(prompt, schema)` contract needs: structured
-generation (`streamObject` with Zod, type-validated). The code-writing step calls
-that same contract. We do not build our own
-streaming SDK, retry/routing, structured-output validation, or multi-provider
-abstraction; those are solved problems the SDK owns. We do keep building the
-harness *discipline* — the pipeline, Diff Engine, layered gate, migration
-runner — because that discipline *is* the thesis, and no SDK ships it.
+### One contract, with the AI SDK behind it
 
-**Settled now:**
+Every language-model call goes through one contract, `generate(prompt, schema)`, in
+`src/platform/provider/contract.ts`. It returns at once with a stream of partial
+objects, the final object validated against the Zod schema, and the call's token usage.
+It takes no model and registers no SDK tools: one configured model serves every call,
+and every call returns one structured object. The question loop's one tool is a step its
+schema describes, which the platform runs (ADR-0008).
 
-- **The spine is the AI SDK, used in-process** (fetch-based, runs on Bun, MIT,
-  BYO-key). It sits behind the `generate(prompt, schema)` contract: the
-  orchestrator depends on the contract, never on the SDK directly, so the spine
-  stays swappable (ARCH §4).
-- **Provider-agnosticism via wire shape, not an adapter layer we write.** A
-  provider registry keyed by `baseURL` (`createAnthropic`/`createOpenAICompatible`)
-  targets the Anthropic Messages and OpenAI-compatible endpoints that have become
-  the de-facto standard. One config change swaps the single global model
-  (ARCH §4 "Model strategy") across Claude, GPT, Gemini, and the open Chinese
-  coding models — Qwen3-Coder, GLM (Zhipu/Z.ai), Kimi (Moonshot), MiniMax,
-  DeepSeek — all of which expose an Anthropic-compatible endpoint. "Compare models
-  = run the demo twice" stays a one-line swap.
-- **The harness retries *within a unit* and stays deterministic *across units*.**
-  Each attempt at a unit is one structured generation of the whole file, such as
-  `create.ts`. The platform checks the file against the unit's source contract and
-  type-checks it, and a failed check goes back into the prompt for a fresh whole-file
-  attempt. A unit that fails its second attempt fails the build
-  (`DEFAULT_UNIT_FIX_ATTEMPTS`). The model calls no tools, never touches the
-  filesystem and never decides its own scope. The retry sits *inside* a Capability
-  Builder step (ARCH §6.2) without surrendering the cross-unit guarantees:
-  spec → derived caches, regenerate only affected units, fail-closed gate, atomic
-  pointer flip (ARCH §9.1, §9.5).
+The AI SDK implements the contract inside the server's own Bun process.
+`src/platform/provider/spine.ts` calls the SDK's `streamObject`, which streams,
+validates and, by its default, retries a request the provider marks retryable, such as a
+rate limit, and no other production file imports it. Aluna writes no streaming client,
+retry logic or schema validation of its own, and the partial objects the SDK streams
+feed a build's server-sent events (ADR-0002).
 
-**Rejected, with reasons (kept so the road not taken stays legible):**
+A transport fault, such as a rejected key or a dropped connection, fails the call, and
+so does a generation still running after five minutes, so no call leaves a stage
+waiting.
 
-- **A fully autonomous coding agent** (Claude Code / Codex / opencode as the
-  builder). Most "out of the box," but it owns the loop and the filesystem, is
-  nondeterministic about *which* files it touches, and runs as a heavyweight
-  separate process with its own context/session. That fights the Diff Engine's
-  "regenerate only affected units" (ARCH §6.2) and the version-keyed-cache
-  discipline (ARCH §9.1) head-on. `opencode` (provider-agnostic, MIT, drivable
-  over an HTTP server) is kept in the back pocket in case the project ever pivots
-  to the autonomous shape; it is not adopted now.
-- **A hosted agent API** (provider runs the loop server-side). Data leaves the
-  box, which fights BYO-key, local-first, and the open-sourced free demo
-  (ARCH §4), and it forfeits control of the very latency the PoC exists to
-  measure (ARCH §6.3, §9.6).
-- **An execution sandbox** (E2B / Daytona) for the gate. Deferred, not adopted. A
-  single-user, local, BYO-key PoC has no multi-tenant threat model. The supplied
-  read-only/scratch SQLite adapters, constrained mutation interface, additive-only
-  DDL, and structural/static checks protect against accidental generated output
-  that stays within the documented contract, or is caught by it. They are not
-  stronger than process isolation: generated code still executes in-process, so
-  deliberately adversarial code or an unknown ambient Bun/OS bypass is not
-  contained. Revisit when the threat model requires executing generated code as
-  untrusted code.
+### Three wires, chosen by the endpoint's host
 
-**Deliberately open — owned by the module that first needs it, not locked here:**
+Aluna writes no wire format of its own. The API key, the model and the base URL
+configure the provider, and the spine picks the wire from the base URL's host:
 
-- **Which model is the configured default.** The spine makes any of them a
-  one-line swap; *which* one ships as the global default is an empirical call for
-  the experiment (ARCH §6.3), not an architecture decision. Vendor head-to-head
-  quality claims are unverified marketing until measured on Aluna's own task.
-- **The retry's exact shape** — attempt budget, what each attempt is checked
-  against, retry budget on a failing behavioral assertion — was left to
-  **Capability Builder** work, not 1.5. The harness bullet
-  above records the shape it took.
-- **Whether to layer Mastra** (deterministic Workflows + Agents, *built on the AI
-  SDK*) over the raw spine for orchestration ergonomics. Its Workflow/Agent split
-  fits a deterministic pipeline with a bounded agent inside each step, which is not
-  the shape the Builder took (see the harness bullet above), and it adds surface
-  area a speed-first PoC may not want. Deferred to whichever
-  module finds the raw SDK orchestration too thin.
+- an `anthropic.com` host takes the Anthropic Messages wire, `createAnthropic`;
+- an `openai.com` host takes OpenAI's first-party provider, `createOpenAI`, which speaks
+  the Responses API, holds the model to the schema through strict structured output and
+  accepts a reasoning-effort setting;
+- every other host takes the generic OpenAI-compatible provider,
+  `createOpenAICompatible`, which speaks Chat Completions.
 
-## Context / why
+The compatible wire is separate because third-party endpoints do not implement the
+Responses API, which the first-party provider speaks by default. They also share no
+reasoning-effort option and no strict JSON-schema output. Only Anthropic's own host
+takes the Messages wire, so a third-party model, including the open Chinese coding
+models, is reached through its OpenAI-compatible endpoint. These models are first-class
+targets: reaching one needs configuration, never code.
 
-Epic 1.5's job is a thin provider contract with zero domain
-logic: a streamed, structured round-trip, BYO-key, one global model. The owner's
-constraint going in was to be provider-agnostic without hand-building a streaming
-SDK for a solved problem. This ADR records the research that settled how to honor
-both at once.
+### The default model
 
-One reframe drove the decision. Aluna's pipeline is deliberately *constrained*
-(ARCH §6.2, §9.1): the spec is the source of truth; handlers, HTML, and tests are
-version-keyed derived caches; only affected units regenerate; a fail-closed gate
-precedes an atomic pointer flip. A roaming autonomous agent is in direct tension
-with every one of those. So "a coding agent that writes files" is the right
-*capability* but the wrong *shape* if unbounded — the fit is a whole-file retry
-bounded to one unit, which preserves the determinism while still feeding each
-failed check back to the model.
+With no model or endpoint set, Aluna calls `gpt-5.6-terra` at OpenAI's endpoint at
+medium reasoning effort, which trades some latency for better reasoning. The effort is
+fixed in the spine and sent on the first-party wire alone. The Anthropic wire runs
+Claude without extended thinking, and the compatible wire sends no reasoning setting,
+because its vendors share none. The default model and endpoint are constants in
+`src/platform/provider/config.ts`, and the three settings move Aluna to any other model
+with no code change.
 
-Provider-agnosticism turned out to be nearly free. The Anthropic Messages API is
-now the common wire format for coding models, and the major open Chinese models
-all ship an Anthropic-compatible endpoint alongside an OpenAI-compatible one.
-Targeting the wire shape, through the SDK's `baseURL` providers, gets agnosticism
-without an abstraction layer we maintain — which is exactly the "thin, pluggable
-provider interface" ARCH §4 already asked for, made concrete.
+### The harness retries within a unit
 
-The SDK takes the streaming client, retries and provider routing,
-structured-output validation (`streamObject` + Zod is type-validated), and the
-multi-provider switch off our plate. What it pointedly does not give us stays our
-job: the orchestrator pipeline, the Diff Engine, the layered behavioral gate, and
-the migration runner. No turnkey "self-building-CRUD harness" exists; that absence
-is the project's contribution, not a missing dependency.
+A unit is written as structured output too. Each attempt is one generation of the whole
+file, such as `create.ts`. The platform runs the source check on it, a strict type check
+included ([The Core Builder](../architecture.md#43-the-core-builder)), and a failed
+check goes back into the prompt for a fresh whole-file attempt. A unit that fails its
+second attempt fails the build.
 
-Bun + Hono + AI SDK is a documented, common combination. The spine is fetch-based
-and streams cleanly through Hono SSE, consistent with the locked stack (ARCH §4)
-and the SSE conventions in [ADR-0002](0002-sse-transport-conventions.md).
+The model calls no tools, never touches the file system and never chooses its scope. The
+Core Builder fixes which units a build writes and in what order, and the Diff Engine
+chooses which ones an evolution regenerates. The Gate's repairs keep the same bound: at
+most one regeneration of each unit a failure points at, with the failure fed back
+([Quality gates](../architecture.md#44-quality-gates)). The retry stays inside one Core
+Builder step, so the guarantees across units hold.
+
+### No orchestration layer over the SDK
+
+Aluna does not use Mastra or another orchestration layer. Mastra's split between
+Workflows and Agents suits a deterministic pipeline with a bounded agent inside each
+step, and no Core Builder step holds an agent: each is a structured generation followed
+by deterministic checks. The question loop (ADR-0008), where the model chooses each next
+step, is built on `generate` too, and the platform runs every step it chooses. Adding an
+orchestration layer is a change to this record.
+
+### Generated code runs in the server's process
+
+Generated code runs inside Aluna's server process, in the Gate and when it serves
+requests, with no process sandbox. Aluna serves one person and listens only on
+`127.0.0.1`, so it has no multi-tenant threat model. The source check and the supplied
+adapters (ADR-0004) catch a model's mistakes. They do not contain code written to escape
+them, or an unknown way into Bun or the operating system.
+[Trust boundary](../architecture.md#5-trust-boundary) lists what limits generated code.
+
+## Considered options
+
+**A hand-rolled streaming client and provider adapters.** Aluna would maintain every
+provider's wire format and its own structured-output validation, which the SDK already
+supplies.
+
+**An autonomous coding agent as the builder, such as Claude Code, Codex or opencode.**
+It owns the loop and the file system, chooses which files it touches, and runs as a
+heavyweight separate process with its own session. The Diff Engine could no longer
+rebuild only the affected units and copy the rest from the immutable version before.
+
+**A hosted agent API, where the provider runs the loop on its own servers.** The loop,
+and the person's data with it, would live on the provider's servers, while Aluna runs
+on the person's machine with their own key. Aluna would also lose control of a build's
+latency.
+
+**A process sandbox, such as E2B or Daytona.** Not adopted while Aluna serves one
+person on their own machine: it would contain hostile code, which is outside that
+threat model. It becomes necessary when generated code must run as untrusted code.
 
 ## Consequences
 
-- **ARCH §4** ("AI" stack row + "Model strategy") is
-  updated to name the spine and the provider-registry mechanism, and to point at
-  this ADR. The abstract "`generate(prompt, schema)` contract, not a specific
-  SDK" line now has a concrete, swappable implementation behind it.
-- **The bounded per-unit loop is a Capability Builder concern (M2–M4), not M1.**
-  Epic 1.5 proves the streamed structured round-trip and the one-line provider
-  swap; the write→type-check→fix loop lands with epic 2.5 and tightens (behavioral
-  retries) in epic 4.7. A forward-pointer note is added to 1.5, in the style of
-  the 2.6 note.
-- **The Chinese coding models are first-class provider options.** The registry
-  treats them identically to Claude/GPT/Gemini. Selecting the global default is an
-  experiment output (M11), recorded in metrics.
-- **No sandbox dependency is taken on now.** The resulting guarantee is
-  contract/static-check protection against accidental model output, not
-  hostile-code containment. If the threat model expands, E2B (Firecracker, TS SDK)
-  or Daytona (fast cold start) are the pre-vetted options to reopen this with.
-- **If orchestration ergonomics strain the raw SDK,** Mastra is the pre-vetted
-  layer to reconsider, superseding or amending this ADR rather than being bolted
-  on silently.
-
-## Implementation note (epic 1.5, issue 02)
-
-The spine landed in `src/provider/spine.ts` as a **three-wire** registry, `selectWire`
-keying off the endpoint host:
-
-- **`openai`** — the first-party `@ai-sdk/openai` (`createOpenAI`) for OpenAI's *own*
-  host (`api.openai.com`). It gives native structured-output validation and the
-  reasoning-effort knob that makes "fast mode" a real call-site setting
-  (`reasoningEffort: 'minimal'`). This wire is OpenAI-specific by design: the
-  first-party provider defaults to OpenAI's proprietary Responses API, which
-  third-party "compatible" endpoints do not implement.
-- **`openai-compatible`** — `@ai-sdk/openai-compatible` (`createOpenAICompatible`,
-  Chat Completions) for *every other* OpenAI-compatible endpoint. This is the path
-  the open Chinese coding models take (Qwen, GLM/Zhipu, Kimi/Moonshot, MiniMax,
-  DeepSeek), first-class targets exactly as this ADR requires. It is reached by
-  `OMNI_BASE_URL` alone, with no per-model code.
-- **`anthropic`** — `@ai-sdk/anthropic` (`createAnthropic`) for the Anthropic Messages
-  endpoint.
-
-> **Correction (supersedes the original first draft of this note).** The first cut
-> used `createOpenAI` for *all* non-Anthropic endpoints and claimed "the open Chinese
-> models reach the first-party provider by `baseURL` alone." That was wrong: the
-> first-party provider's Responses-API default, plus the OpenAI-only `reasoningEffort`
-> option and strict `json_schema` outputs, would have failed against those
-> Chat-Completions endpoints. Keeping the Chinese models first-class is why this ADR
-> named `createOpenAICompatible` in the first place, and the dedicated
-> `openai-compatible` wire restores that. (The compatible wire is wired but not yet
-> verified against a live third-party endpoint — no such key on hand.)
-
-- **The shipped default is `gpt-5.6-terra` at medium reasoning effort, not Claude
-  Opus** — the platform
-  with credits and a key on hand. That exercises the "which model is the configured
-  default … is deliberately open" clause above rather than contradicting it: a
-  one-env swap of the trio (`OMNI_MODEL` + `OMNI_BASE_URL` + `OMNI_API_KEY`) moves
-  it to any `claude-*` or other model. Selecting the *empirical* default remains M11
-  experiment work.
+- Replacing the SDK or adding a provider package changes `spine.ts` alone among
+  production files. The tests that check a schema's strict fit through the SDK's
+  `zodSchema` move with it.
+- Comparing two models means running the same request twice with different settings.
+- Every schema sent to the provider fits strict structured output, which requires every
+  property. A value that may be absent is a required, nullable property, and the null is
+  dropped after parsing (`promptCapabilitySpecSchema` in `src/registry/spec/spec.ts`).
+- The compatible wire asks for a JSON object and sends no schema, so on that wire the
+  Zod check after the stream is the only check on shape.

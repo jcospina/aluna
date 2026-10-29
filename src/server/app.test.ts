@@ -353,10 +353,9 @@ describe("GET / (shell) — stream close glue", () => {
   });
 });
 
-// Every surface these four tests name came down, and none of them answers in any environment.
-// `/demo` itself is reserved for throwaway scaffolding (ADR-0002), which is why a route that
-// stood in it is pinned gone rather than merely deleted: a revert restores four lines of
-// registration, and nothing else in the suite would notice.
+// None of the surfaces these four tests name answers in any environment. Each is pinned gone
+// rather than merely deleted: a revert restores four lines of registration, and nothing else in
+// the suite would notice.
 describe("the retired /demo surfaces are gone", () => {
   const previous = process.env.NODE_ENV;
   afterEach(() => {

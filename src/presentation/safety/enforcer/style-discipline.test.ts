@@ -3,8 +3,8 @@ import { describe, expect, test } from "bun:test";
 import { PALETTE_COLOR_TOKENS } from "../../tokens/design-tokens.ts";
 import { describeStyleViolation, sanitizeStyle } from "./style-discipline.ts";
 
-// Unit coverage for the inline-`style` token discipline (ADR-0005 §4, amended 2026-07-01 and
-// re-derived against High Meadow). Both surfaces report the same verdict.
+// Unit coverage for the inline-`style` token discipline (ADR-0005 §4). Both surfaces report the
+// same verdict.
 
 describe("sanitizeStyle — conforming values pass through unchanged", () => {
   test("palette colour and spacing", () => {

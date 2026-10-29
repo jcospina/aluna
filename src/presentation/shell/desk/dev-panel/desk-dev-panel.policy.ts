@@ -6,6 +6,9 @@ import { codeOf as code, readSource as read } from "../../../safety/source.test-
 // `desk-dev-panel.desk.test.ts` run what it does.
 
 const PANEL = code("public/desk/window/desk-dev-panel.js");
+const BODY = ["devpanel.js", "devpanel-view.js", "devpanel-gestures.js", "devpanel-select.js"]
+  .map((name) => code(`design/scripts/desk/${name}`))
+  .join("\n");
 const FRAGMENTS = read("src/server/http/fragments/fragments.ts");
 const DESK_CSS = read("design/styles/components/desk.css");
 
@@ -47,9 +50,20 @@ describe("read-only means read-only", () => {
     }
   });
 
-  test("the panel carries no controls, only readouts", () => {
-    // Two windows is not a layout worth managing, so there is nothing here to press: the panel is
-    // eight readouts and the frame's two lamps. Anything else is a control hidden behind it.
+  test("its controls change how a payload reads, and reach nothing past the panel", () => {
+    // Each readout carries the reader's controls over it — fold, pretty or raw, copy — and the
+    // clipboard is the one thing outside the panel they write to. Two windows is still not a
+    // layout worth managing, so the window adds nothing to press beyond its frame's two lamps.
+    for (const reach of [
+      "fetch(",
+      "XMLHttpRequest",
+      "hx-",
+      '"POST"',
+      "dispatchEvent(",
+      "Storage",
+    ]) {
+      expect(BODY, `a reader's control reaches for \`${reach}\``).not.toContain(reach);
+    }
     expect(PANEL).not.toContain('createElement("button")');
     expect(PANEL).not.toContain("btn--");
   });

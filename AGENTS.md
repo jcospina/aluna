@@ -2,7 +2,7 @@
 
 ### Domain docs
 
-Single-context repo — one `CONTEXT.md` and `docs/adr/` at the root. See `docs/agents/domain.md`.
+Single-context repo — one `CONTEXT.md` and `docs/adr/` at the root.
 
 ### Delivery summaries
 

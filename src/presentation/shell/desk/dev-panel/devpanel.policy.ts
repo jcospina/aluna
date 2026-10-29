@@ -1,11 +1,21 @@
 import { describe, expect, test } from "bun:test";
 
+import { writeStage } from "#design/desk/devpanel.js";
 import { readSource as read } from "../../../safety/source.test-support.ts";
+import { FakeEvent, fakeDocument, usePanelDom } from "./devpanel-dom.test-support.ts";
+import { CONTENT, panelWith, UNITS } from "./devpanel-fixture.test-support.ts";
 
 // The developer panel's module and sheet, held to how far the terminal reading goes.
 
-const MODULE = read("design/scripts/desk/devpanel.js");
-const PANEL_CSS = read("design/styles/components/desk.css");
+const MODULE = [
+  "design/scripts/desk/devpanel.js",
+  "design/scripts/desk/devpanel-view.js",
+  "design/scripts/desk/devpanel-gestures.js",
+  "design/scripts/desk/devpanel-select.js",
+]
+  .map((path) => read(path))
+  .join("\n");
+const PANEL_CSS = read("design/styles/components/devpanel.css");
 
 describe("a payload in a code block", () => {
   test("is written as text, never parsed as markup", () => {
@@ -40,5 +50,39 @@ describe("the terminal reading stops where the design settles it", () => {
     for (const absent of ["timestamp", "elapsed", "Date.now", "gutter", "lineNumber"]) {
       expect(MODULE, `\`${absent}\` is a session's furniture`).not.toContain(absent);
     }
+  });
+});
+
+describe("the sheet and the panel agree", () => {
+  usePanelDom();
+
+  test("every class the sheet styles is one the panel builds", () => {
+    // A class the sheet names and nothing carries is a rule that quietly stopped applying.
+    const styled = new Set(
+      PANEL_CSS.replace(/\/\*[\s\S]*?\*\//g, "")
+        .match(/\.[a-z][\w-]*/g)
+        ?.map((name) => name.slice(1)),
+    );
+    const { panel, code, control, twist, press } = panelWith("units", UNITS);
+    writeStage(panel, "spec", '{"count":1,"strict":true}');
+    const built = new Set<string>();
+    const gather = () => {
+      for (const el of [panel, ...panel.descendants(), fakeDocument.documentElement]) {
+        for (const name of el.className.split(" ").filter(Boolean)) built.add(name);
+      }
+    };
+    gather();
+    press(twist(CONTENT));
+    fakeDocument.selection.collapse(code);
+    code.dispatchEvent(new FakeEvent("mousedown"));
+    fakeDocument.dispatch(new FakeEvent("mousemove", { buttons: 1 }));
+    writeStage(panel, "units", UNITS);
+    gather();
+    fakeDocument.dispatch(new FakeEvent("mouseup"));
+    press(control("format"));
+    gather();
+    // The window's own frame, which the panel's sheet places it in.
+    for (const frame of ["window--dev", "window__body"]) built.add(frame);
+    expect([...styled].filter((name) => !built.has(name))).toEqual([]);
   });
 });

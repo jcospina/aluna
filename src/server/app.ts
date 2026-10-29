@@ -117,7 +117,7 @@ export interface AppDeps {
   readonly deletionCleanup?: DeletionCleanupSupervisor;
   /**
    * The hosted vector service one claimed logo attempt calls. Defaults to the real, paid client;
-   * every test injects a fake, because no automated test may spend credits (ADR-0007).
+   * every test injects a fake, so no test ever reaches the service.
    */
   readonly logoProvider?: LogoGenerationProvider;
   /**
@@ -461,7 +461,7 @@ function registerBuildJobRoutes(app: Hono, ctx: ResolvedAppDeps): void {
     buildJobs.cancel(c.req.param("id")) ? c.body(null, 202) : c.body(null, 404),
   );
 
-  // Per-build ephemeral stream ("phone call", ADR-0002 update). App event ids are monotonic per
+  // One ephemeral stream per run (ADR-0002). App event ids are monotonic per
   // stream; heartbeats are id-less keepalives, so a silent builder stage keeps the connection.
   app.get("/build/:id/stream", (c) => {
     const answer = streamSSE(c, async (stream) => {

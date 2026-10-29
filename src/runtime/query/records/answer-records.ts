@@ -1,10 +1,10 @@
 // The records an answer names, checked (ADR-0010). She nominates a record by the words that name
-// it and the id she read for it; the platform keeps a nomination only when all four checks hold,
+// it and the id she read for it; the platform keeps a nomination only when all five checks hold,
 // and links the first free occurrence of those words. Every other nomination is dropped without a
 // word, and the answer is spoken either way.
 //
 // The holders read answers the second check, and it also decides which strings are record ids at
-// all: a key or a token a person saved stays in what she says. One more check is the platform's
+// all: a key or a token a person saved stays in what she says. The fourth check is the platform's
 // own: the words must stand in a cell of the row that returned the id, and that cell must be one
 // of the record's own text values, read from its capability, because a statement can return any
 // id beside any name.
@@ -128,7 +128,7 @@ function textFields(deps: RecordCheckDeps, capability: string): readonly string[
 }
 
 /**
- * The platform's own check beside the four: the step's cell that held the words is one of this
+ * The fourth check, the platform's own: the step's cell that held the words is one of this
  * record's own text values, so a name links the record it names and not one returned beside it.
  */
 function namesIt(
@@ -202,7 +202,7 @@ function cutsAWord(text: string, from: number, to: number): boolean {
 }
 
 /**
- * The fourth check, and where the link goes: the first occurrence of `says` that overlaps no link
+ * The fifth check, and where the link goes: the first occurrence of `says` that overlaps no link
  * already placed. One standing as a word of its own comes before one that would cut a longer word.
  */
 function freeOccurrence(

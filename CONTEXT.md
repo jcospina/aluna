@@ -1,30 +1,25 @@
 # Aluna
 
-The single-context domain doc for this repo. Internally, Aluna is a platform
-where stated intent becomes a working app: the user describes the capability-level
-outcome they want, and the app builds — and rebuilds — itself to fit. The product
-must always read as a friendly consumer app, never a coding agent, coding platform,
-site builder, or engineering tool (ARCH §1, §9.7).
-
-> "omni-crud" is the repository's engineering name (it contains "CRUD") and must
-> never appear as user-facing branding (ARCH §9.7). Aluna is the user-facing
-> brand.
+This is the vocabulary Aluna's code, docs and product copy use. Internally,
+Aluna is a platform where stated intent becomes a working app: the user describes
+the capability-level outcome they want, and the app builds — and rebuilds — itself
+to fit. The product must always read as a friendly consumer app, never a coding
+agent, coding platform, site builder, or engineering tool.
 
 ## Language
 
-Use these terms verbatim in UI copy, issues, code, tests, and docs. The bolded
-term is the word to use; `_Avoid_` lists the synonyms to keep out.
+Use these terms verbatim in UI copy, code, tests and docs. The bolded term is
+the word to use; `_Avoid_` lists the synonyms to keep out.
 
 **Aluna**:
 The product. A Kogi word for the realm of thought/spirit from which the material
 world is born, and so a metaphor for a platform where stated capability-level
 intent becomes a working personal app. Internally it is a self-building runtime;
 to the user it is an app, never a coding agent, coding platform, or site builder.
-The name is the whole of the user-facing brand: the styled wordmark went with the
-header row that carried it, and nothing on the desk or anywhere else replaces it
-([M5 plan](modules/05-the-desk/PLAN.md)).
-_Avoid_: omni-crud (engineering name only), coding agent, coding platform, site
-builder, "the app", "the platform" (in UI copy)
+The name is the whole of the user-facing brand: there is no styled wordmark, and
+nothing on the desk or anywhere else stands in for one.
+_Avoid_: omni-crud (engineering name only), coding agent, coding platform, site builder,
+"the app", "the platform" (in UI copy)
 
 **Shell**:
 Aluna's one fixed UI surface: the wallpaper, the logo layer, the prompt bar and
@@ -33,8 +28,7 @@ shell may remember **how things look to the user**; it never decides **what is
 true**. Window geometry, maximised state and where the user likes things are
 **presentation state**, the shell's to keep in `localStorage`. Which records
 exist, what is valid, what a capability means and what an intent was are
-**canonical state**, the server's alone
-(M5 plan 2).
+**canonical state**, the server's alone.
 _Avoid_: page, layout, frame
 
 **Capability**:
@@ -60,7 +54,7 @@ then returns. A deletion turned down before the commit — busy, stale, blocked 
 reverse dependencies, out of drain time, or failed — answers with an **ending** in
 the same window and waits there; the press gives back what the question displaced,
 by the one route **Keep it** already took. Delete is the one name for this act, in
-UI copy and in every document (M5 plan 19, 20). A relation pointing at the capability
+UI copy and in every document. A relation pointing at the capability
 never blocks it: deleting a target capability works like **Unlink** on each one, and every
 linking record keeps the text it shows (ADR-0011).
 _Avoid_: retire, archive, remove, hide, deactivate
@@ -77,9 +71,8 @@ prompt bar and the developer panel's tile, with nothing withheld until a first
 capability arrives. The address `/` is the bare desk,
 `/capability/:id` is the desk with that capability in the window, and its
 **record address** is the desk with one record open in that window
-([design/index.html](design/index.html); M5 plan 3, 4, 6; ADR-0010).
-_Avoid_: capability toolbar, sidebar, header row (all three superseded), nav,
-menu, drawer, taskbar, dock
+([design/index.html](design/index.html); ADR-0010).
+_Avoid_: capability toolbar, sidebar, header row, nav, menu, drawer, taskbar, dock
 
 **Window**:
 The single frame every capability appears in. It floats on the desk, drags by its
@@ -94,9 +87,9 @@ window's own body: the one a navigation asks before it takes a running build or 
 form's unsaved changes (see **Put away**), Unlink's, and Delete's, which stands over
 the capability's own collection. Below the 720px breakpoint the
 window is the screen, and it neither drags, resizes nor maximises; desktop geometry is ignored rather than overwritten, and
-only the frontmost of the open windows is shown (M5 plan 47, 48).
-_Avoid_: content area and detail modal (both superseded), modal, dialog, popup,
-main panel, canvas, workspace, body
+only the frontmost of the open windows is shown.
+_Avoid_: content area, detail modal, modal, dialog, popup, main panel, canvas,
+workspace, body
 
 **Address**:
 What the browser bar says, and it says one of exactly three things: `/` is the bare
@@ -118,8 +111,8 @@ unsaved changes cover a record address like any other traversal. During a build 
 address keeps naming what the build displaced; a successful v1 activation pushes the new
 capability only when its canonical collection takes the window, and evolution and every
 non-activating terminal add no entry. A build that displaced a record gives back the
-collection, and the address is replaced with `/capability/:id` when it does (M5 plan 6;
-ARCH §6.1; ADR-0010).
+collection, and the address is replaced with `/capability/:id` when it does
+(ADR-0010).
 _Avoid_: url, route, path, location, deep link, query string
 
 **Record address**:
@@ -131,24 +124,22 @@ never existed or belongs to another capability, the addressed capability's colle
 opens, the prompt bar says the not-found notice, and the address becomes
 `/capability/:id`. An **answer link** opens a record named in an answer at its record
 address, and the open icon in a linked field opens its target's record address, drawn
-by the platform; generated code is never handed one (ADR-0010, ADR-0011; M7 plan 40 to 49).
+by the platform; generated code is never handed one (ADR-0010, ADR-0011).
 _Avoid_: deep link, permalink, record URL, record route
 
 **Link**:
 The tie between a linked field and a record of another capability. In product copy it is
-*connect* and *disconnect*, never *link* (owner ruling, 2026-10-08). A book's author
-linked to Authors still shows the author's name, but the name follows her record, and
-the book knows which record it is. A link is made for a field once and applies to that
+*connect* and *disconnect*, never *link*. A book's author linked to Authors still shows
+the author's name, but the name follows her record, and the book knows which record it is. A link is made for a field once and applies to that
 field in every record, so Aluna stores it as one **relation** for the field and one
 **link row** for each record. It is made with the **Link control**, by a build whose
 request is about records already on the desk, or by a **linking-only request**. Links
 are soft: text with no match still saves, nothing about a link can stop a record loading
-or a build publishing, and **Unlink** takes one away (ADR-0011; M8 plan 1 to 29).
+or a build publishing, and **Unlink** takes one away (ADR-0011).
 _Avoid_: relationship, reference, association, foreign key; connection in docs, since
-*connect* is the product word; composition,
-which is ADR-0005's word for how an item renderer arranges one record's markup and is
-never said for linked capabilities, though Module 8's title borrows it; link alone for
-a pressable name in an answer, which is an **answer link**
+*connect* is the product word; composition, which is ADR-0005's word for how an item
+renderer arranges one record's markup and is never said for linked capabilities; link
+alone for a pressable name in an answer, which is an **answer link**
 
 **Link control**:
 The small icon-button inside every unlinked single-line text field, in a new record and
@@ -158,7 +149,7 @@ group per capability whose options are its fields, each with a few of its values
 target that cannot be picked is left out. It calls no model and writes the relation in
 place under the platform-write lease, as Rename writes a name. While Aluna connects a
 field, the buttons fade with Save and Delete, and a note atop the form says what she is
-connecting (ADR-0011; M8 plan 18 to 24).
+connecting (ADR-0011).
 _Avoid_: link settings, relation editor, link dialog
 
 **Unlink**:
@@ -166,25 +157,24 @@ The icon-button inside a linked field, and what it does; product copy says disco
 It asks once, over the window with the disconnect button in red, then removes the
 relation and its link rows, leaves every record's text as it was, and makes the field
 plain text again. There is no "change target": Unlink, then Link. Deleting a target
-capability works like Unlink on every relation pointing at it (ADR-0011; M8 plan 23,
-29).
+capability works like Unlink on every relation pointing at it (ADR-0011).
 _Avoid_: remove link, break link, detach; disconnect in docs, since it is the product word
 
 **Broken-link mark**:
 The mark a linked field carries when it holds text with no record behind it: a name the
 matching scan could not place, a link broken by deleting the record it pointed at on a field
-that keeps its text, or one broken by clearing that record's text, which today leaves every
-linking record its text (ADR-0011 proposes emptying an optional field instead).
+that keeps its text, or one broken by clearing that record's text, which leaves every
+linking record its text.
 The item wrapper draws it on the card in the list, never the generated card, and in
 the form the line under the field takes its place. It asks for a pick and refuses nothing
-(ADR-0011; M8 plan 17).
+(ADR-0011).
 _Avoid_: error, warning badge, invalid, orphan, dangling link
 
 **Listed card**:
 A card of another capability, shown on a record because the card's record links to it:
 Sanderson's record lists his books in Books' own cards, in a section headed "Books · 3"
 between his fields and his actions. A press opens its own capability's record, never the
-window's (M8 plan 34 to 39).
+window's.
 _Avoid_: backlink, related record, reverse link, child record
 
 **Contextual Back**:
@@ -193,7 +183,7 @@ opened from and names it, "← The Way of Kings", and Save, Cancel and Delete le
 same way. A record opened from an answer link returns to what the window held under the
 answer. One opened from a pasted address, a reload or the bare desk opens the record's own
 list on Back instead. If the record Back returns to has been deleted, Back opens that
-record's list (M8 plan 40, 41).
+record's list.
 _Avoid_: breadcrumb, history trail, return link
 
 **Put away**:
@@ -204,8 +194,7 @@ brings the window back the way a first window opens, centred. Putting the window
 evolution is running warns first, because it kills the run, and proceeds only on
 confirmation through a question read over the window that leaves the run mounted. Deleting a
 capability is a different action and is deliberately
-unreachable from window chrome, which is why no lamp is signal red
-(M5 plan 17, 19).
+unreachable from window chrome, which is why no lamp is signal red.
 The same leave-run warning guards switching to another capability logo and
 Back/Forward while a build or evolution is mounted; confirmation uses the one
 cancel teardown and then completes the requested navigation. It also
@@ -237,11 +226,10 @@ after which the placeholder is permanent.
 The shell adds the 10% rounded corner, the shadow, the size and the name beneath,
 and never anything inside the file. The logo also carries the context menu that
 opens Rename and Delete, reached by right-click, press-and-hold, or the keyboard
-menu key. Rename changes the platform-owned effective-label override and nothing
+menu key. Rename changes the platform-owned display-label override and nothing
 else through an inline Save/Cancel label form — not the authored snapshot, id,
 address, version or artwork
-([ADR-0007](docs/adr/0007-capability-logo-contract.md);
-M5 plan 19).
+([ADR-0007](docs/adr/0007-capability-logo-contract.md)).
 _Avoid_: icon, avatar, thumbnail, favicon (the "tile" is the shell's frame around
 the artwork, not the artwork)
 
@@ -251,9 +239,8 @@ colours: grass green, forest green, teal green, cyan blue, golden yellow, mustar
 ochre, coral orange or amethyst violet. Signal red is reserved and never offered.
 The set is closed for this one purpose, so validating a colour is a word-list
 check rather than a measurement. They are named as *hues* rather than as palette
-tokens because the model was picking the old `sky` for what it depicts: the ground
-is defined as what sits behind the object, and a house went on sky (M5 plan 39;
-ADR-0007, amended 2026-08-25).
+tokens because the model reads a colour named after a thing, such as sky, as a
+scene to put behind the object (ADR-0007).
 _Avoid_: anchor, tint anchor, palette token, ground colour (the family is the hue,
 not the colour that gets drawn)
 
@@ -267,13 +254,13 @@ and it exists because a spec-authoring model collapses to one modal answer for a
 whole neighbourhood of prompts and cannot see any other capability. Every shade is
 saturated and light enough for daylight, with no near-blacks, no pastels and no
 greys. Shades are not design tokens: they reach the generation request and the developer
-panel's commit readout, and style nothing (ADR-0007, amended 2026-08-25).
+panel's commit readout, and style nothing (ADR-0007).
 _Avoid_: tint, tone, variant, palette token
 
 **Ground colour**:
 The colour a logo's artwork sits on: the shade resolved from the hue family the
 spec named for the ground. Two capabilities may share a hue family. Distinct from
-the desk's ground, which is where logos sit (M5 plan 39).
+the desk's ground, which is where logos sit.
 _Avoid_: background colour, brand colour, accent, theme colour
 
 **Companion colour**:
@@ -281,11 +268,10 @@ The second of a logo's two colours: the one the object itself is drawn in, where
 the ground is the field it stands on. Its hue family is authored and must differ
 from the ground's, so a request always carries two colours and never one twice;
 its shade, like the ground's, comes from the seed. Like the subject and the two
-families it is a birth fact that evolution preserves byte-for-byte. It was once
-derived by a closed lookup pairing leaf/shade, teal/sky, sun/ochre and
-clay/violet; that kept it from being an authored fact but capped the product at
-four distinct pairs, so a desk of five capabilities could not avoid two tiles
-wearing the same two colours (ADR-0007, amended 2026-08-25).
+families it is a birth fact that evolution preserves byte-for-byte. Its family is
+authored rather than looked up from the ground's, because a fixed lookup allows only
+one pair per ground and never chooses the second colour for what the capability is
+(ADR-0007).
 _Avoid_: accent, secondary colour, subject colour, pair colour
 
 **Record noun**:
@@ -294,11 +280,10 @@ contact — named by the model alongside the capability's own name. It is what t
 desk's empty state is written around, so a capability reads "add your first
 recipe above" rather than naming itself back at the user. Unlike the logo's
 subject, ground and companion it may change as a capability's purpose does, and
-changing it never causes a logo to be drawn (M5 plan 42). The model writes its
-plural beside it (`plural_noun`), and the collection states its count in that
-word: "12 photos", "3 check-ins". The platform never derives a plural, so every
-language gets the one its model wrote. A capability built before the plural
-existed keeps its frozen snapshot, which is read with the plural on its registry row.
+changing it never causes a logo to be drawn. The model writes its plural beside it
+(`plural_noun`), and the collection states its count in that word: "12 photos", "3 check-ins". The platform never derives a plural, so every
+language gets the one its model wrote. A stored snapshot written without a plural is
+never rewritten; it is read with the plural on its registry row.
 _Avoid_: singular label, item name, entity name, record type
 
 **Prompt bar**:
@@ -306,9 +291,9 @@ The always-visible, free-form text input floating above the desk, clear of all
 four edges and never full width. Context-aware: it scopes to the capability in
 the window. The user types intent here and watches the app build in the window.
 No window drags or resizes into the strip it occupies. Anything Aluna refuses
-before a build starts is explained here rather than in the window
-(M5 plan 5, 24) — except a refused sentence typed while an answer window stands,
-which is said in that window instead (ADR-0008, amended 2026-09-14).
+before a build starts is explained here rather than in the window — except a
+refused sentence typed while an answer window stands, which is said in that window
+instead (ADR-0008).
 _Avoid_: search box, command bar, chat input, composer (acceptable when describing
 the field itself, but the region is the "prompt bar")
 
@@ -326,8 +311,7 @@ and besides those round shapes the logo tile's 10% corner is the surface's one r
 corner. Because the
 ink system owns every boundary, generated markup never declares `border`,
 `border-radius`, `box-shadow` or a font family, and takes colour, type size and
-spacing only from the sets in `design/styles/`
-(M5 plan 9, 10).
+spacing only from the sets in `design/styles/`.
 _Avoid_: CSS border, rule, stroke, outline, sketchy, hand-drawn effect
 
 **Travel**:
@@ -338,8 +322,7 @@ off, on one axis (`--travel` in `design/styles/tokens.css`) that every travellin
 distance and duration is a multiple of. The other half is in-place life — a mark
 growing into its box, a chevron turning over — which runs for everyone, always.
 Which half a rule is on is the property it uses: `translate`
-travels, `scale` and `rotate` do not, and `transform` only says where a thing sits
-(M5 plan 44).
+travels, `scale` and `rotate` do not, and `transform` only says where a thing sits.
 _Avoid_: animation (too broad — it covers both halves), transition, movement
 
 **Developer panel**:
@@ -352,13 +335,12 @@ tests, migration, units, gate and commit — each one's JSON shown as it streams
 one place in Aluna a monospace face appears, because it shows raw payloads and stands
 outside the product voice. It is a curiosity surface for people who want to see how Aluna
 works, never a place to steer code, schema, framework, or styling decisions.
-Module 11's experimenter surface, not yet built, is to live in it too (M5 plan).
 _Avoid_: console, debug drawer, inspector, right sidebar
 
 **Step label**:
 The closed six-member vocabulary a question's tool call carries beside its SQL — looking at
-what things are called, counting, totalling, listing, checking dates, and a generic fallback
-(PLAN decision 14). The model picks which kind of step it is taking; the platform owns the one
+what things are called, counting, totalling, listing, checking dates, and a generic fallback.
+The model picks which kind of step it is taking; the platform owns the one
 sentence Aluna says for each, so she cannot narrate in words that are not hers or report a
 number no step computed. The label itself is machinery and never reaches a person: what
 reaches them is the sentence, and one square in the answer window's band for each step,
@@ -385,7 +367,7 @@ opens it. When one is already standing the refusal takes it — re-titled to the
 were refused, brought forward, and said there rather than on the bar — so the window can
 be left holding something that is not an answer. The prompt bar speaks a refusal only
 when no window is there to take it.
-_Avoid_: results panel, query window, output pane, the auto-table (deleted)
+_Avoid_: results panel, query window, output pane, the auto-table
 
 **Answer link**:
 A pressable name in Aluna's spoken answer that opens the record it names at its record
@@ -404,8 +386,8 @@ _Avoid_: tone, copy style, microcopy guidelines
 
 ## Engineering language (never user-facing)
 
-Canonical terms for issues, code, tests, and docs. Per the hard rule (ARCH §9.7)
-none of these words ever appear in UI copy.
+Canonical terms for code, tests, and docs. Per the hard rule under *Product voice*
+below, none of these words ever appear in UI copy.
 
 **Action**:
 One operation a capability exposes — `create`, `read`, `update`, `delete`,
@@ -434,7 +416,7 @@ evolution neither reads nor writes it. Stored beside it is the incarnation's
 **logo seed**, the record of what drew the artwork: minted with the row and
 carried unchanged through every version, never derived from a name or a position
 that could move without the drawing changing
-([ADR-0007](docs/adr/0007-capability-logo-contract.md); M5 plan 42).
+([ADR-0007](docs/adr/0007-capability-logo-contract.md)).
 _Avoid_: logo job, render status, retry flag, hash seed
 
 **Desk-load sweep**:
@@ -505,16 +487,15 @@ and units with the **link step** beside both, Gate, publication, activation. It 
 prompt route, no active DOM, and no SSE. It takes a **resolved build request** and a
 **build presenter**, and emits one terminal lifecycle event into that presenter while
 its lease is still held. A build cancelled while queued is told so with no lease, and
-any other failure to get the lease is told as a failure. This is the
-reuse seam: the explicit loop resolves a typed prompt and supplies the foreground
-presenter, while Module 10's implicit loop will hand over an already-confirmed
-proposal in the same shape — never reclassified — and choose a presenter of its
-own. Mutation, staging, Gate, activation, and metrics are identical either way
-(PLAN decision 31, ADR-0006, ARCH §6.2). Today the seam is terminal-only: the
-in-flight liveness sink still carries ADR-0002 SSE event names and a dead sink is
-read as cancellation. In flight the stages report facts — a stage starting, a part
-being made or checked, a Gate check under way — as `progress` events, and say
-nothing in words, so a second presenter could tell the same run its own way.
+any other failure to get the lease is told as a failure. This is the seam: the
+explicit loop resolves a typed prompt and supplies the foreground presenter, and
+mutation, staging, Gate, activation, and metrics stay the same whoever hands the
+Builder its request and presenter, and the Builder never reclassifies the request it
+is handed (ADR-0006). The seam is terminal-only: the in-flight liveness sink carries
+ADR-0002 SSE event names, and a dead sink is read as cancellation. In flight the
+stages report facts — a stage starting, a part being made or checked, a Gate check
+under way — as `progress` events, and say nothing in words, so how the run is told
+is the presenter's alone.
 _Avoid_: build pipeline, the builder service, prompt pipeline
 
 **Build narration**:
@@ -540,8 +521,8 @@ What prompt resolution hands to the Core Builder. It binds one **target
 expectation** — `absent` for a new capability, or the exact
 `{ capabilityId, incarnationId, version }` of the capability being evolved — plus the
 canonical fingerprint of the one active registry catalog it was classified against. Both
-are revalidated at the head of the lease (PLAN decision 28). Absence is checked over a
-semantic id only when the Resolver proposed one; an id the Builder authors is checked once
+are revalidated at the head of the lease. Absence is checked over a semantic id only
+when the Resolver proposed one; an id the Builder authors is checked once
 the spec names it, and a clash then fails the build rather than refusing it as stale.
 _Avoid_: build job, build intent, classification
 
@@ -554,9 +535,8 @@ build displaced, streaming the canonical committed View through `fragment` with
 no sidecar for the desk. Cancellation gives it back at once; a failure, a stale
 refusal and a measured no-op end the narration with their own authored line and
 the window **holds** there until the person dismisses the ending, which is when
-the collection is placed (PLAN decisions 23, 25). Presentation is not a Builder
-invariant: Module 10 may choose another presenter, which takes over everything at the
-terminal (see **Core Builder**; PLAN decisions 29, 31; ADR-0002).
+the collection is placed. Presentation is not a Builder invariant: the presenter,
+not the Builder, owns everything at the terminal (see **Core Builder**; ADR-0002).
 _Avoid_: renderer, view layer, the SSE handler
 
 **Ending**:
@@ -564,9 +544,9 @@ What a thing that took the window leaves on screen when it did not do what it se
 out to do. A build has one — the last line of its narration, with its own authored
 sentence for a failure, a stale refusal and a measured no-op, said in the line's own
 place under the drawing; the narration is already the live region and is already where
-the person is looking, so the desk has no notice surface of its own for them (PLAN
-decision 23). A deletion has one too, and
-it is a panel rather than a line, because the question it answers was a panel: one
+the person is looking, so the desk has no notice surface of its own for them. A
+deletion has one too, and it is a panel rather than a line, because the question it
+answers was a panel: one
 authored sentence in place of the question, for every way a deletion is turned
 down before the commit. An ending holds the window — whatever it displaced stays
 covered — until the person **dismisses** it. Dismissing an ending
@@ -586,9 +566,9 @@ ownership is held it writes one direct terminal admission row with
 `lifecycle_status=failed, outcome=stale` and every generation stage skipped. That
 row carries the expected incarnation for an evolution, and none at all for a new
 capability refused before one was assigned. Distinct from the measured no-op
-(`success/no_change`), which is a candidate that was authored and found identical
-(PLAN decisions 28, 31, 37). The catalog binding covers **every active row**, so
-any concurrent change to one refuses a queued build even when it touched an
+(`success/no_change`), which is a candidate that was authored and found identical.
+The catalog binding covers **every active row**, so any concurrent change to one
+refuses a queued build even when it touched an
 unrelated capability — deliberate, because the classification was made about a
 world that no longer exists, overlap and naming reasoning included. Two parts of a row
 are left out of the binding and refuse nothing: its logo lifecycle and its relations.
@@ -711,9 +691,9 @@ version. A relation made by the link step and one made by the Link control are t
 and nothing records which made it. Hiding its source or target field makes it dormant.
 Reactivating the field revives it with its link rows, and each linked record shows its
 target's current text again. An evolution that breaks one of its rules makes it dormant
-too, and one that mends the rule revives it, as ADR-0011 proposes; a save that changes a
+too, and one that mends the rule revives it; a save that changes a
 dormant field's text drops its link row. It is no `read_dependency` and never blocks a deletion
-(ADR-0011; M8 plan 3, 7 to 10).
+(ADR-0011).
 _Avoid_: foreign key, reference, association, link definition, schema link
 
 **Linked field**:
@@ -723,7 +703,7 @@ table, and the form draws it as a dropdown of the target's records, each shown b
 target field the relation names. Typing into it only searches those records, so it cannot
 be free-typed while it is linked. The open icon inside the field opens the record a save
 would post. Long text, lists of text and choice fields never link, as source or as
-target. Generated code sees the text it always held (ADR-0011; M8 plan 1, 13, 31).
+target. Generated code sees the text it always held (ADR-0011).
 _Avoid_: reference field, lookup field, relation field, foreign field; picker, which is a
 choice presentation
 
@@ -744,7 +724,7 @@ capability, record and field, pointing at a target capability, incarnation and r
 on the **file ledger**'s pattern. It lies outside every Handler's query scope by
 construction and is indexed both ways. Only the platform writes it: a save in the
 record's own transaction, the matching scan, a relation's revival, Unlink and deletion. A question reads it
-through a view that holds only active relations' rows (ADR-0011; M8 plan 11, 12, 47).
+through a view that holds only active relations' rows (ADR-0011).
 _Avoid_: join table, junction table, foreign-key table, hidden column
 
 **Link step**:
@@ -754,7 +734,7 @@ the spec points at which single-line text field of each; it never adds, removes 
 a field. On a build it runs beside the frozen tests and the Handlers; on an evolution,
 only for the text fields the change adds; and alone for a **linking-only request**.
 It fails open: a bad entry is dropped, and a failed step means no relations, never a
-failed build (ADR-0011; M8 plan 52 to 54).
+failed build (ADR-0011).
 _Avoid_: linker, relation writer, link pass, link agent
 
 **Related-capability flag**:
@@ -764,7 +744,7 @@ linking-only request links, would be about or would name. It judges what each
 capability keeps, not field names or phrasing. The spec writer and the link step see
 only the flagged capabilities, so the two cannot disagree; with none flagged the spec
 writer's prompt is unchanged and the link step does not run. A flag is no
-`read_dependency` (ADR-0011; M8 plan 48 to 51).
+`read_dependency` (ADR-0011).
 _Avoid_: relation detection, dependency flag; overlap, which is the separate
 extend-or-separate decision
 
@@ -779,8 +759,7 @@ with the matching scan, inside that lease and no other, and the prompt bar repor
 scan's counts. A field that already has a relation keeps it, and a request whose fields
 already pick from the flagged capabilities says so. A step that fails or finds nothing
 changes nothing, says so on the prompt bar and leaves the window as it was. The request
-leaves no metrics row
-(ADR-0011; M8 plan 27).
+leaves no metrics row (ADR-0011).
 _Avoid_: link request, relink, linking build
 
 **Matching scan**:
@@ -794,8 +773,7 @@ however it was composed, and writes a link row for each value that matches exact
 target record. Ambiguous and
 unmatched values keep their text and carry the broken-link mark, and no stored text
 changes. When the Link control or a linking-only request links a field, the prompt bar
-reports how many records were connected and how many need a pick (ADR-0011; M8 plan 22,
-25).
+reports how many records were connected and how many need a pick (ADR-0011).
 _Avoid_: backfill, migration, auto-link, fuzzy match
 
 **Linked-text refresh**:
@@ -805,9 +783,9 @@ against each linking capability's table. It, the clearing that deleting a target
 brings and a woken relation's revival are the only platform writes into another
 capability's records. A
 rewritten field that is itself a target passes the change on down the chain, each field
-once, as ADR-0011 proposes. The clearing empties each optional field linked to a deleted
-record; a required one keeps its text and shows the **broken-link mark** (M8 plan 28). A
-linking capability closed by its own deletion is skipped (ADR-0011; M8 plan 16).
+once. The clearing empties each optional field linked to a deleted
+record; a required one keeps its text and shows the **broken-link mark**. A
+linking capability closed by its own deletion is skipped (ADR-0011).
 _Avoid_: sync, cascade update, propagation, denormalization
 
 **List input mode**:
@@ -828,7 +806,7 @@ next immutable snapshot. It runs when the Action is called, receives parsed inpu
 and injected mutation/query/presentation interfaces, and returns the HTML the user
 sees. Canonical rows stay platform-internal: it receives only Action-safe active
 projections/opaque handles, and update/delete mutation authority is already bound
-to the router-validated target (ADR-0004, amended by ADR-0005/ADR-0006).
+to the router-validated target (ADR-0004, ADR-0006).
 _Avoid_: controller, service, route handler
 
 **Item renderer**:
@@ -861,7 +839,7 @@ capability's spec, with no model call and nothing generated, while live data arr
 through the capability's Handlers. The window is the only place a View lands, and
 teardown is tied to the content it replaces rather than to the window, so a swap from the
 collection to one record and back releases what each left running. A View never
-contains cached user data (ADR-0004, amended by ADR-0005; M5 plan 13).
+contains cached user data (ADR-0005).
 _Avoid_: template, page, screen
 
 **Gate**:
@@ -873,7 +851,7 @@ sets, four never declared at all. It runs against a scratch database
 through adapters that expose only synthetic data, and its structural/static
 checks reject known direct bypasses. Generated code still executes in-process, so
 the Gate protects against accidental output rather than containing hostile code
-(ADR-0003, ADR-0004, ADR-0005; M5 plan 10).
+(ADR-0003, ADR-0004, ADR-0005).
 _Avoid_: CI, checks, test suite. Unqualified "gate" always means this one — the
 per-incarnation read gate below is a different thing and is never shortened.
 
@@ -895,7 +873,7 @@ an optional field linked to the record through a relation that holds. Each is ta
 from the operation's own set and without waiting, so a linking capability closed by its own
 deletion is skipped, never waited on (ADR-0011). The
 record address takes the token of each capability linking to its record apart from its own too,
-so one closed by its own deletion leaves its section out (M8 plan 38). A search that
+so one closed by its own deletion leaves its section out. A search that
 follows links takes the token of each capability it reaches the same way and leaves out
 one whose token cannot be taken. Generated
 code never receives the token — it only observes cancellation as a thrown error.
@@ -904,14 +882,12 @@ _Avoid_: read lock, handle, reservation
 **Content region**:
 The element a view is rendered into, and the owner of everything that view starts.
 The window's content is the one that matters, and each capability's records region is
-one inside it; the shell's own content area was a content region until the window
-replaced it. The window creates its region and takes it away again, so putting the
+one inside it. The window creates its region and takes it away again, so putting the
 window away is the only way the window's region disappears; a records region goes
 whenever the window swaps the collection for one record. Marked `data-content-region` so the
 release scope can find it, and never confused with the **window**, which is the frame
-around it — one window holds many successive region contents (M5 plan 13).
-_Avoid_: content area (the shell's one instance, not the concept), container,
-mount point, slot
+around it — one window holds many successive region contents.
+_Avoid_: content area (names one instance, not the concept), container, mount point, slot
 
 **Release scope**:
 What a content region holds on behalf of its current content: every in-flight
@@ -920,7 +896,7 @@ the node that started it. It runs when the content is replaced or the region is
 removed — the same fact, an anchor leaving the document, so there is no third path.
 Aborting an in-flight request is what frees its **read token**, which makes the
 client-side release and the server-side release one act rather than two mechanisms
-that have to agree (M5 plan 13).
+that have to agree.
 _Avoid_: teardown hook, unmount, cleanup callback, destructor
 
 **Count sidecar**:
@@ -931,8 +907,8 @@ describes are always the same round trip, and there is nothing to poll or invali
 A comment rather than an element, because a sidecar that ever reached the DOM unstripped
 must not defeat the platform **empty state**, which shows while the records region holds no
 element, and a comment is not one. The platform writes it at position zero and only on a
-records answer, which is also what stops a generated Handler forging one (PLAN decision
-32). A `read` carries the plain count; a `search` carries both numbers — how many matched
+records answer, which is also what stops a generated Handler forging one. A `read`
+carries the plain count; a `search` carries both numbers — how many matched
 and how many there are — because a filtered number alone reads as the whole truth and is
 not, and a search that matched nothing must say so beside a total that is not zero rather
 than read as an **empty collection**. A search that follows links appends records after the
@@ -946,32 +922,31 @@ A capability that holds no records, and the platform **empty state** is what it 
 one holds records and is only filtered, and it has its own sentence. The two are different
 facts about different things, and the collection never states both at once.
 _Avoid_: zero state, blank slate, nothing found; no results, which is the drawn listbox's
-own sentence for a search that matches no option (8.1/03)
+own sentence for a search that matches no option
 
 **Nothing matched**:
 What a question's step did when its statement read a collection and no row of it answered.
 The platform decides it off the statement's plan and the values that came back, before an
 answer is written, and a question whose every step matched nothing ends in Aluna's own
-sentence rather than in one the model wrote (PLAN decision 17). Distinct from an **empty
+sentence rather than in one the model wrote. Distinct from an **empty
 collection**, which is a fact about the capability rather than about her search, and from
 a question whose statements never came back at all — that one searched nothing, and she
 says so. The distinction is the whole of it: she may say she could not find something, and
 never that this person does not have it. Distinct again from **nowhere for it**, which is a
 claim about the desk rather than about one search of it.
 _Avoid_: zero rows, empty result, you have none; no results, which is the drawn listbox's
-own sentence for a search that matches no option (8.1/03)
+own sentence for a search that matches no option
 
 **Nowhere for it**:
 What this desk has for a subject no collection on it covers, and the ending Aluna reaches by
 saying so and stopping: *"You don't have anywhere for hiking trips yet — you can ask me to
 make one."* She names the subject in the person's own words and offers no control, because an
-offer with a yes is a **proposal** and that surface is Module 10's (PLAN decision 20). Earned by
+offer with a yes is a proposal, and Aluna has no proposal surface (ADR-0008). Earned by
 looking rather than shrugging: a question that searched and matched **nothing matched** keeps
 that weaker, truer ending; a subject naming anything the desk already holds — a collection, what
 it calls one record, a column, one of a column's declared values — is refused; and so is a
 question naming nothing of its own asked in front of an open window, which is about the
-collection standing there (PLAN decision 30). The code calls it `no_home`, and the plan calls it
-the gap.
+collection standing there. The code calls it `no_home`, and ADR-0008 calls it the gap.
 _Avoid_: no such capability, no table for that, unsupported, not tracked, want me to build it?
 
 **Swap target**:
@@ -981,7 +956,7 @@ The server addresses one unconditionally and never asks whether it is there; the
 client guarantees it is, for as long as a swap can be in flight. A target that cannot
 be found is never absorbed: page assembly throws, and a `commit` or `fragment`
 arriving at a region that has gone raises, because a swap that lands nowhere is
-indistinguishable from a build that produced nothing (ADR-0002; M5 plan 16).
+indistinguishable from a build that produced nothing (ADR-0002).
 _Avoid_: swap destination, mount point, sink, drop zone
 
 **Deletion tombstone**:
@@ -996,7 +971,7 @@ The behavioral test suite a tier-on version is held to, generated per Action fro
 that Action's total inputs and the active fields' row vocabulary, and written before any Handler byte exists. Published
 as `tests/behavioral.json` and digested into the snapshot manifest. Because it
 precedes the code, repair answers to it and never the other way around: a failing
-assertion rewrites a Handler, never a test (PLAN decision 23, ADR-0006).
+assertion rewrites a Handler, never a test (ADR-0006).
 _Avoid_: the generated tests, the test file, expectations
 
 **Total inputs**:
@@ -1009,7 +984,7 @@ fields, or a dependency's schema. The set's canonical serialization is
 content-addressed as the Action's **test input digest**: an equal digest carries the
 Action's tests forward untouched unless they no longer fit the current fixtures, as
 when their rows name a field since hidden. That is what makes "a label rename
-regenerates nothing" a fact about a hash rather than a policy (PLAN decision 23).
+regenerates nothing" a fact about a hash rather than a policy.
 _Avoid_: test context, the prompt, generation inputs
 
 **Executable impact**:
@@ -1022,14 +997,13 @@ and asserts everything else through platform ports. When coverage or runtime
 failure attribution cannot be narrowed — nothing was stated, a change fact names
 no Action, or the shared item renderer moved alongside Handler bytes — the
 **full-suite fallback** runs the complete frozen suite rather than trusting an
-unsound skip (PLAN decisions 22–23, ADR-0006).
+unsound skip (ADR-0006).
 _Avoid_: affected tests, dirty tests, invalidation
 
 ## Product voice
 
-The voice every piece of UI copy speaks in, and the guide every coding agent
-follows when it writes copy. It lives in this durable doc, not in the issue that
-first needed it, because it steers all generated copy.
+The voice every piece of UI copy speaks in, and the guide that steers all of it,
+generated copy included.
 
 The voice is warm, encouraging, gently curious. It speaks in first person and
 addresses the user directly ("you"), plainspoken and concise, with a quiet thread
@@ -1042,9 +1016,9 @@ narration says while a build runs and the line a build that lands ends on. Every
 other sentence, including a build's endings when it does not land, keeps the voice
 above.
 
-The hard rule (ARCH §9.7): never expose internals. No "handler", "spec",
+The hard rule: never expose internals. No "handler", "spec",
 "migration", "compile", "build artifact", "schema", "endpoint", "CRUD". Ever.
-Narration, proposals, confirmations, and errors all speak in product voice.
+Narration, confirmations, and errors all speak in product voice.
 
 ### Do / Don't
 
@@ -1066,5 +1040,5 @@ Authored copy is written where the surface that speaks it is rendered:
 - the question asked before leaving unsaved changes: `public/desk/leaving-unsaved-changes.js`
 - a deletion's sentences: `src/lifecycle/deletion/`
 
-The placeholder is still the exemplar: **"What would you like
+The placeholder is the exemplar: **"What would you like
 to keep track of?"** — warm, jargon-free, on-thesis.

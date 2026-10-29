@@ -5,7 +5,7 @@
 // parse to the required export shape (the handlers to ADR-0004's `export default async function`
 // taking one context parameter; the item renderer to a synchronous
 // `export default function` taking one record), and they type-check in isolation against
-// the platform-authored contracts (the handler contract now carries ADR-0005 §2's
+// the platform-authored contracts (the handler contract carries ADR-0005 §2's
 // injected `present` adapter). A failure here stops the gate before the smoke and
 // behavioral rungs ever run.
 

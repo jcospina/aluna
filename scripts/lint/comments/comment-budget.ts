@@ -1,10 +1,9 @@
 #!/usr/bin/env bun
 // The comment budget: fifteen lines of prose above a file, five anywhere else.
 //
-// CLAUDE.md asks for concision and agents kept writing thirty-line essays anyway, so the rule
-// is a check rather than a sentence. It counts prose only — a bare `/**`, a `*/`, a blank `//`
-// and a pragma are all free — and everything from a block's first JSDoc tag onward documents
-// the API rather than the reasoning, so `@param` and `@typedef` cost nothing.
+// The rule is a check rather than a request. It counts prose only — a bare `/**`, a `*/`, a
+// blank `//` and a pragma are all free — and everything from a block's first JSDoc tag onward
+// documents the API rather than the reasoning, so `@param` and `@typedef` cost nothing.
 //
 // Before rewriting comments in bulk, know that the policy checks sweep source *text*, comments
 // included: `evolution-faults.policy.ts` and `question-loop.policy.ts` fail on names appearing

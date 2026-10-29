@@ -403,7 +403,7 @@ describe("the open capability is context, never a filter", () => {
   test("a capability the model named but the desk is not showing is no window at all", async () => {
     // The resolver's `target_capability` is its reading of the sentence, not a fact about the
     // screen. Naming it as the collection in front of the person would launder a guess into a
-    // sentence they have no way to check (ADR-0008's 2026-09-11 amendment took the check away).
+    // sentence they have no way to check (ADR-0008: no restatement exposes it).
     const scratch = desk();
     const deps = scratch.deps(reads(`SELECT count(*) AS added FROM ${NOTES_TABLE}`), answers());
 

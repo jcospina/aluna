@@ -75,7 +75,7 @@ function assertBuildEventOrder(events: SseEvent[]): void {
   // tile lands the moment resolution admits a new capability; the tile belongs to admission.
   expect(eventNames[0]).toBe("fragment");
   assertResolutionSpokeOnTheBar(events);
-  // It rides `fragment` rather than adding a fifth app-level event name (ADR-0002), and so does
+  // It rides `fragment` rather than adding a sixth app-level event name (ADR-0002), and so does
   // the window's name: admission knows this is new, so the window stops saying `Thinking…`.
   expect(eventNames[1]).toBe("fragment");
   expect(eventNames[2]).toBe("fragment");
@@ -125,6 +125,27 @@ function assertBuildEventOrder(events: SseEvent[]): void {
   // before the stream closes.
   expect(eventNames.indexOf("commit-preview")).toBeGreaterThan(eventNames.indexOf("gate-preview"));
   expect(eventNames.indexOf("commit-preview")).toBeLessThan(eventNames.indexOf("commit"));
+}
+
+function assertBehavioralTestsPreview(events: SseEvent[]): void {
+  const eventNames = events.map((event) => event.event);
+  const previews = events
+    .filter((event) => event.event === "behavioral-tests-preview")
+    .map(
+      (event) =>
+        JSON.parse(event.data) as {
+          status: string;
+          completedActions: number;
+          totalActions: number;
+        },
+    );
+  expect(previews[0]).toMatchObject({ status: "running", completedActions: 0 });
+  const last = previews.at(-1);
+  expect(last?.status).toBe("complete");
+  expect(last?.completedActions).toBe(last?.totalActions);
+  expect(eventNames.lastIndexOf("behavioral-tests-preview")).toBeLessThan(
+    eventNames.indexOf("units-preview"),
+  );
 }
 
 function assertSpecAndMigrationPreview(dataFor: (name: string) => string): void {
@@ -409,6 +430,7 @@ describe("POST /prompt → GET /build/:id/stream (builder stages, fake provider)
 
     assertBuildEventOrder(events);
     expectRulesWrittenBeforeMaking(toldFacts(events));
+    assertBehavioralTestsPreview(events);
     assertSpecAndMigrationPreview(dataFor);
     assertUnitsPreview(events);
     assertGatePreview(dataFor);

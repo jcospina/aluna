@@ -2,7 +2,7 @@
    Living demo — the surfaces driven by the build flow
    The product-voice build stream. The raw developer stage previews left with the
    rail that held them: they are code blocks in the developer panel's own window
-   now, styled with the panel in design/styles/components/desk.css.
+   now, styled with the panel in design/styles/components/devpanel.css.
    Replaced piece by piece as real capabilities land.
 
    The shell's own content area is gone: everything below now renders inside the

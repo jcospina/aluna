@@ -1,10 +1,9 @@
 // The material an answer is written from, and what the platform does to the words that come back.
 //
-// She used to say what she looked at before what she found: two fields the platform joined, which
-// made every answer one shape. The owner rejected that shape, so the answer is one field of hers
-// and the restatement is gone (2026-09-11, amending ADR-0008 rule 1). What the collections and the
-// bound values are for now is the sentence itself — *7 coffees from Colombia* needs the value she
-// searched on — so these fixtures still hold what reaches the prompt, and nothing else does.
+// The answer is one field of hers: she answers the question and stops, with no restatement of
+// where she looked (ADR-0008). The collections and the bound values are there for the sentence
+// itself — *7 coffees from Colombia* needs the value she searched on — so these fixtures hold what
+// reaches the prompt, and nothing else does.
 //
 // The mis-scoped fixture: a desk filed under food, cheese and vegetables, a question asking about
 // groceries, and a statement counting only the first of the three. What it proves is that the

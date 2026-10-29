@@ -70,7 +70,8 @@ export function logoShadeFamily(shade: LogoShade): LogoHueFamily {
 
 /**
  * The two draws are decorrelated: one remainder for both would lock every capability to the same
- * rung of each family. Pure and stable, so a retried attempt draws the same picture (ADR-0007).
+ * rung of each family. Pure and stable, so every attempt for one incarnation asks for the same
+ * shades (ADR-0007).
  */
 export function resolveLogoShades(
   ground: LogoHueFamily,
@@ -96,8 +97,8 @@ export type LogoStatus = z.infer<typeof logoStatusSchema>;
 export const LOGO_BIRTH_STATUS: LogoStatus = "absent";
 
 /**
- * Three claimed attempts and then never (ADR-0007); at ~$0.08 a call the expensive
- * failure is a retry loop. Enforced in the claim's own `WHERE`, or two loads both write three.
+ * Three claimed attempts and then never (ADR-0007): the cap ends a retry loop. Enforced in the
+ * claim's own `WHERE`, or two loads both write three.
  */
 export const LOGO_MAX_CLAIMED_ATTEMPTS = 3;
 

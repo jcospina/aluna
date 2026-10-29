@@ -3,9 +3,9 @@
 // The resolved trio the spine swaps providers by: the BYO API key, the
 // single globally configured model, and the endpoint (baseURL). All three come
 // from the environment, all deliberately tiny: there is no per-task routing and no
-// per-call model selection — "compare models = run the demo twice",
-// which a one-env swap of this trio makes literal. The baseURL is the registry key
-// the spine uses to pick the wire shape (Anthropic Messages vs OpenAI-compatible).
+// per-call model selection, so comparing two models is two runs with a different trio.
+// The spine picks the wire off the baseURL's host: Anthropic Messages, OpenAI, or a
+// generic OpenAI-compatible endpoint.
 //
 // The functions take `env` as a parameter (defaulting to the real process env) so
 // they are pure and testable without mutating global state.
@@ -13,20 +13,20 @@
 import { API_KEY_ENV_VAR, readSecret } from "../secrets.ts";
 
 /**
- * The configured global model, in exactly one place (ADR-0003 calls the choice empirical). The
+ * The configured global model, in exactly one place (ADR-0003). The
  * effort knob is tuned at the provider call, so this string is bare; swap `OMNI_BASE_URL` with it.
  */
 export const DEFAULT_MODEL = "gpt-5.6-terra";
 
 /**
  * The environment variable that overrides the default global model. A single
- * config change — no code edit — to run the demo against a different model.
+ * config change — no code edit — to run Aluna against a different model.
  */
 export const MODEL_ENV_VAR = "OMNI_MODEL";
 
 /**
  * The default endpoint, paired with the default model. The spine reads the wire shape off this URL
- * (ADR-0003, "a provider registry keyed by baseURL"), so a provider swap stays a config change.
+ * (ADR-0003), so a provider swap stays a config change.
  */
 export const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 

@@ -280,8 +280,8 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     },
   },
-  // The logo's second colour becomes a fourth authored key (ADR-0007, amended). Deriving it from
-  // the ground by a closed four-pair lookup capped a desk at four colours. No default, as 0012.
+  // The logo's second colour is a fourth authored key (ADR-0007): a lookup from the ground would
+  // cap a desk at four colours. No default, as 0012.
   {
     id: "0013_capability_logo_companion",
     up: (database) => {

@@ -1,407 +1,307 @@
-# 0007 — Capability logos: one accepted artwork per incarnation, immutable delivery & bounded retry (seeds Module 5)
+# 0007 — Capability logos: one accepted artwork per incarnation, immutable delivery and bounded retry
 
-Status: accepted
+Status: Accepted
 
-This ADR holds the art contract — the rules labelled L1 to L11 below and the
-request fields — and `src/lifecycle/logo/request.ts` holds the prompt block.
-[`design/logo.html`](../../design/logo.html) shows what they draw: the tile, the
-shades, the label and the placeholder. The ADR also closes what the art leaves to
-the platform — how a logo reaches the browser, what keeps it behaving as a
-picture and nothing else, where the bytes live, what happens when the call fails,
-and what the spec and the registry have to carry. All of that was settled in the
-desktop design session of 2026-08-20 and is recorded in
-`modules/05-the-desk/PLAN.md` (decisions 34–42).
+## Context
 
-**Status of the delivery half.** Four real generations exist, and so do the tile
-and label rules in `design/styles/components/logo-contract.css`. Epic 5.5 has
-since built the rest in order: the spec and registry fields (5.5/01), then the
-request, the provider client, the incarnation-root storage, the claimed attempt
-and the tile's load-triggered POST (5.5/02), then the logo route's immutable
-cache directive, its negotiated gzip and its fail-closed non-present answers
-(5.5/03), and finally the desk-load sweep: the attempt cap moved into the claim's
-own `WHERE`, recovery for an interrupted claim, its stale attempt temp, a
-`present` row whose file has gone, and the bounded observation a concurrent claim
-loser owes (5.5/04). The delivery half is complete.
+Every capability has a logo on the desk: a picture on a 64px tile with the
+capability's name written under it. The desk has no taskbar, so the logos are the
+only standing list of what exists, and a capability keeps its logo for life.
+[`design/logo.html`](../../design/logo.html) shows the tile, the colours, the label
+and the placeholder, and
+[`src/lifecycle/logo/request.ts`](../../src/lifecycle/logo/request.ts) holds the
+generation request and its prompt. The architecture places the logo in a build under
+[Going live without a redeploy](../architecture.md#45-going-live-without-a-redeploy)
+and at boot under [Recovery](../architecture.md#414-recovery).
+
+A hosted vector service draws the artwork. Each generation is a call to that
+outside service, and a call can fail, time out, return something malformed or still
+be running when the capability is deleted. What comes back is third-party SVG that
+the desk serves from its own origin. Anything the model chooses can differ between
+two logos on the same desk, and the tiles still have to read as a set.
+
+The model that authors a capability's spec collapses to one answer when asked for a
+colour. It names the same colour for a whole neighborhood of prompts, and each
+build is a stateless call that has never seen another capability, so no colour the
+spec names varies reliably from one capability to the next.
 
 ## Decision
 
-### Generation decides a subject and two colours, and nothing else
+### Generation decides a subject and two hues
 
-One accepted artwork per capability incarnation, with at most three claimed calls
-to a hosted service: Recraft `recraftv3_vector`, bearer token, roughly $0.08 a
-generation (L1). No local model enters the creation path.
-Free local rigs refine wording before credits are spent and never produce artwork
-that ships: a general-purpose raster model returned detailed illustration across
-eight constructions and ignored the palette every time. Recraft's vector substyle
-enforces the flatness in the keepers; words do not buy it.
+A subject and two colours is the smallest list that still gives a capability a face
+of its own.
 
-Model, `style`/`substyle` (`vector_illustration` / `bold_stroke`), `size`
-(1024×1024), `response_format` (`b64_json`) and `controls.no_text` are held
-constant for every capability, and no caller may vary them. What changes per
-capability is short: two colours in `controls.colors` with the capability's
-authored ground first and its authored companion second,
-`controls.background_color` pinned to that same first colour, a
-`random_seed` stored with the capability rather than derived from its name or its
-position, and the prompt block with its subject slot filled.
+Recraft's `recraftv3_vector` model draws every logo, with the
+`vector_illustration` style and the `bold_stroke` substyle. The substyle keeps the
+drawing flat, which prompt wording cannot do. No local model enters the creation
+path. Each capability incarnation gets one accepted artwork from at most three
+claimed calls.
 
-**Amended 2026-08-25: the companion is authored, not derived.** It was a closed
-symmetric lookup — leaf/shade, teal/sky, sun/ochre and clay/violet — chosen so the
-second colour would not be a fourth authored fact and the provider client would
-have no caller-variable colour choice. It kept both of those properties and cost
-something nobody priced while the contract was being judged against four
-hand-picked specimens: four pairs is the whole product. Two capabilities collide
-25% of the time, four collide 91% of the time, and five collide with certainty —
-a desk of five cannot avoid two tiles wearing the same two colours.
+The request holds everything constant except the subject phrase, the two shades and
+the seed, and `buildLogoGenerationRequest` has no parameter for anything else, so no
+caller can vary the rest.
 
-The model now names both. `ground` is the field the drawing sits on and
-`companion` is the colour the object is drawn in; each is one of the same eight
-anchors and they must differ, which the spec refines over the whole object because
-a per-field enum cannot see it. That is 56 ordered pairs against four. (Superseded
-in part by the second 2026-08-25 amendment below: the eight anchors became eight
-hue families, and the concrete shade is resolved from the seed.) The caller
-still chooses nothing — `logoRequestColors` is the one place the ordering is
-fixed — and aptness, which is the argument for letting the model name a colour at
-all, now reaches the second one too.
+The spec authors three logo birth facts. `subject` is a short phrase naming one
+concrete object. `ground` is the hue of the field the object sits on, and
+`companion` is the hue the object is drawn in. Each names one of eight hue families,
+such as `cyan_blue` or `mustard_ochre`. The two must differ, and the spec checks
+that over the whole object because a per-field enum cannot see the pair. The
+families are named as hues and never as things, because the model reads a colour
+named after a thing, such as sky, as a scene to put behind the object. Signal red is
+reserved for alerts and destructive confirmation and is not offered.
 
-The ground colour is named twice, once in the control and once in words inside
-the prompt, because naming it in only one of the two places does not work (L2).
-Both halves name the resolved *shade*, not the family the spec authored.
-Exactly two colours go in the list: passing the whole palette returns a busier
-drawing at seven times the file size and hands the model enough colour to build a
-horizon out of. Everything else a logo has is applied afterwards by code that does
-not vary (L3).
+The platform chooses the shade. Each family opens onto four shades, and
+`resolveLogoShades` picks one shade of each family from the incarnation's seed. No
+spec authors a shade, and no caller can steer the choice. The model choosing the
+hue keeps the colour apt, and the seed choosing the shade lets two capabilities
+that name the same hue come out in different colours. The seed is the only entropy
+in the colour path. A family's four shades differ in hue as well as lightness, so a
+capability that names `cyan_blue` can come out cyan, azure, aqua or cerulean.
 
-### The tile carries no line, and the name sits on the desk
+Shades are not design tokens and style nothing: the tile is a full-bleed SVG, and
+the shell adds no colour of its own. Every shade in the platform's table is
+saturated and light enough for daylight, with no near-blacks, pastels or grays, so
+validating a spec's colours is a check against eight names. A test measures the
+table, never model output.
+
+The seed is minted with the incarnation's first registry row and carried unchanged
+through every version. It is never derived from the capability's name or position,
+because a rename or a move would then re-describe artwork that is never redrawn.
+The same seed goes to the service as `random_seed`, and the registry keeps it as
+the record of what drew the artwork.
+
+The request names the ground twice, once as `controls.background_color` and once
+in words inside the prompt, because naming it in only one of the two places does
+not work. Both name the resolved shade, and the prompt names the companion's shade
+in words too. `controls.colors` carries exactly the two shades, ground first.
+Passing the whole palette returns a busier, heavier drawing and gives the model
+enough colour to build a horizon out of.
+
+The prompt wraps the subject phrase inside a sentence and never puts it at an edge
+of the prompt. `controls.no_text` alone does not stop the model lettering an
+unwrapped description into the drawing, and the wrapping closes that gap.
+
+The subject comes from what the capability is for, never from art direction in the
+person's words. The Intent Resolver refuses a prompt that tries to direct the logo,
+under the general rule that refuses "move this 2px right" or "add more padding":
+how a thing looks is Aluna's to decide, and a logo is presentation. No
+logo-specific validator exists, because this is not a logo-specific defense.
+
+Nothing else in the spec feeds the drawing. The label and the record noun may
+change as a capability evolves, and changing either never draws a logo.
+
+The prompt block may be edited freely and carries no version. A retry only ever
+runs for a capability that has no picture at all, so a changed prompt has nothing
+to be inconsistent with, and no rule asks two logos to look as if they came from
+the same period.
+
+Two capabilities may look alike. No capability's colour depends on another's, and
+nothing in the request spends effort keeping two apart. A shared ground colour, a
+repeated subject, a gradient the prompt asked against and a background blocked into
+panels are accepted outcomes, and no code looks for them.
+
+### The shell adds the rest, outside the file
 
 The artwork arrives as a full-bleed square, so its own colour field is the
-silhouette and the shell adds no edge. The shell clips a 10% corner, casts a hard
-3px/4px shadow in ink at 24%, and draws the tile at 64px (L4). That corner is the
-only rounded one on the surface and the only exception to the desk's drawn-line
-rule: a logo is a picture where everything else is a boundary, and it has
-to read as pressable at 20px. The clip is a percentage rather than a pixel value,
-so the shape holds at 256px and at 20px alike.
+silhouette and the shell draws no edge. The shell clips a 10% corner, casts a hard
+offset shadow in ink that is never blurred, and draws the tile at 64px, in pixels so
+the drawing never scales with the reader's text size. The tile is the only square on
+the surface with a rounded corner. It is also the only exception to the desk's
+drawn-line rule, because a logo is a picture where everything else is a boundary,
+and it has to read as pressable. A percentage keeps the corner's shape at any size.
 
-The capability's name is written straight onto the desk in Outfit 600 at 12px in
-`--surface`, carried by three straight-down shadow passes with no plate behind
-the type (L5). Those passes are the only blurred pixels in Aluna, and they are a
-shadow rather than an outline; the no-blur rule governs the shadow an object
-casts onto the desk, which a glyph does not do (L6). The name sits on a 96px
-measure, wraps to two lines, and truncates after that.
+The corner clip also removes a defect. A generation sometimes paints white wedges
+over its own corners, the largest measured at 8.5% of the side, and a 10% clip
+removes all of them. The clip lives only in CSS, so a server-side raster of a logo
+that skips the mask shows pale corners wherever a drawing has them.
 
-### A logo is attempted after v1 activation, kept as it arrived, and never remade
+The service returns filled paths only, although the prompt asks for a dark
+contour. The colour-against-colour look is therefore emergent, and no contour can be
+added to the artwork afterwards, which is one more reason the tile carries no line.
 
-The first request is a **post-build follow-up to a successful v1** (L10), made
-through the same atomic attempt claim used by desk-load recovery. Activation
-first commits seed plus `absent/0`; the presenter terminates and the long build
-lease releases before the follow-up may acquire its short coordinator claim. The
-Gate, publication and SQLite activation have already succeeded. A build that fails,
-goes stale, is cancelled, or never activates costs nothing, and a provider
-failure cannot roll back or relabel `success/activated`, and a crash in the gap is
-recovered by the next desk-load claim. The consequence is that
-a capability stands on the desk for a moment without a face: until the artwork
-lands, its tile is the same placeholder that marked the ground while the build
-was running. Evolution never enters this path.
+The capability's name is written straight onto the desk with no plate behind it,
+carried by a halo of three straight-down shadow passes. That halo is the only
+blurred type treatment in Aluna, and the prompt notice shares it because it too is
+read off the wallpaper. The no-blur rule governs the shadow an object casts onto the
+desk, and a glyph casts nothing. The name wraps to two lines and then truncates;
+`design/logo.html` holds its face, size, colour and measure.
 
-The handoff is concrete: only a registry-backed `absent` tile emits one
-load-triggered, same-origin POST to
-`/capability/:id/:incarnation_id/logo-attempt`. The response is no-store and
-replaces only that tile. It may queue behind the still-releasing build lease, so
-the build SSE can terminate before artwork exists; a paid mutation is never
-encoded as GET. The response is deliberately inert even if failure returns the
-row to `absent`; only a fresh desk render or activation arms a load trigger, so a
-tile swap cannot recursively spend all three attempts.
+### A logo is drawn once, after v1 activates, and kept as it arrived
 
-What comes back is stored as received — gradients and all, no stripping, no path
-rewriting, no cleanup, no retouching. Everything the shell adds sits outside the
-file (L8). The seed is stored beside the artwork as the record of what drew it.
-A logo is made once and never remade: rendering does not regenerate it, and
-evolving the capability does not touch it, so v2, v3 and vn keep the drawing v1
-was born with (L7). Deleting the capability and growing it again is the only
-route to a different logo. Two capabilities are allowed to look alike, and
-nothing in the request spends effort keeping them apart (L9). A logo that fails
-to arrive is retried, never faked (L11): no drawn stand-in is substituted,
-because a stand-in that persists becomes the capability's face by accident, and
-L7 would then forbid replacing it.
+The first attempt follows a successful v1. The Gate, publication and SQLite
+activation have all succeeded before anything is ordered, so a build that fails,
+goes stale, is cancelled or never activates draws nothing, and a provider failure
+cannot roll back or relabel the build's success. Evolution never enters this path.
 
-### Delivery: a route per capability, declared as a picture, marked immutable
+Activation commits the seed and a logo lifecycle of `absent` with no attempts
+spent, and the build's commit event puts the capability's tile on the desk as a
+placeholder. That arriving tile arms the first attempt. Its claim is a short
+platform write that waits for the build to release its lease, so the build stream
+can end before the artwork exists. Until the artwork lands, the capability stands
+on the same placeholder that marked its ground while the build ran.
 
-Each capability incarnation serves its artwork from
-`/capability/:id/:incarnation_id/logo.svg`, declared `image/svg+xml`, and marked
-**immutable**. Incarnation identity is required because permanent deletion may be
-followed by rebuilding the same semantic id with different artwork; an id-only
-immutable URL would let the browser reuse the deleted lifetime's bytes. L7 says
-the exact incarnation's bytes never change, so this URL is honest. The platform
-renders it into the desk and CSS uses it unchanged as `background-image`.
+What comes back is stored as received: gradients and all, with no stripping, path
+rewriting, cleanup or retouching. Before installing, the attempt checks that the
+response carries base64 that decodes to an SVG document, and then keeps the bytes
+untouched. Everything the shell adds sits outside the file.
 
-Only a matching active incarnation whose lifecycle is `present` receives that
-immutable response, and the tile emits the URL only then. Non-present,
-mismatched-incarnation and missing-file responses are `Cache-Control: no-store`,
-so a request made before artwork arrives cannot cache absence forever.
+A logo is made once and **never remade**. Rendering does not regenerate it, and
+evolving the capability does not touch it, so every later version keeps the drawing
+v1 was born with. Deleting the capability and building it again is the only route
+to a different logo. An evolved capability therefore keeps a subject drawn from what
+it used to hold: a reading journal that grows into a library catalog still shows
+the open book it was born with.
 
-### Safety: the response makes it picture-only, and the bytes stay untouched
+A logo that fails to arrive is retried, never faked. No drawn stand-in takes its
+place, because a stand-in that persists becomes the capability's face by accident,
+and the never-remade rule would then forbid replacing it.
 
-The response headers make the file **picture-only**. It renders as an image where
-the desk draws it, and it is inert if its address is opened directly as a
-document. Nothing is done to the stored bytes, which honours L8 literally —
-everything the shell adds sits outside the file.
+### Delivery: one immutable picture route per incarnation
 
-This is cheap insurance rather than an urgent hole. Reaching the exposure at all
-requires the vendor's own output to carry a program, and all four shipped
-specimens are provably free of one: zero `<script>`, zero event handlers, zero
-`javascript:` in any of them. The headers cost nothing, so the door gets shut
-anyway.
+Each incarnation serves its artwork from `/capability/:id/:incarnation_id/logo.svg`
+as `image/svg+xml`, marked immutable. The incarnation is in the address because a
+deleted id may be built again with different artwork, and an immutable address
+keyed by the id alone would let the browser reuse the deleted lifetime's bytes. The
+never-remade rule makes the directive honest, since one incarnation's bytes never
+change. The desk uses the address unchanged as the tile's `background-image`.
 
-### Size and provenance: the manifest is kept, the response is compressed
+Only a matching active incarnation whose lifecycle is `present` receives the
+immutable answer, and the tile carries the address only then. Every other answer is
+`no-store`, whether the row is in another state, the incarnation does not match or
+the file is missing, so a request made before the artwork arrives cannot cache its
+absence.
 
-Measured on the four specimens under `design/assets/logos/`:
+The response headers make the file picture-only: it renders as an image where the
+desk draws it and is inert when its address is opened as a document, while the
+stored bytes stay untouched.
 
-| File | Raw | Provenance block | Gzipped | Scripts |
-|---|---|---|---|---|
-| reading-journal | 24 kB | 4,354 B | 11 kB | 0 |
-| coffee-tasting-log | 44 kB | 4,354 B | 17 kB | 0 |
-| telescope-observations | 51 kB | 4,354 B | 17 kB | 0 |
-| recipes | 111 kB | 4,354 B | 32 kB | 0 |
+The C2PA provenance block is kept, and the response is gzip-compressed for any
+client that accepts it. The block is a small fixed size against the drawing's paths,
+so stripping it saves little and destroys the record of where the drawing came from.
+Gzip saves more and changes nothing on disk.
 
-The C2PA manifest is a flat 4,354 bytes in every file, so it is not the bulk:
-`recipes.svg` is 220 vector paths at 111 kB. Stripping provenance would recover
-4.4 kB and destroy the record of where the drawing came from. Gzip recovers
-54–71% — the saving grows with the drawing, so the 111 kB specimen gains most —
-and changes nothing on disk. The manifest is kept and the response is
-compressed.
-
-### Storage: a stable file beside immutable version snapshots
+### Storage: a file at the incarnation root
 
 The artwork is `capabilities/<id>/<incarnation_id>/logo.svg`, beside the immutable
-`vN/` directories rather than inside the active `artifacts_path` snapshot, and
-not a registry column. A retry can therefore install it after activation without
-mutating a published snapshot or falsifying `snapshot.json`'s exact inventory.
-The incarnation tree is already removed when the capability is deleted, so the
-artwork's lifetime ties to the capability's with no second cleanup path. A
-registry read also stops carrying a picture nobody asked for.
+`v<n>/` directories, outside the active version's snapshot and outside the registry.
+A retry can therefore install it after activation without mutating a published
+snapshot or falsifying the snapshot's recorded inventory. Deletion already removes
+the incarnation tree, so the artwork's lifetime follows the capability's with no
+second cleanup path, and a registry read never carries a picture nobody asked for.
+Installation never overwrites: a second installer fails, and the first drawing
+survives.
 
-### Retry: every faceless capability, once a load, three attempts and then never
+### Retry: three claimed attempts, then never
 
-The post-build v1 follow-up and desk load share one atomic claim path. A load offers
-one incarnation-bound tile POST to every capability that has no artwork. Durable status includes
-`generating`, and the attempt count increments when a claim is won, so concurrent
-loads cannot spend the same attempt. A capability stops for good after **three
-failed claimed attempts**, and its placeholder becomes permanent. Recovery
-reconciles an interrupted claim from the no-overwrite final file and the already
-consumed count, removing any incarnation/attempt-scoped temp left by the crashed
-claim; it never decrements, deletes an accepted final file or spends a fourth
-call.
-A `present` row whose accepted file is later missing reconciles to `abandoned`
-and the permanent placeholder. It is not regenerated: L7's once-accepted rule
-still applies after loss.
-Concurrent claim losers wait only for a bounded observation of the winner and
-return the current tile; they do not call the provider, block initial desk render
-or create a general polling/scheduler mechanism. What a loser waits on is the
-winner's own completion, held in process, so the observation costs one promise
-and no interval; it ends early when the reader who asked has gone.
+The registry keeps a durable logo lifecycle for each incarnation: a status of
+`absent`, `generating`, `present` or `abandoned`, and the count of attempts spent.
+An attempt is spent when its claim is won, before the service answers, and the
+claim's own conditional write enforces the cap, so concurrent loads cannot spend the
+same attempt. Every failure consumes its claimed attempt, whether a timeout, a
+cancellation, malformed output or a failed install, and every attempt removes its
+own staging file when it ends. After three failed attempts the lifecycle is
+`abandoned` and the placeholder is permanent.
 
-**A running claim and a crashed one leave the same durable row**, and recovery
-has to tell them apart before it touches either. The platform keeps the attempts
-running in *this process* — from before each claim is asked for until after it is
-finalized — and reconciles only rows nothing here is holding. That is exact where
-a timestamp would be a guess about how slow a service is allowed to be, and it is
-the same set the bounded observation is read from. A transition is additionally
-revalidated inside its own write against the status and count it was decided
-from, so a claim taken while recovery queued cannot be released out from under a
-paid call.
+A missing provider key or a closing read gate is checked before the claim, so
+neither spends an attempt. The desk sends its armed attempts one at a time, because
+a burst draws refusals that each spend one.
 
-Recovery runs **before a desk is drawn** — on every full-page desk render, `/`
-and a capability opened by URL alike, and once at boot — because only an `absent`
-tile arms an attempt, so a row a crash stranded in `generating` would otherwise
-never be offered another. It is therefore a registry write on a GET, deliberately:
-it is reconciliation of state the platform already knows to be untrue, it is
-idempotent, and it is never a paid call. It waits only a bounded moment for
+The three-attempt cap is the only limit on retries. A cap ends a retry loop, where a
+time budget only bounds how long it runs.
+
+An attempt is a `POST` to `/capability/:id/:incarnation_id/logo-attempt` that
+answers only an htmx request that is not cross-site. A navigation, a plain form or
+another site's page gets nothing. Each attempt spends one of the three, so it is
+never a `GET`, because a browser, a prefetcher or a proxy may make a `GET` on its
+own. The response is `no-store` and replaces only that tile. It comes back inert
+even when a failure returns the row to `absent`. Only a fresh desk render or a newly
+activated tile arms an attempt, so one swap cannot spend all three attempts in a
+loop.
+
+The desk-load sweep is the whole retry mechanism. Every full-page render of a desk
+address arms one load-triggered attempt on every `absent` tile, and no scheduler
+exists, because the desk load is the one moment the platform reliably gets. A load
+that loses a claim makes a **bounded observation**: it waits on the winner's own
+in-process completion, for no longer than the winner itself can run, and answers
+with the tile the winner produced. It calls no provider, never holds up the desk's
+first render and polls nothing, and it stops waiting when the reader who asked has
+gone.
+
+Logo recovery runs before a desk is drawn, on every full-page desk render and once
+at boot. Only an `absent` tile arms an attempt, so a row that a crash left in
+`generating` would otherwise never be offered another. Recovery is a registry write
+on a `GET`: it corrects state the platform already knows to be untrue, it is
+idempotent, and it never calls the service. It waits only a bounded moment for
 mutation ownership and leaves the rest to the next load, so a build holding the
-platform's lease cannot make the sweep the thing that blocks the desk.
+platform's lease cannot make recovery the thing that blocks the desk.
 
-Claim and finalization are short coordinator writes bound to the exact active
-incarnation. Between them, provider I/O and atomic no-overwrite installation hold
-that incarnation's read token and observe its cancellation signal. The token is
-released before finalization reacquires mutation ownership, preserving the rule
-that no queued acquisition is awaited inside a read-token scope. A deletion race
-therefore cancels the call or removes an already-installed file with the
-incarnation tree; a late response cannot resurrect or mark a tombstone present.
-Each attempt is time-bounded and validates the provider envelope, base64 decoding
-and SVG document root before no-overwrite installation. Accepted bytes are still
-stored exactly as received. Timeout, cancellation, malformed output or install
-failure consumes the claimed attempt and removes its temporary file in `finally`;
-recovery never has to guess from an untracked staging artifact.
-That is self-healing with no scheduler to build, since the desk load is the one
-moment the platform reliably gets.
+Recovery settles an interrupted claim from the no-overwrite final file and the count
+already spent, and removes any staging file the crashed claim left. It never
+decrements a count, never deletes an accepted file and never spends a fourth call.
+A `present` row whose file has gone becomes `abandoned` and keeps the permanent
+placeholder. It is not redrawn, because the never-remade rule still holds after a
+loss.
 
-The guard that matters is the attempt cap rather than a spend ceiling. At ~$0.08
-a call, the expensive failure mode is a retry loop, not a few extra attempts, and
-an attempt cap kills the loop where a budget only bounds how long it runs.
+A running claim and a crashed one leave the same durable row, and recovery has to
+tell them apart before it touches either. The platform tracks the attempts running
+in this process, from before each claim is asked for until after it is finalized,
+and recovery settles only rows that nothing here is holding. That set is exact where
+a timestamp would guess how slow the service is allowed to be, and the bounded
+observation reads the same set. Each transition also revalidates, inside its own
+write, the status and count it was decided from, so a claim taken while recovery
+waited cannot be released from under a running call.
 
-### The colours: the model names two of the eight hue families, the seed names the shade
+Claim and finalization are short writes bound to the exact active incarnation.
+Between them, the provider call and the installation hold that incarnation's read
+token and observe its cancellation, and each attempt has a time bound. A deletion
+that races an attempt therefore cancels the call or removes the installed file with
+the incarnation tree, and a late response cannot mark a deleted capability present.
+The token is released before finalization asks for mutation ownership again,
+because a queued acquisition awaited inside a read-token scope deadlocks against a
+deletion.
 
-The model names a `ground` and a `companion`, each one of `grass_green`,
-`forest_green`, `teal_green`, `cyan_blue`, `golden_yellow`, `mustard_ochre`,
-`coral_orange` or `amethyst_violet`, and the two must differ. Each family opens
-onto four shades; **which of the four a capability wears is resolved from its
-incarnation seed**, not authored. Signal red is reserved for alerts and
-destructive confirmation, and is not offered.
+## Considered options
 
-This **deletes the chroma-and-lightness validator entirely**. The properties that
-validator checked — saturated, light enough for daylight, no near-blacks, no
-pastels, no greys — hold for all thirty-two shades by construction, because the
-ladder was built on exactly those grounds. Validation stays a word-list check
-against eight names. L9 already permits two capabilities to look alike, so no
-uniqueness rule is owed either. The model choosing the hue is what keeps the
-colour apt; the seed choosing the shade is what keeps two capabilities from
-wearing the same colour when the model picks the same hue twice.
+**A general-purpose local model.** It returns detailed illustration and ignores the
+palette.
 
-**Amended 2026-08-25 (second): the vocabulary is hues, and the shade is the
-platform's.** The eight anchors were the palette's own token names, and the first
-four live capabilities came out `sky`, `leaf`, `sky`, `sky`. The prompt was not
-the cause in the way it first appeared: an earlier fix had already balanced its
-worked examples so no anchor was named more often than another, and five probe
-builds against that balanced prompt still answered with the same *companion* three
-times out of five. A spec-authoring model collapses to a mode — asked for a colour
-for a notebook it gives the same colour every time — and every build is a
-stateless call that has never seen another capability, so nothing upstream of the
-seed can produce variety. 56 reachable pairs were never the constraint; the model
-simply never reached for them.
+**Recraft's v4 vector models.** They accept no style, substyle or controls, so neither
+the flatness nor the two colours could be held in the request.
 
-Two things changed. The vocabulary became hue words, because two of the eight
-token names — `sky` and `shade` — named things rather than colours, and `ground`
-is defined to the model as what sits *behind* the object: one of the four live
-capabilities was a house, and it went on sky. And the platform took the shade,
-which is the only entropy in the path. The ladder's rungs differ in hue nuance as
-well as lightness, so a capability that names `cyan_blue` may come out cyan,
-azure, aqua or cerulean and two that both name it are still two different tiles.
-That is 896 cross-family ordered pairs against 56 — but the number is not the
-point, because the number was never what was binding.
+**A companion derived from the ground by a fixed lookup.** It would keep the second
+colour out of the spec, but it allows only one pair per ground and never chooses the
+second colour for what the capability is.
 
-This does **not** make the desk aware of itself. No capability's colour depends on
-any other's, no uniqueness rule is added, and L9 stands: two capabilities may name
-the same hue, and after the change three of five probe builds still did. What the
-ladder buys is that they no longer come out the same colour.
+**A spec that names the exact shade.** It would hand the variety to the model that
+collapses to one answer, and tiles would keep coming out the same colour.
 
-The eight former anchors survive in the ladder at their exact former bytes, so the
-change widened the vocabulary rather than restating it. The shades are **not**
-design tokens and no longer pretend to be: `ground` and `companion` style nothing
-— the tile is a full-bleed SVG and the shell adds no colour of its own (L8) — so
-the cross-check against `design/styles/tokens.css` is replaced by a direct
-measurement that every shade sits in the daylight band. That measurement is over
-the platform's own literal table, not over model output, so the deleted validator
-stays deleted.
+**Sanitizing the SVG on arrival.** It would rewrite the drawing, and the picture-only
+headers already make the file inert without touching it.
 
-### Art direction is not the user's to steer
-
-The subject phrase is derived from **intent**, never from user-authored art
-direction. A prompt that tries to direct the logo is refused by the intent
-classifier, under the same general rule that refuses "move this 2px right" or
-"add more padding". Users do not steer presentation, and a logo is presentation.
-No logo-specific validator is added, because this is not a logo-specific defence.
-
-### Determinism owes nothing
-
-L7 dissolves the worry that editing the prompt block would break a retry's
-determinism. A retry is always for a capability that has **no picture at all**,
-so there is nothing for the result to be inconsistent with, and nothing requires
-two capabilities to look like they came from the same era — L9 says the opposite.
-The prompt block may be edited freely and owes no versioning.
-
-### What the spec and the registry gain
-
-- **Spec, model-generated:** `subject` (a short phrase describing one object),
-  `ground` and `companion` (each one of the eight hue-family names, and they must
-  differ), and `noun` (for the desk's empty-state copy). Subject, ground and
-  companion are immutable birth facts; evolution must preserve them exactly. Noun may evolve as a platform-View fact and never
-  selects logo regeneration.
-- **Registry, runtime:** the per-incarnation `seed`, and a durable **logo
-  lifecycle** `{ status, attempts }` the desk-load sweep can claim — status is
-  absent, generating, present, or abandoned.
-- The artwork itself is a file, not a column.
-
-## Context / why
-
-L7 does more work here than any other decision. A file that is never remade can
-carry the strongest cache directive there is without the risk that normally comes
-with it. A retry that can only ever run against a capability with no picture
-cannot produce an inconsistency, so the prompt block needs no version. And under
-that same rule a stand-in would become permanent the moment it was drawn, which
-is why L11 refuses to draw one.
-
-Keeping the list of what generation decides short is the whole reason the contract
-exists. Anything the model chooses can differ between two logos standing on the
-same desk, and four tiles have to read as a set. A subject and two colours is
-the smallest list that still gives a capability a face of its own.
-
-The manifest question was decided by measuring rather than by guessing. The
-provenance block reads as the obvious thing to cut, until it turns out to be a
-flat 4,354 bytes against a file whose 111 kB is 220 vector paths. Gzip takes
-between 13 kB and 79 kB off those same four files, so compression was never
-really competing with stripping.
-
-Storage went to the artifacts directory because a registry column would create a
-second lifetime to keep in step with the capability's, and deletion already
-removes that directory. The eight-anchor list replaced a validator for the same
-kind of reason: the validator existed to enforce properties the anchor set
-already guarantees, so it was checking work that could not fail.
-
-Refusing art direction at the intent classifier rather than at the logo keeps one
-rule instead of two. "Make the logo blue" and "move this 2px right" are the same
-request — the user reaching for presentation — and the classifier already refuses
-that class.
+**A registry column for the artwork.** It would be a second lifetime to keep in step
+with the capability's.
 
 ## Consequences
 
-- The desk-load sweep needs a queryable and atomically claimable logo lifecycle,
-  which is why the registry gains status plus attempts rather than inferring
-  emptiness from a missing file.
-- The incarnation-keyed logo route is platform code adjacent to, not an invented
-  generated Action under, the fixed `/capability/:id/:action` convention. It
-  acquires the exact incarnation's read token while serving so deletion cannot
-  race the file.
-- Evolution never reads or writes the logo. The Diff Engine gains no logo fact,
-  and no change to a capability's spec can select regeneration of its artwork.
-- Deletion needs no logo step. The tombstone's existing artifact cleanup carries
-  the file away with everything else the capability owned (ADR-0006).
-- The logo is also the doorway for **Rename** and **Delete**. A short context
-  menu opens on it by right-click, press-and-hold, or the keyboard menu key,
-  which the tile can carry because it is already a real `<button>`. Rename
-  uses an inline Save/Cancel form anchored to that label and changes the effective
-  label and nothing else — not its authored snapshot, id,
-  address, version, or artwork. A platform-owned display-label override keeps
-  immutable specs truthful and survives evolution, so nothing in this contract
-  moves when a capability is renamed. The flow behind that menu belongs to
-  ADR-0006, restated in window terms by its 2026-08-20 amendment.
-- The shell-drawn **landform tile** — a sky band, two coloured horizons, and a
-  black-and-white subject fitted to a 32px box — is superseded and gone from the
-  tree, along with its renderer, geometry and drawing modules, its frozen subject
-  set, and the subject prompt that fed it. Its `--sky-band` token went with it;
-  the one piece of page furniture that borrowed the colour now takes the title
-  bar's palest pane instead.
-- A shared ground colour, a repeated subject, a gradient the prompt asked
-  against, and a background blocked into panels are all **accepted outcomes**
-  rather than defects with fixes pending. No code goes looking for any of them.
+The registry carries the logo lifecycle as a status and an attempt count, because
+the desk-load sweep needs state it can query and claim atomically, and a missing
+file offers neither.
 
-## Hazards this contract carries forward
+The two logo routes are platform code beside the fixed `/capability/:id/:action`
+convention and never a generated Action. Their four segments mean no Action can
+collide with them. Serving holds the exact incarnation's read token, so deletion
+cannot race the file.
 
-The prompt **must wrap the injected subject phrase**. `controls.no_text: true`
-does not stop the model lettering an unwrapped description into the drawing; the
-control is recorded as insufficient on its own, and the wrapping is what closes
-the gap. The contour the block asks for, meanwhile, never arrives: the service
-returns filled paths and nothing else, without one `stroke=` attribute across the
-four specimens. So the colour-against-colour look the whole surface is designed
-around is emergent rather than specified, and no contour can be added to the
-artwork afterwards, which is one reason the tile carries no line.
+Evolution never reads or writes the logo. The Diff Engine has no logo fact,
+candidate validation rejects a candidate that moves `subject`, `ground` or
+`companion`, and no change to a spec can select regeneration of its artwork.
 
-The **10% corner clip is load-bearing rather than cosmetic**. Where a generation
-paints white wedges over its own square, the clip is what removes them, and two
-of the four shipped specimens carry such a corner (the largest wedge measured 175
-of 2048, or 8.5%, against a clip of 10%). The clip lives only in CSS, so any
-server-side raster of a logo that skips the mask ships a pale corner artifact on
-half the corpus.
+Deletion needs no logo step. Removing the incarnation tree takes the file with
+everything else the capability owned
+([ADR-0006](0006-capability-evolution-versioning-and-diff-contract.md)).
 
-An evolved capability keeps a subject phrase drawn from what it used to hold. One
-that starts as a reading journal and grows into a library catalogue still shows
-the open book it was born with, because L7 forbids redrawing and the phrase is
-never re-derived. That is the price of a permanent identity, and the only route
-to a different picture stays delete and recreate.
+The logo is also the doorway to Rename and Delete, through its context menu. Rename
+changes only the platform-owned display-label override, so the authored snapshot,
+id, address, version and artwork stay as they were, and nothing in this contract
+moves. The flow behind the menu belongs to ADR-0006.
