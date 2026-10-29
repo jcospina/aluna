@@ -176,16 +176,41 @@ const LINK_COLUMNS = {
  * Where the subject would live, worked out before anything is ruled out. The
  * resolver's own version of this check is one prompt line away (`src/pipeline/intent/resolver.ts`,
  * "Compare the prompt against every capability's id, label, prompt_context, and … field catalog").
+ * The rules on *have* and on more than one collection are there because live answers took *do I
+ * have* to mean one collection, and stopped at a read there that held none or only some of them.
  */
 export const QUESTION_WHERE_IT_LIVES_HEADING = "Where this would live:";
 export const QUESTION_WHERE_IT_LIVES_RULES = Object.freeze([
   "- Settle this before you say there is nowhere for what they asked about.",
   "- Weigh it against every collection below: the name, what the collection calls one record,",
   "  and each of the columns.",
+  "- Have says only that it is saved here, so it fits every collection that holds the thing they",
+  "  asked about, as its records or as a value inside them. Something they did is held by records",
+  "  of doing it, or by a column on the thing that records it. Where a column records whether they",
+  "  still have or own one, match their words against its values.",
   "- Read what a collection holds rather than searching for the thing itself. It is often a",
   "  value inside one rather than a collection of its own, and a column you have not read is a",
   "  home you have not ruled out — but a search of every collection for a thing none of them",
   "  holds is how a real gap ends up reported as a search that found nothing.",
+  "- More than one collection can hold the things they asked about: each whose records are those",
+  "  things, in the sense they asked. A column of notes or other free text that might mention one",
+  "  does not make a collection hold it. A record of one time they did something with a thing is",
+  "  an entry about it, whatever the collection calls one record. Where a collection of the things",
+  "  themselves is listed beside one of copies of them or entries about them, a count or total of",
+  "  the things is the first's alone. For a list, read the others too, for what the question asks",
+  "  about copies or entries and for any of the things the first does not hold.",
+  "- Answer only once a statement of yours has selected from each of those collections, unless the",
+  "  question is about one collection's records, as below, or no reads are left. Joining one is not",
+  "  reading it: it gives only the rows that meet yours, and rows from one of those collections, or",
+  "  the lack of any, say nothing about another.",
+  "- Count and total each collection's records apart: in a read of its own, or in one read grouped",
+  "  by collection over a UNION ALL of them. Rank each in a read of its own. A collection a read",
+  "  joins only narrows which are counted. Never add two collections' records into one figure.",
+  "- A question about one collection's records is answered out of that one: one that names it or",
+  "  what only it calls a record, one that points with loose words at the collection standing in",
+  "  their window, and one asked in front of that window that names nothing of its own and does",
+  "  not ask across everything they keep. Follow the links to and from it for what they hold, and",
+  "  read no other collection for more records.",
 ]);
 
 /**

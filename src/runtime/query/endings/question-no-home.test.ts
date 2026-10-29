@@ -3,12 +3,12 @@
 //
 // Four claims decay quietly and each is pinned here. The sentence informs and offers nothing, so it
 // carries no control and the resolver's confirmation flag stays shut — the surface that would
-// accept an offer is the implicit loop's. The subject is words this person wrote, because free text
-// of the model's inside a sentence the platform vouches for can make that sentence claim something
-// about the person — a bound value once did. The claim is about their desk, so it is refused when
-// it names something they already have, and a question that searched and matched nothing keeps its
-// own weaker, truer ending. And the whole of it is earned by looking: the turn refuses a gap until
-// a statement has opened a collection.
+// accept an offer is the implicit loop's, and a sentence of hers that asks something gives way to
+// the platform's. Hers is written from the question alone, so it has no row to report and no
+// collection to name. The claim is about their desk, so it is refused when the subject names
+// something they already have, and a question that searched and matched nothing keeps its own
+// weaker, truer ending. And the whole of it is earned by looking: the turn refuses a gap until a
+// statement has opened a collection.
 
 import { beforeEach, describe, expect, test } from "bun:test";
 import { zodSchema } from "ai";
@@ -18,11 +18,10 @@ import { A_DATA_QUERY_CLASSIFICATION } from "../../../pipeline/intent/intent.tes
 import type { GenerateResult, Provider } from "../../../platform/provider/index.ts";
 import { type ActiveRegistryCatalog, readActiveRegistryCatalog } from "../../../registry/index.ts";
 import {
-  QUESTION_NO_HOME_FOR_THAT,
+  QUESTION_NO_HOME_UNNAMED,
   QUESTION_NOTHING_FOUND,
   QUESTION_NOTHING_FOUND_ANYWHERE,
   questionEndingNarration,
-  questionNoHomeSentence,
 } from "../loop/question-narration.ts";
 import {
   A_QUESTION_WITH_NO_HOME,
@@ -38,6 +37,7 @@ import {
   reads,
   registeredSpecs,
   SCRIPTED_ANSWER,
+  SCRIPTED_GAP_SENTENCE,
   SCRIPTED_SUBJECT,
   scriptedProvider,
   scriptedProviderNaming,
@@ -54,7 +54,7 @@ import {
   questionNoHomeSchema,
   runQuestionNoHome,
 } from "./question-no-home.ts";
-import { questionSubjectInTheirWords } from "./question-their-words.ts";
+import { questionSubjectIsTheirs } from "./question-their-words.ts";
 
 let platforms: ScratchPlatforms;
 
@@ -71,6 +71,18 @@ function catalogued(): ActiveRegistryCatalog {
  * will hear a gap at all. */
 function looksAtNotes() {
   return reads(`SELECT text FROM ${NOTES_TABLE}`, [], "naming");
+}
+
+/** What the gap says for one generation, asked in front of nothing on this desk. */
+async function gapSaid(named: unknown): Promise<string | null> {
+  return await runQuestionNoHome(
+    {
+      provider: namingProvider(named),
+      signal: new AbortController().signal,
+      catalog: catalogued(),
+    },
+    { question: A_QUESTION_WITH_NO_HOME, openCapability: null },
+  );
 }
 
 /** A provider whose naming call comes back as whatever this test chose, unvalidated. */
@@ -105,135 +117,67 @@ beforeEach(() => {
 });
 
 describe("the sentence", () => {
-  test("names the gap in this person's own words and says they can ask for one", () => {
-    expect(
-      questionNoHomeSentence(
-        questionSubjectInTheirWords(A_QUESTION_WITH_NO_HOME, SCRIPTED_SUBJECT),
-      ),
-    ).toBe("You don't have anywhere for hiking trips yet — you can ask me to make one.");
+  test("is hers once the platform has settled that there is a gap", async () => {
+    expect(await gapSaid({ subject: SCRIPTED_SUBJECT, sentence: SCRIPTED_GAP_SENTENCE })).toBe(
+      SCRIPTED_GAP_SENTENCE,
+    );
   });
 
-  test("states rather than asks, so there is nothing to answer yes to", () => {
-    for (const sentence of [QUESTION_NO_HOME_FOR_THAT, questionNoHomeSentence(SCRIPTED_SUBJECT)]) {
-      expect(sentence.endsWith(".")).toBe(true);
-      expect(sentence).not.toContain("?");
+  test("is the platform's when hers asks something, in any script: there is nothing to say yes to", async () => {
+    for (const sentence of ["Shall I start keeping track of them?", "始めましょうか？"]) {
+      const said = await gapSaid({ subject: SCRIPTED_SUBJECT, sentence });
+      expect({ sentence, said }).toEqual({ sentence, said: QUESTION_NO_HOME_UNNAMED });
     }
   });
 
-  test("is the platform's frame, and the subject is the whole of what it takes from outside", () => {
-    // What keeps a capability, a table and a column out of it: every word but the subject is
-    // written in this repository, and the subject is words this person typed.
-    expect(questionNoHomeSentence("a subject")).toBe(
-      QUESTION_NO_HOME_FOR_THAT.replace("for that", "for a subject"),
-    );
+  test("and when hers says nothing, or runs on far past one thing she says", async () => {
+    for (const sentence of ["  ", "…", "\u200b", SCRIPTED_GAP_SENTENCE.repeat(40)]) {
+      const said = await gapSaid({ subject: SCRIPTED_SUBJECT, sentence });
+      expect({ sentence, said }).toEqual({ sentence, said: QUESTION_NO_HOME_UNNAMED });
+    }
   });
 
-  test("names nothing at all when there were no words of theirs to put in it", () => {
-    expect(questionNoHomeSentence(null)).toBe(QUESTION_NO_HOME_FOR_THAT);
-  });
-
-  test("carries no markup, whatever the person typed around their own words", () => {
-    // Two ways markup can stand between the words she was handed. One carries words of its own,
-    // which breaks the run, and the sentence names nothing rather than reaching across it. One
-    // carries none, which does not break it — and still no character but theirs crosses.
-    const broken = 'do I track hiking "><script>alert(1)</script> trips?';
-    const between = 'do I track hiking "><" trips?';
-    expect(questionNoHomeSentence(questionSubjectInTheirWords(broken, SCRIPTED_SUBJECT))).toBe(
-      QUESTION_NO_HOME_FOR_THAT,
-    );
-    expect(questionNoHomeSentence(questionSubjectInTheirWords(between, SCRIPTED_SUBJECT))).toBe(
-      "You don't have anywhere for hiking trips yet — you can ask me to make one.",
+  test("and hers is shaped as an answer is, so a character that draws nothing is gone", async () => {
+    const reordering = `${SCRIPTED_GAP_SENTENCE}\u202e`;
+    expect(await gapSaid({ subject: SCRIPTED_SUBJECT, sentence: reordering })).toBe(
+      SCRIPTED_GAP_SENTENCE,
     );
   });
 });
 
-describe("the subject, narrowed to what this person wrote", () => {
-  test("comes back as their characters rather than the model's rendering of them", () => {
-    expect(questionSubjectInTheirWords("what about my Hiking Trips?", SCRIPTED_SUBJECT)).toBe(
-      "Hiking Trips",
-    );
-  });
-
-  test("reads through the punctuation between their words, and carries none of it out", () => {
-    // Whatever stands between two of their words is whatever they typed there, and this is a
-    // sentence the platform vouches for: their words cross, their punctuation does not.
-    expect(questionSubjectInTheirWords("anything on hiking-trips lately?", SCRIPTED_SUBJECT)).toBe(
-      "hiking trips",
-    );
-    expect(questionSubjectInTheirWords('about hiking "><" trips?', SCRIPTED_SUBJECT)).toBe(
-      "hiking trips",
-    );
-  });
-
-  test("keeps the marks on a word, so an accent and a script that needs them survive", () => {
-    // A paste from macOS arrives decomposed, and a mark that ended a word would take the rest of
-    // the word off with it — handing this person something else inside a sentence of ours.
-    const cases: readonly (readonly [string, string, string])[] = [
-      ["do I track café visits?", "café visits", "café visits"],
-      ["मेरे पानी की बोतल कहाँ है?", "पानी की बोतल", "पानी की बोतल"],
-      ["ما هي فواتيري؟", "فواتيري", "فواتيري"],
+describe("whether the subject is this person's own words", () => {
+  test("it is, through case, punctuation, quotation marks, marks on a letter and either form", () => {
+    const theirs: readonly (readonly [string, string])[] = [
+      ["what about my Hiking Trips?", SCRIPTED_SUBJECT],
+      ["anything on hiking-trips lately?", SCRIPTED_SUBJECT],
+      ['about hiking "><" trips?', SCRIPTED_SUBJECT],
+      ["how many 'hiking trips' did I take?", SCRIPTED_SUBJECT],
+      ["do I track cafe\u0301 visits?", "caf\u00e9 visits"],
+      ["मेरे पानी की बोतल कहाँ है?", "पानी की बोतल"],
+      ["ما هي فواتيري؟", "فواتيري"],
+      [A_QUESTION_WITH_NO_HOME, "many hiking trips did I take"],
     ];
-    for (const [question, subject, named] of cases) {
-      expect(questionSubjectInTheirWords(question, subject)).toBe(named);
+    for (const [question, subject] of theirs) {
+      const is = questionSubjectIsTheirs(question, subject);
+      expect({ question, subject, is }).toEqual({ question, subject, is: true });
     }
   });
 
-  test("reads past the quotation marks they put round the thing they asked about", () => {
-    // A quote closed the word rather than sat inside it, so *tickets’* and *tickets* are one
-    // word — and what comes back is still the run they typed, without the quotes round it.
-    expect(
-      questionSubjectInTheirWords("how many 'hiking trips' did I take?", SCRIPTED_SUBJECT),
-    ).toBe("hiking trips");
-  });
-
-  test("and matches a subject composed either way against a question composed the other", () => {
-    // A paste from macOS arrives decomposed and a model answers composed. The two are the same
-    // word, and what comes back is the one they typed rather than the one we normalized.
-    const decomposed = "do I track cafe\u0301 visits?";
-    expect(questionSubjectInTheirWords(decomposed, "caf\u00e9 visits")).toBe("cafe\u0301 visits");
-  });
-
-  test("and names nothing at all in a script that puts no spaces between words", () => {
+  test("it is not when built from words they used apart, ones they never wrote, or the question", () => {
     // Thai runs its words together, so a whole clause reads as one word and no subject inside it
-    // can be told apart from it. She says the sentence without naming the thing, which is true.
-    expect(questionSubjectInTheirWords("มีไก่กี่ตัว", "ไก่")).toBeNull();
-    expect(questionNoHomeSentence(null)).toBe(QUESTION_NO_HOME_FOR_THAT);
-  });
-
-  test("refuses a phrase built from words they used apart", () => {
-    expect(questionSubjectInTheirWords("how many trips did I take hiking?", SCRIPTED_SUBJECT)).toBe(
-      null,
-    );
-  });
-
-  test("refuses a word they did not write, and a longer word holding one they did", () => {
-    expect(questionSubjectInTheirWords(A_QUESTION_WITH_NO_HOME, "hiking boots")).toBeNull();
-    expect(questionSubjectInTheirWords("how many hikings?", "hiking")).toBeNull();
-  });
-
-  test("refuses a run long enough to be the question rather than the thing it asks about", () => {
-    // Their own words, and still not a subject: *anywhere for how many hiking trips did I take
-    // last year* names nothing, so the sentence is better off naming nothing outright.
-    expect(
-      questionSubjectInTheirWords(
-        A_QUESTION_WITH_NO_HOME,
-        "how many hiking trips did I take last year",
-      ),
-    ).toBe(null);
-    expect(
-      questionSubjectInTheirWords(A_QUESTION_WITH_NO_HOME, "many hiking trips did I take"),
-    ).toBe("many hiking trips did I take");
-  });
-
-  test("refuses a subject that is no words at all", () => {
-    for (const subject of ["", "   ", "…"]) {
-      expect({
-        subject,
-        named: questionSubjectInTheirWords(A_QUESTION_WITH_NO_HOME, subject),
-      }).toEqual({
-        subject,
-        named: null,
-      });
+    // can be told apart from it. A run as long as the question hands back the question itself.
+    const not: readonly (readonly [string, string])[] = [
+      ["how many trips did I take hiking?", SCRIPTED_SUBJECT],
+      [A_QUESTION_WITH_NO_HOME, "hiking boots"],
+      ["how many hikings?", "hiking"],
+      [A_QUESTION_WITH_NO_HOME, "how many hiking trips did I take last year"],
+      ["มีไก่กี่ตัว", "ไก่"],
+      [A_QUESTION_WITH_NO_HOME, ""],
+      [A_QUESTION_WITH_NO_HOME, "…"],
+    ];
+    for (const [question, subject] of not) {
+      const is = questionSubjectIsTheirs(question, subject);
+      expect({ question, subject, is }).toEqual({ question, subject, is: false });
     }
   });
 });
@@ -244,7 +188,13 @@ describe("a subject naming something they already have", () => {
     // strictly name. The check errs that way on purpose: a suppressed gap costs her the stronger
     // sentence, and a gap she should not have claimed is something untrue about their desk.
     const catalog = catalogued();
-    const held = [EXPENSES_CAPABILITY.label, "expenses", "notes from my doctor", "note paper"];
+    const held = [
+      EXPENSES_CAPABILITY.label,
+      "expenses",
+      "notes from my doctor",
+      "the notes from my doctor",
+      "note paper",
+    ];
     for (const named of held) {
       expect({ named, held: questionNamesSomethingOnThisDesk(catalog, named) }).toEqual({
         named,
@@ -258,7 +208,7 @@ describe("a subject naming something they already have", () => {
     // subject on its first word or its last, so *a grocery note list* is about a list and this
     // desk holds nowhere for one. Suppressing it would answer about Notes instead.
     const catalog = catalogued();
-    for (const named of ["grocery note list", "the expense report format"]) {
+    for (const named of ["grocery note list", "a grocery note list"]) {
       expect({ named, held: questionNamesSomethingOnThisDesk(catalog, named) }).toEqual({
         named,
         held: false,
@@ -268,7 +218,7 @@ describe("a subject naming something they already have", () => {
 
   test("and by a column of one, which is where a value lives", () => {
     const catalog = catalogued();
-    for (const named of ["amount", "Amount", "what"]) {
+    for (const named of ["amount", "Amount", "what", "the amount"]) {
       expect({ named, held: questionNamesSomethingOnThisDesk(catalog, named) }).toEqual({
         named,
         held: true,
@@ -313,7 +263,7 @@ describe("the call that names it", () => {
     // The rules `question-tool.ts` describes: every property required, no extra ones, and none
     // of the keywords OpenAI's strict `json_schema` mode refuses.
     const schema = zodSchema(questionNoHomeSchema).jsonSchema as Record<string, unknown>;
-    expect(schema.required).toEqual(["subject"]);
+    expect(schema.required).toEqual(Object.keys(questionNoHomeSchema.shape));
     expect(schema.additionalProperties).toBe(false);
     const emitted = JSON.stringify(schema);
     for (const keyword of ["oneOf", "minLength", "maxLength", "pattern", "format", "default"]) {
@@ -326,10 +276,8 @@ describe("the call that names it", () => {
     // whose handle the real spine rejects. Neither ends the question — the sentence is ours.
     const catalog = catalogued();
     const providers = [
-      namingProvider({ subject: "  " }),
       namingProvider({ nothing: true }),
       namingProvider(null),
-      namingProvider({ subject: "outdoor activities" }),
       namingProviderFaulting(new Error("the generation did not match its schema")),
     ];
     for (const provider of providers) {
@@ -337,30 +285,34 @@ describe("the call that names it", () => {
         { provider, signal: new AbortController().signal, catalog },
         { question: A_QUESTION_WITH_NO_HOME, openCapability: null },
       );
-      expect(said).toBe(QUESTION_NO_HOME_FOR_THAT);
+      expect(said).toBe(QUESTION_NO_HOME_UNNAMED);
     }
   });
 
-  test("and says it whatever is standing, because a hiccup is no evidence about a desk", async () => {
-    // The two ways there is nothing to name are not the same way. A generation that
-    // came back unreadable says nothing about where the subject lives, so the unnamed sentence
-    // stands even with a window open; words that were merely not theirs give way to that window.
+  test("in front of a window, gives way to it whenever it named nothing of theirs", async () => {
+    // A question naming nothing of its own is about the collection standing there, however the
+    // nothing came about: a generation that would not read, words that were not theirs, or none.
     const catalog = catalogued();
     const standing = { question: A_QUESTION_WITH_NO_HOME, openCapability: NOTES_CAPABILITY.id };
     const signal = new AbortController().signal;
+    const providers = [
+      namingProvider({ nothing: true }),
+      namingProviderFaulting(new Error("the generation did not match its schema")),
+      namingProvider({ subject: "outdoor activities", sentence: SCRIPTED_GAP_SENTENCE }),
+      namingProvider({ subject: "", sentence: SCRIPTED_GAP_SENTENCE }),
+    ];
+    for (const provider of providers) {
+      expect(await runQuestionNoHome({ signal, catalog, provider }, standing)).toBeNull();
+    }
+  });
 
-    expect(
-      await runQuestionNoHome(
-        { signal, catalog, provider: namingProvider({ nothing: true }) },
-        standing,
-      ),
-    ).toBe(QUESTION_NO_HOME_FOR_THAT);
-    expect(
-      await runQuestionNoHome(
-        { signal, catalog, provider: namingProvider({ subject: "outdoor activities" }) },
-        standing,
-      ),
-    ).toBeNull();
+  test("while their own words in front of a window still name the gap", async () => {
+    const provider = namingProvider({ subject: SCRIPTED_SUBJECT, sentence: SCRIPTED_GAP_SENTENCE });
+    const said = await runQuestionNoHome(
+      { provider, signal: new AbortController().signal, catalog: catalogued() },
+      { question: A_QUESTION_WITH_NO_HOME, openCapability: NOTES_CAPABILITY.id },
+    );
+    expect(said).toBe(SCRIPTED_GAP_SENTENCE);
   });
 
   test("a cancellation still ends the question rather than settling a sentence", async () => {
@@ -377,10 +329,38 @@ describe("the call that names it", () => {
     await expect(run).rejects.toThrow();
   });
 
+  test("in front of nothing, a blank subject has the platform's sentence: hers names a thing", async () => {
+    expect(await gapSaid({ subject: "", sentence: SCRIPTED_GAP_SENTENCE })).toBe(
+      QUESTION_NO_HOME_UNNAMED,
+    );
+  });
+
+  test("and words that were not theirs are weighed against the desk all the same", async () => {
+    // Her sentence names the thing in her own words either way, so what the model named is the
+    // subject left to check: an expense is something this desk already keeps.
+    expect(await gapSaid({ sentence: SCRIPTED_GAP_SENTENCE, subject: "expense" })).toBeNull();
+    expect(await gapSaid({ sentence: SCRIPTED_GAP_SENTENCE, subject: "outings" })).toBe(
+      SCRIPTED_GAP_SENTENCE,
+    );
+  });
+
   test("hands back nothing when the words name a collection they already have", async () => {
     const said = await runQuestionNoHome(
       {
-        provider: namingProvider({ subject: "expenses" }),
+        provider: namingProvider({ sentence: SCRIPTED_GAP_SENTENCE, subject: "expenses" }),
+        signal: new AbortController().signal,
+        catalog: catalogued(),
+      },
+      { question: "do I have anywhere for expenses?", openCapability: null },
+    );
+    expect(said).toBeNull();
+  });
+
+  test("and a sentence of hers that asks something does not turn that into a gap", async () => {
+    const asking = { subject: "expenses", sentence: "Shall I start keeping track of them?" };
+    const said = await runQuestionNoHome(
+      {
+        provider: namingProvider(asking),
         signal: new AbortController().signal,
         catalog: catalogued(),
       },
@@ -391,7 +371,7 @@ describe("the call that names it", () => {
 });
 
 describe("the ending", () => {
-  test("names the gap, and no answer of the model's is written for it", async () => {
+  test("is her sentence, and no answer is written for it", async () => {
     const run = await desk().run(
       scriptedProviderNaming(SCRIPTED_SUBJECT, looksAtNotes(), noHome()),
       A_QUESTION_WITH_NO_HOME,
@@ -400,14 +380,14 @@ describe("the ending", () => {
     expect(run.result).toEqual({
       ending: "no_home",
       steps: [expect.objectContaining({ collections: [NOTES_CAPABILITY.label] })],
-      answer: questionNoHomeSentence(SCRIPTED_SUBJECT),
+      answer: SCRIPTED_GAP_SENTENCE,
     });
     expect(run.answerPrompts).toHaveLength(0);
   });
 
   test("is named out of the question alone — no rows, no collections, no steps", async () => {
     // The one call that speaks here carries less than the answer's does on purpose: what comes
-    // back from it lands inside a sentence the platform vouches for.
+    // back from it is said to them, and it has no row to report and no collection to name.
     const run = await desk().run(
       scriptedProviderNaming(SCRIPTED_SUBJECT, looksAtNotes(), noHome()),
       A_QUESTION_WITH_NO_HOME,
@@ -510,7 +490,7 @@ describe("she cannot say it without having looked", () => {
     expect(run.steps[0]).toEqual(toldAgainStep(LOOK_BEFORE_NO_HOME));
     expect(run.result).toMatchObject({
       ending: "no_home",
-      answer: questionNoHomeSentence(SCRIPTED_SUBJECT),
+      answer: SCRIPTED_GAP_SENTENCE,
     });
   });
 

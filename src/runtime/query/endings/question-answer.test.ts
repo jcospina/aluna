@@ -302,9 +302,9 @@ describe("nothing but the results reaches the answer", () => {
     // The rows are what the question's payload budget already held down. What is left is the
     // rules, the fences, and per step one sentence and its two named lines — and four hundred
     // times the rows leaves every byte of it where it was. The ceiling is a sanity bound rather
-    // than a budget: a frame this size is a sixteenth of what one question may spend.
+    // than a budget: a frame this size is under a twelfth of what one question may spend.
     expect(frame(heavy)).toBe(frame(light));
-    expect(frame(light)).toBeLessThan(4096);
+    expect(frame(light)).toBeLessThan(5 * 1024);
   });
 
   test("but it does grow with the desk, the way the turn's own collections block does", () => {

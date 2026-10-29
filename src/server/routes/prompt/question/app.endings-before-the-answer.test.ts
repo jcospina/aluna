@@ -1,12 +1,12 @@
-// The three endings the model never writes, read where a person reads them.
+// The three endings that stop before the answer is written, read where a person reads them.
 //
-// A question can end on words no generation produced: a search that matched nothing, a desk that
-// holds nowhere for what was asked, and a budget of reads spent. All three stop before the answer
-// generation, which is what separates them from the other two endings — an answer, and a question
-// that could not be finished. `question-narration.ts`'s suites own the sentences and
-// `question-loop.ts`'s own the endings; what is proved here is the trip through the real prompt
-// path: each ending reaches the answer window as the whole of what she says, in place of an
-// answer that was never asked for.
+// A question can end without the answer generation: on the platform's words for a search that
+// matched nothing and for a budget of reads spent, and on the sentence a small call of its own
+// writes for a desk that holds nowhere for what was asked. That is what separates them from the
+// other two endings — an answer, and a question that could not be finished. The narration's and
+// the gap's suites own the sentences and `question-loop.ts`'s own the endings; what is proved here
+// is the trip through the real prompt path: each ending reaches the answer window as the whole of
+// what she says, in place of an answer that was never asked for.
 //
 // These ran through the developer-gated question exercise until it came down.
 
@@ -17,13 +17,13 @@ import {
   QUESTION_BUDGET_SPENT_SENTENCE,
   QUESTION_NOTHING_FOUND,
   QUESTION_STEP_BUDGET,
-  questionNoHomeSentence,
 } from "../../../../runtime/query/index.ts";
 import {
   catalogueWithRecords,
   EXPENSES_CAPABILITY,
   NOTES_CAPABILITY,
   NOTES_TABLE,
+  SCRIPTED_GAP_SENTENCE,
   SCRIPTED_SUBJECT,
 } from "../../../../runtime/query/question.test-support.ts";
 import {
@@ -105,7 +105,7 @@ describe("a search that matched nothing", () => {
 describe("a question this desk holds nowhere for", () => {
   const ASKED = `how many ${SCRIPTED_SUBJECT} did I take last year?`;
 
-  test("ends with the gap named in this person's own words, and nothing beside it", async () => {
+  test("ends with her sentence about the gap, and nothing beside it", async () => {
     const { events, fragments } = await askInTheWindow(
       askingApp(askingProvider({ gap: SCRIPTED_SUBJECT })),
       ASKED,
@@ -113,7 +113,7 @@ describe("a question this desk holds nowhere for", () => {
 
     // The whole frame rather than its text: an offer with a yes in it would be something this
     // ending shipped beside the sentence, and searching for the sentence would walk past it.
-    expect(fragments).toEndWith(renderAnswerWindowEnding(questionNoHomeSentence(SCRIPTED_SUBJECT)));
+    expect(fragments).toEndWith(renderAnswerWindowEnding(SCRIPTED_GAP_SENTENCE));
     expect(fragments).not.toContain(escapeHtml(NEVER_ASKED_FOR));
     expect(events.at(-1)).toMatchObject({ event: "done", data: "ok" });
   });
@@ -128,7 +128,7 @@ describe("a question this desk holds nowhere for", () => {
 
     // The window opened and the gap was reached, so the sweep below is over the stream it means.
     expect(fragments).toContain(ANSWER_WINDOW_ATTRIBUTE);
-    expect(saidInTheAnswerWindow(fragments).at(-1)).toBe(questionNoHomeSentence(SCRIPTED_SUBJECT));
+    expect(saidInTheAnswerWindow(fragments).at(-1)).toBe(SCRIPTED_GAP_SENTENCE);
     for (const control of ["<form", "<button", "<input", "<select", "<a ", "href", "onclick"]) {
       expect({ control, present: fragments.includes(control) }).toEqual({
         control,

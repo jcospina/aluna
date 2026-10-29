@@ -218,6 +218,9 @@ export const SCRIPTED_ANSWER = SCRIPTED_ANSWER_WRITTEN.answer;
  * question does not hold, so a suite naming it has to choose a question that does. */
 export const SCRIPTED_SUBJECT = "hiking trips";
 
+/** What the scripted gap call says, beside the subject it names. */
+export const SCRIPTED_GAP_SENTENCE = `I'm not keeping track of your ${SCRIPTED_SUBJECT} here yet.`;
+
 /** The example question, on a desk that holds nowhere for what it asks about. Here
  * rather than in either suite that asks it, because both derive it from the subject above. */
 export const A_QUESTION_WITH_NO_HOME = `how many ${SCRIPTED_SUBJECT} did I take last year?`;
@@ -276,7 +279,7 @@ export function providerResolving(...values: readonly unknown[]): Provider {
       if (prompt.startsWith(QUESTION_ANSWER_PROMPT_PREFIX))
         return resolving(SCRIPTED_ANSWER_WRITTEN);
       if (prompt.startsWith(QUESTION_NO_HOME_PROMPT_PREFIX))
-        return resolving({ subject: SCRIPTED_SUBJECT });
+        return resolving({ sentence: SCRIPTED_GAP_SENTENCE, subject: SCRIPTED_SUBJECT });
       const value = values[Math.min(next, values.length - 1)];
       next += 1;
       return resolving(value);
@@ -396,7 +399,8 @@ function scriptedProviderSpeaking(
       return { kept: answerPrompts, scripted: spoken.written ?? SCRIPTED_ANSWER_WRITTEN };
     }
     if (prompt.startsWith(QUESTION_NO_HOME_PROMPT_PREFIX)) {
-      return { kept: subjectPrompts, scripted: { subject: spoken.subject ?? SCRIPTED_SUBJECT } };
+      const subject = spoken.subject ?? SCRIPTED_SUBJECT;
+      return { kept: subjectPrompts, scripted: { sentence: SCRIPTED_GAP_SENTENCE, subject } };
     }
     const decided = decisions[Math.min(next, decisions.length - 1)];
     next += 1;

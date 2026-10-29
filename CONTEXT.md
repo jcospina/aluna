@@ -939,15 +939,15 @@ own sentence for a search that matches no option
 
 **Nowhere for it**:
 What this desk has for a subject no collection on it covers, and the ending Aluna reaches by
-saying so and stopping: *"You don't have anywhere for hiking trips yet — you can ask me to
-make one."* She names the subject in the person's own words and offers no control, because an
-offer with a yes is a proposal, and Aluna has no proposal surface (ADR-0008). Earned by
+saying so in her own words and stopping: *"I'm not keeping track of your hiking trips here
+yet, but you can ask me to start."* She offers no control, because an offer with a yes is a
+proposal, and Aluna has no proposal surface (ADR-0008). Earned by
 looking rather than shrugging: a question that searched and matched **nothing matched** keeps
 that weaker, truer ending; a subject naming anything the desk already holds — a collection, what
 it calls one record, a column, one of a column's declared values — is refused; and so is a
 question naming nothing of its own asked in front of an open window, which is about the
 collection standing there. The code calls it `no_home`, and ADR-0008 calls it the gap.
-_Avoid_: no such capability, no table for that, unsupported, not tracked, want me to build it?
+_Avoid_: no such capability, no table for that, unsupported, want me to build it?
 
 **Swap target**:
 The named place a server-addressed swap lands — the stable id `commit` and `fragment`

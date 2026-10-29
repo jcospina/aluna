@@ -91,8 +91,9 @@ strict structured outputs. The platform keeps a nomination only when five checks
 The platform links the first free occurrence of `says` that stands as words of its own,
 else the first free one. It drops any other nomination without a word, and the answer is
 spoken either way. Only an answered question carries links. A question that ends on
-**nothing matched** or **nowhere for it**, whose every statement failed, or that spent its
-step budget ends in the platform's own sentence, which links nothing.
+**nothing matched**, whose every statement failed, or that spent its step budget ends in
+the platform's own sentence, and one that ends on **nowhere for it** in a sentence written
+from the question alone. Neither links anything.
 
 The prose never carries an id. The prompt tells the model so, and the platform removes from
 the answer every record id the steps returned before it is shown.

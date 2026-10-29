@@ -26,7 +26,6 @@ export {
   QUESTION_COULD_NOT_FINISH,
   QUESTION_NOTHING_FOUND,
   questionLabelNarration,
-  questionNoHomeSentence,
   questionResultLinks,
   questionResultSentence,
   questionSawItThrough,

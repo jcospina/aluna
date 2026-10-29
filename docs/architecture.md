@@ -847,9 +847,9 @@ capabilities read by the steps that returned the id holds it, and that capabilit
 has a record view.
 
 A nowhere claim made after reading ends as "nothing found" when the steps matched
-nothing. Otherwise one more call names the missing subject, cut down to the user's
-own words. When those words name something already on the desk, or nothing at all
-while a window is open, the question is answered instead.
+nothing. Otherwise one more call names the missing subject and writes her sentence about
+it, from the question alone. When the subject names something already on the desk, or
+nothing of the user's own while a window is open, the question is answered instead.
 
 ```mermaid
 flowchart TD
@@ -870,7 +870,7 @@ flowchart TD
     LT -->|"nowhere for it, after reading"| NH
     LT -->|"anything else"| BS["Fixed sentence: could not work it out"]
     NH -->|no| H
-    NH -->|yes| K["One call names the missing subject"]
+    NH -->|yes| K["One call names the missing subject and writes her sentence"]
     K -->|"names something on the desk, or nothing with a window open"| H
     K --> KN["Nowhere for it"]
     H -->|yes| I["Answer call: sentence and checked answer links"]

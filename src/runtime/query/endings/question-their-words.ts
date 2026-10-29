@@ -1,21 +1,20 @@
-// A run of words as this person wrote it.
+// Whether a run of words is one this person wrote.
 //
-// Two callers, two jobs. The gap sentence narrows a subject the model named down to words the
-// person actually typed, so the one sentence with a word of the model's inside it carries theirs
-// instead. `question-no-home.ts` then uses the same notion of a word to ask whether a subject
-// names something the desk already holds.
+// Two callers, two jobs. The gap asks whether the subject the model named is a run of the
+// person's own words, which decides whether it gives way to a window standing open.
+// `question-no-home.ts` then uses the same notion of a word to ask whether a subject names
+// something the desk already holds.
 //
-// Their words cross and their punctuation does not: what stands between two of their words is
-// whatever they typed there, and a sentence the platform vouches for carries their word
-// characters and our single space between them, never a run of theirs. So the marks on a word
-// stay on it — *café* is one word in either normal form — while a quote around it does not.
+// A word is matched on a key: composed, folded, and without the quote that closed it, so *café*
+// is one word in either normal form, a paste from macOS matches a model's composed answer, and a
+// word inside quotation marks matches the word itself.
 //
 // A leaf: it imports nothing.
 
 /** A word as a person writes one, with the marks and the apostrophes inside it kept whole. */
 const WORD = /[\p{L}\p{N}][\p{L}\p{N}\p{M}'’]*/gu;
 
-/** A quote that closed a word rather than sat inside it, which is theirs to type and not to name. */
+/** A quote that closed a word rather than sat inside it, which is punctuation and not the word. */
 const CLOSING_QUOTE = /['’]+$/;
 
 /**
@@ -25,24 +24,11 @@ const CLOSING_QUOTE = /['’]+$/;
  */
 export const MOST_SUBJECT_WORDS = 6;
 
-interface WordWritten {
-  readonly written: string;
-  readonly word: string;
-}
-
-/**
- * The words of `text`, each paired with the key it is matched on: composed, folded, and without
- * the quote that closed it, so a paste from macOS and a word inside quotation marks both match.
- * Only the key is composed. What is written comes back in the code points they typed, because a
- * sentence that normalized their word would be handing them a word they did not write.
- */
-function wordsOf(text: string): readonly WordWritten[] {
-  return [...text.matchAll(WORD)].map((match) => {
-    // A quote that closed the word is punctuation, and punctuation does not cross: a sentence
-    // reading *anywhere for hiking trips' yet* would be carrying a mark of theirs, not a word.
-    const written = match[0].replace(CLOSING_QUOTE, "");
-    return { written, word: written.normalize("NFC").toLowerCase() };
-  });
+/** The key each of `text`'s words is matched on. */
+function wordsOf(text: string): readonly string[] {
+  return [...text.matchAll(WORD)].map((match) =>
+    match[0].replace(CLOSING_QUOTE, "").normalize("NFC").toLowerCase(),
+  );
 }
 
 /** Where one run of words sits inside another, counted in words rather than in characters. */
@@ -53,8 +39,6 @@ export interface WordRun {
   readonly words: number;
   /** How many words `text` holds in all. */
   readonly of: number;
-  /** The run as `text` wrote it, their word characters and our space between them. */
-  readonly written: string;
 }
 
 /**
@@ -66,27 +50,20 @@ export function wordRunIn(text: string, run: string): WordRun | null {
   const named = wordsOf(run);
   if (named.length === 0) return null;
   for (let from = 0; from + named.length <= words.length; from += 1) {
-    const found = words.slice(from, from + named.length);
-    if (named.every((word, index) => found[index]?.word === word.word)) {
-      return {
-        from,
-        words: named.length,
-        of: words.length,
-        written: found.map((written) => written.written).join(" "),
-      };
+    if (named.every((word, index) => words[from + index] === word)) {
+      return { from, words: named.length, of: words.length };
     }
   }
   return null;
 }
 
 /**
- * The subject as this person wrote it, or `null` when they did not write it — a run long enough
- * to be the question rather than the thing it asks about included.
+ * Whether the subject is a run of words this person wrote — and not one long enough to be the
+ * question rather than the thing it asks about.
  */
-export function questionSubjectInTheirWords(question: string, subject: string): string | null {
+export function questionSubjectIsTheirs(question: string, subject: string): boolean {
   const run = wordRunIn(question, subject);
-  if (run === null || run.words > MOST_SUBJECT_WORDS) return null;
-  return run.written;
+  return run !== null && run.words <= MOST_SUBJECT_WORDS;
 }
 
 /** Whether `run`'s words sit anywhere inside `text`'s. */

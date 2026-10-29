@@ -20,7 +20,10 @@ import {
   QUESTION_TURN_PROMPT_PREFIX,
   READ_ONLY_QUERY_TOOL,
 } from "../../../../runtime/query/index.ts";
-import { stagedGeneration } from "../../../../runtime/query/question.test-support.ts";
+import {
+  SCRIPTED_GAP_SENTENCE,
+  stagedGeneration,
+} from "../../../../runtime/query/question.test-support.ts";
 
 /** One statement a fake model asks for, in the shape a turn's decision carries it. */
 export interface StagedQuestionRead {
@@ -106,7 +109,7 @@ export function makeQuestionProvider(input: StagedQuestionInput): {
     if (prompt.startsWith(QUESTION_TURN_PROMPT_PREFIX)) return turn();
     if (prompt.startsWith(QUESTION_ANSWER_PROMPT_PREFIX)) return answer();
     if (prompt.startsWith(QUESTION_NO_HOME_PROMPT_PREFIX) && input.gap !== undefined) {
-      return { subject: input.gap };
+      return { sentence: SCRIPTED_GAP_SENTENCE, subject: input.gap };
     }
     if (prompt.startsWith(INTENT_RESOLVER_PROMPT_PREFIX)) return classification(prompt);
     return undefined;

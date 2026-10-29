@@ -17,7 +17,6 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import type { CapabilitySpec, SpecField } from "../../../registry/index.ts";
 import { validSpec } from "../../../registry/spec/spec.test-support.ts";
-import { QUESTION_NO_HOME_FOR_THAT, questionNoHomeSentence } from "../loop/question-narration.ts";
 import {
   A_QUESTION_WITH_NO_HOME,
   answers,
@@ -32,6 +31,7 @@ import {
   reads,
   registerCapability,
   SCRIPTED_ANSWER,
+  SCRIPTED_GAP_SENTENCE,
   SCRIPTED_SUBJECT,
   scriptedProvider,
   scriptedProviderNaming,
@@ -205,7 +205,7 @@ describe("a question the open window could answer is answered from it", () => {
     expect(run.result).toMatchObject({ ending: "answered", answer: SCRIPTED_ANSWER });
   });
 
-  test("while the same question asked in front of nothing keeps the unnamed gap", async () => {
+  test("while the same question asked in front of nothing keeps the gap", async () => {
     // The control the test above needs rather than a pin of its own: both ran the same script and
     // the same words, and the window standing open is the whole of what differed.
     const run = await desk().run(
@@ -213,7 +213,7 @@ describe("a question the open window could answer is answered from it", () => {
       THE_ONES_I_ADDED,
     );
 
-    expect(run.result).toMatchObject({ ending: "no_home", answer: QUESTION_NO_HOME_FOR_THAT });
+    expect(run.result).toMatchObject({ ending: "no_home", answer: SCRIPTED_GAP_SENTENCE });
   });
 });
 
@@ -226,7 +226,7 @@ describe("the gap is what is left when neither check can hold it", () => {
 
     expect(run.result).toMatchObject({
       ending: "no_home",
-      answer: questionNoHomeSentence(SCRIPTED_SUBJECT),
+      answer: SCRIPTED_GAP_SENTENCE,
     });
     // The ordering this is about: the looking happened, and the naming came after it.
     expect(run.steps.map((step) => step.collections)).toEqual([[NOTES_CAPABILITY.label]]);

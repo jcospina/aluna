@@ -303,7 +303,7 @@
   "src/server/routes/lifecycle/app.deletion-ending.test.ts": 35,
   "src/server/routes/prompt/question/app.a-cancelled-question-says-nothing.test.ts": 51,
   "src/server/routes/prompt/app.a-prompt-from-somewhere-else.test.ts": 45,
-  "src/server/routes/prompt/question/app.endings-the-model-never-writes.test.ts": 162,
+  "src/server/routes/prompt/question/app.endings-before-the-answer.test.ts": 162,
   "src/server/routes/prompt/app.prompt-admission.test.ts": 187,
   "src/server/routes/prompt/app.prompt-bar-messages.test.ts": 101,
   "src/server/routes/prompt/question/app.question-answered-in-the-window.test.ts": 1316,

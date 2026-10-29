@@ -152,14 +152,16 @@ media types, and an ordinary step reads every other field's values. The model ap
 its own knowledge of language, that "mother", "mum" and "mom" are one idea, inside the
 SQL it writes. Aluna keeps no embeddings and no other semantic index.
 
-When nothing on the desk can hold the subject, she names the gap and stops: the person
-has nowhere for it yet and can ask her to make one. That ending is **nowhere for it**.
-The sentence is the platform's, and the model only picks which of the person's own words
-name the subject. The platform refuses the gap before any collection has been read, and
-answers the question instead when the words name something the desk already holds, or
-name nothing while a window stands. She offers no confirmation control, because an offer
-with a yes is a proposal and Aluna has no proposal surface. Making the capability is one
-ordinary sentence away in the prompt bar.
+When nothing on the desk can hold the subject, she says so and stops: the person is not
+tracking it here yet and can ask her to start. That ending is **nowhere for it**. A small
+call of its own writes her sentence from the question alone, so it has no row to report
+and no collection to name, and names the subject beside it. The platform decides whether
+there is a gap at all. It refuses one before any collection has been read, and answers the
+question instead when the subject names something the desk already holds, or names nothing
+while a window stands. Her sentence is said only once that is settled, and one that is
+blank or asks something gives way to the platform's own. She offers no confirmation
+control, because an offer with a yes is a proposal and Aluna has no proposal surface.
+Making the capability is one ordinary sentence away in the prompt bar.
 
 ### The answer window
 
@@ -256,6 +258,17 @@ makes it show. Anything that weakens the nothing-matched rule removes the last d
 The rule leans toward nothing matched: a statement whose plan the platform cannot read,
 or a match that hands back what an empty search would, ends as nothing matched, which is
 weaker than the truth and never a false figure.
+
+One collection's rows, or the lack of any, say nothing about another's. So before it
+answers, the turn is told to read each collection whose records are what was asked about,
+in the sense it was asked, and to count each apart, in a read of its own or grouped by
+collection, since a compound of separate counts is a plan the platform cannot read. A
+figure is never two collections added together, so *how often did I exercise* over rides
+and hikes is two figures, each saying what it counts. When one of those reads matched
+nothing and another returned rows, the question ends in her words, not in the platform's
+sentence. Those words are held to the answer's rules alone: she may say she could not find
+it, and she may not say the person does not have it. That is the price of the extra reads:
+more questions that matched nothing somewhere end outside what the code can prove.
 
 Nothing bounds a statement in time. Ten steps, cancellation and the per-generation
 deadline on each model call are the only limits on how long an answer takes. A

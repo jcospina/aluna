@@ -10,12 +10,11 @@
 // question is ADR-0003's five-minute per-generation deadline, inherited because the SDK leaves
 // handles pending on a fault.
 //
-// The sentence a person reads is Aluna's (ADR-0001), in `question-narration.ts`.
-//
+// The sentence a person reads is Aluna's (ADR-0001), the platform's in `question-narration.ts`.
 // An answered question costs one generation more than it took steps: `question-answer.ts` writes
 // what she found, out of the steps alone. It runs no statement, so it spends no read. A question
-// that matched no rows costs none: nothing-found is the platform's own sentence. So is the gap, bar
-// the one call that names what there is nowhere for, in this person's own words.
+// that matched no rows costs none: nothing-found is the platform's own sentence. The gap costs one
+// small call of its own, which names what there is nowhere for and writes her sentence about it.
 
 import { assertNever } from "../../../platform/errors.ts";
 import type { AnswerRecordLink } from "../../../server/http/index.ts";
@@ -55,12 +54,12 @@ export type QuestionLoopResult =
       readonly links: readonly AnswerRecordLink[];
     }
   | {
-      /** The platform's own endings. Nothing-found is not found-nothing, and neither is a question
-       * whose every statement failed: she never searched, so she may not report a search. Nor is
-       * either of them the gap, which is about the desk rather than about one search of it. */
+      /** The endings the answer never writes. Nothing-found is not found-nothing, and neither is a
+       * question whose every statement failed: she never searched, so she may not report a search.
+       * Nor is either of them the gap, which is about the desk rather than about one search of it. */
       readonly ending: Exclude<QuestionEnding, "budget_spent" | "answered">;
       readonly steps: readonly QuestionStep[];
-      /** The platform's sentence for that ending. */
+      /** The sentence for that ending: the platform's, or for the gap her own once it is settled. */
       readonly answer: string;
     }
   | { readonly ending: "budget_spent"; readonly stepsTaken: number };

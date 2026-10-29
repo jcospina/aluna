@@ -1,4 +1,4 @@
-// Everything Aluna says while she is reading, and every ending but the answer's (ADR-0001).
+// Everything Aluna says while she is reading, and every ending the platform words (ADR-0001).
 //
 // The model picks the kind of step from a closed set; the words are the platform's, and this
 // file is the only place they exist — nothing copies them, the suite included. So she cannot
@@ -11,8 +11,8 @@
 // out to do; a statement too large to carry keeps no call, so it falls back like any other
 // step with no label to read.
 //
-// The gap is the one sentence with a word of the model's inside it, and the word is narrowed
-// to a run this person wrote by `question-their-words.ts`. `question-no-home.ts` runs the call.
+// The gap is the one ending a small call of its own writes, from the question alone, in
+// `question-no-home.ts`; what is here is the sentence the platform says when that call's will not do.
 
 import { assertNever } from "../../../platform/errors.ts";
 import type { AnswerRecordLink } from "../../../server/http/index.ts";
@@ -112,22 +112,15 @@ export function questionNothingFoundSentence(steps: readonly QuestionStep[]): st
   return `Looking at your ${wordList(collections)}, ${QUESTION_NOTHING_FOUND}`;
 }
 
-/** The gap sentence around whatever it names. No control comes with it and none
- * may: an offer with a yes is a proposal, and the implicit loop owns that surface. */
-function noHomeSentence(subject: string): string {
-  return `You don't have anywhere for ${subject} yet — you can ask me to make one.`;
-}
-
 /**
- * What she says when the words she was handed were not this person's own, and what a naming call
- * that came back unreadable falls back to. Naming nothing is the honest end of the same sentence.
+ * The gap, said by the platform when the naming call's own sentence will not do: unreadable,
+ * beside no subject the desk could be weighed against, or saying nothing, running away or asking
+ * something. It names nothing, which is the honest end of a sentence about an unsettled subject.
+ * No control comes with it and none may: an offer with a yes is a proposal, and the implicit loop
+ * owns that surface.
  */
-export const QUESTION_NO_HOME_FOR_THAT = noHomeSentence("that");
-
-/** The gap, naming the subject when the narrowing below gave one back and nothing when it did not. */
-export function questionNoHomeSentence(named: string | null): string {
-  return named === null ? QUESTION_NO_HOME_FOR_THAT : noHomeSentence(named);
-}
+export const QUESTION_NO_HOME_UNNAMED =
+  "I'm not keeping track of that here yet — you can ask me to start.";
 
 /**
  * The one sentence a finished question ends on, whichever ending it reached. A spent budget has
@@ -157,8 +150,8 @@ export function questionSawItThrough(ending: QuestionEnding): boolean {
   }
 }
 
-/** The links that sentence carries. Only an answered question has any: every other ending is the
- * platform's own sentence, and it names no record (ADR-0010). */
+/** The links that sentence carries. Only an answered question has any: no other ending's sentence
+ * names a record (ADR-0010). */
 export function questionResultLinks(result: QuestionLoopResult): readonly AnswerRecordLink[] {
   return result.ending === "answered" ? result.links : [];
 }
