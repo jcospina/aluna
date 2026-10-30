@@ -33,6 +33,34 @@ across 15 million PubMed abstracts and found a sharp post-2022 rise in *delve*,
 *intricate*, *meticulously*, *realm*, *pivotal* and *showcasing*. Vocabulary is
 the smallest of these problems and attracts most of the attention.
 
+## Write to the person reading
+
+Write the way you would explain the thing out loud to the person who will read
+it. Tell them what they can do and what happens when they do it, in words they
+would use themselves, and bring in the project's own names only once they know
+what those names point to.
+
+> A capability is one subject's records together with everything that works on
+> them. Type *track the books I read* and Aluna builds Books. *add the date I
+> finished* changes it.
+>
+> You can type "track the books I read" and Aluna will build you a place to keep
+> your books. If you want to change something or add more to it, just ask.
+
+The first version passed every other rule in this document, and it still
+reads as written for a machine. It defines a term by its category before the
+reader has any reason to care. It makes a quoted prompt the subject of a clipped
+clause, so no person in the sentence does anything. And it names the result with
+an internal noun, Books, where the reader wanted to hear what they get. The
+second says who acts, what they type and what comes back. Jiang and Hyland
+measured the same gap from the other side: ChatGPT's essays made fewer of the
+moves that speak to a reader directly.
+
+In practice that means "you" for the reader, contractions where you would say
+them aloud, a prompt or command in quotes inside an ordinary sentence, and an
+internal term introduced after the thing it names: "Aluna calls each thing it
+builds a capability."
+
 ## Put the actor in the subject and the action in the verb
 
 Joseph Williams named the central disease: nominalization, which turns a verb
@@ -217,7 +245,8 @@ back.
 ## The editing loop
 
 Read it aloud. Empty sentences and broken rhythm are audible before they are
-visible.
+visible. Read it as if the person it is for were sitting across from you, and
+rewrite any sentence you would never say to them.
 
 For each paragraph, ask what it gives the reader that the one before it did not.
 Delete it when the answer is nothing.
