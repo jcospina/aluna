@@ -2,6 +2,8 @@
 
 **TL;DR:** Aluna is a self-building application where you can turn intent into working capabilities. [How to run it](#how-to-run-it)
 
+[![Watch the demo](https://raw.githubusercontent.com/jcospina/aluna/main/public/images/poster.png)](https://youtu.be/JnA5snkqRck)
+
 Aluna starts out empty. It doesn't come with anything built in for books, recipes, expenses or anything else you might want to keep track of. You tell it what you need, and it builds it for you while it's running.
 
 You can type "track the books I read" and Aluna will build you a place to keep your books, with a form for adding them, a search and a card for each book. If you want to change something or add more to it, just ask, for example "add the date I finished". You can also ask questions about what you've saved, like "which books did I finish this year?", and Aluna will look through your records and answer. You never write code or design a database, and nothing needs a restart.
