@@ -1,6 +1,8 @@
 # Aluna
 
-**TL;DR:** Aluna is a self-building application where you can turn intent into working capabilities. [How to run it](#how-to-run-it)
+**TL;DR:** Aluna is a self-building application where you can turn intent into working capabilities. 
+
+**Watch the demo**
 
 [![Watch the demo](https://raw.githubusercontent.com/jcospina/aluna/main/public/images/poster.png)](https://youtu.be/JnA5snkqRck)
 
